@@ -63,7 +63,10 @@ A no-error theorem alone does not establish termination or functional correctnes
 
 ```text
 cases/<case>/
-  source/            Original C, required headers and upstream licenses
+  source/
+    Program.c        C compilation unit supplied to the exporter
+    LICENSE          Upstream license, when applicable
+    ...              Program-specific dependencies
   model/
     Source.v         CompCert-generated Csyntax AST
     Execution.v      Entry and execution interface using CompCert Csem/Cexec
@@ -95,7 +98,7 @@ Export a model and its pending obligations:
 
 ```sh
 python3 scripts/compcert-align.py export \
-  --source cases/sum3/source/sum3.c --function f_sum3 \
+  --source cases/sum3/source/Program.c --function f_sum3 \
   --namespace Sum3 --output _build/sum3
 ```
 
@@ -124,3 +127,5 @@ Missing or inconsistent evidence remains `partial`; it is never replaced with ze
 The [paper draft](paper/README.md) and [PDF](paper/main.pdf) are retained alongside the unchanged original archive. Third-party notices remain with the source files. The [source-export record](reports/source-validation.json), [recorded module checks](reports/validation.json) and [library-interface inventory](reports/ast-library-audit.json) document their respective scopes.
 
 The 2026-11-03 repository organization standardized the model entry filename as `Execution.v` and retained only the four cases above. No CBMC or Rocq verification was run for that change. Recorded check logs and theorem output remain unchanged historical evidence, so they may contain former module names or cases. Current manifests list the renamed files; they do not certify a fresh kernel check. Archived cost records retain their original scopes, including earlier cases.
+
+Corresponding artifacts share filenames across cases. Proof files share names when they serve the same role; case-specific lemmas and dependencies keep descriptive names. Missing proofs or licenses are not replaced with empty placeholders. Source renaming leaves C contents and generated ASTs unchanged; historical provenance retains original source paths. No verification was run for these naming changes.
