@@ -1,0 +1,39 @@
+generated_no_error =
+fun (args : list Values.val) (m : Memory.Mem.mem) 
+  (PRE : Core.sum3_pre args) (t : Events.trace) (s : Csem.state)
+  (PATH : Smallstep.star generated_step tt (Execution.entry args m) t s) =>
+let H :
+  forall (args0 : list Values.val) (m0 : Memory.Mem.mem) 
+    (t0 : Events.trace) (s0 : Csem.state),
+  Smallstep.star generated_step tt (Execution.entry args0 m0) t0 s0 ->
+  Smallstep.star Csem.step Execution.ge (Execution.entry args0 m0) t0 s0 :=
+  fun (args0 : list Values.val) (m0 : Memory.Mem.mem) 
+    (t0 : Events.trace) (s0 : Csem.state) =>
+  match whole_execution args0 m0 t0 s0 with
+  | conj x _ => x
+  end in
+let PATH0 :
+  Smallstep.star Csem.step Execution.ge (Execution.entry args m) t s :=
+  H args m t s PATH in
+Core.sum3_all_reachable_no_error args m PRE t s PATH0
+     : forall (args : list Values.val) (m : Memory.Mem.mem),
+       Core.sum3_pre args ->
+       forall (t : Events.trace) (s : Csem.state),
+       Smallstep.star generated_step tt (Execution.entry args m) t s ->
+       ~ Execution.source_error s
+
+Arguments generated_no_error args%_list_scope m _ t s _ _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

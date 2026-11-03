@@ -1,0 +1,129 @@
+{
+  "status": "completed",
+  "compcert_version": "3.17",
+  "execution_backend": "Installed official compcert.Csem and compcert.Cexec for every case",
+  "models": {
+    "identity": "cases/identity/model/Execution.v",
+    "sum3": "cases/sum3/model/Execution.v",
+    "lowpass": "cases/lowpass/model/ExecutionModel.v",
+    "addition": "cases/addition/model/Execution.v",
+    "addition_store": "cases/addition_store/model/Execution.v",
+    "bubble_sort": "cases/bubble_sort/model/Execution.v",
+    "pid": "cases/pid/model/ExecutionModel.v",
+    "attitude_trig": "cases/attitude_trig/model/ExecutionModel.v"
+  },
+  "source_preservation": {
+    "original_c_and_source_dependencies_unchanged": true,
+    "exported_csyntax_unchanged": true,
+    "reexport_checks": [
+      {
+        "case": "identity",
+        "c_sha256": "91816ee8a36e30781f24f5b3f439f101ccc110cda8bb65f2126dda9329aee45c",
+        "ast_sha256": "28ffaa2ee47621032cc82df9886df98ca67245b11f4815dae2543a8f35a42256",
+        "regenerated_ast_equal_ignoring_source_path": true,
+        "ast_unchanged": true
+      },
+      {
+        "case": "sum3",
+        "c_sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157",
+        "ast_sha256": "6548f669e66da2125e65e632ee57dafeb1200eeb1da42b7a2e1d84826e4e4bbb",
+        "regenerated_ast_equal_ignoring_source_path": true,
+        "ast_unchanged": true
+      },
+      {
+        "case": "lowpass",
+        "c_sha256": "5c24dc36a782db5b15c475424857e1d6eb2b6c1bccdd3c334cebb1698cf640cf",
+        "ast_sha256": "f78a1f60dcd98c400b083b630334213f95a0da28c8e673081ec70ad75d8c9fb0",
+        "regenerated_ast_equal_ignoring_source_path": true,
+        "ast_unchanged": true
+      },
+      {
+        "case": "pid",
+        "c_sha256": "46ba650fc8d5c6a52d1feb60cfe789ad1fc0e8d23088cc23451229d4e83ae770",
+        "ast_sha256": "6444f049b0fdd22f3f8f7e748977e44b26a6609042fa1e58dafaf133ac850b88",
+        "regenerated_ast_equal_ignoring_source_path": true,
+        "ast_unchanged": true
+      },
+      {
+        "case": "attitude_trig",
+        "c_sha256": "f601611674b05104dcb62861a18b960ba9e724383f9da1f211c93bdca339d958",
+        "ast_sha256": "c446c43662219994e3cf3a2df0d8044003b15d1065cd4f2b1061c073750c807a",
+        "regenerated_ast_equal_ignoring_source_path": true,
+        "ast_unchanged": true
+      },
+      {
+        "case": "strict",
+        "c_sha256": "716301b688c52e01304c2617b79a47b885787a2d6153def437f5c6a2e84d067a",
+        "ast_sha256": "662c1287b3cec8c3ad83e24f71957952ffa2e33b479f5a862877f18df1128033",
+        "regenerated_ast_equal_ignoring_source_path": true,
+        "ast_unchanged": true
+      }
+    ]
+  },
+  "official_library_sha256": {
+    "cfrontend/Csem.v": "900ff86e8dd857f41adb29d386fd270bc59c64a658854316bc79403ce84f0cb8",
+    "cfrontend/Cexec.v": "8d4efcc8b2c1b4c18d843251ab3f76adcaca89bf1c17eb3cc0254acc2dcdabcb",
+    "common/Events.v": "24a7c5c76b8e908654c11303af7f81666e0b00325e4ab78502a98c0cbe2c017f",
+    "common/Memory.v": "759aae974cd85f7a35e8ed43780bc7826720f0064a35b972e864eb4aea496541",
+    "lib/Floats.v": "f8a891fe148786032b01725bf3760b4b1e4327d9321cdb20842c7d1093f84956",
+    "lib/Integers.v": "0240ddc6b42cae50cc981ae415e301e378bd0a76d4a3e326ec29294ed860c8cb",
+    "compcert.config": "669735e32204baf9a928cd481117b8cc721a1f8e4b43e6b558f9a31e63187aef"
+  },
+  "memcpy": {
+    "runtime": "Library.do_external_function delegates byte copying to official Cexec.do_ef_memcpy(n,1)",
+    "c_ast_rewrite": false,
+    "c_library_interface": "Original three arguments and destination-pointer return preserved",
+    "compatibility_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+    "theorem_scope": "All raw arguments, memories and worlds at the actual fixed memcpy signature; equality of optional complete callback results preserves success and failure",
+    "official_semantics_theorem": "FiveShared.compcert_libc.Library.memcpy_spec_is_official",
+    "byte_alignment": "1; no new float-alignment requirement",
+    "overlap": "Retains the original ordinary-memcpy specification disjointness guard; does not silently use the broader identical-region allowance of the builtin",
+    "legacy_reference": "legacy_do_external_function is used only in correspondence proofs, never by transitions"
+  },
+  "external_environment": {
+    "contract": "FiveShared.compcert_libc.Library.environment",
+    "scope": "Ordinary external functions remain the official Events.external_functions_sem parameter. Generic correspondence theorems for the shared engine, PID and trig explicitly quantify a compatible external environment; this is a theorem premise, not a new global Axiom or an implementation of Linux/libc.",
+    "numeric_or_memory_input_domain_restriction": false
+  },
+  "proof_status": {
+    "identity": "existing Csem no-error certificate retained",
+    "sum3": "existing all-reachable no-error retained",
+    "lowpass": "existing all-reachable no-error retained",
+    "addition": "all-reachable no-error and whole execution correspondence ported to official Csem/Cexec without the external-environment premise",
+    "addition_store": "whole-model correspondence under external contract; full no-error still incomplete",
+    "bubble_sort": "whole-model correspondence under external contract; full no-error still incomplete",
+    "pid": "whole-model correspondence under external contract; full no-error still incomplete",
+    "attitude_trig": "whole-model correspondence under external contract; full no-error still incomplete"
+  },
+  "verification": {
+    "compiled_modules": 60,
+    "independent_kernel_check": true,
+    "no_target_module_dependency": true,
+    "new_admitted_or_global_axiom": false
+  },
+  "alignment_issues": [
+    {
+      "id": "OFFICIAL-001",
+      "problem": "Five models imported project-owned Csem/Cexec copies",
+      "status": "resolved"
+    },
+    {
+      "id": "MEMCPY-002",
+      "problem": "Official builtin has different arity and return value",
+      "status": "resolved",
+      "evidence": "Adapter and kernel-checked optional-result equality"
+    },
+    {
+      "id": "MEMCPY-003",
+      "problem": "Direct builtin substitution could change alignment/overlap behavior",
+      "status": "resolved",
+      "evidence": "Byte alignment 1 and proven original guard preservation"
+    },
+    {
+      "id": "ENV-004",
+      "problem": "Official external semantics is abstract, not the project concrete definition",
+      "status": "resolved",
+      "evidence": "Explicit quantified environment contract in the official correspondence theorems"
+    }
+  ]
+}

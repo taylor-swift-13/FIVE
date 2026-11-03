@@ -1,0 +1,851 @@
+{
+  "schema": "five-ast-library-audit/1",
+  "registry_sha256": "d32e320ec83df6969eb32fef29d66333e36dc8db85ad2c8eba0cc074f805d5bd",
+  "cases": {
+    "identity": {
+      "source": "cases/identity/model/Source.v",
+      "source_sha256": "28ffaa2ee47621032cc82df9886df98ca67245b11f4815dae2543a8f35a42256",
+      "entries": [
+        "f_five_identity"
+      ],
+      "internal_functions": [
+        "f_five_identity"
+      ],
+      "static_calls": [],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "sum3": {
+      "source": "cases/sum3/model/Source.v",
+      "source_sha256": "6548f669e66da2125e65e632ee57dafeb1200eeb1da42b7a2e1d84826e4e4bbb",
+      "entries": [
+        "f_sum3"
+      ],
+      "internal_functions": [
+        "f_sum3"
+      ],
+      "static_calls": [],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "lowpass": {
+      "source": "cases/lowpass/model/Source.v",
+      "source_sha256": "f78a1f60dcd98c400b083b630334213f95a0da28c8e673081ec70ad75d8c9fb0",
+      "entries": [
+        "f_update_second_order_low_pass"
+      ],
+      "internal_functions": [
+        "f_update_second_order_low_pass"
+      ],
+      "static_calls": [],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "addition": {
+      "source": "shared/strict_execution/Source.v",
+      "source_sha256": "662c1287b3cec8c3ad83e24f71957952ffa2e33b479f5a862877f18df1128033",
+      "entries": [
+        "f_five_add"
+      ],
+      "internal_functions": [
+        "f_five_add"
+      ],
+      "static_calls": [],
+      "unused_external_declarations": 57,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "addition_store": {
+      "source": "shared/strict_execution/Source.v",
+      "source_sha256": "662c1287b3cec8c3ad83e24f71957952ffa2e33b479f5a862877f18df1128033",
+      "entries": [
+        "f_five_add_store"
+      ],
+      "internal_functions": [
+        "f_five_add",
+        "f_five_add_store"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_five_add_store",
+          "symbol": "_five_add",
+          "line": 109,
+          "kind": "internal",
+          "callee": "f_five_add"
+        },
+        {
+          "caller": "f_five_add_store",
+          "symbol": "_memcpy",
+          "line": 116,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "bubble_sort": {
+      "source": "shared/strict_execution/Source.v",
+      "source_sha256": "662c1287b3cec8c3ad83e24f71957952ffa2e33b479f5a862877f18df1128033",
+      "entries": [
+        "f_five_bubble_sort"
+      ],
+      "internal_functions": [
+        "f_five_bubble_sort"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_five_bubble_sort",
+          "symbol": "_memcpy",
+          "line": 168,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        },
+        {
+          "caller": "f_five_bubble_sort",
+          "symbol": "_memcpy",
+          "line": 184,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        },
+        {
+          "caller": "f_five_bubble_sort",
+          "symbol": "_memcpy",
+          "line": 204,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "pid": {
+      "source": "cases/pid/model/Source.v",
+      "source_sha256": "6444f049b0fdd22f3f8f7e748977e44b26a6609042fa1e58dafaf133ac850b88",
+      "entries": [
+        "f_update_pid_f",
+        "f_five_pid_step"
+      ],
+      "internal_functions": [
+        "f_five_pid_step",
+        "f_update_pid_f"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_five_pid_step",
+          "symbol": "_update_pid_f",
+          "line": 330,
+          "kind": "internal",
+          "callee": "f_update_pid_f"
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "attitude_trig": {
+      "source": "cases/attitude_trig/model/Source.v",
+      "source_sha256": "c446c43662219994e3cf3a2df0d8044003b15d1065cd4f2b1061c073750c807a",
+      "entries": [
+        "f_float_rmat_of_eulers_321",
+        "f_five_sinf",
+        "f_five_cosf"
+      ],
+      "internal_functions": [
+        "f_five_copy4",
+        "f_five_cosf",
+        "f_five_float_bits",
+        "f_five_float_from_bits",
+        "f_five_product_bit",
+        "f_five_sinf",
+        "f_five_trig",
+        "f_float_rmat_of_eulers_321"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_sinf",
+          "line": 764,
+          "kind": "internal",
+          "callee": "f_five_sinf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_cosf",
+          "line": 780,
+          "kind": "internal",
+          "callee": "f_five_cosf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_sinf",
+          "line": 796,
+          "kind": "internal",
+          "callee": "f_five_sinf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_cosf",
+          "line": 814,
+          "kind": "internal",
+          "callee": "f_five_cosf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_sinf",
+          "line": 832,
+          "kind": "internal",
+          "callee": "f_five_sinf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_cosf",
+          "line": 850,
+          "kind": "internal",
+          "callee": "f_five_cosf"
+        },
+        {
+          "caller": "f_five_sinf",
+          "symbol": "_five_trig",
+          "line": 730,
+          "kind": "internal",
+          "callee": "f_five_trig"
+        },
+        {
+          "caller": "f_five_cosf",
+          "symbol": "_five_trig",
+          "line": 745,
+          "kind": "internal",
+          "callee": "f_five_trig"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_bits",
+          "line": 246,
+          "kind": "internal",
+          "callee": "f_five_float_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_from_bits",
+          "line": 268,
+          "kind": "internal",
+          "callee": "f_five_float_from_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_from_bits",
+          "line": 282,
+          "kind": "internal",
+          "callee": "f_five_float_from_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_from_bits",
+          "line": 307,
+          "kind": "internal",
+          "callee": "f_five_float_from_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 402,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 420,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 442,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 484,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_five_float_bits",
+          "symbol": "_five_copy4",
+          "line": 178,
+          "kind": "internal",
+          "callee": "f_five_copy4"
+        },
+        {
+          "caller": "f_five_float_from_bits",
+          "symbol": "_five_copy4",
+          "line": 195,
+          "kind": "internal",
+          "callee": "f_five_copy4"
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    }
+  },
+  "compilation_units": {
+    "cases/attitude_trig/model/Source.v": {
+      "source": "cases/attitude_trig/model/Source.v",
+      "source_sha256": "c446c43662219994e3cf3a2df0d8044003b15d1065cd4f2b1061c073750c807a",
+      "entries": [
+        "f_five_copy4",
+        "f_five_cosf",
+        "f_five_float_bits",
+        "f_five_float_from_bits",
+        "f_five_product_bit",
+        "f_five_sinf",
+        "f_five_trig",
+        "f_float_rmat_of_eulers_321"
+      ],
+      "internal_functions": [
+        "f_five_copy4",
+        "f_five_cosf",
+        "f_five_float_bits",
+        "f_five_float_from_bits",
+        "f_five_product_bit",
+        "f_five_sinf",
+        "f_five_trig",
+        "f_float_rmat_of_eulers_321"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_five_cosf",
+          "symbol": "_five_trig",
+          "line": 745,
+          "kind": "internal",
+          "callee": "f_five_trig"
+        },
+        {
+          "caller": "f_five_float_bits",
+          "symbol": "_five_copy4",
+          "line": 178,
+          "kind": "internal",
+          "callee": "f_five_copy4"
+        },
+        {
+          "caller": "f_five_float_from_bits",
+          "symbol": "_five_copy4",
+          "line": 195,
+          "kind": "internal",
+          "callee": "f_five_copy4"
+        },
+        {
+          "caller": "f_five_sinf",
+          "symbol": "_five_trig",
+          "line": 730,
+          "kind": "internal",
+          "callee": "f_five_trig"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_bits",
+          "line": 246,
+          "kind": "internal",
+          "callee": "f_five_float_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_from_bits",
+          "line": 268,
+          "kind": "internal",
+          "callee": "f_five_float_from_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_from_bits",
+          "line": 282,
+          "kind": "internal",
+          "callee": "f_five_float_from_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_float_from_bits",
+          "line": 307,
+          "kind": "internal",
+          "callee": "f_five_float_from_bits"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 402,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 420,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 442,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_five_trig",
+          "symbol": "_five_product_bit",
+          "line": 484,
+          "kind": "internal",
+          "callee": "f_five_product_bit"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_sinf",
+          "line": 764,
+          "kind": "internal",
+          "callee": "f_five_sinf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_cosf",
+          "line": 780,
+          "kind": "internal",
+          "callee": "f_five_cosf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_sinf",
+          "line": 796,
+          "kind": "internal",
+          "callee": "f_five_sinf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_cosf",
+          "line": 814,
+          "kind": "internal",
+          "callee": "f_five_cosf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_sinf",
+          "line": 832,
+          "kind": "internal",
+          "callee": "f_five_sinf"
+        },
+        {
+          "caller": "f_float_rmat_of_eulers_321",
+          "symbol": "_five_cosf",
+          "line": 850,
+          "kind": "internal",
+          "callee": "f_five_cosf"
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "cases/identity/model/Source.v": {
+      "source": "cases/identity/model/Source.v",
+      "source_sha256": "28ffaa2ee47621032cc82df9886df98ca67245b11f4815dae2543a8f35a42256",
+      "entries": [
+        "f_five_identity"
+      ],
+      "internal_functions": [
+        "f_five_identity"
+      ],
+      "static_calls": [],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "cases/lowpass/model/Source.v": {
+      "source": "cases/lowpass/model/Source.v",
+      "source_sha256": "f78a1f60dcd98c400b083b630334213f95a0da28c8e673081ec70ad75d8c9fb0",
+      "entries": [
+        "f_five_lowpass_entry",
+        "f_update_second_order_low_pass"
+      ],
+      "internal_functions": [
+        "f_five_lowpass_entry",
+        "f_update_second_order_low_pass"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_five_lowpass_entry",
+          "symbol": "_update_second_order_low_pass",
+          "line": 345,
+          "kind": "internal",
+          "callee": "f_update_second_order_low_pass"
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "cases/pid/model/Source.v": {
+      "source": "cases/pid/model/Source.v",
+      "source_sha256": "6444f049b0fdd22f3f8f7e748977e44b26a6609042fa1e58dafaf133ac850b88",
+      "entries": [
+        "f_five_pid_step",
+        "f_update_pid_f"
+      ],
+      "internal_functions": [
+        "f_five_pid_step",
+        "f_update_pid_f"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_five_pid_step",
+          "symbol": "_update_pid_f",
+          "line": 330,
+          "kind": "internal",
+          "callee": "f_update_pid_f"
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "cases/sum3/model/Source.v": {
+      "source": "cases/sum3/model/Source.v",
+      "source_sha256": "6548f669e66da2125e65e632ee57dafeb1200eeb1da42b7a2e1d84826e4e4bbb",
+      "entries": [
+        "f_left_example",
+        "f_right_example",
+        "f_sum3",
+        "f_sum3_right"
+      ],
+      "internal_functions": [
+        "f_left_example",
+        "f_right_example",
+        "f_sum3",
+        "f_sum3_right"
+      ],
+      "static_calls": [],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    },
+    "shared/strict_execution/Source.v": {
+      "source": "shared/strict_execution/Source.v",
+      "source_sha256": "662c1287b3cec8c3ad83e24f71957952ffa2e33b479f5a862877f18df1128033",
+      "entries": [
+        "f_five_add",
+        "f_five_add_store",
+        "f_five_bubble_sort"
+      ],
+      "internal_functions": [
+        "f_five_add",
+        "f_five_add_store",
+        "f_five_bubble_sort"
+      ],
+      "static_calls": [
+        {
+          "caller": "f_five_add_store",
+          "symbol": "_five_add",
+          "line": 109,
+          "kind": "internal",
+          "callee": "f_five_add"
+        },
+        {
+          "caller": "f_five_add_store",
+          "symbol": "_memcpy",
+          "line": 116,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        },
+        {
+          "caller": "f_five_bubble_sort",
+          "symbol": "_memcpy",
+          "line": 168,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        },
+        {
+          "caller": "f_five_bubble_sort",
+          "symbol": "_memcpy",
+          "line": 184,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        },
+        {
+          "caller": "f_five_bubble_sort",
+          "symbol": "_memcpy",
+          "line": 204,
+          "kind": "external",
+          "support": {
+            "ast_form": "EF_external",
+            "name": "memcpy",
+            "status": "ordinary-adapter-available",
+            "action": "Bind this adapter and explicit library-contract assumption in the execution correspondence proof",
+            "adapter": {
+              "effects": "memory-only",
+              "ast_form": "EF_external",
+              "adapter_source": "shared/compcert_libc/Library.v",
+              "spec_source": "shared/compcert_libc/Library.v",
+              "conformance_proof_source": "shared/compcert_libc/Library.v",
+              "callback": "FiveShared.compcert_libc.Library.do_external_function",
+              "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+              "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+              "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+              "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+              "official_operation": "Cexec.do_ef_memcpy",
+              "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+              "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+              "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+              "library_implementation_verified": false
+            },
+            "dependency_sha256": {
+              "shared/compcert_libc/Library.v": "8bd3bef221bd6e9ffd8c73bad23f057a855fc536ff91a70bc6eecf2bd56e0f5d"
+            }
+          }
+        }
+      ],
+      "unused_external_declarations": 56,
+      "unused_declarations_require_adapters": false,
+      "problems": [],
+      "unresolved_calls": [],
+      "support_inventory_complete": true,
+      "proof_scope": "Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness"
+    }
+  },
+  "all_call_dependencies_classified": true,
+  "all_compilation_unit_functions_classified": true,
+  "library_implementation_verification": false,
+  "external_contracts": "Library specifications are explicit trusted interface assumptions; callback conformance is a separate proof obligation",
+  "verification": {
+    "original_c_unchanged": true,
+    "all_60_kernel_checked_model_sources_unchanged": true,
+    "routing_scenarios_passed": 13,
+    "acceptance_gate_checks_passed": true,
+    "real_export_and_fresh_provenance_audit_passed": true,
+    "tampered_inventory_rejected": true,
+    "skill_validation_passed": true,
+    "static_audit_is_not_semantic_correspondence_proof": true
+  }
+}

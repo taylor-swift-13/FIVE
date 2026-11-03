@@ -1,0 +1,51 @@
+lowpass_model_all_reachable_no_error =
+fun (m : Memory.Mem.mem) (b : Values.block)
+  (fs : FunctionalModel.filter_state) (input : Integers.Int.int)
+  (PRE : Entry.lowpass_pre m b fs) (t : Events.trace) 
+  (reached : Csem.state)
+  (PATH : Smallstep.star ExecutionModel.model_step tt
+            (ExecutionModel.execution_entry_bits
+               (Values.Vptr b Integers.Ptrofs.zero) input m)
+            t reached) =>
+lowpass_all_reachable_no_error m b fs input PRE t reached
+  (let H :
+     forall (filter value : Values.val) (m0 : Memory.Mem.mem)
+       (t0 : Events.trace) (s : Csem.state),
+     Smallstep.star ExecutionModel.model_step tt
+       (ExecutionModel.execution_entry filter value m0) t0 s ->
+     Smallstep.star Csem.step SourceInvariant.lowpass_ge
+       (SourceInvariant.lowpass_start filter value m0) t0 s :=
+     fun (filter value : Values.val) (m0 : Memory.Mem.mem)
+       (t0 : Events.trace) (s : Csem.state) =>
+     match
+       ExecutionModel.all_finite_executions_exact filter value m0 t0 s
+     with
+     | conj x _ => x
+     end in
+   H (Values.Vptr b Integers.Ptrofs.zero)
+     (Values.Vsingle (Floats.Float32.of_bits input)) m t reached PATH)
+     : forall (m : Memory.Mem.mem) (b : Values.block)
+         (fs : FunctionalModel.filter_state) (input : Integers.Int.int),
+       Entry.lowpass_pre m b fs ->
+       forall (t : Events.trace) (reached : Csem.state),
+       Smallstep.star ExecutionModel.model_step tt
+         (ExecutionModel.execution_entry_bits
+            (Values.Vptr b Integers.Ptrofs.zero) input m)
+         t reached ->
+       ~ Invariant.source_error reached
+
+Arguments lowpass_model_all_reachable_no_error m b fs input _ t reached _ _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

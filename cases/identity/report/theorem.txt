@@ -1,0 +1,170 @@
+all_reachable_no_error =
+fun (input : Integers.Int.int) (memory : Memory.Mem.mem) 
+  (t : Events.trace) (reached : Csem.state)
+  (PATH : Smallstep.star Csem.step Execution.ge
+            (Execution.entry
+               (Values.Vsingle (Floats.Float32.of_bits input) :: nil) memory)
+            t reached) =>
+(fun H : Execution.source_error reached =>
+ match H with
+ | conj x x0 =>
+     (fun (NOTRETURN : ~ Execution.normal_return reached)
+        (STOP : Smallstep.nostep Csem.step Execution.ge reached) =>
+      let e :
+        exists released : Memory.Mem.mem,
+          ParameterWitness.execute input memory =
+          ParameterWitness.Done (Floats.Float32.of_bits input) released /\
+          PathFacts.certified_path Execution.ge
+            (Csem.Callstate (Ctypes.Internal Source.f_five_identity)
+               (Values.Vsingle (Floats.Float32.of_bits input) :: nil)
+               Csem.Kstop memory)
+            (Csem.Returnstate (Values.Vsingle (Floats.Float32.of_bits input))
+               Csem.Kstop released)
+            5 :=
+        Correspondence.source_execution_certificate Execution.ge input memory
+        in
+      match e with
+      | ex_intro _ x1 x2 =>
+          (fun (released : Memory.Mem.mem)
+             (H0 : ParameterWitness.execute input memory =
+                   ParameterWitness.Done (Floats.Float32.of_bits input)
+                     released /\
+                   PathFacts.certified_path Execution.ge
+                     (Csem.Callstate (Ctypes.Internal Source.f_five_identity)
+                        (Values.Vsingle (Floats.Float32.of_bits input) :: nil)
+                        Csem.Kstop memory)
+                     (Csem.Returnstate
+                        (Values.Vsingle (Floats.Float32.of_bits input))
+                        Csem.Kstop released)
+                     5) =>
+           match H0 with
+           | conj x3 x4 =>
+               (fun
+                  (_ : ParameterWitness.execute input memory =
+                       ParameterWitness.Done (Floats.Float32.of_bits input)
+                         released)
+                  (CERT : PathFacts.certified_path Execution.ge
+                            (Csem.Callstate
+                               (Ctypes.Internal Source.f_five_identity)
+                               (Values.Vsingle (Floats.Float32.of_bits input)
+                                :: nil)
+                               Csem.Kstop memory)
+                            (Csem.Returnstate
+                               (Values.Vsingle (Floats.Float32.of_bits input))
+                               Csem.Kstop released)
+                            5) =>
+                let a :
+                  reached =
+                  Csem.Returnstate
+                    (Values.Vsingle (Floats.Float32.of_bits input))
+                    Csem.Kstop released /\
+                  t = Events.E0 :=
+                  PathFacts.certificate_maximal Execution.ge
+                    (Csem.Callstate (Ctypes.Internal Source.f_five_identity)
+                       (Values.Vsingle (Floats.Float32.of_bits input) :: nil)
+                       Csem.Kstop memory)
+                    (Csem.Returnstate
+                       (Values.Vsingle (Floats.Float32.of_bits input))
+                       Csem.Kstop released)
+                    5 CERT t reached PATH STOP
+                  in
+                match a with
+                | conj x5 x6 =>
+                    (fun
+                       (EQ : reached =
+                             Csem.Returnstate
+                               (Values.Vsingle (Floats.Float32.of_bits input))
+                               Csem.Kstop released)
+                       (_ : t = Events.E0) =>
+                     eq_ind_r
+                       (fun reached0 : Csem.state =>
+                        Smallstep.star Csem.step Execution.ge
+                          (Execution.entry
+                             (Values.Vsingle (Floats.Float32.of_bits input)
+                              :: nil)
+                             memory)
+                          t reached0 ->
+                        ~ Execution.normal_return reached0 ->
+                        Smallstep.nostep Csem.step Execution.ge reached0 ->
+                        False)
+                       (fun
+                          (_ : Smallstep.star Csem.step Execution.ge
+                                 (Execution.entry
+                                    (Values.Vsingle
+                                       (Floats.Float32.of_bits input)
+                                     :: nil)
+                                    memory)
+                                 t
+                                 (Csem.Returnstate
+                                    (Values.Vsingle
+                                       (Floats.Float32.of_bits input))
+                                    Csem.Kstop released))
+                          (NOTRETURN0 : ~
+                                        Execution.normal_return
+                                          (Csem.Returnstate
+                                             (Values.Vsingle
+                                                (Floats.Float32.of_bits input))
+                                             Csem.Kstop released))
+                          (_ : Smallstep.nostep Csem.step Execution.ge
+                                 (Csem.Returnstate
+                                    (Values.Vsingle
+                                       (Floats.Float32.of_bits input))
+                                    Csem.Kstop released)) =>
+                        NOTRETURN0
+                          (ex_intro
+                             (fun v : Values.val =>
+                              exists m : Memory.Mem.mem,
+                                Csem.Returnstate
+                                  (Values.Vsingle
+                                     (Floats.Float32.of_bits input))
+                                  Csem.Kstop released =
+                                Csem.Returnstate v Csem.Kstop m)
+                             (Values.Vsingle (Floats.Float32.of_bits input))
+                             (ex_intro
+                                (fun m : Memory.Mem.mem =>
+                                 Csem.Returnstate
+                                   (Values.Vsingle
+                                      (Floats.Float32.of_bits input))
+                                   Csem.Kstop released =
+                                 Csem.Returnstate
+                                   (Values.Vsingle
+                                      (Floats.Float32.of_bits input))
+                                   Csem.Kstop m)
+                                released eq_refl)
+                           :
+                           Execution.normal_return
+                             (Csem.Returnstate
+                                (Values.Vsingle
+                                   (Floats.Float32.of_bits input))
+                                Csem.Kstop released)))
+                       EQ PATH NOTRETURN STOP)
+                      x5 x6
+                end) x3 x4
+           end) x1 x2
+      end) x x0
+ end)
+:
+~ Execution.source_error reached
+     : forall (input : Integers.Int.int) (memory : Memory.Mem.mem)
+         (t : Events.trace) (reached : Csem.state),
+       Smallstep.star Csem.step Execution.ge
+         (Execution.entry
+            (Values.Vsingle (Floats.Float32.of_bits input) :: nil) memory)
+         t reached ->
+       ~ Execution.source_error reached
+
+Arguments all_reachable_no_error input memory t reached _ _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

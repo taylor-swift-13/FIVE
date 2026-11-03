@@ -1,0 +1,23 @@
+memcpy_spec_is_official
+     : forall (ge : Globalenvs.Senv.t) (args : list Values.val)
+         (m : Memory.Mem.mem) (t : Events.trace) (v : Values.val)
+         (m' : Memory.Mem.mem),
+       memcpy_sem args m t v m' <-> official_memcpy ge args m t v m'
+callback_preserves_legacy
+     : forall (id : String.string) (sg : AST.signature)
+         (ge : Globalenvs.Senv.t) (w : Determinism.world)
+         (args : list Values.val) (m : Memory.Mem.mem),
+       sg = memcpy_signature ->
+       do_external_function id sg ge w args m =
+       legacy_do_external_function id sg ge w args m
+Closed under the global context
+Closed under the global context
+@do_external_sound
+     : environment ->
+       forall (id : String.string) (sg : AST.signature)
+         (ge : Globalenvs.Senv.t) (args : list Values.val)
+         (m : Memory.Mem.mem) (t : Events.trace) (v : Values.val)
+         (m' : Memory.Mem.mem) (w w' : Determinism.world),
+       do_external_function id sg ge w args m = Some (w', t, v, m') ->
+       Events.external_functions_sem id sg ge args m t v m' /\
+       Determinism.possible_trace w t w'

@@ -1,0 +1,65 @@
+@step_exact
+     : Library.environment ->
+       forall (s : Csem.state) (t : Events.trace) (s' : Csem.state),
+       SourceInvariant.source_state s ->
+       model_step tt s t s' <-> Csem.step SourceInvariant.source_ge s t s'
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+@pid_complete_execution
+     : Library.environment ->
+       forall (pid : Values.val) (value dt : Integers.Int.int)
+         (m : Memory.Mem.mem) (t : Events.trace) (s : Csem.state),
+       Smallstep.star model_step tt (pid_bits_entry pid value dt m) t s <->
+       Smallstep.star Csem.step SourceInvariant.source_ge
+         (pid_bits_entry pid value dt m) t s
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+@all_error_executions_exact
+     : Library.environment ->
+       forall (which : selected_function) (args : list Values.val)
+         (m : Memory.Mem.mem),
+       (exists (s : Csem.state) (t : Events.trace),
+          Smallstep.star model_step tt (execution_entry which args m) t s /\
+          model_error s) <->
+       (exists (s : Csem.state) (t : Events.trace),
+          Smallstep.star Csem.step SourceInvariant.source_ge
+            (execution_entry which args m) t s /\
+          source_error s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
