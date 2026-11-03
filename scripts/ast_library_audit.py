@@ -142,12 +142,8 @@ def audit_source(path,entries,registry,root=ROOT,builtin_lookup=known_builtin):
   'proof_scope':'Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness'}
 
 CASES={
- 'identity':('cases/identity/model/Source.v',['f_five_identity']),
  'sum3':('cases/sum3/model/Source.v',['f_sum3']),
  'lowpass':('cases/lowpass/model/Source.v',['f_update_second_order_low_pass']),
- 'addition':('shared/strict_execution/Source.v',['f_five_add']),
- 'addition_store':('shared/strict_execution/Source.v',['f_five_add_store']),
- 'bubble_sort':('shared/strict_execution/Source.v',['f_five_bubble_sort']),
  'pid':('cases/pid/model/Source.v',['f_update_pid_f','f_five_pid_step']),
  'attitude_trig':('cases/attitude_trig/model/Source.v',['f_float_rmat_of_eulers_321','f_five_sinf','f_five_cosf'])}
 

@@ -10,7 +10,7 @@ From FiveCases.lowpass.proof.support Require Import ConcreteBody.
 From FiveCases.lowpass.proof.support Require Import SourceFunctional.
 From FiveCases.lowpass.proof.support Require Import StandardBody.
 From FiveCases.lowpass.proof.support Require Import CallBoundary.
-From FiveCases.lowpass.model Require Import ExecutionModel.
+From FiveCases.lowpass.model Require Import Execution.
 From FiveCases.lowpass.proof Require Import PureProgress.
 From FiveCases.lowpass.proof Require Import Invariant.
 Import ListNotations.

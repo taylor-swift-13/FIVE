@@ -48,16 +48,14 @@ By default, the goals are parameterized by an unspecified precondition. A later 
 
 ## Case studies
 
-| Case | Retained whole-function no-error result |
-| --- | --- |
-| [identity](cases/identity/report/report.md) | Available: symbolic binary32 input and a Csem safety certificate. |
-| [addition](cases/addition/report/report.md) | Available: any two binary32 values and initial CompCert memory. |
-| [sum3](cases/sum3/report/report.md) | Available: any three binary32 values, with no numeric-domain restriction. |
-| [lowpass](cases/lowpass/report/report.md) | Available under an explicit initialized-memory and write-permission precondition. |
-| [addition_store](cases/addition_store/report/report.md) | Pending; byte-copy support lemmas are retained. |
-| [bubble_sort](cases/bubble_sort/report/report.md) | Pending; index and memory-support lemmas are retained. |
-| [pid](cases/pid/report/report.md) | Pending; floating-point operation lemmas are retained. |
-| [attitude_trig](cases/attitude_trig/report/report.md) | Pending; bounds lemmas and the C trigonometric implementation are retained. |
+The published cases are three Paparazzi UAV modules and the minimal `sum3` example.
+
+| Case | Program | Retained whole-function no-error result |
+| --- | --- | --- |
+| [lowpass](cases/lowpass/report/report.md) | Low-pass filter | Proof source retained under an explicit initialized-memory and write-permission precondition. |
+| [pid](cases/pid/report/report.md) | PID controller | Pending; floating-point operation lemmas are retained. |
+| [attitude_trig](cases/attitude_trig/report/report.md) | Attitude rotation with C trigonometric functions | Pending; bounds lemmas and the C trigonometric implementation are retained. |
+| [sum3](cases/sum3/report/report.md) | `(a + b) + c` | Proof source retained for any three binary32 values, with no numeric-domain restriction. |
 
 A no-error theorem alone does not establish termination or functional correctness. Case reports identify the actual statements, preconditions and remaining obligations. Evidence is tied to source hashes; generating or compiling a declaration does not prove its proposition.
 
@@ -66,7 +64,10 @@ A no-error theorem alone does not establish termination or functional correctnes
 ```text
 cases/<case>/
   source/            Original C, required headers and upstream licenses
-  model/             CompCert AST and execution entry
+  model/
+    Source.v         CompCert-generated Csyntax AST
+    Execution.v      Entry and execution interface using CompCert Csem/Cexec
+    SourceInvariant.v  Syntax/state invariants used by correspondence proofs
   proof/             Theorems, pending goals and required support modules
   report/            Scope, assumptions, source manifests and cost references
 shared/              Shared semantics, library adapters and proof support
@@ -78,7 +79,7 @@ paper/               Manuscript source and compiled draft
 references/          Original supplied manuscript archive
 ```
 
-The addition cases and bubble sort share one generated compilation unit. Proof-support models are witnesses used by the proofs; they do not replace the C execution semantics. Toolchains, temporary builds and raw local run directories are excluded from Git.
+All four cases use the same model filenames. Proof-support models are witnesses used by the proofs; they do not replace the C execution semantics. The earlier identity, addition, addition-store and bubble-sort cases are kept in a separate local archive outside this repository. Toolchains, temporary builds and raw local run directories are excluded from Git.
 
 ## Working with the project
 
@@ -121,3 +122,5 @@ Missing or inconsistent evidence remains `partial`; it is never replaced with ze
 ## Manuscript and provenance
 
 The [paper draft](paper/README.md) and [PDF](paper/main.pdf) are retained alongside the unchanged original archive. Third-party notices remain with the source files. The [source-export record](reports/source-validation.json), [recorded module checks](reports/validation.json) and [library-interface inventory](reports/ast-library-audit.json) document their respective scopes.
+
+The 2026-11-03 repository organization standardized the model entry filename as `Execution.v` and retained only the four cases above. No CBMC or Rocq verification was run for that change. Recorded check logs and theorem output remain unchanged historical evidence, so they may contain former module names or cases. Current manifests list the renamed files; they do not certify a fresh kernel check. Archived cost records retain their original scopes, including earlier cases.

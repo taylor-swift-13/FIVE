@@ -4,7 +4,7 @@ From FiveCases.lowpass.model Require Import Source.
 From FiveShared.pure_semantics Require Import SemanticsSupport.
 From FiveCases.lowpass.model Require Import SourceInvariant.
 From FiveCases.lowpass.proof.support Require Import NormalCorrespondence.
-From FiveCases.lowpass.model Require Import ExecutionModel.
+From FiveCases.lowpass.model Require Import Execution.
 From FiveCases.lowpass.proof Require Import PureProgress.
 Import ListNotations.
 

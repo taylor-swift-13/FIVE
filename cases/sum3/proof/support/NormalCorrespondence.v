@@ -6,7 +6,7 @@ From FiveCases.sum3.model Require Import SourceInvariant.
 Import ListNotations.
 
 (** This denotation is used to establish uniqueness of normal executions.
-    ExecutionModel remains the complete error-preserving operational model. *)
+    Execution remains the complete error-preserving operational model. *)
 Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
 
 Section DENOTATION.

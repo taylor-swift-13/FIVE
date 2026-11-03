@@ -5,14 +5,14 @@ From FiveCases.lowpass.model Require Import SourceInvariant.
 From FiveCases.lowpass.proof.support Require Import NormalCorrespondence.
 From FiveCases.lowpass.proof.support Require Import FunctionalModel.
 From FiveCases.lowpass.proof.support Require Import MemorySpec.
-From FiveCases.lowpass.model Require Import ExecutionModel.
+From FiveCases.lowpass.model Require Import Execution.
 From FiveCases.lowpass.proof Require Import PureProgress.
 From FiveCases.lowpass.proof Require Import Invariant.
 From FiveCases.lowpass.proof Require Import Entry.
 Import ListNotations.
 
 Theorem source_error_matches_executable_error : forall s,source_state s ->
- (source_error s <-> ~normal_return s /\ ExecutionModel.transitions s=[]).
+ (source_error s <-> ~normal_return s /\ Execution.transitions s=[]).
 Proof.
  intros s SOURCE;unfold source_error;rewrite(blocked_exact s SOURCE);reflexivity.
 Qed.
@@ -32,7 +32,7 @@ Qed.
 
 Theorem lowpass_model_all_reachable_no_error : forall m b fs input,
  lowpass_pre m b fs -> forall t reached,
- star ExecutionModel.model_step tt
+ star Execution.model_step tt
   (execution_entry_bits(Vptr b Ptrofs.zero)input m) t reached ->
  ~source_error reached.
 Proof.
@@ -43,7 +43,7 @@ Qed.
 
 Theorem lowpass_no_stuck_state : forall m b fs input,
  lowpass_pre m b fs -> forall t,
- ~star ExecutionModel.model_step tt
+ ~star Execution.model_step tt
   (execution_entry_bits(Vptr b Ptrofs.zero)input m) t Stuckstate.
 Proof.
  intros m b fs input PRE t PATH.
@@ -55,10 +55,10 @@ Qed.
 
 Theorem lowpass_model_progress_at_every_reachable_state : forall m b fs input,
  lowpass_pre m b fs -> forall t reached,
- star ExecutionModel.model_step tt
+ star Execution.model_step tt
   (execution_entry_bits(Vptr b Ptrofs.zero)input m) t reached ->
  normal_return reached \/ exists rule tr next,
- In(Cexec.TR rule tr next)(ExecutionModel.transitions reached).
+ In(Cexec.TR rule tr next)(Execution.transitions reached).
 Proof.
  intros m b fs input PRE t reached PATH.
  assert(INV:execution_invariant reached).

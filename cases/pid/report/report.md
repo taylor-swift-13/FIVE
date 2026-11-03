@@ -1,5 +1,7 @@
 # pid
 
+The model entry is `model/Execution.v`. Existing `theorem.txt` and kernel-check logs are historical evidence; no CBMC or Rocq verification was run for the repository organization and module naming changes on 2026-11-03.
+
 尚未完成整个 C 函数的全可达无错误证明。
 
 已证明 binary32 加减乘除在 CompCert Cop 中均返回 Some，包括 dt=0；这没有证明内存访问或调用安全。仍需已初始化 PID 结构体的读写不变式、分支和复合赋值保持、内部函数及包装函数调用边界。不能从算术总性推出整个函数无错误。

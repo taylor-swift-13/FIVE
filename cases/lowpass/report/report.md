@@ -1,14 +1,16 @@
 # lowpass
 
+The model entry is `model/Execution.v`. Existing `theorem.txt` and kernel-check logs are historical evidence; no CBMC or Rocq verification was run for the repository organization and module naming changes on 2026-11-03.
+
 Status: all-reachable Csem/Cexec no-error theorem.
 
 Execution models have no numeric input-domain restriction. Safety theorems, when present, require their explicit calling/memory preconditions. NaN/infinity are floating-point values, not errors. Error means a nonterminal state with no semantic successor. CompCert semantics do not establish hardware/GCC equivalence.
 
-Proof helper models in proof/support are witnesses only; execution semantics are in model/ (or shared/strict_execution).
+Proof helper models in proof/support are witnesses only; execution semantics are in model/.
 
 # Low-pass filter: all-reachable-state error freedom
 
-This proof applies to the existing unrestricted `FiveCases.lowpass.model.ExecutionModel`
+This proof applies to the existing unrestricted `FiveCases.lowpass.model.Execution`
 and original CompCert Csem low-pass function. The source C, execution model,
 arithmetic semantics, memory semantics and error definition are unchanged.
 No CBMC fact, finite input whitelist, concrete execution tree, path enumeration,
