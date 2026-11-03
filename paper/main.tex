@@ -814,6 +814,129 @@ makes no empirical claim about solver scalability.
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
 
+
+\clearpage
+\appendix
+\section{A Sum3 Example: Why the Semantic Baseline Matters}
+\label{app:sum3-baseline}
+
+The aviation filter remains the main running example. This appendix uses
+the smaller function below to isolate two different reasons why an
+alternative verification model cannot be substituted without checking
+its semantics. Frama-C/WP uses weakest-precondition generation; QCP uses
+separation-logic symbolic execution. The distinction at issue is the
+arithmetic and representation model used by these methods, not symbolic
+execution as an inherently different execution order.
+
+\begin{verbatim}
+float sum3(float a, float b, float c) {
+    return a + b + c;
+}
+\end{verbatim}
+
+The baseline is CompCert 3.17 for x86-64, binary32 and nearest-even
+rounding. The source expression is left-associated. The comparisons below
+are deductions from the documented models and source definitions, not new
+Frama-C or QCP verification runs and not newly kernel-checked theorems.
+They distinguish an actual semantic mismatch from an unestablished
+correspondence claim.
+
+\subsection{Rounding: WP's Real model is not the Float model}
+
+Take $a=2^{24}$, $b=1$, and $c=-2^{24}$, whose binary32 encodings are
+\texttt{0x4b800000}, \texttt{0x3f800000}, and \texttt{0xcb800000}.
+The first binary32 addition is exactly halfway between consecutive
+representable numbers and rounds to $2^{24}$ under nearest-even rounding.
+The second addition therefore produces positive zero:
+\[
+ \operatorname{fl}_{32}(\operatorname{fl}_{32}(2^{24}+1)-2^{24})
+ = +0,\qquad \operatorname{bits}(+0)=\texttt{0x00000000}.
+\]
+Over real numbers the result is instead $1$. Frama-C 33.0's WP manual
+explicitly distinguishes a Real model that discards rounding from a Float
+model with dedicated floating-point operations and rounding. Thus the
+Real abstraction gives a different value for this example. This is a
+configuration-specific counterexample, not evidence that WP's Float
+model produces an incorrect answer. Difficulty proving the rounded result
+automatically is also not a semantic counterexample
+\cite{FramaCWPManual}.
+
+\subsection{NaN payloads: a concrete QCP library mismatch}
+
+\begin{sloppypar}
+QCP release \texttt{QCP-V2.1.4} defines \texttt{fp32\_add} in
+\texttt{Rocq/SeparationLogic/FloatLib.v} using Flocq's binary32 addition
+with \texttt{mode\_NE}. Consequently, the preceding finite-input rounding
+example does not distinguish its arithmetic from the CompCert baseline.
+The NaN callbacks do differ: QCP's binary-operation callback ignores both
+operands and returns a fixed NaN with sign \texttt{false} and payload
+$1$. CompCert's \texttt{Float32.binop\_nan} selects a NaN using the target's
+policy and quiets its payload; the x86-64 policy selects the first NaN
+operand \cite{QCPFloatLib214,CompCertFloats317,CompCertArchi317}.
+\end{sloppypar}
+
+To expose this difference without changing the function, choose argument
+bit patterns
+\[
+ (\operatorname{bits}(a),\operatorname{bits}(b),\operatorname{bits}(c))
+ = (\texttt{0x7fc00042},\texttt{0x00000000},\texttt{0x00000000}).
+\]
+The first operand is already a quiet NaN. Under CompCert's selected
+policy, both additions preserve its sign and payload. Under the QCP
+library expression
+\texttt{fp32\_add (fp32\_add a b) c}, both additions return its fixed NaN.
+Applying the ordinary binary32 encoding to those library values gives:
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Operation & CompCert x86-64 & QCP v2.1.4 library \\
+\hline
+First addition & \texttt{0x7fc00042} & \texttt{0x7f800001} \\
+Second addition & \texttt{0x7fc00042} & \texttt{0x7f800001} \\
+\hline
+\end{tabular}
+\end{center}
+
+The two results are both NaNs, but their encodings differ. In the usual
+binary32 interchange encoding, the QCP library's fixed payload $1$ also
+leaves the quiet bit clear. This is a comparison of formal library
+representations, not a claim about a processor trap or a runtime execution
+of QCP. If the returned representation is subsequently copied into four
+bytes, the little-endian sequences would be \texttt{42 00 c0 7f} and
+\texttt{01 00 80 7f}, respectively, provided that encoding is used by the
+memory interface. A complete C-memory correspondence remains a separate
+obligation; this function itself performs no such byte copy.
+
+The counterexample applies when the library expression is admitted for
+NaN inputs. Enabling finite-value obligations or requiring finite inputs
+would exclude it, which narrows the proof domain rather than establishing
+unrestricted equivalence. It does not show that QCP lacks floating-point
+support, that its finite arithmetic is generally different, or that every
+possible QCP configuration has the same mismatch.
+
+\subsection{Implication for framework selection}
+
+The examples support a narrower and more useful conclusion than saying
+that both tools execute C incorrectly. WP's Real abstraction is unsuitable
+for our exact rounding requirement; its Float model must be assessed
+separately. For byte-level properties, the documented WP Bytes model
+additionally assumes rather than defines the floating-value encoding
+conversion. Sum3 alone does not test that memory limitation. QCP's inspected
+NaN callback, meanwhile, is not interchangeable with the pinned CompCert
+x86-64 policy over all input bit patterns
+\cite{FramaCWPManual,QCPFloatLib214}.
+
+We therefore use CompCert's own operations and memory semantics directly
+as the execution baseline in Rocq. This avoids adding a proof that a
+second library's exceptional values, encodings and state transitions match
+that baseline. Adopting WP or QCP would require a suitable model
+configuration, any necessary semantic adaptation, and the corresponding
+representation and execution proofs. We do not claim that those tasks
+are impossible. Our choice is driven by the desired unrestricted
+execution model and reuse of one semantic infrastructure; proof
+preconditions may still restrict a particular theorem's input domain.
+
 \end{document}
 \endinput
 %%
