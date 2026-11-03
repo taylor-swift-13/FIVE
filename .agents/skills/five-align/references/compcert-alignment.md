@@ -54,4 +54,4 @@ five-rocq 消费映射并完成独立重验/反驳；结果使用 `spec-recheck.
 
 生成文件与来源审计匹配、前条件接口和两个自动目标齐全、实际属性全部映射或明确列缺口、外部环境/覆盖义务有记录。本阶段真实实现问题须修复；待证明不等于生成失败。存在 mapping-gap 或覆盖缺口时不得声称对应部分完成。
 
-这里不运行要求完整证明的交付门禁。`compcert-verify.py gate` 由 five-verify 在相应证明齐备后调用；旧 `compcert-align.py gate` 只是兼容入口，不是 align 的阶段验收条件。
+这里不运行要求完整证明的交付门禁。`compcert-verify.py gate` 由 five-verify 在相应证明齐备后调用，不是 align 的阶段验收条件。

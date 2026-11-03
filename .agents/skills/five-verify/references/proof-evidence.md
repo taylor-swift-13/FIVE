@@ -44,6 +44,6 @@ python3 scripts/compcert-verify.py gate --request request.json \
   --spec-recheck spec-recheck.json
 ```
 
-门禁实施新鲜来源审计、外部支持清单检查、全执行对应证明记录检查、实际 CBMC 属性的 Rocq 重验及问题关闭核查。不要求 agent 审批。旧 `compcert-align.py gate` 保留为兼容转发，属于最终验证，不能作为 align 的生成阶段验收条件。
+门禁实施新鲜来源审计、外部支持清单检查、全执行对应证明记录检查、实际 CBMC 属性的 Rocq 重验及问题关闭核查。不要求 agent 审批。最终验证统一使用 `compcert-verify.py gate`，不作为 align 的生成阶段验收条件。
 
 门禁接受的范围是执行层与 CBMC 重验；独立的无错误、终止性和高层功能目标应另外核对相应 Rocq 定理的量词、前条件、实际证明/内核证据和当前依赖。不能因为 gate accepted 就把这些目标自动标为 proved。没有完整证据时给出范围明确的阶段报告和 pending 项。

@@ -1,0 +1,36 @@
+digraph FIVE {
+  graph [rankdir=TB, bgcolor="#FFFFFF", pad="0.3", nodesep="0.65", ranksep="0.65",
+         fontname="DejaVu Sans", fontsize=20, compound=true, splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=14,
+        margin="0.22,0.17", color="#CBD5E1", fillcolor="#F8FAFC", fontcolor="#0F172A"];
+  edge [fontname="DejaVu Sans", fontsize=11, color="#64748B", fontcolor="#475569", arrowsize=0.8];
+
+  c [label="Original C program\n+ fixed target semantics", fillcolor="#F1F5F9"];
+  models [label="Existing Rocq model(s)", fillcolor="#F1F5F9"];
+  {rank=same; c; models;}
+
+  subgraph cluster_workflow {
+    label="five-verify  |  Orchestration, evidence review and cost accounting";
+    labelloc=b; labeljust=l; color="#CBD5E1"; style="rounded"; margin=24;
+
+    cbmc [label="five-cbmc\n\nTraditional bounded model checking\nProperties, bounds and counterexamples",
+          fillcolor="#EFF6FF", color="#3B82F6"];
+    align [label="five-align\n\nCompCert Csyntax + Csem / Cexec\nModel export and property mapping\nSafety + termination goals: UNPROVED",
+           fillcolor="#ECFDF5", color="#10B981"];
+    rocq [label="five-rocq\n\nExplicit preconditions and specifications\nSafety, termination and functional proofs\nCorrespondence and CBMC reproofs",
+          fillcolor="#F5F3FF", color="#8B5CF6"];
+    results [label="Scoped results and evidence\n\nProved / refuted / pending\nAssumptions and remaining obligations\nMeasured costs for each active stage",
+             fillcolor="#FFF7ED", color="#F59E0B"];
+
+    {rank=same; cbmc; align;}
+    cbmc -> align [label="properties / traces\nwhen available", style=dashed, constraint=false];
+    align -> rocq [label="models + pending goals\nproof task requested"];
+    rocq -> results [label="proofs / refutations"];
+    cbmc -> results [label="bounded results", style=dashed];
+    align -> results [label="generation-only status", style=dashed];
+  }
+
+  c -> cbmc;
+  c -> align;
+  models -> rocq [label="independent Rocq input", style=dashed];
+}
