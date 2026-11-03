@@ -1,0 +1,99 @@
+{
+  "date": "2026-11-03",
+  "platform": "WSL2 x86-64 Linux; MXCSR=0x1f80; RNE; little endian",
+  "versions": {
+    "compcert": "3.17",
+    "gcc": "11.4.0",
+    "rocq": "9.2",
+    "frama_c": "31.0 Gallium",
+    "qcp": "QCP-V2.1.4"
+  },
+  "inputs": {
+    "finite": [
+      "4b800000",
+      "3f800000",
+      "cb800000"
+    ],
+    "nan": [
+      "7fc00042",
+      "00000000",
+      "00000000"
+    ]
+  },
+  "result_bits": {
+    "compcert_rocq": {
+      "finite": "00000000",
+      "nan": "7fc00042"
+    },
+    "compcert_native": {
+      "finite": "00000000",
+      "nan": "7fc00042"
+    },
+    "gcc_native": {
+      "finite": "00000000",
+      "nan": "7fc00042"
+    },
+    "qcp_floatlib_rocq": {
+      "finite": "00000000",
+      "nan": "7f800001"
+    }
+  },
+  "wp": {
+    "Real": {
+      "zero_result": "VC reduced to false; Qed Unknown",
+      "one_result": "Qed Valid"
+    },
+    "Float": {
+      "zero_result": "Qed Unknown",
+      "one_result": "Qed Unknown",
+      "expression": "add_f32(add_f32(a,b),c)"
+    }
+  },
+  "qcp": {
+    "flags": [
+      "--arch=64",
+      "--endian=little",
+      "--no-float-finite-vc"
+    ],
+    "symbolic_execution": "completed",
+    "return_expression": "fp32_add(fp32_add(a,b),c)",
+    "library_check": "Unmodified release FloatLib.v compiled in Rocq 9.2 with the installed CompCert/Flocq dependencies",
+    "contract": "emp postcondition observes execution without asserting IEEE NaN self-equality",
+    "proof_scope": "Four arithmetic result-bit theorems; generated separation-logic proof templates are not counted as kernel-checked proofs"
+  },
+  "kernel_check": "passed",
+  "theorems": [
+    "compcert_finite",
+    "qcp_finite",
+    "compcert_nan",
+    "qcp_nan"
+  ],
+  "assumptions": "Actual inherited assumptions printed in rocq-bits log; no newly declared axiom or admitted result theorem",
+  "source_sha256": {
+    "sum3.c": "9207b09a21c6e4037a4c929f1c181df66b69f0b189ef36a122428b2403680d9a",
+    "Sum3Bits.v": "26b311969f79bc2085c3597cf8c431625f8eba3c6e62ca53bd0deaab132d975d",
+    "wp.c": "099cab1ee1e5e5eeb5693e8ac88eb46983cc6a6259d5b61a054543e0b2ae30e6",
+    "native.c": "31a5fec269e536ff3bd367363e059e3a7b8775d9712e5c7d475c9113a425a81c",
+    "qcp.c": "86f15111e5cf90d1f60fd72877fff4df8d693e543bb51c6b232e72767cc69d08"
+  },
+  "upstream": [
+    {
+      "path": "linux-binary/symexec",
+      "sha256": "0e74c446cebca8c804ff9b838f07c67f23e31a093630675bc720b25c986e1032"
+    },
+    {
+      "path": "Rocq/SeparationLogic/FloatLib.v",
+      "sha256": "9b3a33c3d74f5b761add1b02c79440eb368e6bf822aca12e9a589665afc0e9a5"
+    },
+    {
+      "path": "docs/qcp-cli.md",
+      "sha256": "556d69c9cbfeac331fd95d89349a7e59a272007fd90fc8f16b335790b3a2ee17"
+    },
+    {
+      "path": "QCP_examples/QCP_demos_tutorial/float.c",
+      "sha256": "8260f4cceeb0f27237ad0392268994cbd6a3dc6de6ad62172e786f0f4dfe88ac"
+    }
+  ],
+  "run_id": "20261103T132034-91930463b5",
+  "evidence_archive": "evidence.tar.gz"
+}
