@@ -688,19 +688,33 @@ separately from this model, so that correctness is not reduced to restating
 the execution definition.
 
 \begin{sloppypar}
-Frama-C/WP and QCP remain relevant alternatives for contract-driven
-verification. ACSL and separation-logic annotations can express useful
-preconditions, postconditions, loop invariants, and memory footprints.
-For the present goal, those contracts can be used as local interfaces, but
-they do not remove the need to define the exact floating-point and memory
-semantics or to prove the relation between the implementation and a
-high-level model. The WP documentation describes the complexity of precise
-floating-point obligations and the unspecified float conversion in its
-Bytes memory model; QCP provides a separation-logic-based symbolic-
-execution workflow for C verification \cite{FramaCWPManual,WuEtAl2026}.
-For this target, the choice concerns proof organization and semantic
-infrastructure. Contract-based tools can still contribute useful local
-interfaces and proof obligations.
+The framework selection follows three concrete requirements: preservation
+of rounded floating-point operations, explicit correspondence with stored
+bits and bytes, and reusable proofs over all reachable states. CompCert
+provides the execution and representation definitions, and Rocq provides
+the logic in which those definitions and inductive proofs are maintained.
+CBMC supplies bounded implementation checks and concrete counterexamples.
+
+The comparison with contract-driven frameworks is grounded in the
+experiments in Appendices~\ref{app:sum3-baseline} and~\ref{app:wp-bytes}.
+QCP v2.1.4 preserves the two rounded additions in sum3 but uses a NaN
+callback whose output bits differ from the selected CompCert x86-64
+policy and the measured native results. Adopting that release therefore
+requires a matching NaN policy and its correspondence proof. For
+Frama-C/WP, the decisive issue is the value-to-byte connection: the tested
+Bytes model exposes an abstract floating-point encoding interface instead
+of the concrete IEEE binary32 codec. Even the byte representation of
+\texttt{1.0f} consequently requires additional encoding definitions and
+proof support. The official WP manual documents this modeling choice
+\cite{FramaCWPManual,QCPFloatLib214}.
+
+FIVE selects CompCert and Rocq to reuse one concrete execution and memory
+foundation across arithmetic, representation and functional reasoning.
+The choice follows the required semantic coverage and integration work.
+The Unresolved WP arithmetic goals characterize the tested prover configurations;
+the stronger selection evidence is the inspected encoding interface and
+the measured QCP NaN-policy difference. The generated obligations and
+their proof status remain explicit artifacts of each verification task.
 \end{sloppypar}
 
 \subsection{Counterexample-guided refinement and evidence}
@@ -896,9 +910,10 @@ environment and two inputs specified above.
 The experiment identifies the work needed to adopt the alternatives.
 WP's Real abstraction removes rounding and therefore fails the finite
 example. WP's Float model preserves the arithmetic structure, but Qed
-does not discharge the tested result obligations. Byte-level reasoning
-additionally needs the concrete floating-point encoding that the documented
-WP Bytes model leaves unspecified. QCP performs the symbolic execution,
+does not discharge the tested result obligations. The independent byte-reading experiment in
+Appendix~
+ef{app:wp-bytes} identifies the concrete encoding relation
+needed by WP's Bytes model. QCP performs the symbolic execution,
 but its release NaN callback needs adaptation to match the chosen x86-64
 bit semantics. FIVE directly reuses CompCert's operations, NaN policy and
 memory model, then organizes the functional proofs in Rocq.
@@ -910,6 +925,94 @@ output tokens; 2,337,152 input tokens were cached. Two native processes
 completed between the 10 ms memory samples, so the per-command sampling
 audit records those entries as incomplete. The archive retains all runs,
 including the initial contract attempt and its correction.
+
+
+\clearpage
+\section{Frama-C/WP: Floating-Point Values and Memory Bytes}
+\label{app:wp-bytes}
+
+This experiment directly tests the representation requirement used in
+FIVE's framework selection. It asks whether reading the four bytes of
+\texttt{1.0f} produces its binary32 encoding, \texttt{0x3f800000}, under
+the fixed little-endian target. The example has no loop, arithmetic
+rounding chain, NaN input, or external library call. Access through
+\texttt{unsigned char} observes the C object's representation.
+
+\begin{verbatim}
+/*@ assigns \nothing;
+    ensures \result == 0x3f800000; */
+unsigned int bits_one(void) {
+  float x = 1.0f;
+  const unsigned char *p = (const unsigned char *)&x;
+  return (unsigned int)p[0]
+       | ((unsigned int)p[1] << 8)
+       | ((unsigned int)p[2] << 16)
+       | ((unsigned int)p[3] << 24);
+}
+\end{verbatim}
+
+\subsection{Executed configurations and results}
+
+We ran Frama-C/WP 31.0 (Gallium) with \texttt{-machdep x86\_64},
+runtime-error obligations enabled, and two memory configurations:
+\texttt{Typed+float} and \texttt{Bytes+raw+float}. The latter activates
+the byte model throughout the function. Qed was used first, followed by
+Alt-Ergo 2.6.2 and Z3 4.13.3 with a five-second limit per attempt for the
+Bytes configuration. GCC 11.4 and CompCert 3.17 compiled the same function
+for native execution; both executables returned \texttt{0x3f800000}.
+
+The Typed configuration reported a pointer-cast modeling
+warning for the float-to-character pointer cast. The Bytes configuration
+generated the byte-access obligations. Alt-Ergo and Z3 each proved all
+four read-validity obligations and the \texttt{assigns} obligation. Both
+timed out on the remaining postcondition fixing the returned encoding.
+The successful memory-safety obligations isolate the unresolved property:
+the connection between the stored floating-point value and its exact bytes.
+
+\subsection{Inspecting the generated encoding interface}
+
+The exported solver input contains abstract encoding and decoding
+functions, together with inverse axioms. In schematic notation, their
+interface is:
+\[
+ \operatorname{encode}:\operatorname{Float32}\to\mathbb{Z},\qquad
+ \operatorname{decode}:\mathbb{Z}\to\operatorname{Float32}.
+\]
+WP names these functions \texttt{float32\_to\_int} and
+\texttt{int\_to\_float32}. The initializer contributes the constraint
+\[
+ \operatorname{decode}(\operatorname{read32}(m,\operatorname{addr}(x)))
+   = \operatorname{to\_f32}(1.0).
+\]
+The postcondition requires the concrete word $1065353216$, namely
+\texttt{0x3f800000}. The interface does not specify the IEEE encoding
+equation
+\[
+ \operatorname{encode}(\operatorname{to\_f32}(1.0))=1065353216.
+\]
+Thus the source of the integration work is visible in the actual generated
+model, beyond the observed solver timeout. The WP 33.0 manual, Section~3.8,
+independently documents that the Bytes model assumes a floating-point
+conversion function without giving its concrete definition
+\cite{FramaCWPManual}.
+
+\subsection{Consequence for bit-precise verification}
+
+For FIVE, floating-point results and their stored representations are part
+of the same verification target. Using WP for this target requires a
+concrete encoding model and supporting correspondence lemmas. CompCert
+already provides concrete floating-point bit conversions and memory
+encoding definitions in the semantic infrastructure reused by Rocq.
+This is the basis for our choice: it keeps arithmetic, NaN handling and
+byte-level observations within one target-specific execution semantics.
+
+The executed configurations, complete solver inputs, native outputs,
+source hashes and cost records are available in
+\path{paper/experiments/float-bytes/}. The distinction is precise: the
+observed postcondition outcome is a timeout, while the documented and
+inspected modeling issue is the abstract encoding interface. The native
+comparison in this experiment establishes the observed word; the separate
+sum3 experiment also supplies kernel-checked arithmetic result-bit theorems.
 
 \end{document}
 \endinput
