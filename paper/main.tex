@@ -406,20 +406,35 @@ unfinished proof visible instead of treating model export as verification.
 
 The objective is to prove functional properties of a floating-point C
 program while retaining the effects of finite-precision evaluation. A real
-arithmetic expression is not, in general, a sufficient specification of a
-floating-point computation. If $\operatorname{fl}_{32}$ denotes a binary32
-operation rounded according to the selected target semantics, then
+arithmetic recurrence is not, in general, a sufficient specification of a
+floating-point filter. Consider the Paparazzi second-order low-pass filter
+used in our aviation case. Its C implementation computes
 \[
-  \operatorname{fl}_{32}(\operatorname{fl}_{32}(a+b)+c)
-  \quad\text{and}\quad
-  \operatorname{fl}_{32}(a+\operatorname{fl}_{32}(b+c))
+ y = b_0 x + b_1 i_0 + b_0 i_1 - a_0 o_0 - a_1 o_1,
 \]
-can produce different bit patterns. An oracle that changes the association,
-accumulation order, intermediate format, or rounding point can therefore
-disagree with the program even when both expressions denote the same real
-number. This is why the functional model preserves the relevant computation
-structure, or carries a separate proof that an alternative structure is
-bitwise equivalent.
+where $i_0,i_1$ and $o_0,o_1$ are the stored input and output histories.
+Writing this recurrence over real numbers hides the rounding performed by
+each multiplication and by the left-associated additions and subtractions.
+If $\operatorname{fl}_{32}$ denotes rounding to the selected binary32
+format, the corresponding computational structure is
+\[
+\begin{aligned}
+ r_0 &= \operatorname{fl}_{32}(b_0 x),\\
+ r_1 &= \operatorname{fl}_{32}(r_0+\operatorname{fl}_{32}(b_1 i_0)),\\
+ r_2 &= \operatorname{fl}_{32}(r_1+\operatorname{fl}_{32}(b_0 i_1)),\\
+ r_3 &= \operatorname{fl}_{32}(r_2-\operatorname{fl}_{32}(a_0 o_0)),\\
+ y   &= \operatorname{fl}_{32}(r_3-\operatorname{fl}_{32}(a_1 o_1)).
+\end{aligned}
+\]
+These equations illustrate the rounding structure for finite operands;
+the actual model uses CompCert floating-point operations, including its
+exceptional-value semantics. Reassociating the terms or using a fused
+operation can change the output bits. The function then shifts both
+histories, stores the current input and output, and returns the output.
+Consequently, an exact functional specification must also account for the
+updated memory bytes. A different computational structure requires a
+separate bitwise-equivalence argument, rather than an appeal to algebraic
+equality over the reals.
 
 The current artifacts use CompCert 3.17 on x86-64 Linux, with little-endian
 memory, binary32 operations, round-to-nearest ties-to-even and the pinned
@@ -696,9 +711,10 @@ construction can be expensive, and its token, time and memory costs must
 be measured alongside the automated checks.
 
 For exact functional specifications, a contract still needs a definition
-of the required computation. For example, specifying the output of sum3
-as a sum over real numbers loses the two binary32 rounding points.
-A contract may instead refer to the precise ordered computation. Choosing
+of the required computation. For example, specifying the low-pass filter solely by its real-valued
+recurrence omits the rounding at each product and accumulation, as well
+as the precise history updates. A contract may instead refer to the
+ordered floating-point computation and its memory effects. Choosing
 a contract framework therefore changes how the proof is organized, but
 does not in itself remove the need for a precise functional model and its
 connection to the implementation. Reusable high-level properties are stated
