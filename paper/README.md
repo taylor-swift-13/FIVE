@@ -1,5 +1,13 @@
 # Verification chapter draft
 
-This directory is a working copy of `main.tex` from the supplied archive. The extraction, interface, and preceding manuscript sections are retained as received. The verification section has been rewritten around the current CBMC + CompCert + Rocq workflow; RQ2 defines the required verification outcomes and cost measurements; numeric results remain to be populated from completed runs.
+The verification chapter describes the rationale, architecture, semantic baseline,
+generated obligations and proof responsibilities of CBMC + CompCert + Rocq.
+Preceding chapters are unchanged by this revision. Evaluation numbers remain
+pending; model generation and historical proof evidence are not new results.
 
-Compile from this directory with an ACM-compatible LaTeX/BibTeX toolchain. `references/IP_construction_tosem_2026.zip` is the unchanged original archive.
+The vector framework figure is figures/five-framework.pdf. Its editable Graphviz
+source is ../docs/workflow.dot; ../docs/workflow.svg supplies the same figure to
+the repository README. Regenerate the PDF with Graphviz dot -Tpdf.
+
+Build main.tex with pdflatex, bibtex, then pdflatex twice, using an ACM-compatible
+LaTeX installation. The unchanged supplied archive is in ../references/.

@@ -45,6 +45,7 @@
 %%
 %%
 \documentclass[manuscript, screen, review]{acmart}
+\microtypesetup{expansion=false}
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
 \AtBeginDocument{%
@@ -358,6 +359,49 @@ integration could apply the verification workflow to extracted entities
 and prove that extraction preserves the legacy behavior; that relation is
 outside the current verification cases and is not assumed by their proofs.
 
+
+\subsection{Framework overview}
+
+FIVE organizes verification around one C implementation and a fixed semantic
+configuration, as shown in Figure~\ref{fig:five-framework}. The input is a
+translation unit with its required headers, definitions, and external-call
+contracts, together with the selected function and observations. These
+verification inputs are independent of the extraction experiments in
+Sections~3 and~4. A compilable program must additionally lie within the
+supported CompCert C dialect; successful compilation by another compiler
+does not establish this requirement \cite{CompCertLanguage}.
+
+The implementation-checking branch runs traditional CBMC bounded model
+checking. The model-generation branch exports CompCert Csyntax and exposes
+the original Csem/Cexec transition semantics in Rocq. These branches can
+start independently. Their handoff to the proof stage consists of explicit
+artifacts: a source-bound model, pending obligations, and, when available,
+CBMC property descriptions and counterexamples. A successful CBMC run is
+not a premise that Rocq may assume.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/five-framework.pdf}
+  \caption{FIVE verification framework. Solid arrows carry artifacts;
+  the dashed arrow supplies optional CBMC properties and counterexamples
+  for independent analysis. Model generation creates pending goals, not
+  completed proofs. Bounded CBMC evidence and Rocq theorems retain their
+  respective scopes in the final report.}
+  \Description{A common C source and semantic configuration feed CBMC
+  bounded checking and CompCert model generation. Both supply artifacts
+  to Rocq proof construction. CBMC evidence and checked Rocq theorems
+  are collected with assumptions and costs in a scoped report.}
+  \label{fig:five-framework}
+\end{figure}
+
+The three stages correspond to \texttt{five-cbmc}, \texttt{five-align},
+and \texttt{five-rocq}. The wrapper \texttt{five-verify} coordinates their
+handoffs and accounts for evidence and resources; it is not a fourth
+proof method. A model-generation request stops at pending goals, while
+a proof request supplies preconditions and proof terms. Rocq can also
+accept existing models independently of CBMC. This separation makes an
+unfinished proof visible instead of treating model export as verification.
+
 \subsection{Verification objective and semantic baseline}
 
 The objective is to prove functional properties of a floating-point C
@@ -377,7 +421,9 @@ number. This is why the functional model preserves the relevant computation
 structure, or carries a separate proof that an alternative structure is
 bitwise equivalent.
 
-Our semantic baseline fixes the CompCert version and target configuration
+The current artifacts use CompCert 3.17 on x86-64 Linux, with little-endian
+memory, binary32 operations, round-to-nearest ties-to-even and the pinned
+CompCert NaN policy. Our semantic baseline fixes the CompCert version and target configuration
 used for each experiment, including architecture, ABI, endianness, floating
 formats, rounding, and the treatment of exceptional floating-point values.
 The C translation is obtained from the source with CompCert's C front end;
@@ -403,8 +449,8 @@ not establish a byte-level memory property \cite{Brain2015}.
 \subsection{Why verification is divided into levels}
 
 The central design choice is to separate implementation checks, semantic
-anchoring, and functional reasoning. A single solver run cannot establish
-all three. Bit-precise bounded model checking is useful for finding concrete
+anchoring, and functional reasoning. These tasks require different evidence and need not be discharged
+by the same proof mechanism. Bit-precise bounded model checking is useful for finding concrete
 violations and checking local C properties, but its completeness depends on
 the unwinding bounds. A source-level proof can establish an inductive
 property for every reachable state, but only if the formal model is tied to
@@ -418,7 +464,7 @@ existence does not imply that a solver will discharge every verification
 condition produced by a large program. In practice, a condition can combine
 rounding-sensitive arithmetic with path conditions, array indices, and
 memory updates. The relevant automation cost therefore has to be measured
-on the target programs. For CBMC, the evaluation reports verification
+on the target programs. For CBMC, the evaluation protocol requires verification
 outcomes together with unwinding bounds, time, and peak memory; a timeout or
 out-of-memory result is not reported as a proof. Frama-C/WP documents both
 the precise floating-point model and the fact that such obligations provide
@@ -450,13 +496,13 @@ abstractions.
 \caption{Verification levels and the evidence each level contributes.}
 \label{tab:verification-levels}
 \centering
-\begin{tabular}{p{0.13\textwidth}p{0.22\textwidth}p{0.31\textwidth}p{0.25\textwidth}}
+\begin{tabular}{@{}p{0.16\textwidth}p{0.20\textwidth}p{0.29\textwidth}p{0.25\textwidth}@{}}
 \hline
 Level & Main mechanism & Suitable obligations & Scope of the result \\
 \hline
 Implementation & Traditional CBMC bounded model checking & Array and pointer safety, conversions and bit operations, and local assertions over the original C & Complete only for the stated bound or a separately justified complete unwind \\
-Semantic alignment & CompCert C front end and original C execution semantics; Rocq reproof of selected CBMC properties & Source model generation, C memory and floating-point meaning, and agreement of property statements and preconditions & Relative to the pinned CompCert semantics and explicitly checked correspondence \\
-Functional proof & Rocq definitions, lemmas, and induction & Cross-function behavior, state relations, and invariants over arbitrary finite control cycles & Universal over the theorem's stated preconditions, assuming the proved semantic link \\
+Model generation & CompCert C front end and original Csem/Cexec semantics & Exported syntax, provenance, pending goals and mapped property statements & Source-bound artifacts; correspondence and program goals remain proof obligations \\
+Proof construction & Rocq definitions, lemmas, and induction & Correspondence, CBMC-property reproof, safety, termination and functional invariants & Only completed theorems, under their stated preconditions and environment assumptions \\
 \hline
 \end{tabular}
 \end{table*}
@@ -476,9 +522,10 @@ operations and supported floating-point constructs directly in C
 
 Each result records the source revision, compiler and CBMC options,
 preconditions, loop-unwinding bounds, assertions, solver result, wall-clock
-time, and peak memory. A counterexample is retained with its path and input
-values so that it can be replayed under the same C configuration and
-compared with the CompCert model. A successful bounded check is reported as
+time, and peak memory. A counterexample is retained with its path, input bit patterns and relevant
+memory effects for comparison with the CompCert model. Reproduction may
+use a semantic derivation in Rocq; fast direct interpreter evaluation is
+not required and is not assumed to be available for every model. A successful bounded check is reported as
 bounded unless the selected unwind is proved to cover every relevant
 execution. This distinction prevents a finite exploration from being
 presented as an unbounded safety theorem.
@@ -490,7 +537,7 @@ solver cost is an empirical result: the paper reports it per target and
 property instead of inferring that a floating-point theory is inherently
 intractable.
 
-\subsection{Level 2: CompCert semantics and independent property reproof}
+\subsection{Level 2: CompCert model and obligation generation}
 
 The second level anchors each selected verification input to a formal C
 execution model. CompCert's front end automatically translates the C
@@ -503,7 +550,10 @@ version and target configuration \cite{Leroy2009,Ramananandro2016}.
 The alignment check binds the generated syntax tree and executable model
 to the selected C files, headers, preprocessing options, and target
 metadata. Regeneration is compared with the committed model so that a
-stale or hand-edited export cannot silently become the proof input. Model
+stale or hand-edited export cannot silently become the proof input. This
+provenance check does not prove the preprocessing and front-end export
+chain correct; these toolchain components and the chosen external contracts
+remain explicit trust assumptions. Model
 state includes the CompCert memory state. Where a property observes memory
 as bytes, the proof states the representation relation between a C
 floating-point value, its bit pattern, and the affected byte range; a
@@ -511,8 +561,9 @@ value-level floating-point theorem is not used as a substitute for this
 relation.
 
 CBMC results are not imported into Rocq as axioms or trusted certificates.
-For every selected assertion, the corresponding proposition is restated
-and proved in Rocq over the CompCert execution model. The reproof uses the
+For each selected assertion, this stage records the corresponding proposition
+as a pending task over the CompCert execution model. The subsequent Rocq
+proof stage must establish or refute it independently. The reproof uses the
 same C source, precondition, program point, observable result, and stated
 bound. If the Rocq theorem proves a stronger
 unbounded statement, that stronger scope is reported explicitly. A
@@ -525,7 +576,55 @@ It does not assert that this input was produced by the entity-extraction
 pipeline in Sections~3 and~4; the verification cases are independent of that
 pipeline.
 
-\subsection{Level 3: high-level functional properties in Rocq}
+
+\subsection{Explicit safety and termination obligations}
+
+The execution domain is separate from the proof precondition. Let
+$\operatorname{entry}_f(a,m)$ be a function-call state for argument values
+$a$ and CompCert memory $m$, and let $s\longrightarrow s'$ mean that a
+Csem transition exists with some trace. The selected function-level error
+predicate is
+\[
+ \operatorname{Error}(s) \equiv
+ \neg\operatorname{NormalReturn}(s)\ \land\
+ \neg\exists s'.\;s\longrightarrow s'.
+\]
+Here a normal return has the designated function boundary's stop
+continuation. This is a semantic no-progress condition, not a claim that
+the host operating system produces a crash. NaN and infinity are values,
+not errors by this definition. Exhausting interpreter fuel also does not
+establish an error. Missing external-call support must be resolved against
+an explicit environment contract before it is interpreted as program failure.
+
+For every new export, the generator produces separate precondition,
+obligation and proof-template files. With a still-unspecified predicate
+$P(a,m)$, the safety target is
+\[
+ \forall a,m,s.\quad P(a,m)\land
+ \operatorname{entry}_f(a,m)\longrightarrow^{*}s
+ \ \Rightarrow\ \neg\operatorname{Error}(s).
+\]
+The termination target requires accessibility of the successor relation
+from the entry state, with relation orientation
+$R(s',s)\equiv s\longrightarrow s'$. Thus every execution branch must be
+well founded, rather than just one selected evaluation path terminating.
+Safety and termination are independent obligations: a stuck state can be
+well founded, and an infinite execution can have progress at every step.
+Together they exclude both stuck maximal executions and infinite ones,
+under the stated transition semantics and precondition.
+
+The generator does not select a convenient input domain or insert an
+assumed theorem. During proof construction, the author supplies $P$, checks
+that it captures the caller contract and has meaningful inhabitants, and
+proves the requested goals. A typical safety argument establishes an
+invariant at entry, proves preservation by every transition, and derives
+progress or normal return at every reachable state. Induction over
+reachability then establishes the target without enumerating paths.
+Termination additionally needs a well-founded argument; the invariant
+alone does not imply it. The historical cases retain different proof
+organizations and are not all complete instances of the new generator.
+
+\subsection{Level 3: proof construction and functional properties in Rocq}
 
 At the third level, Rocq proves properties that are awkward to express as
 bounded assertions over a single C execution. The functional specification
@@ -576,6 +675,37 @@ substantial proof effort. The workflow is selected to expose and discharge
 these distinct obligations, not to claim that one tool eliminates the
 others' limitations.
 
+
+Three alternatives clarify the choice. Using CBMC alone retains direct C
+analysis, but ordinary finite unwinding does not supply an arbitrary-cycle
+induction proof. Using only a hand-translated Rocq model makes high-level
+reasoning convenient, but adds a separate translation-correctness problem
+for every program, including its error and memory behavior. Generating the
+syntax with CompCert and reusing Csem/Cexec avoids maintaining a second,
+program-specific implementation of C execution. It does not eliminate
+source-export provenance checks, external-environment assumptions, or
+proofs relating any higher-level abstraction to that execution.
+
+Rocq is selected here because CompCert's semantic definitions and supporting
+proofs are already available in the same logic. This permits direct reuse
+of its memory and floating-point infrastructure without introducing another
+cross-assistant semantic translation. This is an integration argument,
+not a claim that another proof assistant cannot express the properties.
+The benefit is also not guaranteed lower total cost: interactive proof
+construction can be expensive, and its token, time and memory costs must
+be measured alongside the automated checks.
+
+For exact functional specifications, a contract still needs a definition
+of the required computation. For example, specifying the output of sum3
+as a sum over real numbers loses the two binary32 rounding points.
+A contract may instead refer to the precise ordered computation. Choosing
+a contract framework therefore changes how the proof is organized, but
+does not in itself remove the need for a precise functional model and its
+connection to the implementation. Reusable high-level properties are stated
+separately from this model, so that correctness is not reduced to restating
+the execution definition.
+
+\begin{sloppypar}
 Frama-C/WP and QCP remain relevant alternatives for contract-driven
 verification. ACSL and separation-logic annotations can express useful
 preconditions, postconditions, loop invariants, and memory footprints.
@@ -586,15 +716,17 @@ high-level model. The WP documentation describes the complexity of precise
 floating-point obligations and the unspecified float conversion in its
 Bytes memory model; QCP provides a separation-logic-based symbolic-
 execution workflow for C verification \cite{FramaCWPManual,WuEtAl2026}.
-Our choice is therefore a choice of proof organization and semantic
-substrate for this target, rather than a claim that contract-based tools
-cannot contribute to the workflow.
+For this target, the choice concerns proof organization and semantic
+infrastructure. Contract-based tools can still contribute useful local
+interfaces and proof obligations.
+\end{sloppypar}
 
 \subsection{Counterexample-guided refinement and evidence}
 
-The levels form a feedback process. A CBMC counterexample is first checked
-against the original C program and then replayed against the CompCert model
-under matching inputs and memory. If the two differ, the source model,
+The levels form a feedback process. A CBMC counterexample is checked against its harness and mapped to a
+CompCert execution under matching inputs, memory and observations. The
+model-side reproduction is established by execution or a semantic proof;
+a missing reproduction is reported as pending. If the two differ, the source model,
 target configuration, or property encoding is investigated before the
 functional theorem is trusted. If they agree and expose a defect, the
 implementation or its stated precondition is corrected. If a Rocq proof
@@ -602,9 +734,13 @@ fails, the resulting unsolved obligation is used to refine the invariant,
 supporting lemma, or specification; it is not discharged by weakening the
 claim without recording the change.
 
-For each case, the report records the C and generated-model hashes, the
+The reporting protocol requires, for each case, the C and generated-model hashes, the
 CompCert configuration, the CBMC properties and bounds, the Rocq theorem
-statements and assumptions, and measured time and memory. The final claim
+statements and assumptions, and actual input/output tokens, wall time, tool CPU time and observed peak
+process memory. Failed attempts remain in the record; missing measurements
+are marked incomplete, and shared events are deduplicated rather than
+charged repeatedly. Repository editing and paper compilation are not
+verification-stage measurements. An end-to-end claim
 is made only when the relevant implementation checks, independent property
 proofs, and semantic correspondence obligations agree. Tests and bounded
 checks remain useful evidence, while an arbitrary-cycle functional claim
@@ -633,9 +769,12 @@ listing timeouts and incomplete unwinds separately; neither is counted as a
 proof. These measurements provide the evidence for claims about CBMC's
 automation cost on these programs.
 
-For the CompCert and Rocq levels, we record verification-source hashes,
+For the CompCert and Rocq levels, the evaluation protocol records verification-source hashes,
 target metadata, regeneration and semantic-alignment results, theorem
-statements, assumptions, kernel-check status, proof time, and peak memory.
+statements, assumptions, kernel-check status, input/output token usage,
+wall time, tool CPU time and observed peak memory. A generated obligation
+is recorded separately from a completed proof. Cached input and reasoning
+output are subsets of their respective token totals, not additional charges.
 The extraction/interface cases from RQ1 and the verification cases from RQ2
 are reported as separate populations.
 We classify properties by implementation safety, local functional behavior,

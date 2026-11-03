@@ -84,6 +84,141 @@ references/          Original supplied manuscript archive
 
 All four cases use the same model filenames. Proof-support models are witnesses used by the proofs; they do not replace the C execution semantics. The earlier identity, addition, addition-store and bubble-sort cases are kept in a separate local archive outside this repository. Toolchains, temporary builds and raw local run directories are excluded from Git.
 
+## Complete case file trees
+
+These trees list every tracked file in the four cases. Matching paths indicate matching responsibilities, not identical contents or equally complete proofs.
+
+### lowpass
+
+```text
+cases/lowpass/
+  model/
+    Execution.v
+    Source.v
+    SourceInvariant.v
+  proof/
+    Entry.v
+    Invariant.v
+    NoError.v
+    Nonvacuity.v
+    PureProgress.v
+    support/
+      CallBoundary.v
+      ConcreteBody.v
+      FunctionalModel.v
+      MemorySpec.v
+      NormalCorrespondence.v
+      SourceFunctional.v
+      StandardBody.v
+  report/
+    costs.json
+    manifest.json
+    report.md
+    theorem.txt
+  source/
+    LICENSE
+    Program.c
+```
+
+### pid
+
+```text
+cases/pid/
+  model/
+    Execution.v
+    Source.v
+    SourceInvariant.v
+  proof/
+    Arithmetic.v
+  report/
+    costs.json
+    manifest.json
+    report.md
+    theorem.txt
+  source/
+    LICENSE
+    Program.c
+```
+
+### attitude_trig
+
+```text
+cases/attitude_trig/
+  model/
+    Execution.v
+    Source.v
+    SourceInvariant.v
+  proof/
+    Bounds.v
+  report/
+    costs.json
+    manifest.json
+    report.md
+    theorem.txt
+  source/
+    LICENSE
+    Program.c
+    airframe.c
+    five_trig.c
+```
+
+### sum3
+
+```text
+cases/sum3/
+  model/
+    Execution.v
+    Source.v
+    SourceInvariant.v
+  proof/
+    Core.v
+    Entry.v
+    Invariant.v
+    NoError.v
+    Obligations.v
+    Precondition.v
+    PureProgress.v
+    support/
+      NormalCorrespondence.v
+  report/
+    costs.json
+    manifest.json
+    report.md
+    theorem.txt
+  source/
+    Program.c
+```
+
+### Files that correspond across cases
+
+The following eight paths have a one-to-one counterpart in **all four cases**:
+
+| Relative path | Shared responsibility |
+| --- | --- |
+| `source/Program.c` | C compilation unit supplied to the exporter. For attitude_trig, it includes airframe.c and five_trig.c. |
+| `model/Source.v` | Automatically generated CompCert Csyntax AST. |
+| `model/Execution.v` | Function entry and execution interface using CompCert semantics; the exposed helpers can differ by case. |
+| `model/SourceInvariant.v` | Syntax and state invariants supporting semantic correspondence; not by itself a whole-function safety proof. |
+| `report/report.md` | Verification scope, assumptions, results and remaining work. |
+| `report/manifest.json` | Current file hashes and references to historical evidence. |
+| `report/costs.json` | References to recorded cost measurements with their original scopes. |
+| `report/theorem.txt` | Retained theorem and assumption output from previous checks. |
+
+Other files correspond only where the same responsibility is present:
+
+| Relative path | Cases containing it | Responsibility |
+| --- | --- | --- |
+| `source/LICENSE` | lowpass, pid, attitude_trig | Upstream license accompanying the aviation source. |
+| `proof/Entry.v` | lowpass, sum3 | Entry-state and precondition reasoning. |
+| `proof/Invariant.v` | lowpass, sum3 | Execution invariants and their preservation/progress arguments. |
+| `proof/NoError.v` | lowpass, sum3 | Whole-function, all-reachable-state no-error theorems under stated preconditions. |
+| `proof/PureProgress.v` | lowpass, sum3 | Progress support for expression and statement evaluation. |
+| `proof/support/NormalCorrespondence.v` | lowpass, sum3 | Supporting correspondence for normal execution. |
+
+The remaining files are case-specific. Lowpass retains its memory, functional-model and call-boundary proof support plus a non-vacuity witness. Sum3 additionally has Core.v, Precondition.v and Obligations.v. PID's Arithmetic.v and attitude_trig's Bounds.v prove different auxiliary properties: they are **not** counterparts of NoError.v and do not establish whole-function safety. Attitude_trig also needs its separate aviation and trigonometric C implementations.
+
+Absent files indicate differences in the retained proof organization or unfinished work; empty placeholders are not added to make the trees look identical. In particular, the generic export workflow generates separate precondition and obligation files for new exports, but this historical collection has not been retroactively regenerated to match it. The file trees and correspondence tables do not imply that any new verification has been performed.
+
 ## Working with the project
 
 Use Linux or WSL with Python 3, Rocq 9.2 and CompCert 3.17 configured for the target above. CBMC is needed when running the implementation-checking stage. The toolchains are not bundled with this repository.
