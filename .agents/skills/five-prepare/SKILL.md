@@ -9,7 +9,13 @@ description: Prepare and freeze a C case, its dependencies, target configuration
 
 ## 输入、输出和交接
 
-输入：原始 C 源码、入口、目标平台/编译语义、实际依赖和用户指定的检查或替代实现；缺失但必要的信息应登记为阻塞，不能猜造。输出：同一个案例目录的 `source/Program.c`、实际需要的头文件与依赖、适用许可证、`source/bindings.json`，以及 `report/report.md`、`report/manifest.json`、`report/costs.json` 中本阶段记录。完整目录、状态、hash、成本与后续阶段接口必须遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)。建立该契约规定的目录；下游未运行文件不得用空文件伪造。
+输入：原始 C 源码、入口、目标平台/编译语义、实际依赖和用户指定的检查或替代实现；缺失但必要的信息应登记为阻塞，不能猜造。输出：同一个案例目录的 `source/<entry>.c`、实际需要的头文件与依赖、适用许可证、`source/bindings.json`，以及 `report/report.md`、`report/manifest.json`、`report/costs.json` 中本阶段记录。完整目录、状态、hash、成本与后续阶段接口必须遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)。建立该契约规定的目录；下游未运行文件不得用空文件伪造。
+
+## 入口与依赖闭包
+
+每个 C case 必须明确一个用户选定的验证入口函数 `entry`；准备后的入口源码文件命名为 `<entry>.c`，例如 `sum3` 对应 `sum3.c`。入口不要求是 C `main`；验证 harness 由后续 CBMC 阶段另建。`bindings.json` 和 handoff 必须记录入口名、入口文件、签名、源码哈希和依赖闭包。
+
+从入口沿调用关系保留所有可达 callee 及其必需的声明、类型、宏、头文件、全局变量、初始化和编译条件；排除没有依赖关系的其他示例函数。保留原始源码快照及其 hash 以便追溯，快照不得混入实际编译输入。记录保留和移除的内容、依赖来源和实际绑定。函数指针、条件编译、外部链接或缺失头文件造成闭包不确定时明确记录未解决项，不能声称闭包完整；需保持原始构建行为时保留可影响入口行为的符号和初始化。抽取后的程序对应原程序的范围及待证关系须明确；不能把语法检查当作语义等价证明。
 
 ## 准备方法
 

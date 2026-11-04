@@ -2,14 +2,14 @@
   "schema": "five-source-bindings/1",
   "entry": "sum3",
   "original_source": {
-    "path": "prepare/source/Program.c",
+    "path": "prepare/provenance/original.c",
     "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
   },
   "prepared_source": {
-    "path": "prepare/source/Program.c",
-    "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
+    "path": "prepare/source/sum3.c",
+    "sha256": "25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03"
   },
-  "preparation": "The original C file is unchanged; the selected entry has no external calls.",
+  "preparation": "Selected sum3 and retained its complete direct source-level dependency closure. Removed unrelated sum3_right, left_example and right_example; original source is retained separately for provenance.",
   "dependencies": [],
   "target": {
     "semantics": "CompCert Csem/Cexec",
@@ -28,6 +28,20 @@
   "redirections": [],
   "external_environment": [],
   "correspondence_obligations": [
+    "Source extraction and its translation-unit context must be accounted for when transferring properties to a different original build.",
     "Connect mapped CBMC properties to CompCert execution and observations."
-  ]
+  ],
+  "entry_signature": "float sum3(float a, float b, float c)",
+  "call_closure": {
+    "entry": "sum3",
+    "function_definitions": [
+      "sum3"
+    ],
+    "direct_callees": [],
+    "indirect_calls": [],
+    "external_functions": [],
+    "global_variables": [],
+    "required_headers_or_macros": [],
+    "analysis_scope": "Source-level inspection of the selected function; no numeric input preconditions are imposed."
+  }
 }

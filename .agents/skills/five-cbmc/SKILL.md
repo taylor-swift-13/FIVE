@@ -27,7 +27,7 @@ description: Use CBMC to verify floating-point C implementations, memory safety,
 
 准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
 
-本阶段从 `source/Program.c` 与 `source/bindings.json` 读取同一份准备结果，将 harness、属性、范围、日志及真实反例写入 `cbmc/`，并更新 `report/`；详见共享契约。
+本阶段从 `source/<entry>.c` 与 `source/bindings.json` 读取同一份准备结果，将 harness、属性、范围、日志及真实反例写入 `cbmc/`，并更新 `report/`；详见共享契约。
 
 ## 计量及产物
 

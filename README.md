@@ -22,7 +22,7 @@ CBMC and CompCert consume the same prepared C program and use the recorded targe
 
 ## Walkthrough with `sum3`
 
-[`examples/sum3`](examples/sum3/README.md) is currently at the **prepare** stage. The unchanged [C program](examples/sum3/prepare/source/Program.c) and [binding metadata](examples/sum3/prepare/source/bindings.json) are ready for the later CBMC and CompCert stages. No CBMC results, CompCert model or Rocq proof have been generated for this reconstruction.
+[`examples/sum3`](examples/sum3/README.md) is currently at the **prepare** stage. The prepared [C program](examples/sum3/prepare/source/sum3.c) and [binding metadata](examples/sum3/prepare/source/bindings.json) are ready for the later CBMC and CompCert stages. No CBMC results, CompCert model or Rocq proof have been generated for this reconstruction.
 
 The [case report](examples/sum3/prepare/report/report.md), [manifest](examples/sum3/prepare/report/manifest.json) and [cost record](examples/sum3/prepare/report/costs.json) describe the actual status and evidence. Later stages will add their own artifacts to the same case directory.
 
@@ -79,7 +79,7 @@ Export a model and its pending obligations:
 
 ```sh
 python3 scripts/compcert-align.py export \
-  --source examples/sum3/prepare/source/Program.c --function f_sum3 \
+  --source examples/sum3/prepare/source/sum3.c --function f_sum3 \
   --namespace Sum3 --output _build/sum3
 ```
 

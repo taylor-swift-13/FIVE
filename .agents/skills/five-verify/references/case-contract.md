@@ -8,7 +8,7 @@ For `examples/sum3` the user's stage-directory rule supersedes the generic examp
 
 ```text
 <case>/
-  source/Program.c             # prepare 后的 C 入口；纯 Rocq 时不适用
+  source/<entry>.c             # prepare 后的 C 入口；纯 Rocq 时不适用
   source/preprocessed.i        # align 实际消费的预处理快照，产生后固定
   source/bindings.json         # 原始源码、依赖、目标及实际调用绑定
   source/                      # 实际使用的头文件、依赖和适用许可证
@@ -33,7 +33,7 @@ For `examples/sum3` the user's stage-directory rule supersedes the generic examp
 
 | skill | 必需输入 | 写入与交给下游 |
 |---|---|---|
-| five-prepare | 原 C、入口、目标语义、依赖及用户要求；输入可来自案例外 | `source/Program.c`、实际依赖和 `source/bindings.json`；在报告/manifest 固定准备结果和限制，供 CBMC 与 align 消费 |
+| five-prepare | 原 C、入口、目标语义、依赖及用户要求；输入可来自案例外 | `source/<entry>.c`、实际依赖和 `source/bindings.json`；在报告/manifest 固定准备结果和限制，供 CBMC 与 align 消费 |
 | five-cbmc | 已准备的 `source/`、bindings、入口和用户指定检查性质/界限 | `cbmc/` 的 harness、命令、属性、假设、范围、结果及实际反例，manifest 索引并标明状态；交给 align |
 | five-align | 已准备的 `source/` 和 bindings；若映射 CBMC 规约，还需实际 `cbmc/` 属性与范围 | `source/preprocessed.i`、`model/Source.v`、`model/Execution.v`、生成的三个 `proof/*.v`、来源审计及适用时 `model/spec-map.json`，供 rocq 使用；未运行 CBMC 不阻塞模型生成 |
 | five-rocq | 一个或多个已有 Rocq 模型及用户目标；CompCert 任务还读 align 的模型、义务和映射 | 前条件、规约、证明和假设、内核证据及适用时 `proof/spec-recheck.json`，交给 verify；纯 Rocq 无需 C 或 CBMC |
