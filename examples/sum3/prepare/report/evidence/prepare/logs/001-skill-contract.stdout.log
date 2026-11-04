@@ -1,0 +1,126 @@
+---
+name: five-prepare
+description: Prepare and freeze a C case, its dependencies, target configuration and explicit external-call bindings for the FIVE CBMC and CompCert stages.
+---
+
+# FIVE 案例准备
+
+将用户选定的 C 程序和入口整理为一个可追溯、可被 CBMC 与 CompCert 共同消费的案例。调用本 skill 不等于运行验证或证明。外层案例路径由项目决定。
+
+## 输入、输出和交接
+
+输入：原始 C 源码、入口、目标平台/编译语义、实际依赖和用户指定的检查或替代实现；缺失但必要的信息应登记为阻塞，不能猜造。输出：同一个案例目录的 `source/Program.c`、实际需要的头文件与依赖、适用许可证、`source/bindings.json`，以及 `report/report.md`、`report/manifest.json`、`report/costs.json` 中本阶段记录。完整目录、状态、hash、成本与后续阶段接口必须遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)。建立该契约规定的目录；下游未运行文件不得用空文件伪造。
+
+## 准备方法
+
+1. 固定原始源及依赖版本/hash、选定入口、C 方言、目标 ABI、字节序、浮点格式和舍入、实际预处理/编译选项；保留源文件和依赖的可追溯引用。
+2. 按用户目标处理依赖，必要时将明确的外部调用绑定到给定 C 实现，记录调用点、原绑定、替代实现、两者的来源与 hash；把实际实现纳入准备后的程序。不得把测试桩或替代实现伪装成原始库实现。
+3. 在 `source/bindings.json` 固定实际准备结果、未知项、外部环境和待证对应。CBMC 和 CompCert 消费相同的准备后程序；对原始库绑定的性质迁移须由 five-rocq 另行证明，不得声称自动成立。
+4. 缺失生成头文件、目标不受支持或依赖不可取得时记录 limitation 和 blocked，保留真实输入及失败日志；不得虚构配置。只为准备所需执行最小检查，不自行运行 CBMC 或证明。
+
+## 成本和交付
+
+每个案例必须有 `report/costs.json`，对本阶段记录实际 input/output/total token、墙钟时间、工具 CPU、工具进程内存峰值及原始证据；失败和重试计入。遵循 [运行与成本契约](../five-verify/references/run-contract.md)：分析或修改前建立带当前 session 的 `five-prepare` 运行，用计量器执行工具，结束后调用 `python3 scripts/audit-costs.py --run RUN_DIR`。数值无法获得时记 `null`、原因和 partial，批次成本独立保存并引用，不伪造逐案例费用。交付准备状态、输入/输出、绑定、限制和未完成事项。
+# FIVE 共享案例目录与阶段交接契约
+
+## Sequential sum3 example override
+
+For `examples/sum3` the user's stage-directory rule supersedes the generic example paths below. The case has exactly four stage output directories: `prepare/`, `cbmc/`, `align/`, `rocq/`; its README documents their contents. The stages run in order. `prepare/handoff.json` is CBMC input; `cbmc/handoff.json` is align input; `align/handoff.json` is Rocq input. Each handoff contains case-relative paths and SHA-256 hashes for its own outputs and all transitive artifacts needed downstream, including the unchanged prepared C, bindings and relevant CBMC results. The prepare handoff must also contain the verification request, properties, assumptions and bounds before CBMC starts; if unspecified, record that fact and block CBMC until the prepare handoff is updated. Each next stage verifies hashes and status and records any missing input as blocked. Each stage writes its own `report/costs.json` and evidence, preserving incomplete measurements as partial/null. `five-verify` orchestrates these four directories and preserves the sequential dependency for this example. This override does not require C or CBMC for a standalone pure Rocq task.
+
+本文件规定案例**内部**接口；案例外层路径由项目选择。五个 skill 共同维护同一个案例目录，增量写入自己负责的区域，不覆盖其他阶段的结果。纯 Rocq 案例仍受本契约约束，但 C/CBMC/CompCert 不适用时登记 `not_applicable`，不编造源码或模型。
+
+```text
+<case>/
+  source/Program.c             # prepare 后的 C 入口；纯 Rocq 时不适用
+  source/preprocessed.i        # align 实际消费的预处理快照，产生后固定
+  source/bindings.json         # 原始源码、依赖、目标及实际调用绑定
+  source/                      # 实际使用的头文件、依赖和适用许可证
+  cbmc/                        # harness、属性、日志和真实反例（如适用）
+  model/Source.v               # CompCert 自动生成的 Csyntax；不得手改
+  model/Execution.v            # Cexec 执行入口及其依赖
+  model/spec-map.json          # 有 CBMC 属性时逐项映射；否则记录不适用
+  proof/Precondition.v         # 独立前条件；未填写保持参数化
+  proof/Obligations.v          # 自动生成的无错误、终止性等待证目标
+  proof/Proofs.v               # 实际证明或未完成状态，不编造证明
+  proof/spec-recheck.json      # 仅在 Rocq 重验 CBMC 属性时生成
+  report/report.md             # 各阶段状态、结论、范围和缺口
+  report/manifest.json         # 输入/输出、hash、阶段状态及交接清单
+  report/costs.json            # 每个阶段的成本、状态及原始证据引用
+```
+
+必须创建这些目录和 `report/report.md`、`report/manifest.json`、`report/costs.json`；仅当对应阶段已实际生成且适用时才要求其具体文件。没有执行的阶段在 manifest 和报告中记 `not_run`；不适用记 `not_applicable`；缺少输入或工具记 `blocked`，已生成但未证记 `pending`，失败记 `failed`；不得用空文件冒充产物。共享翻译单元的依赖、批次证据可在目录外集中保存，但须可解析地引用并固定 hash。已有证明和状态不因添加阶段而被覆盖。
+
+## 固定交接接口
+
+每个阶段都读当前 case 下 `report/manifest.json`、`report/costs.json`，在启动前核对直接输入的路径、hash、目标配置和前一阶段状态；有缺失、内容变化或依赖不可用时停止依赖该输入的步骤，登记原因，不静默替代。执行完成后仅增量更新自己的阶段状态、输入/输出路径与 SHA-256、工具版本/选项和成本引用。路径均以 case 目录为基准，允许指向存在的共享文件。状态只能表示实际证据支持的程度。报告生成/类型检查、证明、成本审核分别记状态。
+
+| skill | 必需输入 | 写入与交给下游 |
+|---|---|---|
+| five-prepare | 原 C、入口、目标语义、依赖及用户要求；输入可来自案例外 | `source/Program.c`、实际依赖和 `source/bindings.json`；在报告/manifest 固定准备结果和限制，供 CBMC 与 align 消费 |
+| five-cbmc | 已准备的 `source/`、bindings、入口和用户指定检查性质/界限 | `cbmc/` 的 harness、命令、属性、假设、范围、结果及实际反例，manifest 索引并标明状态；交给 align |
+| five-align | 已准备的 `source/` 和 bindings；若映射 CBMC 规约，还需实际 `cbmc/` 属性与范围 | `source/preprocessed.i`、`model/Source.v`、`model/Execution.v`、生成的三个 `proof/*.v`、来源审计及适用时 `model/spec-map.json`，供 rocq 使用；未运行 CBMC 不阻塞模型生成 |
+| five-rocq | 一个或多个已有 Rocq 模型及用户目标；CompCert 任务还读 align 的模型、义务和映射 | 前条件、规约、证明和假设、内核证据及适用时 `proof/spec-recheck.json`，交给 verify；纯 Rocq 无需 C 或 CBMC |
+| five-verify | 用户目标和案例清单；分别读取所请求阶段的实际交付 | 调度与接口检查，更新各案例 `report/` 汇总、未完成项及去重后的成本；不将生成当证明 |
+
+`source/bindings.json` 至少登记：原始源文件与准备后的源文件路径及 SHA-256、实际依赖与版本或 hash、入口、C 方言和目标 ABI/端序/浮点与舍入、预处理和编译选项、外部调用原绑定与实际绑定、重定向实现及其来源/哈希、尚需证明的对应关系。未知或不可恢复字段写 `null` 并说明原因；不得猜测未发生重定向。准备后的程序是两个分支的相同输入；改回原库绑定的性质迁移必须另有对应性证据。
+
+`report/manifest.json` 至少有 case 标识、目标语义、`stages`（五个 skill 各自的状态、输入和输出路径/hash、日志及限制）。`report/costs.json` 至少有 `stages`（五个 skill 各自的状态、实际 input/output/total token、墙钟秒、工具 CPU 秒、工具进程 RSS 峰值字节、采集方法和可核对证据路径）。阶段未执行记 `not_run`，未知数值为 `null` 和原因，不能用 0 或估算。失败、重试及准备阶段均计入；案例独立边界需在开始前采集，批次共享消耗单列并引用，不能伪造单案例实测或重复相加。对于每个实际执行的阶段，通过 `scripts/audit-costs.py --run RUN_DIR` 检查成本；无法完整核验时标记 partial。
+
+为避免每个阶段自定义不同字段，新案例的 `report/manifest.json` 使用 `schema: "five-case-manifest/1"`、`case_id`、`target` 和 `stages`。`stages` 的键固定为 `five-prepare`、`five-cbmc`、`five-align`、`five-rocq`、`five-verify`；每个值包含 `status`、`inputs`、`outputs`、`logs`、`limitations`。inputs/outputs 为数组，每项至少含 `path` 和小写 SHA-256 字符串 `sha256`；仅对真实存在的文件列 hash。`logs` 为路径数组，`limitations` 为字符串数组。尚未运行的阶段用空数组与 `not_run` 初始化，不能把文件缺失写成已交付。实际结果还应记录阶段特有的范围、命令及工具版本。
+
+新案例 `report/costs.json` 使用 `schema: "five-case-costs/1"` 和同名五个 `stages` 键；每项固定字段 `status`、`input_tokens`、`output_tokens`、`total_tokens`、`wall_seconds`、`tool_cpu_seconds`、`tool_peak_rss_bytes`、`measurement_method`、`evidence`、`missing_reason`。数值字段必须是实测数或 null；`evidence` 为路径数组；token total 仅为 input + output，缓存和 reasoning 如记录则作为子集另列。共享批次的实际开销通过 `shared_batches` 引用，不填入无法确定的单案例数值。历史案例保留现有数据并增量迁移，未能追溯的字段保持 null，不能重写历史。
+
+工具可能先把 CompCert 产物写入自身输出目录；align 必须保留原始导出/审计证据，再将经核对的预处理输入、原始 AST、执行包装和目标安装到上述案例路径，记录源路径及 hash。不能假定原工具默认输出路径已经符合共享接口。
+# 最小运行与产物契约
+
+每次 skill 调用创建唯一运行目录（FIVE 默认 `runs/<run-id>/<skill>/`），保留失败、超时和中断状态，不覆盖旧结论。一次输入变化对应一次新运行。
+
+只保留三份入口文件及支撑结论的证据：
+
+| 产物 | 内容 |
+| --- | --- |
+| `report.md` | 简短结论、范围、未完成项、资源数字；align记录本阶段真实问题的发现/解决/未解决数及最终结论 |
+| `metrics.json` | 模型token、墙钟时间、工具CPU时间、内存峰值、采集方法、口径和可用状态 |
+| `run.json` | 输入/输出清单与hash、语义/前置条件、工具版本与命令、结果、必要证据索引；不另存多份同义摘要 |
+| `inputs/`、`evidence/`、`logs/` | 必要源码快照、证明/反例/测试和原始工具输出。相同证据引用一次，不堆叠复制报告 |
+
+时间使用秒，内存使用bytes，token使用token数。墙钟从本次调用开始到结束；CPU仅统计执行工具。GNU time最大RSS是单进程最大值，不是并发进程总和；`/proc`进程树RSS采样峰值会注明间隔、共享页可能重复计数和可能漏掉短峰值。模型服务器/桌面agent内存不能冒充工具内存。
+
+token记录input、output、cached-input及可取得的reasoning-output，后两者是子集，不重复加进total。只导入供应商usage或明确标识的Codex session事件；按event_id对实际阶段与端到端汇总去重。没有可靠接口则值为null并记unavailable+原因，不用日志字数估计，不把未知记0；此时计量状态是partial，不能宣称指标齐全。保留必要usage回执即可，不保存模型思维过程或完整无关聊天。
+
+当前 align 为单 agent，不要求子 agent 或独立审批。实际另有授权子任务时，才分别记录其指标和证据。端到端墙钟直接计时，不能相加子阶段墙钟；串行阶段峰值取最大，无法测量并发总峰值时明确不可用。启动子agent前记录调用时间和输入版本；资源回放不能冒充此前agent思考时间。
+
+开始工作时建立记录，外部命令通过 `scripts/five_telemetry.py` 的 Run.command 或CLI执行；在成功、失败和超时路径均finish。模型usage可经 `python3 scripts/five_telemetry.py tokens --run RUN_DIR --receipt usage.json` 导入。通用CLI提供start/exec/finish；现有a+b与纯Rocq入口已接入。对已有项目复用其构建命令，不强迫改项目结构。
+
+完整产物意味着结论可检查、可重跑；未生成的必需证据列原因及缺项。验证passed、产物完整性、指标完整性是三个不同状态。
+
+## 四阶段模型 token 的实际采集
+
+prepare、CBMC、align、Rocq 分别建立skill-session记录；不能把主聊天总量直接分摊给它们，也不能只统计执行脚本时段。先识别本次CODEX_THREAD_ID与对应session JSONL，在读取/分析实现、编写模型或证明之前运行：
+
+```bash
+python3 scripts/five_telemetry.py start --base runs --skill five-cbmc \
+  --scope scope.json --session /path/to/current-session.jsonl
+```
+
+其余阶段分别使用 five-prepare/five-align/five-rocq。保存返回的RUN目录；该阶段完成后用finish结束同一记录。start和finish自动采集token_count累计事件边界，提取实际input/output/cache/reasoning计数；缓存与reasoning为子集。工具执行作为该记录的exec命令，必要证据由finish的outputs传入。最终面向用户的总汇报可计入five-verify，不倒灌进已经结束的阶段。
+
+align 当前只记录主 agent 自身的阶段 session，不再要求 A/B session、问题计数或审批。若用户另外授权实际子任务，才记录各自 session 并按 parent/event_id 去重；不创建虚构子任务或把一个 session 冒充另一个。只有确实观测为空的边界区间可记0，缺失数据为null。
+
+`scripts/codex_usage.py`可按本聊天父子session身份提取实际用量（不导出聊天或推理内容），也提供snapshot/receipt边界命令。已有历史session累计用量可准确提取；历史主agent没有阶段边界时保留unattributed，不作事后精确分摊。纯脚本回放计量不等于skill的模型工作计量。
+
+## 逐阶段严格成本验收
+
+prepare、prepare、prepare、CBMC、align、Rocq 以及实际调用的 verify 各自建立独立 skill-session。边界从该阶段开始分析/构造/修复前建立，到阶段工作完成时结束；重试、失败、超时同样计入。工具回放不能代替阶段大模型消耗。切换职责时结束或明确暂停归属，不能给同一阶段工作事后分摊名称。
+
+每个阶段必须记录实际 input/output/total token，缓存与 reasoning 为子集；直接计墙钟；工具 CPU 以 GNU time 为证据；内存同时保留单进程最大 RSS 与工具进程树采样峰值及采样间隔。模型服务端/桌面 agent 内存不在可见范围，不包含在工具 RSS 中。采样峰值可能漏峰、共享页可能重复计数，不能称为精确的系统总内存峰值。
+
+`Run.finish` 自动记录 `cost_audit`，核查 session 用量边界、原始 receipt、事件去重、GNU time 记录、采样数据与汇总口径。结束后还可运行：
+
+```sh
+python3 scripts/audit-costs.py --run RUN_DIR
+```
+
+返回 0 才表示该阶段成本证据完整；非 0 明确列缺项。验证结果与成本状态独立：证明通过不能掩盖成本缺失，失败的证明也必须统计消耗。未知值为 null/partial，禁止用 0、字数估计、脚本耗时代替；没有可靠用量接口时如实报告不完整，不制造记录。
+
+端到端 token 按事件 ID 并集去重；verify 自身 token 排除已归属子阶段的事件，不把含子阶段的包裹区间再次当作自身消耗。端到端墙钟直接测量。工具计时若已经包裹了整个子阶段，不能再把子阶段 CPU 累加一次；脚本成本审计会拒绝这种重叠。顺序执行内存峰值取有证据的最大值，并行联合峰值缺失则保持未知。最终报告逐阶段列状态/指标，再列去重汇总。

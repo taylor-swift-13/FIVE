@@ -12,6 +12,7 @@ The diagram's editable source is [workflow.dot](docs/workflow.dot).
 
 | Skill | Responsibility | Main outputs |
 | --- | --- | --- |
+| [five-prepare](.agents/skills/five-prepare/SKILL.md) | Freeze the source, target, dependencies and actual call bindings. | Prepared C and binding metadata. |
 | [five-cbmc](.agents/skills/five-cbmc/SKILL.md) | Check the prepared C using traditional symbolic execution and bounded model checking. | Scoped properties, input assumptions, unwinding bounds and counterexamples. |
 | [five-align](.agents/skills/five-align/SKILL.md) | Export CompCert models, audit their provenance, generate obligations and map C/CBMC properties to Rocq statements. | Models, pending goals, a separate precondition interface and property mappings. |
 | [five-rocq](.agents/skills/five-rocq/SKILL.md) | Construct explicit preconditions and specifications, then prove the requested theorems. | Safety, termination, correspondence and functional proofs; independent CBMC-property reproofs or refutations. |
@@ -21,43 +22,9 @@ CBMC and CompCert consume the same prepared C program and use the recorded targe
 
 ## Walkthrough with `sum3`
 
-For the exact inputs, outputs, stage status and measured-cost evidence, see the [sum3 case guide](examples/sum3/README.md).
+[`examples/sum3`](examples/sum3/README.md) is currently at the **prepare** stage. The unchanged [C program](examples/sum3/prepare/source/Program.c) and [binding metadata](examples/sum3/prepare/source/bindings.json) are ready for the later CBMC and CompCert stages. No CBMC results, CompCert model or Rocq proof have been generated for this reconstruction.
 
-The diagram follows the implementation in [Program.c](examples/sum3/source/Program.c):
-
-```c
-float sum3(float a, float b, float c) {
-    return a + b + c;
-}
-```
-
-For the input `(16777216.0f, 1.0f, -16777216.0f)`, the first addition rounds `16777217` to `16777216` in binary32. The second addition returns `+0.0f` (`0x00000000`). With `a + (b + c)`, the result is `1.0f` (`0x3f800000`). The two orders give different properties to check.
-
-| Step in the diagram | What it means for `sum3` |
-| --- | --- |
-| **0. Prepare the C program** | Select `sum3` and pin its target settings. This function has no external calls, so the same `Program.c` goes directly to CBMC and CompCert. |
-| **1. Check with CBMC** | An example harness calls `sum3` with the three values above and asserts that the returned binary32 word is `0x00000000`. The property is scoped to those inputs. A failed check would supply the assertion and counterexample for investigation in Rocq. |
-| **2. Export with CompCert** | `clightgen -csyntax` records the two nested additions in [Source.v](examples/sum3/model/Source.v). [Execution.v](examples/sum3/model/Execution.v) exposes the CompCert transitions. [Obligations.v](examples/sum3/proof/Obligations.v) defines the no-error and termination goals. |
-| **3. Prove in Rocq** | [Precondition.v](examples/sum3/proof/Precondition.v) specifies three binary32 arguments and allows every initial CompCert memory. [NoError.v](examples/sum3/proof/NoError.v) proves error freedom over all reachable states under the typed-argument condition. A result-bit property supplied by CBMC requires its own proof over the model. |
-| **4. Report the evidence** | The [case report](examples/sum3/report/report.md) and [theorem record](examples/sum3/report/theorem.txt) give the scope of the retained proof. The [arithmetic comparison](paper/experiments/sum3/README.md) separately records the concrete output-bit experiments. |
-
-The CBMC row describes this example harness. Compile it together with `examples/sum3/source/Program.c` when running CBMC.
-
-```c
-#include <stdint.h>
-#include <string.h>
-
-float sum3(float a, float b, float c);
-
-int main(void) {
-    float result = sum3(16777216.0f, 1.0f, -16777216.0f);
-    uint32_t bits;
-    memcpy(&bits, &result, sizeof bits);
-    __CPROVER_assert(bits == 0x00000000u, "sum3 result bits");
-}
-```
-
-This is a concrete-input check. The linked case artifacts document the existing model and no-error proof. The two generated goals in `Obligations.v` remain proof targets, and the result-bit assertion above has its own proof obligation.
+The [case report](examples/sum3/prepare/report/report.md), [manifest](examples/sum3/prepare/report/manifest.json) and [cost record](examples/sum3/prepare/report/costs.json) describe the actual status and evidence. Later stages will add their own artifacts to the same case directory.
 
 ## Semantic scope
 
@@ -88,36 +55,15 @@ By default, the goals are parameterized by an unspecified precondition. A later 
 
 ## Examples and benchmarks
 
-[`examples/sum3`](examples/sum3/README.md) is the standalone end-to-end example.
+[`examples/sum3`](examples/sum3/README.md) is the standalone example, currently prepared for verification.
 
 ## Repository layout
 
-```text
-examples/sum3/
-  source/
-    Program.c        C compilation unit supplied to the exporter
-    LICENSE          Upstream license, when applicable
-    ...              Program-specific dependencies
-  model/
-    Source.v         CompCert-generated Csyntax AST
-    Execution.v      Entry and execution interface using CompCert Csem/Cexec
-    SourceInvariant.v  Syntax/state invariants used by correspondence proofs
-  proof/             Theorems, pending goals and required support modules
-  report/            Scope, assumptions, source manifests and cost references
-shared/              Shared semantics, library adapters and proof support
-scripts/             Export, provenance, proof-evidence and cost utilities
-.agents/skills/      The five workflow skills
-docs/                Workflow diagram and its editable source
-reports/             Recorded validation, provenance and cost evidence
-paper/               Manuscript source and compiled draft
-references/          Original supplied manuscript archive
-```
-
-Cases use the same model filenames. Proof-support models are witnesses used by the proofs; they do not replace the C execution semantics. The earlier identity, addition, addition-store and bubble-sort cases are kept in a separate local archive outside this repository. Toolchains, temporary builds and raw local run directories are excluded from Git.
+`examples/sum3/` contains the four sequential stage directories `prepare/`, `cbmc/`, `align/`, and `rocq/`. The [example guide](examples/sum3/README.md) specifies their handoffs and current state. Shared semantic libraries are in `shared/`, workflow tools in `scripts/`, skills in `.agents/skills/`, and the manuscript in `paper/`.
 
 ## Example file structure
 
-`examples/sum3/` contains the common `source/`, `cbmc/`, `model/`, `proof/`, and `report/` directories. The [sum3 guide](examples/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations.
+`examples/sum3/` contains `prepare/`, `cbmc/`, `align/`, and `rocq/` stage directories. The [sum3 guide](examples/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations.
 
 ## Working with the project
 
@@ -133,13 +79,13 @@ Export a model and its pending obligations:
 
 ```sh
 python3 scripts/compcert-align.py export \
-  --source examples/sum3/source/Program.c --function f_sum3 \
+  --source examples/sum3/prepare/source/Program.c --function f_sum3 \
   --namespace Sum3 --output _build/sum3
 ```
 
 This generates and checks declarations; it does not construct the missing program proofs. For agent-driven stage accounting, attach the actual session with `--session /path/to/session.jsonl` and establish its boundary before authoring. A standalone tool replay does not measure prior model work.
 
-When verification is explicitly requested, the retained modules can be rebuilt and independently kernel-checked with:
+After the model and proofs have been generated, the retained modules can be rebuilt and independently kernel-checked with:
 
 ```sh
 python3 scripts/check-models.py
@@ -161,7 +107,7 @@ Missing or inconsistent evidence remains `partial`; it is never replaced with ze
 
 The [paper draft](paper/README.md) and [PDF](paper/main.pdf) are retained alongside the unchanged original archive. Third-party notices remain with the source files. The [source-export record](reports/source-validation.json), [recorded module checks](reports/validation.json) and [library-interface inventory](reports/ast-library-audit.json) document their respective scopes.
 
-The 2026-11-03 repository organization standardized the model entry filename as `Execution.v` and retained the four then-current cases. No CBMC or Rocq verification was run for that change. Recorded check logs and theorem output remain unchanged historical evidence, so they may contain former module names or cases. That historical record does not certify a later kernel check; the sum3 case report links its newer check. Archived cost records retain their original scopes, including earlier cases.
+The 2026-11-03 repository organization standardized the model entry filename as `Execution.v` and retained the four then-current cases. No CBMC or Rocq verification was run for that change. Recorded check logs and theorem output remain unchanged historical evidence, so they may contain former module names or cases. That historical record does not certify this fresh sum3 reconstruction, which currently has no model or proof. Archived cost records retain their original scopes, including earlier cases.
 
 Corresponding artifacts share filenames across cases. Proof files share names when they serve the same role; case-specific lemmas and dependencies keep descriptive names. Missing proofs or licenses are not replaced with empty placeholders. Source renaming leaves C contents and generated ASTs unchanged; historical provenance retains original source paths. No verification was run for these naming changes.
 

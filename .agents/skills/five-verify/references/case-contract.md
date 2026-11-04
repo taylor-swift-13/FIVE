@@ -1,5 +1,9 @@
 # FIVE 共享案例目录与阶段交接契约
 
+## Sequential sum3 example override
+
+For `examples/sum3` the user's stage-directory rule supersedes the generic example paths below. The case has exactly four stage output directories: `prepare/`, `cbmc/`, `align/`, `rocq/`; its README documents their contents. The stages run in order. `prepare/handoff.json` is CBMC input; `cbmc/handoff.json` is align input; `align/handoff.json` is Rocq input. Each handoff contains case-relative paths and SHA-256 hashes for its own outputs and all transitive artifacts needed downstream, including the unchanged prepared C, bindings and relevant CBMC results. The prepare handoff must also contain the verification request, properties, assumptions and bounds before CBMC starts; if unspecified, record that fact and block CBMC until the prepare handoff is updated. Each next stage verifies hashes and status and records any missing input as blocked. Each stage writes its own `report/costs.json` and evidence, preserving incomplete measurements as partial/null. `five-verify` orchestrates these four directories and preserves the sequential dependency for this example. This override does not require C or CBMC for a standalone pure Rocq task.
+
 本文件规定案例**内部**接口；案例外层路径由项目选择。五个 skill 共同维护同一个案例目录，增量写入自己负责的区域，不覆盖其他阶段的结果。纯 Rocq 案例仍受本契约约束，但 C/CBMC/CompCert 不适用时登记 `not_applicable`，不编造源码或模型。
 
 ```text

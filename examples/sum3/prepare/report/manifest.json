@@ -1,0 +1,73 @@
+{
+  "schema": "five-case-manifest/1",
+  "case_id": "sum3",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "stages": {
+    "five-prepare": {
+      "status": "passed",
+      "inputs": [
+        {
+          "path": "prepare/source/Program.c",
+          "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "prepare/source/Program.c",
+          "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
+        },
+        {
+          "path": "prepare/source/bindings.json",
+          "sha256": "63a86eaea40170321301b34dcdb4fa44530962394892baf6f167096934fd4cdb"
+        }
+      ],
+      "logs": [
+        "prepare/report/evidence/prepare/run.json"
+      ],
+      "limitations": [
+        "Resource costs cover metered prepare commands; pre-meter read-only checks are excluded at the user's request. Token window ends at prepare-stage finish."
+      ]
+    },
+    "five-cbmc": {
+      "status": "not_run",
+      "inputs": [],
+      "outputs": [],
+      "logs": [],
+      "limitations": []
+    },
+    "five-align": {
+      "status": "not_run",
+      "inputs": [],
+      "outputs": [],
+      "logs": [],
+      "limitations": []
+    },
+    "five-rocq": {
+      "status": "not_run",
+      "inputs": [],
+      "outputs": [],
+      "logs": [],
+      "limitations": []
+    },
+    "five-verify": {
+      "status": "pending",
+      "inputs": [],
+      "outputs": [],
+      "logs": [
+        "prepare/report/evidence/parent-coordination/run.json"
+      ],
+      "limitations": [
+        "Coordination and handoff inspection only; CBMC, align and Rocq not run.",
+        "Parent and child cost coverage is partial."
+      ]
+    }
+  }
+}
