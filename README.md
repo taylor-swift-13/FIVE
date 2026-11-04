@@ -88,7 +88,7 @@ By default, the goals are parameterized by an unspecified precondition. A later 
 
 ## Examples and benchmarks
 
-[`examples/sum3`](examples/sum3/README.md) is the standalone end-to-end example. The [Paparazzi model library](benchmarks/paparazzi/README.md) contains the aircraft-derived cases, pending obligations, limitations, and cost records.
+[`examples/sum3`](examples/sum3/README.md) is the standalone end-to-end example.
 
 ## Repository layout
 
@@ -117,7 +117,7 @@ Cases use the same model filenames. Proof-support models are witnesses used by t
 
 ## Example file structure
 
-`examples/sum3/` contains the common `source/`, `cbmc/`, `model/`, `proof/`, and `report/` directories. The [sum3 guide](examples/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations. Paparazzi cases follow the same internal interface under `benchmarks/paparazzi/cases/`.
+`examples/sum3/` contains the common `source/`, `cbmc/`, `model/`, `proof/`, and `report/` directories. The [sum3 guide](examples/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations.
 
 ## Working with the project
 
