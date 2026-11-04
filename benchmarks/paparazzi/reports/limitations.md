@@ -283,3 +283,20 @@ compilation terminated.
 ccomp: error: preprocessor command failed with exit code 1 (use -v to see invocation)
 ```
 
+
+## State and horizontal guidance reference
+
+The 138 state entry interfaces were generated. The horizontal guidance reference has 11 candidate entries. The source requires `generated/airframe.h` for a concrete aircraft configuration. No real generated header was found. Building the pinned upstream generator was attempted with its pinned pprzlink submodule; the available environment lacks the `xml-light` and Ivy OCaml packages.
+
+```text
+In file included from /home/yangfp/five/_build/paparazzi/state-guidance-models/guidance_h_ref/Program.c:27:
+/home/yangfp/five/_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h:34:10: fatal error: generated/airframe.h: No such file or directory
+   34 | #include "generated/airframe.h"
+      |          ^~~~~~~~~~~~~~~~~~~~~~
+compilation terminated.
+ccomp: error: preprocessor command failed with exit code 1 (use -v to see invocation)
+
+
+```
+
+The upstream DUMMY test header is not a real aircraft configuration. The 11 guidance entries remain pending, with no fabricated configuration.

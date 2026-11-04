@@ -72,7 +72,7 @@ def tree_rss(root_pid):
 class Run:
     @classmethod
     def start(cls, base, skill, inputs, scope, parent=None, invocation_kind='tool-workflow', usage_session=None):
-        if skill not in {'five-cbmc','five-align','five-rocq','five-verify'}:
+        if skill not in {'five-prepare','five-cbmc','five-align','five-rocq','five-verify'}:
             raise ValueError('Unknown FIVE skill')
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')+'-'+uuid.uuid4().hex[:10]
         folder = Path(base).resolve()/run_id/skill

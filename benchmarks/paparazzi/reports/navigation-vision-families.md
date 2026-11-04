@@ -14,7 +14,7 @@ Prove point conversion agrees with vector conversion of the displacement from th
 
 State representability and memory separation conditions. Geodetic and trigonometric calls crossing translation units need corresponding contracts. A round trip needs a quantization bound.
 
-[Source.v](../groups/integer_navigation/model/Source.v)
+[Source.v](../_shared/groups/integer_navigation/model/Source.v)
 
 ## Fixed-point trigonometry
 
@@ -26,7 +26,7 @@ Prove normalization terminates on the selected range, lookup indices remain with
 
 Bind the result to the default table configuration and actual integer operations. A real-valued accuracy theorem is a separate obligation.
 
-[Source.v](../groups/integer_trigonometry/model/Source.v)
+[Source.v](../_shared/groups/integer_trigonometry/model/Source.v)
 
 ## Relative localization EKF
 
@@ -38,7 +38,7 @@ First show the prediction agrees with the source-order rounded state and covaria
 
 The correction calls float_mat_invert. Its execution or contract correspondence must be supplied. Keep the range measurement and powf/sqrtf behavior explicit.
 
-[Source.v](../groups/relative_ekf/model/Source.v)
+[Source.v](../_shared/groups/relative_ekf/model/Source.v)
 
 ## Camera coordinate conversion
 
@@ -50,7 +50,7 @@ Prove the two wrapper functions agree with the actual helper composition, includ
 
 Specify nonzero focal lengths, valid square-root arguments when required and defined conversion ranges.
 
-[Source.v](../groups/vision_undistortion/model/Source.v)
+[Source.v](../_shared/groups/vision_undistortion/model/Source.v)
 
 ## Magnetic field coefficient and evaluation pipeline
 
@@ -62,7 +62,7 @@ Prove the coefficient array is initialized over the harmonic index range used by
 
 Bind supported harmonic degrees to the actual arrays. Supply target libm contracts and account for conversions between float and double.
 
-[Source.v](../groups/magnetic_field/model/Source.v)
+[Source.v](../_shared/groups/magnetic_field/model/Source.v)
 
 ## No-north EKF initialization, measurement and correction
 
@@ -74,7 +74,7 @@ Prove the measurement projection preserves the bits of copied state components a
 
 The original predictor calls the VLA-based c2d helper. Its separate import limitation still applies. Matrix inversion and target libm remain proof boundaries.
 
-[Source.v](../groups/relative_ekf_no_north_core/model/Source.v)
+[Source.v](../_shared/groups/relative_ekf_no_north_core/model/Source.v)
 
 ## Image memory and pyramid construction
 
@@ -86,7 +86,7 @@ Prove grayscale extraction reads the luminance bytes and preserves the specified
 
 Specify allocation, memory copying, image layout and nonaliasing. The uint8 level counter needs a representable exit value. Prove the in-place vertical pass in execution order.
 
-[Source.v](../groups/vision_images/model/Source.v)
+[Source.v](../_shared/groups/vision_images/model/Source.v)
 
 ## Lucas-Kanade optical flow
 
@@ -98,6 +98,6 @@ Relate accepted features and returned displacements to the bounded, rounded upda
 
 When image.c is included by the align driver, the pyramid and window helpers execute inside the shared model. Transfer to the production build requires linkage and configuration correspondence.
 
-[Source.v](../groups/vision_optical_flow/model/Source.v)
+[Source.v](../_shared/groups/vision_optical_flow/model/Source.v)
 
 The first composition targets are ENU-to-NED conversion, grayscale-to-pyramid shape and byte properties, and EKF prediction followed by the measurement projection. Each uses step lemmas with a state or memory relation before induction over operation sequences.

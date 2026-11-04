@@ -21,16 +21,16 @@ token记录input、output、cached-input及可取得的reasoning-output，后两
 
 完整产物意味着结论可检查、可重跑；未生成的必需证据列原因及缺项。验证passed、产物完整性、指标完整性是三个不同状态。
 
-## 三阶段模型 token 的实际采集
+## 四阶段模型 token 的实际采集
 
-CBMC、align、Rocq分别建立skill-session记录；不能把主聊天总量直接分摊给它们，也不能只统计执行脚本时段。先识别本次CODEX_THREAD_ID与对应session JSONL，在读取/分析实现、编写模型或证明之前运行：
+prepare、CBMC、align、Rocq 分别建立skill-session记录；不能把主聊天总量直接分摊给它们，也不能只统计执行脚本时段。先识别本次CODEX_THREAD_ID与对应session JSONL，在读取/分析实现、编写模型或证明之前运行：
 
 ```bash
 python3 scripts/five_telemetry.py start --base runs --skill five-cbmc \
   --scope scope.json --session /path/to/current-session.jsonl
 ```
 
-另两阶段分别使用five-align/five-rocq。保存返回的RUN目录；该阶段完成后用finish结束同一记录。start和finish自动采集token_count累计事件边界，提取实际input/output/cache/reasoning计数；缓存与reasoning为子集。工具执行作为该记录的exec命令，必要证据由finish的outputs传入。最终面向用户的总汇报可计入five-verify，不倒灌进已经结束的阶段。
+其余阶段分别使用 five-prepare/five-align/five-rocq。保存返回的RUN目录；该阶段完成后用finish结束同一记录。start和finish自动采集token_count累计事件边界，提取实际input/output/cache/reasoning计数；缓存与reasoning为子集。工具执行作为该记录的exec命令，必要证据由finish的outputs传入。最终面向用户的总汇报可计入five-verify，不倒灌进已经结束的阶段。
 
 align 当前只记录主 agent 自身的阶段 session，不再要求 A/B session、问题计数或审批。若用户另外授权实际子任务，才记录各自 session 并按 parent/event_id 去重；不创建虚构子任务或把一个 session 冒充另一个。只有确实观测为空的边界区间可记0，缺失数据为null。
 
@@ -38,7 +38,7 @@ align 当前只记录主 agent 自身的阶段 session，不再要求 A/B sessio
 
 ## 逐阶段严格成本验收
 
-CBMC、align、Rocq 以及实际调用的 verify 各自建立独立 skill-session。边界从该阶段开始分析/构造/修复前建立，到阶段工作完成时结束；重试、失败、超时同样计入。工具回放不能代替阶段大模型消耗。切换职责时结束或明确暂停归属，不能给同一阶段工作事后分摊名称。
+prepare、prepare、prepare、CBMC、align、Rocq 以及实际调用的 verify 各自建立独立 skill-session。边界从该阶段开始分析/构造/修复前建立，到阶段工作完成时结束；重试、失败、超时同样计入。工具回放不能代替阶段大模型消耗。切换职责时结束或明确暂停归属，不能给同一阶段工作事后分摊名称。
 
 每个阶段必须记录实际 input/output/total token，缓存与 reasoning 为子集；直接计墙钟；工具 CPU 以 GNU time 为证据；内存同时保留单进程最大 RSS 与工具进程树采样峰值及采样间隔。模型服务端/桌面 agent 内存不在可见范围，不包含在工具 RSS 中。采样峰值可能漏峰、共享页可能重复计数，不能称为精确的系统总内存峰值。
 

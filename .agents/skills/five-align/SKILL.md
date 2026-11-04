@@ -9,7 +9,7 @@ description: Generate CompCert Csyntax/Cexec models and unproved Rocq obligation
 
 ## 模型生成与来源
 
-- 执行模型来自 **原始 C → CompCert `clightgen -csyntax` → 原始 `Cexec`**。不由大模型逐行翻译或替换浮点、整数、内存语义；导出失败时报告缺口，不回退到手写模型。
+- 执行模型来自 **准备后的 C → CompCert `clightgen -csyntax` → 原始 `Cexec`**。不由大模型逐行翻译或替换浮点、整数、内存语义；导出失败时报告缺口，不回退到手写模型。
 - 固定源码/request/hash、CompCert 版本与安装配置、预处理与头文件、架构/ABI/大小端、浮点格式、舍入和 NaN 策略。共同标准是指定 CompCert Csem/Cexec，不能自动推广到 GCC 或宿主硬件。
 - 进入项目后 `source scripts/env.sh`，用 `scripts/compcert-align.py export` 导出，`audit` 重新预处理/导出并核对来源、AST、包装和依赖。命令和交接格式见 [生成与映射契约](references/compcert-alignment.md)。不手改 Source.v。
 - 入口接受任意机器参数和 `Mem.mem`；不使用 non-NaN、指针有效性、初始化或合法长度等证明前条件裁剪模型。保留原始 Cexec 全部后继、控制/求值次序、事件轨迹、输出位模式和实际内存字节修改。
@@ -35,6 +35,12 @@ description: Generate CompCert Csyntax/Cexec models and unproved Rocq obligation
 每项绑定输入与模型 hash、原属性和 Rocq 命题，状态为 mapped/pending-proof 或明确 mapping-gap；CBMC 通过不能直接把 Rocq 状态标为 proved。CBMC 与 CompCert 的浮点/整数/内存/UB 差异显式列为侧条件或待证问题。无 CBMC 输入时记 not_applicable，模型生成不依赖先跑 CBMC。
 
 真实反例的位模式、内存状态、出错操作和写入前缀保留原始来源并交接给 five-rocq；重验、反驳和对应性证明在证明阶段完成。未知字节保持未知，synthetic 变体与原反例分开。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段从 `source/Program.c`、`source/bindings.json` 和可选 `cbmc/` 属性读取输入，生成 `source/preprocessed.i`、`model/` 与 `proof/` 的规定文件，并更新 `report/`；详见共享契约。
 
 ## 交付与计量
 

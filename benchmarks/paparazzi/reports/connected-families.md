@@ -6,7 +6,7 @@ The protocols below describe API sequences suitable for future proofs. They are 
 
 ## PID controller lifecycle
 
-Model: [Source.v](../groups/pid_lifecycle/model/Source.v)
+Model: [Source.v](../_shared/groups/pid_lifecycle/model/Source.v)
 
 Shared state: PID_f / PID_df / PI_D_df
 
@@ -18,7 +18,7 @@ Proof boundaries: Writable controller object, separation/frame assumptions; late
 
 ## Low-pass filter lifecycle
 
-Model: [Source.v](../groups/lowpass_lifecycle/model/Source.v)
+Model: [Source.v](../_shared/groups/lowpass_lifecycle/model/Source.v)
 
 Shared state: FirstOrderLowPass / SecondOrderLowPass / Butterworth histories
 
@@ -30,7 +30,7 @@ Proof boundaries: Initialization may call target libm. Existing lowpass proofs r
 
 ## Kinematic state estimator
 
-Model: [Source.v](../groups/kalman_lifecycle/model/Source.v)
+Model: [Source.v](../_shared/groups/kalman_lifecycle/model/Source.v)
 
 Shared state: SimpleKinematicKalman state[6], P, Q, r, dt, Hp/Hs
 
@@ -42,7 +42,7 @@ Proof boundaries: Correction calls matrix-inversion support; its executable cove
 
 ## Lazy orientation representation cache
 
-Model: [Source.v](../groups/orientation_cache/model/Source.v)
+Model: [Source.v](../_shared/groups/orientation_cache/model/Source.v)
 
 Shared state: OrientationReps status and seven representation payloads
 
@@ -54,7 +54,7 @@ Proof boundaries: Bitwise round-trip equality between different orientation repr
 
 ## Delayed bounded-increment filter
 
-Model: [Source.v](../groups/delayed_filter_lifecycle/model/Source.v)
+Model: [Source.v](../_shared/groups/delayed_filter_lifecycle/model/Source.v)
 
 Shared state: delayed_first_order_lowpass_filter_t buffer[20], idx, delay, alpha
 
@@ -66,7 +66,7 @@ Proof boundaries: Signed arithmetic and shift/division conditions belong in the 
 
 ## Attitude rate/acceleration saturation
 
-Model: [Source.v](../groups/attitude_saturation/model/Source.v)
+Model: [Source.v](../_shared/groups/attitude_saturation/model/Source.v)
 
 Shared state: FloatRates / Int32Rates
 
@@ -78,7 +78,7 @@ Proof boundaries: Float NaN/range and integer overflow hypotheses must be stated
 
 ## Framed byte FIFO
 
-Model: [Source.v](../groups/framed_buffer_lifecycle/model/Source.v)
+Model: [Source.v](../_shared/groups/framed_buffer_lifecycle/model/Source.v)
 
 Shared state: framed_ring_buffer offsets, backing bytes and frame lengths
 

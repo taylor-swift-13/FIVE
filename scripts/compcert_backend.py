@@ -216,7 +216,7 @@ def audit(manifest_path,run=None):
     # Re-export independently: matching hashes alone do not establish AST origin.
     owns=run is None
     if owns:
-        run=Run.start(ROOT/'runs','five-align',[],{'kind':'compcert-provenance-audit','scope':'Fresh preprocessing and AST comparison; not whole-execution certification'},invocation_kind='tool-replay')
+        run=Run.start(ROOT/'runs','five-align',[],{'kind':'compcert-provenance-audit','manifest':ref(manifest_path),'source':m['source']['path'],'scope':'Fresh preprocessing and AST comparison; not whole-execution certification'},invocation_kind='tool-replay')
     try:
         with tempfile.TemporaryDirectory(prefix='compcert-audit-',dir=ROOT/'_build') as td:
             temp=Path(td)

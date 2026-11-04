@@ -1,0 +1,5 @@
+# adaptive_notch_filter_update
+
+This case shares its CompCert Csyntax source with group `adaptive_notch`. The execution model accepts arbitrary machine arguments and memory states. The generated safety and termination goals and the concrete precondition are pending.
+
+Upstream definition: `sw/airborne/filters/adaptive_notch_filter.h:102`. The target, frontend options and file hashes are in [manifest.json](manifest.json). Actual attributable command measurements and their batch cost references are in [costs.json](costs.json).

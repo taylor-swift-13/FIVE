@@ -7,6 +7,12 @@ description: Construct explicit preconditions and specifications and prove reque
 
 本阶段负责**前条件构造、功能规约和实际定理证明**。接收一个或多个 Rocq 实现、模型、定义、待证目标或需求；不强制来自某个 C 函数，也不要求 C 或 CBMC。CompCert 模型和初步属性映射由 [five-align](../five-align/SKILL.md) 提供，完整工作流的调度与证据汇总由 [five-verify](../five-verify/SKILL.md) 负责。
 
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段读取一个或多个 Rocq 模型、用户目标与适用的 `proof/` 和属性映射，写入 `proof/`、证明证据与 `report/`；纯 Rocq 情形无需 C/CBMC，详见共享契约。
+
 ## 前条件与证明
 
 - 读取输入定义和依赖，明确目标量词、前条件、观察方式及语义范围。可证明无错误、终止性、功能关系、跨函数组合、跨周期不变量、语义对应或用户指定的其他定理。
