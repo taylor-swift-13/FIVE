@@ -7,8 +7,9 @@ def logical(p):
  return ('FiveCases' if a[0]=='cases' else 'FiveShared')+'.'+'.'.join(a[1:])
 with tempfile.TemporaryDirectory(prefix='five-check-') as tmp:
  B=Path(tmp)
- for d in ['cases','shared']:shutil.copytree(R/d,B/d)
- mods={logical(p.relative_to(B)):p for d in ['cases','shared'] for p in (B/d).rglob('*.v')}
+ shutil.copytree(R/'examples',B/'cases')
+ shutil.copytree(R/'shared',B/'shared')
+ mods={logical(p.relative_to(B)):p for d in ['cases','shared'] for p in (B/d).rglob('*.v') if 'rerun' not in p.parts}
  deps={k:set() for k in mods}
  for k,p in mods.items():
   for pre,names in re.findall(r'From (FiveCases[\w.]*|FiveShared[\w.]*) Require (?:Import|Export)\s+([\w\s]+)\.',p.read_text()):
@@ -23,6 +24,6 @@ with tempfile.TemporaryDirectory(prefix='five-check-') as tmp:
   print('Compile',k,flush=True)
   subprocess.run(['rocq','c',*flags,str(mods[k])],check=True)
  subprocess.run(['rocq','check',*flags,*order],check=True)
- result={'compiled':True,'independent_kernel_check':True,'modules':order,'source_sha256':{str(p.relative_to(R)):hashlib.sha256(p.read_bytes()).hexdigest() for d in ['cases','shared'] for p in (R/d).rglob('*.v')}}
+ result={'compiled':True,'independent_kernel_check':True,'modules':order,'source_sha256':{str(p.relative_to(R)):hashlib.sha256(p.read_bytes()).hexdigest() for d in ['examples','shared'] for p in (R/d).rglob('*.v') if 'rerun' not in p.parts}}
  (R/'reports/validation.json').write_text(json.dumps(result,indent=2))
  print('PASS: temporary compiled objects removed on exit.')

@@ -1,0 +1,211 @@
+{
+  "schema": "five-case-manifest/1",
+  "case_id": "sum3",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "stages": {
+    "five-prepare": {
+      "status": "pending",
+      "inputs": [
+        {
+          "path": "source/Program.c",
+          "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "source/Program.c",
+          "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
+        },
+        {
+          "path": "source/bindings.json",
+          "sha256": "e5daed71f40159b8a2eb58039810cceed26eb30967ed569b60537f2048b19731"
+        }
+      ],
+      "logs": [],
+      "limitations": [
+        "Source and binding recorded; full stage token coverage is incomplete."
+      ]
+    },
+    "five-cbmc": {
+      "status": "passed",
+      "inputs": [
+        {
+          "path": "source/Program.c",
+          "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
+        },
+        {
+          "path": "source/bindings.json",
+          "sha256": "e5daed71f40159b8a2eb58039810cceed26eb30967ed569b60537f2048b19731"
+        },
+        {
+          "path": "cbmc/harness.c",
+          "sha256": "892a69bd5d6f1ab68e2798ca8a14a77c4056c2eaf02cb7cbeb9b3e62012d907b"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "cbmc/results.json",
+          "sha256": "9d0d8eb197f33fcfc09c577e42f490f468df3dc18c9e335a9eb32fac4af25e03"
+        }
+      ],
+      "logs": [
+        "report/evidence/cbmc/run.json",
+        "report/evidence/cbmc/logs/003-native-run.stdout.log"
+      ],
+      "limitations": [
+        "Concrete inputs only. CBMC builtin memcpy safety properties apply to the harness."
+      ]
+    },
+    "five-align": {
+      "status": "pending",
+      "inputs": [
+        {
+          "path": "source/Program.c",
+          "sha256": "252be23b28c39e1d388984ba517a8c63d0b600073d0ede284ab67915fa174157"
+        },
+        {
+          "path": "source/bindings.json",
+          "sha256": "e5daed71f40159b8a2eb58039810cceed26eb30967ed569b60537f2048b19731"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "source/preprocessed.i",
+          "sha256": "582e0150a3b400e266a5a7d0fffd9e81bf6e43e504fd46f3acfcd36178c116dd"
+        },
+        {
+          "path": "model/Source.v",
+          "sha256": "6548f669e66da2125e65e632ee57dafeb1200eeb1da42b7a2e1d84826e4e4bbb"
+        },
+        {
+          "path": "model/Execution.v",
+          "sha256": "c314c598197ca92f44c200b7b31801accf20e114dc04d32871c7d2a3149cc03f"
+        },
+        {
+          "path": "model/rerun/Source.v",
+          "sha256": "bc573f7ceb6c6478183684af262259158939d26712aec2ee5d00fe379057c6c8"
+        },
+        {
+          "path": "model/rerun/Execution.v",
+          "sha256": "c314c598197ca92f44c200b7b31801accf20e114dc04d32871c7d2a3149cc03f"
+        },
+        {
+          "path": "model/rerun/compcert-manifest.json",
+          "sha256": "be1eb5860fff1bfc508051c6f8ae80d04384dde437f2280f0861ad76021adde3"
+        },
+        {
+          "path": "model/rerun/proof/Precondition.v",
+          "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933"
+        },
+        {
+          "path": "model/rerun/proof/Obligations.v",
+          "sha256": "da2c8a112a6628d0c7dc6cc2a00806e5f7941034f151908a43845ce8fb99f501"
+        },
+        {
+          "path": "model/rerun/proof/Proofs.v",
+          "sha256": "a232c2a514b6b8c35bdb7647e4d1bd100c6386e098e53208a06ae85cac5de4a1"
+        },
+        {
+          "path": "proof/Precondition.v",
+          "sha256": "d35ced7980805891f5627b3dec843f5c610a6fde8ac51272d337f5b4d834f982"
+        },
+        {
+          "path": "proof/Obligations.v",
+          "sha256": "50eb833c8e6c0bed6afbe910b99a8c9573d6502ddf77b56c74114afe001989e2"
+        },
+        {
+          "path": "proof/Proofs.v",
+          "sha256": "4eca5f15dffa0834fcb5654f47f46946f942312c43534f345c8af448502c1656"
+        },
+        {
+          "path": "model/spec-map.json",
+          "sha256": "e1225d80317ca04f28c756e3a3e377c8f73fee9bdc06385ce3424ac1a8c9bbb8"
+        }
+      ],
+      "logs": [
+        "report/evidence/export/run.json",
+        "report/evidence/audit/run.json"
+      ],
+      "limitations": [
+        "Rerun origin audit passed; AST normalized comparison ignores the Info.source_file metadata field. This is not a whole-execution correspondence proof.",
+        "Pending targets typechecked; no new proof.",
+        "Export and audit costs exclude agent analysis before their recorded windows.",
+        "CBMC properties require the model-side execution and harness correspondence; mappings remain pending or gaps."
+      ]
+    },
+    "five-rocq": {
+      "status": "pending",
+      "inputs": [
+        {
+          "path": "model/Source.v",
+          "sha256": "6548f669e66da2125e65e632ee57dafeb1200eeb1da42b7a2e1d84826e4e4bbb"
+        },
+        {
+          "path": "model/Execution.v",
+          "sha256": "c314c598197ca92f44c200b7b31801accf20e114dc04d32871c7d2a3149cc03f"
+        },
+        {
+          "path": "proof/Precondition.v",
+          "sha256": "d35ced7980805891f5627b3dec843f5c610a6fde8ac51272d337f5b4d834f982"
+        },
+        {
+          "path": "proof/Obligations.v",
+          "sha256": "50eb833c8e6c0bed6afbe910b99a8c9573d6502ddf77b56c74114afe001989e2"
+        },
+        {
+          "path": "model/spec-map.json",
+          "sha256": "e1225d80317ca04f28c756e3a3e377c8f73fee9bdc06385ce3424ac1a8c9bbb8"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "proof/NoError.v",
+          "sha256": "1b451e507c7001c6c93e1a391ed60bf1fa1c2c4580a0a0d2ed6f9aad3f6e6bdd"
+        },
+        {
+          "path": "proof/Core.v",
+          "sha256": "23421e607b82f296a447c4846ba6c40789883c5356a7ac7a9d4c0141b8222709"
+        },
+        {
+          "path": "proof/Functional.v",
+          "sha256": "b1e0190488260dea65af6b89f6b701460f213db2aa005d6f0120dd1f798b5ecc"
+        },
+        {
+          "path": "proof/spec-recheck.json",
+          "sha256": "0a7e36848e86ddd754544e2d969b7acb991708415e1d57d162d2f5625cbd31a1"
+        },
+        {
+          "path": "proof/build.py",
+          "sha256": "ce21983ee27883946245f3501593150946c436e02e713d7d633fe15270616dee"
+        }
+      ],
+      "logs": [
+        "report/evidence/rocq/logs/001-compile-and-check.stdout.log",
+        "report/evidence/kernel/run.json"
+      ],
+      "limitations": [
+        "No-error and concrete pure Float32 theorem were kernel checked.",
+        "Termination and Csem function-return/harness correspondence remain unproved."
+      ]
+    },
+    "five-verify": {
+      "status": "pending",
+      "inputs": [],
+      "outputs": [],
+      "logs": [],
+      "limitations": [
+        "CBMC properties have not all been independently reproved in Rocq; termination remains pending."
+      ]
+    }
+  },
+  "historical_manifest": "report/historical-manifest.json",
+  "historical_proof_note": "Existing proof sources and historical evidence are preserved; no fresh proof recheck was performed."
+}

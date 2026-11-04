@@ -28,7 +28,7 @@ python3 scripts/generate-obligations.py \
   --function f_sum3 \
   --precondition-module FiveCases.sum3.proof.Precondition \
   --precondition typed_inputs \
-  --output cases/sum3/proof/Obligations.v
+  --output examples/sum3/proof/Obligations.v
 ```
 
 输入需要指定原始 Csyntax 程序模块、函数定义和前条件模块位置。程序定义名称默认 `prog`，可用 `--program` 修改。生成器不会推断或增强前条件。函数、程序和前条件接口的名称及类型由后续 Rocq 编译检查。不要将 Clight 函数传入这个 Csyntax 接口。

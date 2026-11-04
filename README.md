@@ -21,7 +21,9 @@ CBMC and CompCert consume the same prepared C program and use the recorded targe
 
 ## Walkthrough with `sum3`
 
-The diagram follows the implementation in [Program.c](cases/sum3/source/Program.c):
+For the exact inputs, outputs, stage status and measured-cost evidence, see the [sum3 case guide](examples/sum3/README.md).
+
+The diagram follows the implementation in [Program.c](examples/sum3/source/Program.c):
 
 ```c
 float sum3(float a, float b, float c) {
@@ -35,11 +37,11 @@ For the input `(16777216.0f, 1.0f, -16777216.0f)`, the first addition rounds `16
 | --- | --- |
 | **0. Prepare the C program** | Select `sum3` and pin its target settings. This function has no external calls, so the same `Program.c` goes directly to CBMC and CompCert. |
 | **1. Check with CBMC** | An example harness calls `sum3` with the three values above and asserts that the returned binary32 word is `0x00000000`. The property is scoped to those inputs. A failed check would supply the assertion and counterexample for investigation in Rocq. |
-| **2. Export with CompCert** | `clightgen -csyntax` records the two nested additions in [Source.v](cases/sum3/model/Source.v). [Execution.v](cases/sum3/model/Execution.v) exposes the CompCert transitions. [Obligations.v](cases/sum3/proof/Obligations.v) defines the no-error and termination goals. |
-| **3. Prove in Rocq** | [Precondition.v](cases/sum3/proof/Precondition.v) specifies three binary32 arguments and allows every initial CompCert memory. [NoError.v](cases/sum3/proof/NoError.v) proves error freedom over all reachable states under the typed-argument condition. A result-bit property supplied by CBMC requires its own proof over the model. |
-| **4. Report the evidence** | The [case report](cases/sum3/report/report.md) and [theorem record](cases/sum3/report/theorem.txt) give the scope of the retained proof. The [arithmetic comparison](paper/experiments/sum3/README.md) separately records the concrete output-bit experiments. |
+| **2. Export with CompCert** | `clightgen -csyntax` records the two nested additions in [Source.v](examples/sum3/model/Source.v). [Execution.v](examples/sum3/model/Execution.v) exposes the CompCert transitions. [Obligations.v](examples/sum3/proof/Obligations.v) defines the no-error and termination goals. |
+| **3. Prove in Rocq** | [Precondition.v](examples/sum3/proof/Precondition.v) specifies three binary32 arguments and allows every initial CompCert memory. [NoError.v](examples/sum3/proof/NoError.v) proves error freedom over all reachable states under the typed-argument condition. A result-bit property supplied by CBMC requires its own proof over the model. |
+| **4. Report the evidence** | The [case report](examples/sum3/report/report.md) and [theorem record](examples/sum3/report/theorem.txt) give the scope of the retained proof. The [arithmetic comparison](paper/experiments/sum3/README.md) separately records the concrete output-bit experiments. |
 
-The CBMC row describes this example harness. Compile it together with `cases/sum3/source/Program.c` when running CBMC.
+The CBMC row describes this example harness. Compile it together with `examples/sum3/source/Program.c` when running CBMC.
 
 ```c
 #include <stdint.h>
@@ -56,10 +58,6 @@ int main(void) {
 ```
 
 This is a concrete-input check. The linked case artifacts document the existing model and no-error proof. The two generated goals in `Obligations.v` remain proof targets, and the result-bit assertion above has its own proof obligation.
-
-### When a call needs redirection
-
-In `attitude_trig`, the Paparazzi rotation-matrix routine calls `sinf` and `cosf`. The C input redirects these calls to `five_sinf` and `five_cosf` and includes their C definitions. CBMC and CompCert therefore see the same selected trigonometric implementation. The prepared program and its bindings determine the scope of the result. Applying that result to a build that uses its original `libm` bindings requires a separate correspondence argument for the observations in the property. [Call bindings](cases/attitude_trig/source/airframe.c#L32-L35) · [Compilation unit](cases/attitude_trig/source/Program.c) · [Trigonometric implementation](cases/attitude_trig/source/five_trig.c)
 
 ## Semantic scope
 
@@ -88,25 +86,14 @@ proof/
 
 By default, the goals are parameterized by an unspecified precondition. A later proof task supplies the concrete predicate and proofs. Generation never fills the gap with `True`, `False`, an axiom or `Admitted`; regeneration preserves authored preconditions and proofs. See the [generator guide](scripts/generate-obligations.md).
 
-## Case studies
+## Examples and benchmarks
 
-The published cases cover Paparazzi filters and attitude computation, together with the minimal `sum3` example.
-
-| Case | Program | Retained whole-function no-error result |
-| --- | --- | --- |
-| [lowpass](cases/lowpass/report/report.md) | Low-pass filter | Proof source retained under an explicit initialized-memory and write-permission precondition. |
-| [pid](cases/pid/report/report.md) | PID controller | Pending; floating-point operation lemmas are retained. |
-| [attitude_trig](cases/attitude_trig/report/report.md) | Paparazzi attitude rotation with FIVE trigonometric functions | Pending; bounds lemmas and the C trigonometric implementation are retained. |
-| [sum3](cases/sum3/report/report.md) | `(a + b) + c` | Proof source retained for any three binary32 values, with no numeric-domain restriction. |
-
-A no-error theorem alone does not establish termination or functional correctness. Case reports identify the actual statements, preconditions and remaining obligations. Evidence is tied to source hashes; generating or compiling a declaration does not prove its proposition.
-
-The [Paparazzi model library](benchmarks/paparazzi/README.md) contains 432 additional entry interfaces, their source snapshots, pending obligations, proof plans, limitations and historical cost evidence.
+[`examples/sum3`](examples/sum3/README.md) is the standalone end-to-end example. The [Paparazzi model library](benchmarks/paparazzi/README.md) contains the aircraft-derived cases, pending obligations, limitations, and cost records.
 
 ## Repository layout
 
 ```text
-cases/<case>/
+examples/sum3/
   source/
     Program.c        C compilation unit supplied to the exporter
     LICENSE          Upstream license, when applicable
@@ -119,149 +106,18 @@ cases/<case>/
   report/            Scope, assumptions, source manifests and cost references
 shared/              Shared semantics, library adapters and proof support
 scripts/             Export, provenance, proof-evidence and cost utilities
-.agents/skills/      The four workflow skills
+.agents/skills/      The five workflow skills
 docs/                Workflow diagram and its editable source
 reports/             Recorded validation, provenance and cost evidence
 paper/               Manuscript source and compiled draft
 references/          Original supplied manuscript archive
 ```
 
-All four cases use the same model filenames. Proof-support models are witnesses used by the proofs; they do not replace the C execution semantics. The earlier identity, addition, addition-store and bubble-sort cases are kept in a separate local archive outside this repository. Toolchains, temporary builds and raw local run directories are excluded from Git.
+Cases use the same model filenames. Proof-support models are witnesses used by the proofs; they do not replace the C execution semantics. The earlier identity, addition, addition-store and bubble-sort cases are kept in a separate local archive outside this repository. Toolchains, temporary builds and raw local run directories are excluded from Git.
 
-## Complete case file trees
+## Example file structure
 
-These trees list every tracked file in the four cases. Matching paths indicate matching responsibilities, not identical contents or equally complete proofs.
-
-### lowpass
-
-```text
-cases/lowpass/
-  model/
-    Execution.v
-    Source.v
-    SourceInvariant.v
-  proof/
-    Entry.v
-    Invariant.v
-    NoError.v
-    Nonvacuity.v
-    PureProgress.v
-    support/
-      CallBoundary.v
-      ConcreteBody.v
-      FunctionalModel.v
-      MemorySpec.v
-      NormalCorrespondence.v
-      SourceFunctional.v
-      StandardBody.v
-  report/
-    costs.json
-    manifest.json
-    report.md
-    theorem.txt
-  source/
-    LICENSE
-    Program.c
-```
-
-### pid
-
-```text
-cases/pid/
-  model/
-    Execution.v
-    Source.v
-    SourceInvariant.v
-  proof/
-    Arithmetic.v
-  report/
-    costs.json
-    manifest.json
-    report.md
-    theorem.txt
-  source/
-    LICENSE
-    Program.c
-```
-
-### attitude_trig
-
-```text
-cases/attitude_trig/
-  model/
-    Execution.v
-    Source.v
-    SourceInvariant.v
-  proof/
-    Bounds.v
-  report/
-    costs.json
-    manifest.json
-    report.md
-    theorem.txt
-  source/
-    LICENSE
-    Program.c
-    airframe.c
-    five_trig.c
-```
-
-### sum3
-
-```text
-cases/sum3/
-  model/
-    Execution.v
-    Source.v
-    SourceInvariant.v
-  proof/
-    Core.v
-    Entry.v
-    Invariant.v
-    NoError.v
-    Obligations.v
-    Precondition.v
-    PureProgress.v
-    support/
-      NormalCorrespondence.v
-  report/
-    costs.json
-    manifest.json
-    report.md
-    theorem.txt
-  source/
-    Program.c
-```
-
-### Files that correspond across cases
-
-The following eight paths have a one-to-one counterpart in **all four cases**:
-
-| Relative path | Shared responsibility |
-| --- | --- |
-| `source/Program.c` | C compilation unit supplied to the exporter. For attitude_trig, it includes the redirected attitude routine and the selected FIVE trigonometric implementation. |
-| `model/Source.v` | Automatically generated CompCert Csyntax AST. |
-| `model/Execution.v` | Function entry and execution interface using CompCert semantics; the exposed helpers can differ by case. |
-| `model/SourceInvariant.v` | Syntax and state invariants supporting semantic correspondence; not by itself a whole-function safety proof. |
-| `report/report.md` | Verification scope, assumptions, results and remaining work. |
-| `report/manifest.json` | Current file hashes and references to historical evidence. |
-| `report/costs.json` | References to recorded cost measurements with their original scopes. |
-| `report/theorem.txt` | Retained theorem and assumption output from previous checks. |
-
-Other files correspond only where the same responsibility is present:
-
-| Relative path | Cases containing it | Responsibility |
-| --- | --- | --- |
-| `source/LICENSE` | lowpass, pid, attitude_trig | Upstream license accompanying the aviation source. |
-| `proof/Entry.v` | lowpass, sum3 | Entry-state and precondition reasoning. |
-| `proof/Invariant.v` | lowpass, sum3 | Execution invariants and their preservation/progress arguments. |
-| `proof/NoError.v` | lowpass, sum3 | Whole-function, all-reachable-state no-error theorems under stated preconditions. |
-| `proof/PureProgress.v` | lowpass, sum3 | Progress support for expression and statement evaluation. |
-| `proof/support/NormalCorrespondence.v` | lowpass, sum3 | Supporting correspondence for normal execution. |
-
-The remaining files are case-specific. Lowpass retains its memory, functional-model and call-boundary proof support plus a non-vacuity witness. Sum3 additionally has Core.v, Precondition.v and Obligations.v. PID's Arithmetic.v and attitude_trig's Bounds.v prove different auxiliary properties: they are **not** counterparts of NoError.v and do not establish whole-function safety. Attitude_trig also needs its separate aviation and trigonometric C implementations.
-
-Absent files indicate differences in the retained proof organization or unfinished work; empty placeholders are not added to make the trees look identical. In particular, the generic export workflow generates separate precondition and obligation files for new exports, but this historical collection has not been retroactively regenerated to match it. The file trees and correspondence tables do not imply that any new verification has been performed.
+`examples/sum3/` contains the common `source/`, `cbmc/`, `model/`, `proof/`, and `report/` directories. The [sum3 guide](examples/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations. Paparazzi cases follow the same internal interface under `benchmarks/paparazzi/cases/`.
 
 ## Working with the project
 
@@ -277,7 +133,7 @@ Export a model and its pending obligations:
 
 ```sh
 python3 scripts/compcert-align.py export \
-  --source cases/sum3/source/Program.c --function f_sum3 \
+  --source examples/sum3/source/Program.c --function f_sum3 \
   --namespace Sum3 --output _build/sum3
 ```
 
@@ -305,7 +161,7 @@ Missing or inconsistent evidence remains `partial`; it is never replaced with ze
 
 The [paper draft](paper/README.md) and [PDF](paper/main.pdf) are retained alongside the unchanged original archive. Third-party notices remain with the source files. The [source-export record](reports/source-validation.json), [recorded module checks](reports/validation.json) and [library-interface inventory](reports/ast-library-audit.json) document their respective scopes.
 
-The 2026-11-03 repository organization standardized the model entry filename as `Execution.v` and retained only the four cases above. No CBMC or Rocq verification was run for that change. Recorded check logs and theorem output remain unchanged historical evidence, so they may contain former module names or cases. Current manifests list the renamed files; they do not certify a fresh kernel check. Archived cost records retain their original scopes, including earlier cases.
+The 2026-11-03 repository organization standardized the model entry filename as `Execution.v` and retained the four then-current cases. No CBMC or Rocq verification was run for that change. Recorded check logs and theorem output remain unchanged historical evidence, so they may contain former module names or cases. That historical record does not certify a later kernel check; the sum3 case report links its newer check. Archived cost records retain their original scopes, including earlier cases.
 
 Corresponding artifacts share filenames across cases. Proof files share names when they serve the same role; case-specific lemmas and dependencies keep descriptive names. Missing proofs or licenses are not replaced with empty placeholders. Source renaming leaves C contents and generated ASTs unchanged; historical provenance retains original source paths. No verification was run for these naming changes.
 

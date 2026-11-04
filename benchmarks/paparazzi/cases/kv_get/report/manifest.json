@@ -22,7 +22,7 @@
   "source_namespace": "Paparazzi.key_value_store",
   "proof_namespace": "Paparazzi.key_value_store.entries.kv_get.proof",
   "shared_ast_sha256": "8555096bbb77b1fab7281497ec6397374c4e1c772ec6bd4ccd83c220af3a02fd",
-  "historical_manifest": "../../../_shared/groups/key_value_store/historical-manifest.json",
+  "historical_manifest": "../../_shared/groups/key_value_store/historical-manifest.json",
   "files_sha256": {
     "source/Program.c": "16c0a5584682a1258d43fd1cdddb9b7ac0f36c158cc2192958d627253c54b259",
     "source/preprocessed.i": "1a2f8d6d0d31f30c2cb1919472d619512bde0f635f2930f19700c438cfa99a62",
@@ -31,7 +31,114 @@
     "model/Execution.v": "75cfe4e9cef8617949654c84927fcee1c9042e81713b1cef893c38b38a2f9d57",
     "proof/Precondition.v": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933",
     "proof/Obligations.v": "a368d1371b5d20472e69c9328491c7421d3188635f70b5b976379655f1c58997",
-    "proof/Proofs.v": "bc21a297861c976c96278d5b2462d94d9f2e54e96b2c3d4b1f61f9a0ea9f4729"
+    "proof/Proofs.v": "bc21a297861c976c96278d5b2462d94d9f2e54e96b2c3d4b1f61f9a0ea9f4729",
+    "source/bindings.json": "69e38a7c3dae11d64502fbea00d9d956c2a058f20c1519a0162ca9547a678d6b"
   },
-  "status": "align complete; concrete precondition and program proofs pending"
+  "status": "align complete; concrete precondition and program proofs pending",
+  "schema": "five-case-manifest/1",
+  "case_id": "kv_get",
+  "stages": {
+    "five-prepare": {
+      "status": "pending",
+      "inputs": [
+        {
+          "path": "source/Program.c",
+          "sha256": "16c0a5584682a1258d43fd1cdddb9b7ac0f36c158cc2192958d627253c54b259"
+        },
+        {
+          "path": "source/preprocessed.i",
+          "sha256": "1a2f8d6d0d31f30c2cb1919472d619512bde0f635f2930f19700c438cfa99a62"
+        },
+        {
+          "path": "../../_shared/groups/key_value_store/historical-manifest.json",
+          "sha256": "aeb94d3108ada52377146443ea842e7ee32e7c8c2b9f9f6eb8d5a21532a27900"
+        },
+        {
+          "path": "../../_shared/source-snapshot/upstream/sw/airborne/utils/kv_store.c",
+          "sha256": "a8fc1a744d92c0b036c010a783b2cc75e296ad510d186f4097591d63b63466fc"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "source/bindings.json",
+          "sha256": "69e38a7c3dae11d64502fbea00d9d956c2a058f20c1519a0162ca9547a678d6b"
+        }
+      ],
+      "logs": [],
+      "limitations": [
+        "Historical external bindings and redirects need call-site audit; individual header provenance is incomplete."
+      ]
+    },
+    "five-cbmc": {
+      "status": "not_run",
+      "inputs": [],
+      "outputs": [],
+      "logs": [],
+      "limitations": []
+    },
+    "five-align": {
+      "status": "pending",
+      "inputs": [
+        {
+          "path": "source/Program.c",
+          "sha256": "16c0a5584682a1258d43fd1cdddb9b7ac0f36c158cc2192958d627253c54b259"
+        },
+        {
+          "path": "source/preprocessed.i",
+          "sha256": "1a2f8d6d0d31f30c2cb1919472d619512bde0f635f2930f19700c438cfa99a62"
+        },
+        {
+          "path": "source/bindings.json",
+          "sha256": "69e38a7c3dae11d64502fbea00d9d956c2a058f20c1519a0162ca9547a678d6b"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "source/preprocessed.i",
+          "sha256": "1a2f8d6d0d31f30c2cb1919472d619512bde0f635f2930f19700c438cfa99a62"
+        },
+        {
+          "path": "model/Source.v",
+          "sha256": "8555096bbb77b1fab7281497ec6397374c4e1c772ec6bd4ccd83c220af3a02fd"
+        },
+        {
+          "path": "model/Execution.v",
+          "sha256": "75cfe4e9cef8617949654c84927fcee1c9042e81713b1cef893c38b38a2f9d57"
+        },
+        {
+          "path": "proof/Precondition.v",
+          "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933"
+        },
+        {
+          "path": "proof/Obligations.v",
+          "sha256": "a368d1371b5d20472e69c9328491c7421d3188635f70b5b976379655f1c58997"
+        },
+        {
+          "path": "proof/Proofs.v",
+          "sha256": "bc21a297861c976c96278d5b2462d94d9f2e54e96b2c3d4b1f61f9a0ea9f4729"
+        }
+      ],
+      "logs": [],
+      "limitations": [
+        "Execution coverage, external environment and program proofs remain pending."
+      ]
+    },
+    "five-rocq": {
+      "status": "not_run",
+      "inputs": [],
+      "outputs": [],
+      "logs": [],
+      "limitations": [
+        "No new program-property proof was run during migration."
+      ]
+    },
+    "five-verify": {
+      "status": "not_run",
+      "inputs": [],
+      "outputs": [],
+      "logs": [],
+      "limitations": []
+    }
+  },
+  "historical_case_manifest": "report/historical-manifest.json"
 }
