@@ -328,7 +328,7 @@ The classification depends on the extracted behavior summaries. In particular, t
 
 This section presents a verification workflow for floating-point software IP
 whose guarantees must account for C execution and high-level functional behavior.
-The workflow combines traditional bounded model checking of the original C
+The workflow combines traditional bounded model checking of the prepared C
 program, a CompCert-derived executable semantics, and machine-checked
 reasoning in Rocq. The levels answer different questions: whether selected
 implementation properties hold within a stated bound, whether the formal
@@ -346,34 +346,42 @@ behavior-preservation proof from a legacy component to its extracted form.
 
 \subsection{Framework overview}
 
-FIVE organizes verification around one C implementation and a fixed semantic
-configuration, as shown in Figure~\ref{fig:five-framework}. The input is a
-translation unit with its required headers, definitions, and external-call
-contracts, together with the selected function and observations. These
-verification inputs are independent of the extraction experiments in
-Sections~3 and~4. The input is prepared for the supported CompCert C dialect with
-explicit preprocessing and target settings \cite{CompCertLanguage}.
+FIVE organizes verification around one prepared C implementation and a
+fixed target configuration (Figure~\ref{fig:five-framework}). Preparation
+selects the entry point, binds its dependencies, and records the C files,
+headers, preprocessing options, and observations, using the supported C
+dialect and target configuration \cite{CompCertLanguage}. These inputs are
+independent of the extraction experiments in Sections~3 and~4.
 
-The implementation-checking branch runs traditional CBMC bounded model
-checking. The model-generation branch exports CompCert Csyntax and exposes
-the original Csem/Cexec transition semantics in Rocq. These branches can
-start independently. Their handoff to the proof stage consists of explicit
-artifacts: a source-bound model, pending obligations, and, when available,
-CBMC property descriptions and counterexamples. A successful CBMC run is
-not a premise that Rocq may assume.
+Preparation can keep the existing external bindings and state their
+environment contracts, or redirect selected calls to C implementations
+included in the verification input. In the attitude-rotation case, the
+Paparazzi routine's \texttt{sinf} and \texttt{cosf} calls are redirected to
+\texttt{five\_sinf} and \texttt{five\_cosf}. Their C definitions accompany
+the routine in the translation unit. This makes the reduction, polynomial
+evaluation, and rounding of the chosen implementation available to both
+tools. Results apply to the recorded bindings. Transferring them to the
+original build requires a separate correspondence argument for the
+observations used by the property.
+
+CBMC checks the prepared C program within the harness bounds. CompCert
+exports the same C input to Csyntax, and the model uses the original
+Csem/Cexec transition semantics in Rocq. The two branches can start
+independently. The model and its pending goals feed proof construction.
+Available CBMC assertions and counterexamples supply tasks for independent
+Rocq analysis.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figures/five-framework.pdf}
-  \caption{FIVE verification framework. Solid arrows carry artifacts;
-  the dashed arrow supplies optional CBMC properties and counterexamples
-  for independent analysis. Model generation creates pending goals, not
-  completed proofs. Bounded CBMC evidence and Rocq theorems retain their
-  respective scopes in the final report.}
-  \Description{A common C source and semantic configuration feed CBMC
-  bounded checking and CompCert model generation. Both supply artifacts
-  to Rocq proof construction. CBMC evidence and checked Rocq theorems
-  are collected with assumptions and costs in a scoped report.}
+  \caption{FIVE workflow. Preparation fixes the C program and its dependency
+  bindings before CBMC checking and CompCert export. The dashed arrow carries
+  optional assertions and counterexamples for independent Rocq analysis.
+  The report records the scope and status of each result.}
+  \Description{C sources and target settings enter a preparation step that
+  retains or redirects external calls. The prepared C feeds CBMC bounded
+  checking and CompCert model export. The model and proof goals enter Rocq.
+  CBMC results, Rocq theorems, open goals and costs appear in the report.}
   \label{fig:five-framework}
 \end{figure}
 
@@ -495,7 +503,7 @@ abstractions.
 \hline
 Level & Main mechanism & Suitable obligations & Scope of the result \\
 \hline
-Implementation & Traditional CBMC bounded model checking & Array and pointer safety, conversions and bit operations, and local assertions over the original C & Complete only for the stated bound or a separately justified complete unwind \\
+Implementation & Traditional CBMC bounded model checking & Array and pointer safety, conversions and bit operations, and local assertions over the prepared C & Complete only for the stated bound or a separately justified complete unwind \\
 Model generation & CompCert C front end and original Csem/Cexec semantics & Exported syntax, provenance, pending goals and mapped property statements & Source-bound artifacts; correspondence and program goals remain proof obligations \\
 Proof construction & Rocq definitions, lemmas, and induction & Correspondence, CBMC-property reproof, safety, termination and functional invariants & Only completed theorems, under their stated preconditions and environment assumptions \\
 \hline
@@ -504,7 +512,7 @@ Proof construction & Rocq definitions, lemmas, and induction & Correspondence, C
 
 \subsection{Level 1: bounded checks of the C implementation}
 
-At the first level, CBMC analyzes the selected original C source and its
+At the first level, CBMC analyzes the prepared C program and its
 verification entry points using its traditional symbolic-execution and
 bounded-model-checking workflow. The harness states the input conditions
 and properties for that verification case; the assertions remain

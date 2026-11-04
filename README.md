@@ -4,7 +4,7 @@
 
 FIVE combines traditional CBMC bounded model checking with CompCert's C semantics and Rocq proofs. It separates model generation from proof construction: exporting a model produces explicit proof obligations, while preconditions and proofs are supplied in a later proof task.
 
-![FIVE workflow: CBMC checks, CompCert model generation and Rocq proofs, coordinated by five-verify](docs/workflow.svg)
+![FIVE workflow from C dependency binding through CBMC, CompCert, Rocq and evidence reporting](docs/workflow.svg)
 
 The diagram's editable source is [workflow.dot](docs/workflow.dot).
 
@@ -12,12 +12,54 @@ The diagram's editable source is [workflow.dot](docs/workflow.dot).
 
 | Skill | Responsibility | Main outputs |
 | --- | --- | --- |
-| [five-cbmc](.agents/skills/five-cbmc/SKILL.md) | Check the original C using traditional symbolic execution and bounded model checking. | Scoped properties, input assumptions, unwinding bounds and counterexamples. |
+| [five-cbmc](.agents/skills/five-cbmc/SKILL.md) | Check the prepared C using traditional symbolic execution and bounded model checking. | Scoped properties, input assumptions, unwinding bounds and counterexamples. |
 | [five-align](.agents/skills/five-align/SKILL.md) | Export CompCert models, audit their provenance, generate obligations and map C/CBMC properties to Rocq statements. | Models, pending goals, a separate precondition interface and property mappings. |
 | [five-rocq](.agents/skills/five-rocq/SKILL.md) | Construct explicit preconditions and specifications, then prove the requested theorems. | Safety, termination, correspondence and functional proofs; independent CBMC-property reproofs or refutations. |
 | [five-verify](.agents/skills/five-verify/SKILL.md) | Coordinate the stages, review their evidence and summarize results and costs. | Scoped conclusions, remaining obligations and deduplicated accounting. |
 
-CBMC and model generation both consume the original C. Available CBMC results feed the property mapping; they are not Rocq axioms. The Rocq stage can also work independently on one or more existing Rocq models.
+CBMC and CompCert consume the same prepared C program and use the recorded target settings. CBMC assertions and counterexamples can feed the property mapping for independent Rocq analysis. Rocq can also work directly with existing models.
+
+## Walkthrough with `sum3`
+
+The diagram follows the implementation in [Program.c](cases/sum3/source/Program.c):
+
+```c
+float sum3(float a, float b, float c) {
+    return a + b + c;
+}
+```
+
+For the input `(16777216.0f, 1.0f, -16777216.0f)`, the first addition rounds `16777217` to `16777216` in binary32. The second addition returns `+0.0f` (`0x00000000`). With `a + (b + c)`, the result is `1.0f` (`0x3f800000`). The two orders give different properties to check.
+
+| Step in the diagram | What it means for `sum3` |
+| --- | --- |
+| **0. Prepare the C program** | Select `sum3` and pin its target settings. This function has no external calls, so the same `Program.c` goes directly to CBMC and CompCert. |
+| **1. Check with CBMC** | An example harness calls `sum3` with the three values above and asserts that the returned binary32 word is `0x00000000`. The property is scoped to those inputs. A failed check would supply the assertion and counterexample for investigation in Rocq. |
+| **2. Export with CompCert** | `clightgen -csyntax` records the two nested additions in [Source.v](cases/sum3/model/Source.v). [Execution.v](cases/sum3/model/Execution.v) exposes the CompCert transitions. [Obligations.v](cases/sum3/proof/Obligations.v) defines the no-error and termination goals. |
+| **3. Prove in Rocq** | [Precondition.v](cases/sum3/proof/Precondition.v) specifies three binary32 arguments and allows every initial CompCert memory. [NoError.v](cases/sum3/proof/NoError.v) proves error freedom over all reachable states under the typed-argument condition. A result-bit property supplied by CBMC requires its own proof over the model. |
+| **4. Report the evidence** | The [case report](cases/sum3/report/report.md) and [theorem record](cases/sum3/report/theorem.txt) give the scope of the retained proof. The [arithmetic comparison](paper/experiments/sum3/README.md) separately records the concrete output-bit experiments. |
+
+The CBMC row describes this example harness. Compile it together with `cases/sum3/source/Program.c` when running CBMC.
+
+```c
+#include <stdint.h>
+#include <string.h>
+
+float sum3(float a, float b, float c);
+
+int main(void) {
+    float result = sum3(16777216.0f, 1.0f, -16777216.0f);
+    uint32_t bits;
+    memcpy(&bits, &result, sizeof bits);
+    __CPROVER_assert(bits == 0x00000000u, "sum3 result bits");
+}
+```
+
+This is a concrete-input check. The linked case artifacts document the existing model and no-error proof. The two generated goals in `Obligations.v` remain proof targets, and the result-bit assertion above has its own proof obligation.
+
+### When a call needs redirection
+
+In `attitude_trig`, the Paparazzi rotation-matrix routine calls `sinf` and `cosf`. The C input redirects these calls to `five_sinf` and `five_cosf` and includes their C definitions. CBMC and CompCert therefore see the same selected trigonometric implementation. The prepared program and its bindings determine the scope of the result. Applying that result to a build that uses its original `libm` bindings requires a separate correspondence argument for the observations in the property. [Call bindings](cases/attitude_trig/source/airframe.c#L32-L35) · [Compilation unit](cases/attitude_trig/source/Program.c) · [Trigonometric implementation](cases/attitude_trig/source/five_trig.c)
 
 ## Semantic scope
 
@@ -48,13 +90,13 @@ By default, the goals are parameterized by an unspecified precondition. A later 
 
 ## Case studies
 
-The published cases are three Paparazzi UAV modules and the minimal `sum3` example.
+The published cases cover Paparazzi filters and attitude computation, together with the minimal `sum3` example.
 
 | Case | Program | Retained whole-function no-error result |
 | --- | --- | --- |
 | [lowpass](cases/lowpass/report/report.md) | Low-pass filter | Proof source retained under an explicit initialized-memory and write-permission precondition. |
 | [pid](cases/pid/report/report.md) | PID controller | Pending; floating-point operation lemmas are retained. |
-| [attitude_trig](cases/attitude_trig/report/report.md) | Attitude rotation with C trigonometric functions | Pending; bounds lemmas and the C trigonometric implementation are retained. |
+| [attitude_trig](cases/attitude_trig/report/report.md) | Paparazzi attitude rotation with FIVE trigonometric functions | Pending; bounds lemmas and the C trigonometric implementation are retained. |
 | [sum3](cases/sum3/report/report.md) | `(a + b) + c` | Proof source retained for any three binary32 values, with no numeric-domain restriction. |
 
 A no-error theorem alone does not establish termination or functional correctness. Case reports identify the actual statements, preconditions and remaining obligations. Evidence is tied to source hashes; generating or compiling a declaration does not prove its proposition.
@@ -195,7 +237,7 @@ The following eight paths have a one-to-one counterpart in **all four cases**:
 
 | Relative path | Shared responsibility |
 | --- | --- |
-| `source/Program.c` | C compilation unit supplied to the exporter. For attitude_trig, it includes airframe.c and five_trig.c. |
+| `source/Program.c` | C compilation unit supplied to the exporter. For attitude_trig, it includes the redirected attitude routine and the selected FIVE trigonometric implementation. |
 | `model/Source.v` | Automatically generated CompCert Csyntax AST. |
 | `model/Execution.v` | Function entry and execution interface using CompCert semantics; the exposed helpers can differ by case. |
 | `model/SourceInvariant.v` | Syntax and state invariants supporting semantic correspondence; not by itself a whole-function safety proof. |

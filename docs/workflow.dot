@@ -1,17 +1,22 @@
 digraph FIVE {
- graph [rankdir=TB, bgcolor="white", nodesep=0.45, ranksep=0.48, pad=0.12];
- node [shape=box, fontname="Helvetica", fontsize=12, color="#303840", penwidth=1.1, margin="0.18,0.12", style=filled, fillcolor="#F6F7F8"];
- edge [fontname="Helvetica", fontsize=10, color="#404850", arrowsize=0.7];
- input [label="C source + dependencies + selected function\nFixed target semantics and observable bits / bytes", fillcolor="white"];
- cbmc [label="1  IMPLEMENTATION CHECKING\nCBMC: traditional bounded model checking\nHarness, assertions and unwinding bounds"];
- model [label="2  MODEL GENERATION\nCompCert Csyntax + original Csem / Cexec\nProvenance, property mapping, pending goals"];
- proof [label="3  PROOF CONSTRUCTION IN ROCQ\nExplicit preconditions and specifications\nCorrespondence + independent property reproof\nSafety, termination and functional induction"];
- evidence [label="SCOPED EVIDENCE AND COST REPORT\nBounded results | checked theorems | pending goals\nSource hashes, assumptions, tokens, time and memory", fillcolor="white"];
- {rank=same; cbmc; model;}
- input -> cbmc;
- input -> model;
- cbmc -> proof [style=dashed, label="Properties / counterexamples\n(not axioms)"];
- model -> proof [label="Execution model +\nunproved obligations"];
- cbmc:w -> evidence:w [label="Bounded evidence", minlen=2];
- proof -> evidence [label="Theorems and remaining obligations"];
+  graph [rankdir=TB, bgcolor="white", nodesep=0.40, ranksep=0.42, pad=0.10];
+  node [shape=box, style=filled, color="#354551", fillcolor="#F4F7F9",
+        penwidth=1.0, fontname="Helvetica", fontsize=12, margin="0.15,0.10"];
+  edge [color="#405261", fontname="Helvetica", fontsize=10, arrowsize=0.67];
+
+  input [label="C sources and target settings", fillcolor="white"];
+  prepare [label="0  Prepare the C program\nKeep or redirect external calls\nRecord the chosen implementations and target", fillcolor="#EAF2F8"];
+  cbmc [label="1  CBMC\nCheck C assertions within bounds"];
+  compcert [label="2  CompCert\nExport the C execution model\nand generate proof goals"];
+  rocq [label="3  Rocq\nState preconditions and prove\nproperties of model executions"];
+  report [label="4  Report\nBounded checks, theorems, open goals and costs", fillcolor="white"];
+
+  {rank=same; cbmc; compcert;}
+  input -> prepare;
+  prepare -> cbmc;
+  prepare -> compcert;
+  cbmc -> rocq [style=dashed, label="Assertions and\ncounterexamples"];
+  compcert -> rocq [label="Model and\nproof goals"];
+  cbmc:sw -> report:w [label="Bounded results", minlen=2];
+  rocq -> report;
 }
