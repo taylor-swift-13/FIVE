@@ -80,9 +80,10 @@ Definition closed_transitions := transitions no_external no_external quiet_world
 '''.replace('Require Import List String.','Require Import List String ZArith.')
 
 def export(source,function,output,namespace='FiveCompCert',include_dirs=(),defines=(),
-           request=None,session=None,clightgen=None,lib=None):
+           request=None,session=None,clightgen=None,lib=None,frontend_options=()):
     if not re.fullmatch(r'f_[A-Za-z_][A-Za-z_0-9]*',function):raise ValueError('Function must be exported f_NAME identifier')
     if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*',namespace):raise ValueError('Invalid Rocq namespace')
+    if any(option not in {'-fstruct-passing'} for option in frontend_options):raise ValueError('Unsupported frontend option')
     source=Path(source).resolve();output=Path(output).resolve()
     if not source.is_file():raise FileNotFoundError(source)
     if output==source.parent:raise ValueError('Use a separate generated output directory')
@@ -105,7 +106,7 @@ def export(source,function,output,namespace='FiveCompCert',include_dirs=(),defin
     try:
         c=run.command([str(exe),*cpp,'-E',str(source)],'compcert-preprocess',cwd=source.parent)
         (output/'preprocessed.i').write_bytes((run.folder/c['stdout']).read_bytes())
-        run.command([str(exe),'-csyntax','-o',str(output/'Source.v'),str(output/'preprocessed.i')],
+        run.command([str(exe),*frontend_options,'-csyntax','-o',str(output/'Source.v'),str(output/'preprocessed.i')],
                     'compcert-export-csyntax',cwd=source.parent)
         validate_ast_target((output/'Source.v').read_text(),target)
         (output/'Execution.v').write_text(wrapper(namespace,function))
@@ -141,7 +142,7 @@ def export(source,function,output,namespace='FiveCompCert',include_dirs=(),defin
                ['preprocessed.i','Source.v','Execution.v','Extraction.v','execution.ml',
                 'proof/Precondition.v','proof/Obligations.v','proof/Proofs.v']}
         manifest={'schema':SCHEMA,'status':'generated','backend':'compcert-csyntax-cexec',
-          'source':{'path':ref(source),'sha256':sha(source)},'cpp_arguments':cpp,'cpp_cwd':str(source.parent),
+          'source':{'path':ref(source),'sha256':sha(source)},'cpp_arguments':cpp,'frontend_options':list(frontend_options),'cpp_cwd':str(source.parent),
           'tool':{'path':str(exe),'sha256':sha(exe)},'formal_library':str(library),'semantic_dependencies':semantic,'target':target,
           'namespace':namespace,'function':function,'files':files,
           'ast_semantic_sha256':digest_text(normalized_ast((output/'Source.v').read_text())),
@@ -225,7 +226,7 @@ def audit(manifest_path,run=None):
             if hashlib.sha256(pre).hexdigest()!=m['files']['preprocessed.i']['sha256']:
                 raise RuntimeError('Preprocessing/header/configuration drift')
             (temp/'preprocessed.i').write_bytes(pre)
-            run.command([m['tool']['path'],'-csyntax','-o',str(temp/'Source.v'),str(temp/'preprocessed.i')],
+            run.command([m['tool']['path'],*m.get('frontend_options',[]),'-csyntax','-o',str(temp/'Source.v'),str(temp/'preprocessed.i')],
                         'audit-export-csyntax',cwd=m['cpp_cwd'])
             if digest_text(normalized_ast((temp/'Source.v').read_text()))!=m['ast_semantic_sha256']:
                 raise RuntimeError('Exported Csyntax AST differs from frozen original program')

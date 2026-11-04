@@ -101,6 +101,8 @@ The published cases cover Paparazzi filters and attitude computation, together w
 
 A no-error theorem alone does not establish termination or functional correctness. Case reports identify the actual statements, preconditions and remaining obligations. Evidence is tied to source hashes; generating or compiling a declaration does not prove its proposition.
 
+The [Paparazzi model library](benchmarks/paparazzi/README.md) contains 432 additional entry interfaces, their source snapshots, pending obligations, proof plans, limitations and historical cost evidence.
+
 ## Repository layout
 
 ```text

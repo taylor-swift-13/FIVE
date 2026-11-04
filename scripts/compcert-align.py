@@ -9,13 +9,13 @@ def main():
  e=s.add_parser('export');e.add_argument('--source',required=True);e.add_argument('--function',required=True)
  e.add_argument('--output',required=True);e.add_argument('--namespace',default='FiveCompCert')
  e.add_argument('--include-dir',action='append',default=[]);e.add_argument('--define',action='append',default=[])
- e.add_argument('--request');e.add_argument('--session');e.add_argument('--clightgen');e.add_argument('--compcert-lib')
+ e.add_argument('--struct-passing',action='store_true');e.add_argument('--request');e.add_argument('--session');e.add_argument('--clightgen');e.add_argument('--compcert-lib')
  a=s.add_parser('audit');a.add_argument('--manifest',required=True)
  args=p.parse_args()
  if args.action=='target':
   print(json.dumps(target_of(tool_paths()[1]),indent=2));return
  if args.action=='export':
-  m=export(args.source,args.function,args.output,args.namespace,args.include_dir,args.define,args.request,args.session,args.clightgen,args.compcert_lib)
+  m=export(args.source,args.function,args.output,args.namespace,args.include_dir,args.define,args.request,args.session,args.clightgen,args.compcert_lib,frontend_options=['-fstruct-passing'] if args.struct_passing else [])
   goals=m['generated_obligations']
   print(json.dumps({'status':'generated','backend':m['backend'],'coverage_status':m['coverage_status'],
    'obligations':{'status':goals['status'],'precondition':goals['precondition_status'],

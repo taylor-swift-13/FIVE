@@ -32,8 +32,8 @@ def audit_run(folder, seen=None):
         boundary = run.get('codex_usage_boundary', {})
         own = run['tokens']
         need(own.get('status') == 'available' and own.get('complete') is True, 'Actual stage token receipt unavailable/incomplete')
-        need(own.get('source', {}).get('kind') in {'codex-session-event', 'provider-usage'}, 'Unidentified token source')
-        need(bool(own.get('source', {}).get('reference')), 'Token source has no receipt reference')
+        need((own.get('source') or {}).get('kind') in {'codex-session-event', 'provider-usage'}, 'Unidentified token source')
+        need(bool((own.get('source') or {}).get('reference')), 'Token source has no receipt reference')
 
         def events(receipt):
             result = {}
@@ -49,7 +49,7 @@ def audit_run(folder, seen=None):
             return result
 
         own_events = events(own)
-        if own.get('source', {}).get('kind') == 'codex-session-event':
+        if (own.get('source') or {}).get('kind') == 'codex-session-event':
             need(bool(boundary.get('before')) and bool(boundary.get('after')), 'Missing model-work token boundaries')
             if boundary.get('before') and boundary.get('after'):
                 for key in ['input_tokens', 'output_tokens', 'cached_input_tokens', 'reasoning_output_tokens']:
