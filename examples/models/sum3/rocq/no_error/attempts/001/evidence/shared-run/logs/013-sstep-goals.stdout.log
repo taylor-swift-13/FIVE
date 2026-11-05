@@ -1,0 +1,21 @@
+1 goal
+  
+  ge : genv
+  f : function
+  vargs : list val
+  k : cont
+  m : mem
+  e : env
+  m2 : mem
+  STEP :
+    sstep ge (Callstate (Internal f) vargs k m) E0
+      (State f (fn_body f) k e m2)
+  H2 : Internal f = Internal sum3_function
+  H3 : k = Kstop
+  m1 : mem
+  H : Coqlib.list_norepet (var_names (fn_params f) ++ var_names (fn_vars f))
+  H0 : alloc_variables ge empty_env m (fn_params f ++ fn_vars f) e m1
+  H1 : bind_parameters ge e m1 (fn_params f) vargs m2
+  ============================
+  statement_rank (fn_body f) + continuation_rank k + 1 <
+  statement_rank (fn_body f) + 2

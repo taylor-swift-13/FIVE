@@ -1,0 +1,142 @@
+Fixpoint core_cont (k: cont): bool :=
+  match k with
+  | Kstop => true
+  | Kseq s k => core_stmt s && core_cont k
+  | _ => false
+  end.
+Definition core_expr_cont (k: cont): bool :=
+  match k with Kdo k | Kreturn k => core_cont k | _ => false end.
+
+Ltac core_unpack := repeat match goal with H: _ && _ = true |- _ =>
+  apply andb_true_iff in H; let A := fresh "CORE" in let B := fresh "CORE" in destruct H as [A B] end.
+Ltac core_build := repeat match goal with |- _ && _ = true => apply andb_true_iff; split end.
+
+Lemma core_expr_no_builtin:
+  forall a, core_expr a = true -> no_builtin a = true.
+Proof.
+  induction a; simpl; intros H; core_unpack; try discriminate; core_build; eauto.
+Qed.
+
+Lemma core_context_hole:
+  forall from to C, context from to C -> forall a,
+  core_expr (C a) = true -> core_expr a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+Qed.
+
+Lemma core_context_replace:
+  forall from to C, context from to C -> forall a b,
+  core_expr (C a) = true -> core_expr b = true -> core_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HA HB; core_unpack; try discriminate;
+    core_build; eauto.
+Qed.
+
+Lemma core_lred:
+  forall ge e a m a' m', core_expr a = true -> lred ge e a m a' m' -> core_expr a' = true.
+Proof.
+  intros ge e a m a' m' HA HR; inversion HR; subst; simpl in *; core_unpack; auto.
+Qed.
+
+Lemma deref_loc_silent:
+  forall ge ty m b ofs bf t v, nv ty = true -> deref_loc ge ty m b ofs bf t v -> t = E0.
+Proof.
+  intros ge ty m b ofs bf t v NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma assign_loc_silent:
+  forall ge ty m b ofs bf v t m' v', nv ty = true -> assign_loc ge ty m b ofs bf v t m' v' -> t = E0.
+Proof.
+  intros ge ty m b ofs bf v t m' v' NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma core_rred:
+  forall ge a m t a' m', core_expr a = true -> rred ge a m t a' m' ->
+  t = E0 /\ core_expr a' = true.
+Proof.
+  intros ge a m t a' m' HA HR; inversion HR; subst; simpl in HA; core_unpack; try discriminate;
+    split; simpl; eauto using deref_loc_silent, assign_loc_silent.
+Qed.
+Lemma core_no_callred:
+  forall ge a m fd args ty, core_expr a = true -> callred ge a m fd args ty -> False.
+   Gfun(External (EF_builtin "__builtin_fmsub"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fnmadd,
+   Gfun(External (EF_builtin "__builtin_fnmadd"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fnmsub,
+   Gfun(External (EF_builtin "__builtin_fnmsub"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_read16_reversed,
+   Gfun(External (EF_builtin "__builtin_read16_reversed"
+                   (mksignature (AST.Xptr :: nil) AST.Xint16unsigned
+                     cc_default)) ((tptr tushort) :: nil) tushort
+     cc_default)) ::
+ (___builtin_read32_reversed,
+   Gfun(External (EF_builtin "__builtin_read32_reversed"
+                   (mksignature (AST.Xptr :: nil) AST.Xint cc_default))
+     ((tptr tuint) :: nil) tuint cc_default)) ::
+ (___builtin_write16_reversed,
+   Gfun(External (EF_builtin "__builtin_write16_reversed"
+                   (mksignature (AST.Xptr :: AST.Xint16unsigned :: nil)
+                     AST.Xvoid cc_default))
+     ((tptr tushort) :: tushort :: nil) tvoid cc_default)) ::
+ (___builtin_write32_reversed,
+   Gfun(External (EF_builtin "__builtin_write32_reversed"
+                   (mksignature (AST.Xptr :: AST.Xint :: nil) AST.Xvoid
+                     cc_default)) ((tptr tuint) :: tuint :: nil) tvoid
+     cc_default)) ::
+ (___builtin_debug,
+   Gfun(External (EF_external "__builtin_debug"
+                   (mksignature (AST.Xint :: nil) AST.Xvoid
+                     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
+     (tint :: nil) tvoid
+     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
+ (_sum3, Gfun(Internal f_sum3)) :: nil).
+
+Definition public_idents : list ident :=
+(_sum3 :: ___builtin_debug :: ___builtin_write32_reversed ::
+ ___builtin_write16_reversed :: ___builtin_read32_reversed ::
+ ___builtin_read16_reversed :: ___builtin_fnmsub :: ___builtin_fnmadd ::
+ ___builtin_fmsub :: ___builtin_fmadd :: ___builtin_fmin ::
+ ___builtin_fmax :: ___builtin_expect :: ___builtin_unreachable ::
+ ___builtin_va_end :: ___builtin_va_copy :: ___builtin_va_arg ::
+ ___builtin_va_start :: ___builtin_membar :: ___builtin_annot_intval ::
+ ___builtin_annot :: ___builtin_sel :: ___builtin_memcpy_aligned ::
+ ___builtin_sqrt :: ___builtin_fsqrt :: ___builtin_fabsf ::
+ ___builtin_fabs :: ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz ::
+ ___builtin_clzll :: ___builtin_clzl :: ___builtin_clz ::
+ ___builtin_bswap16 :: ___builtin_bswap32 :: ___builtin_bswap ::
+ ___builtin_bswap64 :: ___builtin_ais_annot :: ___compcert_i64_umulh ::
+ ___compcert_i64_smulh :: ___compcert_i64_sar :: ___compcert_i64_shr ::
+ ___compcert_i64_shl :: ___compcert_i64_umod :: ___compcert_i64_smod ::
+ ___compcert_i64_udiv :: ___compcert_i64_sdiv :: ___compcert_i64_utof ::
+ ___compcert_i64_stof :: ___compcert_i64_utod :: ___compcert_i64_stod ::
+ ___compcert_i64_dtou :: ___compcert_i64_dtos :: ___compcert_va_composite ::
+ ___compcert_va_float64 :: ___compcert_va_int64 :: ___compcert_va_int32 ::
+ nil).
+
+Definition prog : Csyntax.program := 
+  mkprogram composites global_definitions public_idents _main Logic.I.
+
+
+The Rocq Prover, version 9.2
+compiled with OCaml 4.14.2
+usage: five_telemetry.py finish [-h] --run RUN --verdict VERDICT --summary
+                                SUMMARY --outputs OUTPUTS
+
+options:
+  -h, --help         show this help message and exit
+  --run RUN
+  --verdict VERDICT
+  --summary SUMMARY
+  --outputs OUTPUTS  JSON map of output role to path

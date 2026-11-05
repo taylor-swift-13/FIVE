@@ -1,0 +1,101 @@
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "sum3",
+  "stage": "five-cbmc",
+  "status": "passed",
+  "paths_relative_to": "sum3 case root",
+  "next_stage": "five-align",
+  "input_handoff": "prepare/handoff.json",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/sum3.c",
+      "sha256": "25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4"
+    },
+    {
+      "role": "harness",
+      "path": "cbmc/harness.c",
+      "sha256": "183b03135e6fa8a6da21a2a2e764fadf4c4bf55c9ef31d7de9713fb5dad550ac"
+    },
+    {
+      "role": "cbmc_results",
+      "path": "cbmc/report/evidence/logs/001-cbmc-check.stdout.log",
+      "sha256": "befe9ca3f441ea5ebac3859bfe8790ccda73091115d66636389ca4ca08058615"
+    },
+    {
+      "role": "costs",
+      "path": "cbmc/report/costs.json",
+      "sha256": "1e19109703cfd84e38c5ef7a5aee45683dcebed27c0e2333bea3a4c30d889749"
+    }
+  ],
+  "verification_request": {
+    "status": "specified",
+    "properties": [
+      "sum3 safety checks for arbitrary binary32 arguments",
+      "sum3 concrete result word equals 0x00000000"
+    ],
+    "input_assumptions": [
+      "Concrete result assertion uses 16777216.0f, 1.0f, -16777216.0f; safety call is unconstrained binary32."
+    ],
+    "bounds": [
+      "No loops or recursion in sum3; CBMC unwinding assertions enabled."
+    ]
+  },
+  "properties": [
+    {
+      "id": "memcpy.pointer.1",
+      "description": "same object violation in (const unsigned char *)(const void *)&result >= (const unsigned char *)(void *)&bits + (signed long int)sizeof(uint32_t) /*4ul*/ ",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "memcpy.pointer_arithmetic.1",
+      "description": "pointer relation: dead object in (const unsigned char *)(const void *)&result",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "memcpy.pointer_arithmetic.2",
+      "description": "pointer relation: dead object in (const unsigned char *)(void *)&bits + (signed long int)sizeof(uint32_t) /*4ul*/ ",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "memcpy.pointer.2",
+      "description": "same object violation in (const unsigned char *)(void *)&bits >= (const unsigned char *)(const void *)&result + (signed long int)sizeof(uint32_t) /*4ul*/ ",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "memcpy.pointer_arithmetic.3",
+      "description": "pointer relation: dead object in (const unsigned char *)(void *)&bits",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "memcpy.pointer_arithmetic.4",
+      "description": "pointer relation: dead object in (const unsigned char *)(const void *)&result + (signed long int)sizeof(uint32_t) /*4ul*/ ",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "main.precondition_instance.1",
+      "description": "memcpy src/dst overlap",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "main.precondition_instance.2",
+      "description": "memcpy source region readable",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "main.precondition_instance.3",
+      "description": "memcpy destination region writeable",
+      "status": "SUCCESS"
+    },
+    {
+      "id": "main.assertion.1",
+      "description": "sum3 result bits",
+      "status": "SUCCESS"
+    }
+  ]
+}
