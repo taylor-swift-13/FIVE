@@ -1,0 +1,28 @@
+{
+  "schema": "five-verification-request/1",
+  "authorization": "User requested complete sum2 noerror, termination, full actual CBMC recheck; concrete arithmetic observation plus unrestricted binary32 safety.",
+  "entry": "main",
+  "implementation": "prepare/source/sum2.c",
+  "assumptions": [],
+  "domain": "all binary32 a,b including NaNs, infinities and signed zeros for the first implementation call",
+  "properties": [
+    "automatic bounds/pointer/overflow/shift checks emitted by CBMC",
+    "concrete ties-to-even result for sum2(16777216.0f,1.0f), IEEE equality to positive finite 16777216.0f, equivalent to result bits 0x4b800000"
+  ],
+  "not_claimed": [
+    "universal cross-tool NaN payload bit equivalence"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "arch": "x86_64",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "No pointers, unions, memcpy, byte observations, or user-visible writes; ordinary C automatic scalar objects only."
+}

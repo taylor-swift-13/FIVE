@@ -1,0 +1,95 @@
+{
+  "schema": "five-cbmc-rocq-recheck/1",
+  "case_id": "sum2",
+  "status": "proved",
+  "full_emitted_property_set": [
+    "main.assertion.1"
+  ],
+  "properties": [
+    {
+      "cbmc_id": "main.assertion.1",
+      "cbmc_status": "SUCCESS",
+      "rocq_status": "proved",
+      "specification": "problem/Spec.v:FullAssertionGoal",
+      "theorems": [
+        "full_main_assertion_1",
+        "main_assertion_1"
+      ],
+      "evidence": [
+        "examples/models/sum2/rocq/cbmc_recheck/attempts/001/kernel-evidence.json"
+      ],
+      "nonvacuity": "arbitrary_call_returns: actual finite Csem return exists for every memory and all typed binary32 arguments",
+      "assertion_semantics": "Actual Csem star red_var_local/red_rvalof/red_binop to Eval(Vint Int.one,tint), with fresh local allocation, sem_cast and Mfloat32 store/load.",
+      "property_id": "main.assertion.1",
+      "status": "proved",
+      "scope": {
+        "preconditions": [],
+        "source_location": "cbmc/harness.c:8",
+        "inputs": "second call exact 0x4b800000,0x3f800000; first call unrestricted binary32",
+        "memory": "fresh scalar float r; typed cast, store/load and genuine assertion Csem reductions",
+        "call_bounds": "two nonrecursive calls, no loops, CBMC unwind 1",
+        "observation": "r == 16777216.0f, exact positive finite result encoding 0x4b800000"
+      },
+      "theorem": "FiveSum2Proof.Attempt.full_main_assertion_1"
+    }
+  ],
+  "additional_theorems": [
+    "arbitrary_call_safe",
+    "arbitrary_call_returns"
+  ],
+  "pending": [],
+  "counterexample": "not_applicable",
+  "proof_run": "examples/models/sum2/rocq/cbmc_recheck/attempts/001/evidence/final/run.json",
+  "bindings": [
+    {
+      "path": "prepare/verification-request.json",
+      "sha256": "af6022954fd1fc1d838149d411dc9f24c659f89a717fa287f433b681510f286c"
+    },
+    {
+      "path": "cbmc/harness.c",
+      "sha256": "338ead3bc9f11a018258af70bbce6042188c00603671ceddc60468c30247ab6d"
+    },
+    {
+      "path": "cbmc/properties.json",
+      "sha256": "0f2d30965519f0e232fd6df8fe439fb0cc979bdb693d42a4417f026f64bb0668"
+    },
+    {
+      "path": "align/model/Source.v",
+      "sha256": "6605d81b08d60d60936c479f46b11deabc6dacade4e1446ce2f10cd63734fb0e"
+    },
+    {
+      "path": "align/model/Execution.v",
+      "sha256": "ae470887faa2ed9168348b51ab9e00cf65778cd4481e50b8c1f46e657c01fa07"
+    },
+    {
+      "path": "align/model/spec-map.json",
+      "sha256": "58aaa361ee2adb70561498bcadf996c70f390c3ea02a059a890b51c9e6501b4a"
+    },
+    {
+      "path": "rocq/cbmc_recheck/problem/Spec.v",
+      "sha256": "c3d659ead49ea4c4c6f70991681bf1b99395c2091f95e77ea5c3912281b68462"
+    },
+    {
+      "path": "rocq/cbmc_recheck/attempts/001/Proof.v",
+      "sha256": "a811a29fc7d79f7032469cfcb86a62f90a5371e11f152598c215de91a9ecd50e"
+    }
+  ],
+  "scope_limitations": [
+    "Concrete result assertion only; no universal cross-tool NaN payload equivalence.",
+    "No pointer/byte observation IDs emitted by this scalar-only harness.",
+    "Property-by-property call and local-observation semantic mapping; no generated whole-main Csem trace claimed."
+  ],
+  "verification_method": "traditional-bounded-model-checking",
+  "request_sha256": "af6022954fd1fc1d838149d411dc9f24c659f89a717fa287f433b681510f286c",
+  "backend_manifest_sha256": "db3cc28f99b371b0b758e378381e11380e341a817763dd401d988a5be46c5780",
+  "spec_map_sha256": "58aaa361ee2adb70561498bcadf996c70f390c3ea02a059a890b51c9e6501b4a",
+  "cbmc_run": "examples/models/sum2/cbmc/report/evidence/final",
+  "cbmc_command_id": "001-cbmc-final-snapshots",
+  "cbmc_json": "examples/models/sum2/cbmc/report/evidence/final/logs/001-cbmc-final-snapshots.stdout.log",
+  "cbmc_input_sha256": {
+    "examples/models/sum2/prepare/source/sum2.c": "a00e6ca0fd5061f344512db66454869e95a66c320fd1230aaea795895de75a96",
+    "examples/models/sum2/prepare/source/bindings.json": "830fcbaa8a2073f73b73a2d0dc6b6b9f6e3052462f7e028aedec962ba7b379eb",
+    "examples/models/sum2/prepare/verification-request.json": "af6022954fd1fc1d838149d411dc9f24c659f89a717fa287f433b681510f286c",
+    "examples/models/sum2/cbmc/harness.c": "338ead3bc9f11a018258af70bbce6042188c00603671ceddc60468c30247ab6d"
+  }
+}

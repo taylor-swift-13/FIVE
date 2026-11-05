@@ -1,0 +1,49 @@
+{
+  "schema": "five-spec-map/1",
+  "case_id": "sum2",
+  "status": "mapped",
+  "inputs": [
+    {
+      "path": "prepare/verification-request.json",
+      "sha256": "af6022954fd1fc1d838149d411dc9f24c659f89a717fa287f433b681510f286c"
+    },
+    {
+      "path": "cbmc/harness.c",
+      "sha256": "338ead3bc9f11a018258af70bbce6042188c00603671ceddc60468c30247ab6d"
+    },
+    {
+      "path": "cbmc/properties.json",
+      "sha256": "0f2d30965519f0e232fd6df8fe439fb0cc979bdb693d42a4417f026f64bb0668"
+    },
+    {
+      "path": "align/model/Source.v",
+      "sha256": "6605d81b08d60d60936c479f46b11deabc6dacade4e1446ce2f10cd63734fb0e"
+    },
+    {
+      "path": "align/model/Execution.v",
+      "sha256": "ae470887faa2ed9168348b51ab9e00cf65778cd4481e50b8c1f46e657c01fa07"
+    }
+  ],
+  "properties": [
+    {
+      "cbmc_id": "main.assertion.1",
+      "source": "cbmc/harness.c:8",
+      "preconditions": [],
+      "call_scope": "second sum2 call arguments exact binary32 0x4b800000 and 0x3f800000; first call unrestricted a,b",
+      "observation": "r == 16777216.0f after typed local float initialization; exact positive finite result bits 0x4b800000",
+      "rocq_spec": "rocq/cbmc_recheck/problem/Spec.v:FullAssertionGoal",
+      "rocq_theorems": [
+        "full_main_assertion_1",
+        "main_assertion_1"
+      ],
+      "local_correspondence": "float r alpha-renamed to local_r; fresh block, identity sem_cast, successful Mfloat32 store/load, actual three Csem expression steps to Eval(Vint Int.one,tint)",
+      "bounds": {
+        "loops": 0,
+        "recursion": 0,
+        "cbmc_unwind": 1
+      }
+    }
+  ],
+  "automatic_property_ids": [],
+  "memory_scope": "No pointer/union/memcpy or byte observations in harness. No automatic pointer/byte IDs emitted. Parameter/local scalar memory semantics explicitly proved. No sum3 memcpy harness claim."
+}

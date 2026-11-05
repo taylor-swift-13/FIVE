@@ -1,5 +1,18 @@
 # no_error attempt 001
 
+## Human-readable outcome
+
+**Status: COMPLETE for the stated no-error goal.**
+
+- **Question:** [../../problem/Spec.v](../../problem/Spec.v) is the problem statement; it contains no solution to this attempt.
+- **Generated proof:** [Proof.v](Proof.v), theorem(s) `generated_no_error_goal`; supporting lemmas are explained below.
+- **What was established:** Every Csem state reachable from an entry satisfying the stated precondition avoids the defined error.
+- **Limits / remaining work:** This does not discharge termination or CBMC harness obligations.
+- **Evidence:** the original report below records the fresh compilation, independent Rocq kernel check, inherited assumptions, model configuration and evidence paths.
+- **Agent and costs:** GPT-6.1 Sol, requested and observed effort `medium`; [costs.json](costs.json) records time, token and memory measurements.
+
+## Detailed evidence and configuration
+
 Status: **proved**. Compilation: passed. Independent kernel check: passed. Artifact completeness: complete.
 
 The original no-error Goal is proved for every reachable original Csem state, with exactly three binary32 arguments and arbitrary initial memory.

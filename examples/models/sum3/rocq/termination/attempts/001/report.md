@@ -1,5 +1,18 @@
 # termination attempt 001
 
+## Human-readable outcome
+
+**Status: COMPLETE for the stated termination goal.**
+
+- **Question:** [../../problem/Spec.v](../../problem/Spec.v) is the problem statement; it contains no solution to this attempt.
+- **Generated proof:** [Proof.v](Proof.v), theorem(s) `generated_termination_goal`; supporting lemmas are explained below.
+- **What was established:** A decreasing rank proves accessibility for all Csem successors, rather than one selected execution.
+- **Limits / remaining work:** This does not discharge the CBMC harness obligations.
+- **Evidence:** the original report below records the fresh compilation, independent Rocq kernel check, inherited assumptions, model configuration and evidence paths.
+- **Agent and costs:** GPT-6.1 Sol, requested and observed effort `medium`; [costs.json](costs.json) records time, token and memory measurements.
+
+## Detailed evidence and configuration
+
 Status: **proved**. Compilation: passed. Independent kernel check: passed. Artifact completeness: complete.
 
 The original all-successor Acc Goal is proved by a natural-number rank on expressions, statements, continuations and states. Every original Csem estep and sstep decreases it; well_founded_ltof yields Acc. Both left and right expression evaluation contexts are covered. There is no execution fuel bound.

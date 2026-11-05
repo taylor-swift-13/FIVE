@@ -1,0 +1,1 @@
+Exact specification: FullAssertionGoal plus AssertionGoal, ArbitrarySafetyGoal and ReturnExistsGoal in Spec.v. No numeric restriction on arbitrary inputs. Frozen model and specification hashes, runtime, evidence and proof outcomes are recorded in attempts/001/report.md and provenance.json.

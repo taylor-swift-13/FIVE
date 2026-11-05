@@ -1,5 +1,18 @@
 # sum3 CBMC recheck attempt 001
 
+## Human-readable outcome
+
+**Status: INCOMPLETE for the requested full CBMC recheck.**
+
+- **Question:** [../../problem/Spec.v](../../problem/Spec.v) is the problem statement; it contains no solution to this attempt.
+- **Generated proof:** [Proof.v](Proof.v), theorem(s) `sum3_return_value; sum3_cbmc_result_bits`; supporting lemmas are explained below.
+- **What was established:** All normal sum3 returns have the derived value; the specified concrete inputs return the expected binary32 bits.
+- **Limits / remaining work:** All ten original harness properties remain open at full harness scope. The memcpy byte-copy, uint32 observation and memory checks are not proved. The return-bit subgoal is not the whole problem.
+- **Evidence:** the original report below records the fresh compilation, independent Rocq kernel check, inherited assumptions, model configuration and evidence paths.
+- **Agent and costs:** GPT-6.1 Sol, requested and observed effort `medium`; [costs.json](costs.json) records time, token and memory measurements.
+
+## Detailed evidence and configuration
+
 ResultBitsGoal proved on the unchanged current model; full CBMC recheck remains pending.
 
 The operational theorem sum3_return_value quantifies over every Csem return path, every initial memory, and arbitrary typed binary32 inputs. It derives the result through frame allocation, parameter stores, expression semantics and a preserved state denotation. sum3_cbmc_result_bits applies it to 0x4b800000, 0x3f800000, 0xcb800000 and proves the returned binary32 word is zero. This is not merely the independent Float32 arithmetic fact.

@@ -1,5 +1,18 @@
 # sum2_sum3 attempt 001
 
+## Human-readable outcome
+
+**Status: COMPLETE for the stated conditional relation.**
+
+- **Question:** [../../problem/Spec.v](../../problem/Spec.v) is the problem statement; it contains no solution to this attempt.
+- **Generated proof:** [Proof.v](Proof.v), theorem(s) `composition_bits`; supporting lemmas are explained below.
+- **What was established:** Given the three normal-return Csem executions, the two-step sum2 composition and sum3 have equal returned bits.
+- **Limits / remaining work:** Safety, termination and existence of those executions are not conclusions of this relation.
+- **Evidence:** the original report below records the fresh compilation, independent Rocq kernel check, inherited assumptions, model configuration and evidence paths.
+- **Agent and costs:** GPT-6.1 Sol, requested and observed effort `medium`; [costs.json](costs.json) records time, token and memory measurements.
+
+## Detailed evidence and configuration
+
 Proved `composition_bits : Sum2EqualsSum3` against the unchanged `problem/Spec.v`. The theorem takes three actual CompCert Csem normal-return executions: sum2(a,b), sum2(ab,c), and sum3(a,b,c), and proves equality of returned binary32 bits. It quantifies over all six binary32 values and all five memories; no additional numeric or memory precondition was added. This conditional relation does not itself assert termination or safety.
 
 The proof derives each actual execution return from checked source invariants, semantic preservation and parameter allocation/store/free proofs. The shared sum3 support was snapshotted here; sum2 support is the explicit two-parameter adaptation stored here. The old attempt was used as source material and rebuilt on current models. No old compiled artifacts are imported.
