@@ -20,3 +20,7 @@ Csyntax/Cexec model, typed precondition interface and safety/termination goals w
 | prepare/source/sum3.c SHA-256 | 25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03 |
 
 The backend manifest records tool and CompCert semantic dependency hashes, including the NaN policy inputs.
+
+## Current relocated-source provenance
+
+A genuine current automatic export repaired preprocessing filename provenance after the examples/models relocation. Frozen Source.v and Execution.v bytes are unchanged. The fresh AST differs only in Info.source_file metadata; source program and selected function equality are proved by reflexivity with closed assumptions. [Raw export](evidence/current-export/compcert-manifest.json), [historical manifest](evidence/relocation-history/compcert-manifest.json), [installation mapping](evidence/relocation-provenance.json), [strict fresh source audit](evidence/current-source-audit.json), [export run and costs](evidence/current-export-run/cost-audit.json), [formal equality](../../rocq/support/evidence/relocation-proof/kernel-evidence.json). The Info path is frontend generation information, not the active source input. The current proof mapping is [spec-map.json](../spec-map.json); the [Rocq stage](../../rocq/report/report.md) supplies the actual ten-property proofs.

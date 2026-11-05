@@ -1,0 +1,56 @@
+File "./_build/sum3-recheck-002/proof/Proof.v", line 293, characters 57-58:
+Error: Cannot infer this placeholder of type "option (list memval)" in
+environment:
+m : mem
+a, b, c : float32
+br, bb : block
+mf : mem
+PREFIX :
+  HarnessPrefix m a b c br bb mf
+    (Vsingle
+       (Float32.add
+          (Float32.add (Float32.of_bits (Int.repr 1266679808))
+             (Float32.of_bits (Int.repr 1065353216)))
+          (Float32.of_bits (Int.repr 3414163456))))
+mr, mh : Mem.mem'
+t1 : trace
+v1 : val
+m1 : mem
+t2 : trace
+AR : Mem.alloc m 0 4 = (mr, br)
+AB : Mem.alloc mr 0 4 = (mh, bb)
+P1 :
+  star Csem.step sum3_ge (sum3_start (Vsingle a) (Vsingle b) (Vsingle c) mh)
+    t1 (Returnstate v1 Kstop m1)
+P2 :
+  star Csem.step sum3_ge
+    (sum3_start (Vsingle (Float32.of_bits (Int.repr 1266679808)))
+       (Vsingle (Float32.of_bits (Int.repr 1065353216)))
+       (Vsingle (Float32.of_bits (Int.repr 3414163456))) m1)
+    t2
+    (Returnstate
+       (Vsingle
+          (Float32.add
+             (Float32.add (Float32.of_bits (Int.repr 1266679808))
+                (Float32.of_bits (Int.repr 1065353216)))
+             (Float32.of_bits (Int.repr 3414163456))))
+       Kstop mf)
+U1 : Mem.unchanged_on (fun (b : block) (_ : Z) => Mem.valid_block mh b) mh m1
+U2 : Mem.unchanged_on (fun (b : block) (_ : Z) => Mem.valid_block m1 b) m1 mf
+BR : Mem.valid_block mh br
+BB : Mem.valid_block mh bb
+DIFF : br <> bb
+R0 : Mem.valid_access mh Mfloat32 br 0 Freeable
+B0 : Mem.valid_access mh Mint32 bb 0 Freeable
+PRES :
+  forall (chunk : memory_chunk) (bx : block),
+  Mem.valid_block mh bx ->
+  Mem.valid_access mh chunk bx 0 Freeable ->
+  Mem.valid_access mf chunk bx 0 Freeable
+RF : Mem.valid_access mf Mfloat32 br 0 Freeable
+BF : Mem.valid_access mf Mint32 bb 0 Freeable
+stored : mem
+STORE :
+  Mem.store Mfloat32 mf br 0 (Vsingle sum3_concrete_model) = Some stored
+SAFE : MemcpySafety stored br bb
+

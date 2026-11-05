@@ -1,6 +1,6 @@
 # Sum2 proof-stage result
 
-**COMPLETE for the listed sum2 verification request.** This does not change the incomplete sum3 harness recheck.
+**COMPLETE for the listed sum2 verification request.** The [sum3 proof-stage summary](../../../sum3/rocq/report/report.md) separately records its complete original-harness recheck.
 
 | Problem | Proof attempt and evidence | Result |
 | --- | --- | --- |

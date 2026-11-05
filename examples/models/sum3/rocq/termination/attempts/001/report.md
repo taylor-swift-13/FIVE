@@ -36,3 +36,7 @@ Actual independent session `01a1aba4-6c31-7033-8266-9c29b084280c`; model `gpt-6.
 [Costs](costs.json) record measured checker time/CPU/RSS. Model tokens belong once to the [shared skill-session cost record](../../../no_error/attempts/001/evidence/shared-costs.json); attempt tokens are null because no separate per-problem model boundary was measured. Intermediate commands, metadata-command quoting failure and cancelled broad search remain in shared telemetry. Unobserved values are null. Reporting status is recorded, with raw telemetry preserved.
 
 Final cost audit: passed (exit 0), [receipt](../../../no_error/attempts/001/evidence/shared-run/logs/024-final-audit-costs.stdout.log). The first audit failure is retained; metadata default invocation_kind was corrected to reflect the actual measured skill-session. Raw resource/token observations were unchanged. Auxiliary cancellation has tool-only costs and null separate token measurement.
+
+## Fresh independent receipt
+
+The unchanged proof was freshly rebuilt and independently kernel-checked with direct command receipts: [kernel evidence](evidence/current-verification/kernel-evidence.json), [compiled input hashes and actual commands](evidence/current-verification/checker-run.json). Canonical kernel_record passed against the finished shared verification run. Direct tools: 39.381 s wall, 38.88 s CPU, 1405239296 bytes sampled peak RSS. These are subsets of the shared verification cost; model tokens are counted once there, with per-attempt token attribution null. [Costs](costs.json).

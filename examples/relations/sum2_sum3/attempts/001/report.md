@@ -34,3 +34,7 @@ Measured wall 188.83438849449158 s; tool CPU 57.01 s; observed tool-tree RSS pea
 Cost audit exit 0; evidence: evidence/logs/003-audit-costs.stdout.log. Proof evidence: evidence/logs/001-relation-compile-kernel.stdout.log.
 
 All run metadata, raw usage receipts, selected runtime configuration, compile/check logs, GNU time logs, metrics, and audit output are archived in [evidence](evidence/); _build is not the sole evidence copy.
+
+## Fresh independent receipt
+
+The unchanged proof was freshly rebuilt and independently kernel-checked with direct command receipts: [kernel evidence](evidence/current-verification/kernel-evidence.json), [compiled input hashes and actual commands](evidence/current-verification/checker-run.json). Canonical kernel_record passed against the finished shared verification run. Direct tools: 55.059 s wall, 54.35 s CPU, 1387945984 bytes sampled peak RSS. These are subsets of the shared verification cost; model tokens are counted once there, with per-attempt token attribution null. [Costs](costs.json).

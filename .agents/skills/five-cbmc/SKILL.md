@@ -19,7 +19,7 @@ description: Use CBMC to verify floating-point C implementations, memory safety,
 
 参考表若来自 Rocq 模型，核对它与本次实现、目标语义和输入域匹配。CBMC 输出是外部工具证据；除非确实检查了证明证书，不称其为 Rocq 内核检查的定理。
 
-在当前 FIVE 项目中先 `source scripts/env.sh`。使用传统 CBMC 对选定 C 文件和验证入口直接执行有界模型检查；历史案例测试入口已清理，不引用旧有限参考表。保留的案例在同一文件夹内组织 `source`、`cbmc`、`model`、`proof` 和 `report`。
+在当前 FIVE 项目中先 `source scripts/env.sh`。使用传统 CBMC 对选定 C 文件和验证入口直接执行有界模型检查；历史案例测试入口已清理，不引用旧有限参考表。保留的案例在同一文件夹内按共享契约组织 `prepare/`、`cbmc/`、`align/` 和 `rocq/`。
 
 交付：实现层结论、适用前置条件、范围与证据路径。模型生成和属性映射交给 [five-align](../five-align/SKILL.md)，实际规约/语义对应证明交给 [five-rocq](../five-rocq/SKILL.md)，端到端调度交给 [five-verify](../five-verify/SKILL.md)。
 
@@ -27,7 +27,7 @@ description: Use CBMC to verify floating-point C implementations, memory safety,
 
 准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
 
-本阶段从 `source/<entry>.c` 与 `source/bindings.json` 读取同一份准备结果，将 harness、属性、范围、日志及真实反例写入 `cbmc/`，并更新 `report/`；详见共享契约。
+本阶段从 `prepare/source/<entry>.c` 与 `prepare/source/bindings.json` 读取同一份准备结果，将 harness、属性、范围、日志及真实反例写入 `cbmc/`，并更新 `report/`；详见共享契约。
 
 ## 计量及产物
 
@@ -36,3 +36,5 @@ description: Use CBMC to verify floating-point C implementations, memory safety,
 本skill必须在开始模型工作前依照产物契约建立带`--session`的skill-session记录，并在结束时采集日志边界差额；不要仅用脚本回放记录代替本阶段的模型token消耗。
 
 本阶段结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验：实际 token、墙钟、工具 CPU 和工具内存峰值分别有证据。费用记录不完整时保留已有验证结果，但不能宣称本阶段成本统计完整；失败/超时的成本同样保留。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。

@@ -40,7 +40,7 @@ description: Generate CompCert Csyntax/Cexec models and unproved Rocq obligation
 
 准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
 
-本阶段从 `source/<entry>.c`、`source/bindings.json` 和可选 `cbmc/` 属性读取输入，生成 `source/preprocessed.i`、`model/` 与 `proof/` 的规定文件，并更新 `report/`；详见共享契约。
+本阶段从 `prepare/source/<entry>.c`、`prepare/source/bindings.json` 和适用的 `cbmc/` 属性读取输入，生成 `align/model/preprocessed.i`、`align/model/` 与 `align/model/proof/` 的规定文件，并更新 `align/report/`；详见共享契约。
 
 ## 交付与计量
 
@@ -50,4 +50,6 @@ align 为单 agent，不要求 A/B agent 或独立审批。修复本阶段发现
 
 遵循 [最小产物契约](references/run-contract.md)：开始工作前建立带 `--session` 的 five-align 记录，记录实际 token、时间、内存；结束采集事件差额。历史证明和费用不重签、不覆盖。
 
-结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验；实际 token、墙钟、工具 CPU 和工具内存峰值逐项有证据。缺失数据记 partial/null，不得用 0 或估计补齐，也不能把后续 rocq 证明消耗计入 align。
+结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验；实际 token、墙钟、工具 CPU 和工具内存峰值逐项有证据。缺失数据记 null 并说明原因，不得用 0 或估计补齐，也不能把后续 rocq 证明消耗计入 align。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。

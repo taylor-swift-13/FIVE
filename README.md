@@ -22,9 +22,9 @@ CBMC and CompCert consume the same prepared C program and use the recorded targe
 
 ## Walkthrough with `sum3`
 
-[`examples/sum3`](examples/sum3/README.md) is currently at the **prepare** stage. The prepared [C program](examples/sum3/prepare/source/sum3.c) and [binding metadata](examples/sum3/prepare/source/bindings.json) are ready for the later CBMC and CompCert stages. No CBMC results, CompCert model or Rocq proof have been generated for this reconstruction.
+The [reference examples and artifact standard](examples/README.md) contain complete current sum2/sum3 no-error, all-successor termination and independent rechecks of every actual CBMC property. Sum3 covers the unchanged original memcpy harness, all ten checks, byte observations and Csem assertion steps. The sum2/sum3 relation proves its stated conditional normal-return equality.
 
-The [case report](examples/sum3/prepare/report/report.md), [manifest](examples/sum3/prepare/report/manifest.json) and [cost record](examples/sum3/prepare/report/costs.json) describe the actual status and evidence. Later stages will add their own artifacts to the same case directory.
+The [sum3 case](examples/models/sum3/README.md) indexes all four stage handoffs, reports and costs; [the proof summary](examples/models/sum3/rocq/report/report.md) distinguishes current completed proofs from preserved historical attempts. Future artifacts follow the [examples standard](examples/README.md).
 
 ## Semantic scope
 
@@ -55,15 +55,17 @@ By default, the goals are parameterized by an unspecified precondition. A later 
 
 ## Examples and benchmarks
 
-[`examples/sum3`](examples/sum3/README.md) is the standalone example, currently prepared for verification.
+The [reference examples](examples/README.md) use `models/` for single-entry models and `relations/<name>/` for cross-model problems and proof attempts.
+
+[`examples/models/sum3`](examples/models/sum3/README.md) demonstrates the four-stage case and proof-reporting format.
 
 ## Repository layout
 
-`examples/sum3/` contains the four sequential stage directories `prepare/`, `cbmc/`, `align/`, and `rocq/`. The [example guide](examples/sum3/README.md) specifies their handoffs and current state. Shared semantic libraries are in `shared/`, workflow tools in `scripts/`, skills in `.agents/skills/`, and the manuscript in `paper/`.
+`examples/models/sum3/` contains the four sequential stage directories `prepare/`, `cbmc/`, `align/`, and `rocq/`. The [example guide](examples/models/sum3/README.md) specifies their handoffs and current state. Shared semantic libraries are in `shared/`, workflow tools in `scripts/`, skills in `.agents/skills/`, and the manuscript in `paper/`.
 
 ## Example file structure
 
-`examples/sum3/` contains `prepare/`, `cbmc/`, `align/`, and `rocq/` stage directories. The [sum3 guide](examples/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations.
+`examples/models/sum3/` contains `prepare/`, `cbmc/`, `align/`, and `rocq/` stage directories. The [sum3 guide](examples/models/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations.
 
 ## Working with the project
 
@@ -79,7 +81,7 @@ Export a model and its pending obligations:
 
 ```sh
 python3 scripts/compcert-align.py export \
-  --source examples/sum3/prepare/source/sum3.c --function f_sum3 \
+  --source examples/models/sum3/prepare/source/sum3.c --function f_sum3 \
   --namespace Sum3 --output _build/sum3
 ```
 

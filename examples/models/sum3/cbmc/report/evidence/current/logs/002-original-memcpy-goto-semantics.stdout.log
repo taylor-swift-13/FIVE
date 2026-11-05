@@ -1,0 +1,166 @@
+CBMC version 6.11.0 (cbmc-6.11.0) 64-bit x86_64 linux
+Type-checking harness
+Type-checking sum3
+Generating GOTO Program
+Adding CPROVER library (x86_64)
+Removal of function pointers and virtual functions
+Generic Property Instrumentation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+__CPROVER__start /* __CPROVER__start */
+        // 0 file <built-in-additions> line 26
+        // Labels: __CPROVER_HIDE
+        CALL __CPROVER_initialize()
+        // 1 file examples/models/sum3/cbmc/harness.c line 5
+        CALL return' := main()
+        // 2 file examples/models/sum3/cbmc/harness.c line 5
+        OUTPUT address_of("return'"[0])
+        // 3 no location
+        END_FUNCTION
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+__CPROVER_initialize /* __CPROVER_initialize */
+        // 4 file <built-in-additions> line 10
+        // Labels: __CPROVER_HIDE
+        ASSIGN __CPROVER_dead_object := NULL
+        // 5 file <built-in-additions> line 9
+        ASSIGN __CPROVER_deallocated := NULL
+        // 6 file <built-in-additions> line 14
+        ASSIGN __CPROVER_max_malloc_size := 36028797018963968
+        // 7 file <built-in-additions> line 11
+        ASSIGN __CPROVER_memory_leak := NULL
+        // 8 file <built-in-additions> line 18
+        ASSIGN __CPROVER_rounding_mode := 0
+        // 9 no location
+        END_FUNCTION
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+main /* main */
+        // 10 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DECL main::1::a : floatbv[32]
+        // 11 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DECL main::$tmp::return_value_nondet_float : floatbv[32]
+        // 12 file examples/models/sum3/cbmc/harness.c line 6 function main
+        ASSIGN main::$tmp::return_value_nondet_float := side_effect statement="nondet" #identifier="nondet_float" is_nondet_nullable="1"
+        // 13 file examples/models/sum3/cbmc/harness.c line 6 function main
+        ASSIGN main::1::a := main::$tmp::return_value_nondet_float
+        // 14 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DEAD main::$tmp::return_value_nondet_float
+        // 15 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DECL main::1::b : floatbv[32]
+        // 16 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DECL main::$tmp::return_value_nondet_float$0 : floatbv[32]
+        // 17 file examples/models/sum3/cbmc/harness.c line 6 function main
+        ASSIGN main::$tmp::return_value_nondet_float$0 := side_effect statement="nondet" #identifier="nondet_float" is_nondet_nullable="1"
+        // 18 file examples/models/sum3/cbmc/harness.c line 6 function main
+        ASSIGN main::1::b := main::$tmp::return_value_nondet_float$0
+        // 19 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DEAD main::$tmp::return_value_nondet_float$0
+        // 20 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DECL main::1::c : floatbv[32]
+        // 21 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DECL main::$tmp::return_value_nondet_float$1 : floatbv[32]
+        // 22 file examples/models/sum3/cbmc/harness.c line 6 function main
+        ASSIGN main::$tmp::return_value_nondet_float$1 := side_effect statement="nondet" #identifier="nondet_float" is_nondet_nullable="1"
+        // 23 file examples/models/sum3/cbmc/harness.c line 6 function main
+        ASSIGN main::1::c := main::$tmp::return_value_nondet_float$1
+        // 24 file examples/models/sum3/cbmc/harness.c line 6 function main
+        DEAD main::$tmp::return_value_nondet_float$1
+        // 25 file examples/models/sum3/cbmc/harness.c line 7 function main
+        CALL sum3(main::1::a, main::1::b, main::1::c)
+        // 26 file examples/models/sum3/cbmc/harness.c line 8 function main
+        DECL main::1::result : floatbv[32]
+        // 27 file examples/models/sum3/cbmc/harness.c line 8 function main
+        DECL main::$tmp::return_value_sum3 : floatbv[32]
+        // 28 file examples/models/sum3/cbmc/harness.c line 8 function main
+        CALL main::$tmp::return_value_sum3 := sum3(1.677722e+7, 1, -1.677722e+7)
+        // 29 file examples/models/sum3/cbmc/harness.c line 8 function main
+        ASSIGN main::1::result := main::$tmp::return_value_sum3
+        // 30 file examples/models/sum3/cbmc/harness.c line 8 function main
+        DEAD main::$tmp::return_value_sum3
+        // 31 file examples/models/sum3/cbmc/harness.c line 9 function main
+        DECL main::1::bits : unsignedbv[32]
+        // 32 file <builtin-library-memcpy> line 33 function memcpy
+        ASSERT (true ∧ ¬(pointer_object(cast(address_of(main::1::bits), empty*)) ≠ pointer_object(cast(address_of(main::1::result), empty*)))) ⇒ false // same object violation in (const unsigned char *)(const void *)&result >= (const unsigned char *)(void *)&bits + (signed long int)sizeof(uint32_t) /*4ul*/ 
+        // 33 file <builtin-library-memcpy> line 33 function memcpy
+        ASSERT (true ∧ ¬(pointer_object(cast(address_of(main::1::bits), empty*)) ≠ pointer_object(cast(address_of(main::1::result), empty*)))) ⇒ ¬(pointer_object(address_of(main::1::result)) = pointer_object(__CPROVER_dead_object)) // pointer relation: dead object in (const unsigned char *)(const void *)&result
+        // 34 file <builtin-library-memcpy> line 33 function memcpy
+        ASSERT (true ∧ ¬(pointer_object(cast(address_of(main::1::bits), empty*)) ≠ pointer_object(cast(address_of(main::1::result), empty*)))) ⇒ ¬(pointer_object(address_of(main::1::bits)) = pointer_object(__CPROVER_dead_object)) // pointer relation: dead object in (const unsigned char *)(void *)&bits + (signed long int)sizeof(uint32_t) /*4ul*/ 
+        // 35 file <builtin-library-memcpy> line 34 function memcpy
+        ASSERT ¬(pointer_object(cast(address_of(main::1::bits), empty*)) ≠ pointer_object(cast(address_of(main::1::result), empty*)) ∨ cast(cast(address_of(main::1::result), empty*), unsignedbv[8]*) ≥ cast(cast(address_of(main::1::bits), empty*), unsignedbv[8]*) + cast(4, signedbv[64])) ⇒ false // same object violation in (const unsigned char *)(void *)&bits >= (const unsigned char *)(const void *)&result + (signed long int)sizeof(uint32_t) /*4ul*/ 
+        // 36 file <builtin-library-memcpy> line 34 function memcpy
+        ASSERT ¬(pointer_object(cast(address_of(main::1::bits), empty*)) ≠ pointer_object(cast(address_of(main::1::result), empty*)) ∨ cast(cast(address_of(main::1::result), empty*), unsignedbv[8]*) ≥ cast(cast(address_of(main::1::bits), empty*), unsignedbv[8]*) + cast(4, signedbv[64])) ⇒ ¬(pointer_object(address_of(main::1::bits)) = pointer_object(__CPROVER_dead_object)) // pointer relation: dead object in (const unsigned char *)(void *)&bits
+        // 37 file <builtin-library-memcpy> line 34 function memcpy
+        ASSERT ¬(pointer_object(cast(address_of(main::1::bits), empty*)) ≠ pointer_object(cast(address_of(main::1::result), empty*)) ∨ cast(cast(address_of(main::1::result), empty*), unsignedbv[8]*) ≥ cast(cast(address_of(main::1::bits), empty*), unsignedbv[8]*) + cast(4, signedbv[64])) ⇒ ¬(pointer_object(address_of(main::1::result)) = pointer_object(__CPROVER_dead_object)) // pointer relation: dead object in (const unsigned char *)(const void *)&result + (signed long int)sizeof(uint32_t) /*4ul*/ 
+        // 38 file examples/models/sum3/cbmc/harness.c line 10 function main
+        ASSERT (pointer_object(cast(address_of(main::1::bits), empty*)) ≠ pointer_object(cast(address_of(main::1::result), empty*)) ∨ cast(cast(address_of(main::1::result), empty*), unsignedbv[8]*) ≥ cast(cast(address_of(main::1::bits), empty*), unsignedbv[8]*) + cast(4, signedbv[64])) ∨ cast(cast(address_of(main::1::bits), empty*), unsignedbv[8]*) ≥ cast(cast(address_of(main::1::result), empty*), unsignedbv[8]*) + cast(4, signedbv[64]) // memcpy src/dst overlap
+        // 39 file examples/models/sum3/cbmc/harness.c line 10 function main
+        ASSERT prophecy_r_ok(cast(address_of(main::1::result), empty*), 4, __CPROVER_deallocated, __CPROVER_dead_object) // memcpy source region readable
+        // 40 file examples/models/sum3/cbmc/harness.c line 10 function main
+        ASSERT prophecy_w_ok(cast(address_of(main::1::bits), empty*), 4, __CPROVER_deallocated, __CPROVER_dead_object) // memcpy destination region writeable
+        // 41 file examples/models/sum3/cbmc/harness.c line 10 function main
+        CALL memcpy(cast(address_of(main::1::bits), empty*), cast(address_of(main::1::result), empty*), 4)
+        // 42 file examples/models/sum3/cbmc/harness.c line 11 function main
+        ASSERT main::1::bits = 0 // sum3 result bits
+        // 43 file examples/models/sum3/cbmc/harness.c line 12 function main
+        SET RETURN VALUE 0
+        // 44 file examples/models/sum3/cbmc/harness.c line 12 function main
+        ASSIGN __CPROVER_dead_object := (side_effect statement="nondet" is_nondet_nullable="1" ? cast(address_of(main::1::bits), empty*) : __CPROVER_dead_object)
+        // 45 file examples/models/sum3/cbmc/harness.c line 12 function main
+        DEAD main::1::bits
+        // 46 file examples/models/sum3/cbmc/harness.c line 12 function main
+        ASSIGN __CPROVER_dead_object := (side_effect statement="nondet" is_nondet_nullable="1" ? cast(address_of(main::1::result), empty*) : __CPROVER_dead_object)
+        // 47 file examples/models/sum3/cbmc/harness.c line 12 function main
+        DEAD main::1::result
+        // 48 file examples/models/sum3/cbmc/harness.c line 12 function main
+        DEAD main::1::c
+        // 49 file examples/models/sum3/cbmc/harness.c line 12 function main
+        DEAD main::1::b
+        // 50 file examples/models/sum3/cbmc/harness.c line 12 function main
+        DEAD main::1::a
+        // 51 file examples/models/sum3/cbmc/harness.c line 13 function main
+        END_FUNCTION
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+memcpy /* memcpy */
+        // 52 file <builtin-library-memcpy> line 31 function memcpy
+        // Labels: __CPROVER_HIDE
+        LOCATION
+        // 53 file <builtin-library-memcpy> line 36 function memcpy
+        LOCATION
+        // 54 file <builtin-library-memcpy> line 38 function memcpy
+        LOCATION
+        // 55 file <builtin-library-memcpy> line 41 function memcpy
+        IF ¬(memcpy::n > cast(0, unsignedbv[64])) THEN GOTO 1
+        // 56 file <builtin-library-memcpy> line 45 function memcpy
+        DECL memcpy::1::1::src_n$array_size::src_n$array_size : unsignedbv[64]
+        // 57 file <builtin-library-memcpy> line 45 function memcpy
+        ASSIGN memcpy::1::1::src_n$array_size::src_n$array_size := cast(cast(memcpy::n, signedbv[64]), unsignedbv[64])
+        // 58 file <builtin-library-memcpy> line 45 function memcpy
+        DECL memcpy::1::1::src_n : unsignedbv[8][memcpy::1::1::src_n$array_size::src_n$array_size]
+        // 59 file <builtin-library-memcpy> line 46 function memcpy
+        ARRAY_COPY cast(address_of(memcpy::1::1::src_n[0]), empty*) cast(cast(memcpy::src, unsignedbv[8]*), empty*)
+        // 60 file <builtin-library-memcpy> line 47 function memcpy
+        ARRAY_REPLACE cast(cast(memcpy::dst, unsignedbv[8]*), empty*) cast(address_of(memcpy::1::1::src_n[0]), empty*)
+        // 61 file <builtin-library-memcpy> line 48 function memcpy
+        ASSIGN __CPROVER_dead_object := (side_effect statement="nondet" is_nondet_nullable="1" ? cast(address_of(memcpy::1::1::src_n), empty*) : __CPROVER_dead_object)
+        // 62 file <builtin-library-memcpy> line 48 function memcpy
+        DEAD memcpy::1::1::src_n
+        // 63 file <builtin-library-memcpy> line 48 function memcpy
+        DEAD memcpy::1::1::src_n$array_size::src_n$array_size
+        // 64 file <builtin-library-memcpy> line 51 function memcpy
+     1: SET RETURN VALUE memcpy::dst
+        // 65 file <builtin-library-memcpy> line 52 function memcpy
+        END_FUNCTION
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+sum3 /* sum3 */
+        // 66 file examples/models/sum3/prepare/source/sum3.c line 2 function sum3
+        SET RETURN VALUE floatbv_plus(floatbv_plus(sum3::a, sum3::b, __CPROVER_rounding_mode), sum3::c, __CPROVER_rounding_mode)
+        // 67 file examples/models/sum3/prepare/source/sum3.c line 3 function sum3
+        END_FUNCTION
+

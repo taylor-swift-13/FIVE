@@ -47,3 +47,9 @@ python3 scripts/compcert-verify.py gate --request request.json \
 门禁实施新鲜来源审计、外部支持清单检查、全执行对应证明记录检查、实际 CBMC 属性的 Rocq 重验及问题关闭核查。不要求 agent 审批。最终验证统一使用 `compcert-verify.py gate`，不作为 align 的生成阶段验收条件。
 
 门禁接受的范围是执行层与 CBMC 重验；独立的无错误、终止性和高层功能目标应另外核对相应 Rocq 定理的量词、前条件、实际证明/内核证据和当前依赖。不能因为 gate accepted 就把这些目标自动标为 proved。没有完整证据时给出范围明确的阶段报告和 pending 项。
+
+## Gold-standard completion and observation boundary
+
+The [shared case contract](case-contract.md) and its examples index define the normative problem/attempt layout. Validate the active attempt, preserving historical attempts and their original outcomes. A whole-task `COMPLETE` requires closure of every requested goal and every actual CBMC property ID under its original conditions, plus successful independent receipts bound to the exact current statements and dependencies. Checking one replacement assertion or a selected subset cannot close the original ledger. Counterexample replay may close an actual failed property as `refuted`, never as program correctness; unexplained UNKNOWN or semantic mismatch stays pending/gap. Generation-only requests correctly stop with declared pending obligations.
+
+Memory-property statements must identify target representation and endian, source/destination ranges, CompCert `memval`/`Mem.loadbytes` interpretation, actual write prefix, and frame conditions. A numerical equality alone does not establish byte-copy or assertion-expression properties. All-reachable-state safety and all-successor termination remain distinct from finite executions or existence of a normal return. Metadata and a successful gate do not replace review of those quantifiers or additional requested goals.

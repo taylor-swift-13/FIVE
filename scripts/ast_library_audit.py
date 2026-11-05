@@ -141,7 +141,7 @@ def audit_source(path,entries,registry,root=ROOT,builtin_lookup=known_builtin):
   'problems':problems,'unresolved_calls':unresolved,'support_inventory_complete':not(problems or unresolved),
   'proof_scope':'Static direct-call closure audit; adapter availability does not prove runtime connection or actual libc/musl implementation correctness'}
 
-CASES={'sum3':('examples/sum3/model/Source.v',['f_sum3'])}
+CASES={'sum3':('examples/models/sum3/align/model/Source.v',['f_sum3'])}
 
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--source',type=Path);p.add_argument('--entry',action='append');p.add_argument('--output',type=Path);a=p.parse_args()

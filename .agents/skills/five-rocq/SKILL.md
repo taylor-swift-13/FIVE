@@ -11,7 +11,7 @@ description: Construct explicit preconditions and specifications and prove reque
 
 准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
 
-本阶段读取一个或多个 Rocq 模型、用户目标与适用的 `proof/` 和属性映射，写入 `proof/`、证明证据与 `report/`；纯 Rocq 情形无需 C/CBMC，详见共享契约。
+本阶段读取一个或多个 Rocq 模型、用户目标与适用的 `align/model/proof/` 和属性映射，写入 `rocq/<problem>/problem/`、`rocq/<problem>/attempts/<编号>/`、证明证据与 `rocq/report/`；纯 Rocq 情形无需 C/CBMC，详见共享契约。
 
 ## 前条件与证明
 
@@ -38,4 +38,6 @@ description: Construct explicit preconditions and specifications and prove reque
 
 遵循 [最小产物契约](references/run-contract.md)。工作前建立带 `--session` 的 five-rocq 记录，统计实际 token、时间、内存，结束采集事件差额。纯 Rocq 输入无需 C/CBMC 产物，未证明义务单列。
 
-结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验。计入规约/前条件构造、证明尝试、修复、失败与超时，不能只统计最后一次编译。模型 token 与工具 CPU/RSS 分别记录；缺失指标记 partial/null，不以估计或 0 替代。
+结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验。计入规约/前条件构造、证明尝试、修复、失败与超时，不能只统计最后一次编译。模型 token 与工具 CPU/RSS 分别记录；缺失指标记 null 并说明原因，不以估计或 0 替代。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。

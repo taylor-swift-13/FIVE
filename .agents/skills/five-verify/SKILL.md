@@ -20,7 +20,7 @@ description: Orchestrate FIVE preparation, CBMC checking, CompCert model and obl
 
 准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
 
-本阶段按照 prepare → CBMC → align → Rocq 的依赖衔接共享 case（CBMC 可与 align 分支独立，但映射依赖实际 CBMC 结果）；按用户指定范围跳过阶段，逐一核对输入 hash、产物、状态与成本，不匹配时停止依赖步骤并报告。详见共享契约。
+本阶段按照 prepare → CBMC → align → Rocq 的依赖衔接共享 case；完整 C 工作流顺序交接，独立模型生成按所请求范围运行；按用户指定范围跳过阶段，逐一核对输入 hash、产物、状态与成本，不匹配时停止依赖步骤并报告。详见共享契约。
 
 ## 衔接与范围
 
@@ -42,4 +42,6 @@ description: Orchestrate FIVE preparation, CBMC checking, CompCert model and obl
 
 遵循 [最小产物契约](references/run-contract.md)。四个实际阶段分别记录 token、时间和峰值内存；本 skill 记录调度/汇总自身的 session 与端到端墙钟。使用事件 ID 去重，不把同一证明同时算入 align 和 rocq。引用阶段证据，缺失指标为 null，不复制同义报告或事后分摊历史主 agent 用量。
 
-对每个实际阶段和包装记录执行 `python3 scripts/audit-costs.py --run RUN_DIR`。成本核验独立于证明验收：证明可以已通过而成本不完整，此时明确报告 partial，不宣称完整交付。包装自身 token 排除已归属子阶段的事件；总量取事件并集。端到端墙钟直接计时，不相加阶段时间；避免同时测量包装子进程树并再次累加该子阶段 CPU/RSS。并行阶段缺少联合峰值时不能用各阶段峰值之和或最大值冒充总峰值。
+对每个实际阶段和包装记录执行 `python3 scripts/audit-costs.py --run RUN_DIR`。成本核验独立于证明验收：证明可以已通过而成本不完整，此时列明缺失指标与原因，不将未观测指标写为已测量。包装自身 token 排除已归属子阶段的事件；总量取事件并集。端到端墙钟直接计时，不相加阶段时间；避免同时测量包装子进程树并再次累加该子阶段 CPU/RSS。并行阶段缺少联合峰值时不能用各阶段峰值之和或最大值冒充总峰值。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。

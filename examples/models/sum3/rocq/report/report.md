@@ -1,26 +1,21 @@
-# Sum3 Sol medium proof rerun
+# Sum3 proof-stage result
 
-The no-error goal and the original all-successor Acc termination goal are proved by their medium attempts. The CBMC ResultBitsGoal is proved, with Csem returned-value semantics. The complete ten-property harness recheck remains open. Each attempt archives runtime evidence confirming gpt-6.1-sol medium, a fresh compilation, independent rocq check, Print Assumptions, model/input hashes, and measured cost records.
+**COMPLETE for the recorded verification request.** All requested current problems have proofs and independent kernel evidence under GPT-6.1 Sol medium.
 
-- [No error](../no_error/attempts/001/report.md)
-- [Termination](../termination/attempts/001/report.md)
-- [CBMC result bits](../cbmc_recheck/attempts/001/report.md)
+| Question | Active proof report | Result |
+| --- | --- | --- |
+| [No error](../no_error/problem/Spec.v) | [001](../no_error/attempts/001/report.md) | Every reachable original Csem state avoids errors |
+| [Termination](../termination/problem/Spec.v) | [001](../termination/attempts/001/report.md) | Acc over all original Csem successors |
+| [Full original CBMC recheck](../cbmc_recheck/problem/Spec.v) | [002](../cbmc_recheck/attempts/002/report.md) | All ten actual property IDs proved |
 
-## Model configuration
+Typed entry arguments are arbitrary binary32 values, including NaNs, infinities and signed zero; initial memory is arbitrary. No-error and all-successor termination are separate conclusions. The full harness prefix is proved to exist for every first-call input triple and initial memory, so observation implications are nonvacuous.
 
-| Field | Value |
-| --- | --- |
-| Entry | `sum3` / `f_sum3` |
-| Namespace | `FiveSum3` |
-| Target | CompCert 3.17 Csem/Cexec, x86-64 Linux, standard ABI, little endian, IEEE 754 binary32, nearest ties to even |
-| Rocq | 9.2 (rebuild environment), OCaml 4.14.2 |
-| Frontend options | No explicit frontend or preprocessor arguments |
-| External bindings | None |
-| Bindings SHA-256 | c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4 |
-| align/model/compcert-manifest.json SHA-256 | c4c5a5b39e4c0cf2f1e05ce18f6454af9652b2bd4d1dac1b0f9bc0f8d87f04f2 |
-| align/model/Source.v SHA-256 | 73e34704b1ea03671de34f619daa475cc70dff336f1720e64c431995008d373e |
-| align/model/Execution.v SHA-256 | cac05564097b235e3c31d3bf9a826b8bfd1929b2d9dba7368737baa4a0f79ebe |
-| align/model/proof/Obligations.v SHA-256 | e2f1294af7aea0efa22eba759d46d1526a44ffbbe0e7b051ace62c2535ccf921 |
-| prepare/source/sum3.c SHA-256 | 25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03 |
+The original memcpy harness is unchanged. Its two caller objects are allocated before both calls; all return paths preserve their frame. Actual stored binary32 bytes, CompCert memcpy outcomes, uint32 load and Csem assertion steps are proved. CBMC internal pointer guards short-circuit on distinct object IDs; the adapter proves fresh distinct CompCert blocks and live endpoints without inventing cross-object C ordering. This is an explicit property-by-property harness adapter; it does not claim a generated whole-main Csyntax trace or universal CBMC/CompCert NaN-payload equivalence.
 
-The backend manifest records tool and CompCert semantic dependency hashes, including the NaN policy inputs.
+[Historical attempt 001](../cbmc_recheck/attempts/001/report.md) only proved return bits and remains an honestly incomplete historical attempt. The appended full specification keeps its original ResultBitsGoal verbatim.
+
+The current relocated frontend replay passed strict provenance audit. The unchanged frozen Source.prog and f_sum3 are formally equal to the fresh automatic export, with no assumptions: [relocation proof](../support/evidence/relocation-proof/Relocation.v), [kernel evidence](../support/evidence/relocation-proof/kernel-evidence.json), [exact metadata-only diff](../support/evidence/relocation-proof/source.diff), [frontend provenance](../../align/report/evidence/relocation-provenance.json). Earlier proof input manifests retain their historical hash; that exact manifest is preserved under align/report/evidence/relocation-history. Source.v and Execution.v were never edited.
+
+Target: CompCert 3.17, x86-64 Linux standard ABI, little endian, binary32 nearest ties to even. Rocq 9.2; OCaml 4.14.2. Inherited assumptions and exact source/model/spec/proof hashes are in the linked attempt reports and receipts. The boundary is the recorded C semantics and frontend, not a GCC/native-hardware equivalence claim.
+
+[Costs](costs.json) count shared authoring and independent verification sessions once, preserve failures and historical records, and distinguish per-attempt tool subsets from shared model tokens. Unknown historical measurements remain null; current reconstruction/replay measurements do not recover past expense.

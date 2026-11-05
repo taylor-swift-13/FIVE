@@ -1,0 +1,948 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+property_memcpy_pointer_1 =
+fun (m : mem) (a b c : float32) (br bb : block) (mf : mem) 
+  (v : val) (PREFIX : HarnessPrefix m a b c br bb mf v) =>
+let b0 :
+  exists (stored copied : mem) (bytes : list memval),
+    Mem.store Mfloat32 mf br 0 v = Some stored /\
+    MemcpySafety stored br bb /\
+    Mem.loadbytes stored br 0 4 = Some bytes /\
+    bytes = encode_val Mfloat32 v /\
+    extcall_memcpy_sem 4 1 sum3_ge [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+      stored E0 Vundef copied /\
+    Mem.loadbytes copied bb 0 4 = Some bytes /\
+    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+    star Csem.step sum3_ge
+      (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+      (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop 
+         (bits_env bb) copied) :=
+  full_harness_observation m a b c br bb mf v PREFIX in
+match b0 with
+| ex_intro _ x x0 =>
+    (fun (stored : mem)
+       (H : exists (copied : mem) (bytes : list memval),
+              Mem.store Mfloat32 mf br 0 v = Some stored /\
+              MemcpySafety stored br bb /\
+              Mem.loadbytes stored br 0 4 = Some bytes /\
+              bytes = encode_val Mfloat32 v /\
+              extcall_memcpy_sem 4 1 sum3_ge
+                [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0 Vundef
+                copied /\
+              Mem.loadbytes copied bb 0 4 = Some bytes /\
+              Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+              star Csem.step sum3_ge
+                (ExprState sum3_function bits_assertion Kstop 
+                   (bits_env bb) copied)
+                E0
+                (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop
+                   (bits_env bb) copied)) =>
+     match H with
+     | ex_intro _ x1 x2 =>
+         (fun (copied : mem)
+            (H0 : exists bytes : list memval,
+                    Mem.store Mfloat32 mf br 0 v = Some stored /\
+                    MemcpySafety stored br bb /\
+                    Mem.loadbytes stored br 0 4 = Some bytes /\
+                    bytes = encode_val Mfloat32 v /\
+                    extcall_memcpy_sem 4 1 sum3_ge
+                      [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                      Vundef copied /\
+                    Mem.loadbytes copied bb 0 4 = Some bytes /\
+                    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                    star Csem.step sum3_ge
+                      (ExprState sum3_function bits_assertion Kstop
+                         (bits_env bb) copied)
+                      E0
+                      (ExprState sum3_function (Eval (Vint Int.one) tint)
+                         Kstop (bits_env bb) copied)) =>
+          match H0 with
+          | ex_intro _ x3 x4 =>
+              (fun (bytes : list memval)
+                 (H1 : Mem.store Mfloat32 mf br 0 v = Some stored /\
+                       MemcpySafety stored br bb /\
+                       Mem.loadbytes stored br 0 4 = Some bytes /\
+                       bytes = encode_val Mfloat32 v /\
+                       extcall_memcpy_sem 4 1 sum3_ge
+                         [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                         Vundef copied /\
+                       Mem.loadbytes copied bb 0 4 = Some bytes /\
+                       Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                       star Csem.step sum3_ge
+                         (ExprState sum3_function bits_assertion Kstop
+                            (bits_env bb) copied)
+                         E0
+                         (ExprState sum3_function 
+                            (Eval (Vint Int.one) tint) Kstop 
+                            (bits_env bb) copied)) =>
+               match H1 with
+               | conj x5 x6 =>
+                   (fun (STORE : Mem.store Mfloat32 mf br 0 v = Some stored)
+                      (H2 : MemcpySafety stored br bb /\
+                            Mem.loadbytes stored br 0 4 = Some bytes /\
+                            bytes = encode_val Mfloat32 v /\
+                            extcall_memcpy_sem 4 1 sum3_ge
+                              [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                              stored E0 Vundef copied /\
+                            Mem.loadbytes copied bb 0 4 = Some bytes /\
+                            Mem.load Mint32 copied bb 0 =
+                            Some (Vint Int.zero) /\
+                            star Csem.step sum3_ge
+                              (ExprState sum3_function bits_assertion Kstop
+                                 (bits_env bb) copied)
+                              E0
+                              (ExprState sum3_function
+                                 (Eval (Vint Int.one) tint) Kstop
+                                 (bits_env bb) copied)) =>
+                    match H2 with
+                    | conj x7 x8 =>
+                        (fun (SAFE : MemcpySafety stored br bb)
+                           (_ : Mem.loadbytes stored br 0 4 = Some bytes /\
+                                bytes = encode_val Mfloat32 v /\
+                                extcall_memcpy_sem 4 1 sum3_ge
+                                  [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                                  stored E0 Vundef copied /\
+                                Mem.loadbytes copied bb 0 4 = Some bytes /\
+                                Mem.load Mint32 copied bb 0 =
+                                Some (Vint Int.zero) /\
+                                star Csem.step sum3_ge
+                                  (ExprState sum3_function bits_assertion
+                                     Kstop (bits_env bb) copied)
+                                  E0
+                                  (ExprState sum3_function
+                                     (Eval (Vint Int.one) tint) Kstop
+                                     (bits_env bb) copied)) =>
+                         ex_intro
+                           (fun stored0 : mem =>
+                            Mem.store Mfloat32 mf br 0 v = Some stored0 /\
+                            br <> bb)
+                           stored
+                           (conj STORE (memcpy_pointer_1 stored br bb SAFE)))
+                          x7 x8
+                    end) x5 x6
+               end) x3 x4
+          end) x1 x2
+     end) x x0
+end
+     : forall (m : mem) (a b c : float32) (br bb : block) 
+         (mf : mem) (v : val),
+       HarnessPrefix m a b c br bb mf v ->
+       exists stored : mem,
+         Mem.store Mfloat32 mf br 0 v = Some stored /\ br <> bb
+
+Arguments property_memcpy_pointer_1 m a b c br bb mf v _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+property_memcpy_pointer_arithmetic_1 =
+fun (m : mem) (a b c : float32) (br bb : block) (mf : mem) 
+  (v : val) (PREFIX : HarnessPrefix m a b c br bb mf v) =>
+let b0 :
+  exists (stored copied : mem) (bytes : list memval),
+    Mem.store Mfloat32 mf br 0 v = Some stored /\
+    MemcpySafety stored br bb /\
+    Mem.loadbytes stored br 0 4 = Some bytes /\
+    bytes = encode_val Mfloat32 v /\
+    extcall_memcpy_sem 4 1 sum3_ge [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+      stored E0 Vundef copied /\
+    Mem.loadbytes copied bb 0 4 = Some bytes /\
+    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+    star Csem.step sum3_ge
+      (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+      (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop 
+         (bits_env bb) copied) :=
+  full_harness_observation m a b c br bb mf v PREFIX in
+match b0 with
+| ex_intro _ x x0 =>
+    (fun (stored : mem)
+       (H : exists (copied : mem) (bytes : list memval),
+              Mem.store Mfloat32 mf br 0 v = Some stored /\
+              MemcpySafety stored br bb /\
+              Mem.loadbytes stored br 0 4 = Some bytes /\
+              bytes = encode_val Mfloat32 v /\
+              extcall_memcpy_sem 4 1 sum3_ge
+                [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0 Vundef
+                copied /\
+              Mem.loadbytes copied bb 0 4 = Some bytes /\
+              Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+              star Csem.step sum3_ge
+                (ExprState sum3_function bits_assertion Kstop 
+                   (bits_env bb) copied)
+                E0
+                (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop
+                   (bits_env bb) copied)) =>
+     match H with
+     | ex_intro _ x1 x2 =>
+         (fun (copied : mem)
+            (H0 : exists bytes : list memval,
+                    Mem.store Mfloat32 mf br 0 v = Some stored /\
+                    MemcpySafety stored br bb /\
+                    Mem.loadbytes stored br 0 4 = Some bytes /\
+                    bytes = encode_val Mfloat32 v /\
+                    extcall_memcpy_sem 4 1 sum3_ge
+                      [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                      Vundef copied /\
+                    Mem.loadbytes copied bb 0 4 = Some bytes /\
+                    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                    star Csem.step sum3_ge
+                      (ExprState sum3_function bits_assertion Kstop
+                         (bits_env bb) copied)
+                      E0
+                      (ExprState sum3_function (Eval (Vint Int.one) tint)
+                         Kstop (bits_env bb) copied)) =>
+          match H0 with
+          | ex_intro _ x3 x4 =>
+              (fun (bytes : list memval)
+                 (H1 : Mem.store Mfloat32 mf br 0 v = Some stored /\
+                       MemcpySafety stored br bb /\
+                       Mem.loadbytes stored br 0 4 = Some bytes /\
+                       bytes = encode_val Mfloat32 v /\
+                       extcall_memcpy_sem 4 1 sum3_ge
+                         [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                         Vundef copied /\
+                       Mem.loadbytes copied bb 0 4 = Some bytes /\
+                       Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                       star Csem.step sum3_ge
+                         (ExprState sum3_function bits_assertion Kstop
+                            (bits_env bb) copied)
+                         E0
+                         (ExprState sum3_function 
+                            (Eval (Vint Int.one) tint) Kstop 
+                            (bits_env bb) copied)) =>
+               match H1 with
+               | conj x5 x6 =>
+                   (fun (STORE : Mem.store Mfloat32 mf br 0 v = Some stored)
+                      (H2 : MemcpySafety stored br bb /\
+                            Mem.loadbytes stored br 0 4 = Some bytes /\
+                            bytes = encode_val Mfloat32 v /\
+                            extcall_memcpy_sem 4 1 sum3_ge
+                              [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                              stored E0 Vundef copied /\
+                            Mem.loadbytes copied bb 0 4 = Some bytes /\
+                            Mem.load Mint32 copied bb 0 =
+                            Some (Vint Int.zero) /\
+                            star Csem.step sum3_ge
+                              (ExprState sum3_function bits_assertion Kstop
+                                 (bits_env bb) copied)
+                              E0
+                              (ExprState sum3_function
+                                 (Eval (Vint Int.one) tint) Kstop
+                                 (bits_env bb) copied)) =>
+                    match H2 with
+                    | conj x7 x8 =>
+                        (fun (SAFE : MemcpySafety stored br bb)
+                           (_ : Mem.loadbytes stored br 0 4 = Some bytes /\
+                                bytes = encode_val Mfloat32 v /\
+                                extcall_memcpy_sem 4 1 sum3_ge
+                                  [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                                  stored E0 Vundef copied /\
+                                Mem.loadbytes copied bb 0 4 = Some bytes /\
+                                Mem.load Mint32 copied bb 0 =
+                                Some (Vint Int.zero) /\
+                                star Csem.step sum3_ge
+                                  (ExprState sum3_function bits_assertion
+                                     Kstop (bits_env bb) copied)
+                                  E0
+                                  (ExprState sum3_function
+                                     (Eval (Vint Int.one) tint) Kstop
+                                     (bits_env bb) copied)) =>
+                         ex_intro
+                           (fun stored0 : mem =>
+                            Mem.store Mfloat32 mf br 0 v = Some stored0 /\
+                            Mem.valid_pointer stored0 br 0 = true)
+                           stored
+                           (conj STORE
+                              (memcpy_pointer_arithmetic_1 stored br bb SAFE)))
+                          x7 x8
+                    end) x5 x6
+               end) x3 x4
+          end) x1 x2
+     end) x x0
+end
+     : forall (m : mem) (a b c : float32) (br bb : block) 
+         (mf : mem) (v : val),
+       HarnessPrefix m a b c br bb mf v ->
+       exists stored : mem,
+         Mem.store Mfloat32 mf br 0 v = Some stored /\
+         Mem.valid_pointer stored br 0 = true
+
+Arguments property_memcpy_pointer_arithmetic_1 m a b c br bb mf v _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+property_memcpy_pointer_arithmetic_2 =
+fun (m : mem) (a b c : float32) (br bb : block) (mf : mem) 
+  (v : val) (PREFIX : HarnessPrefix m a b c br bb mf v) =>
+let b0 :
+  exists (stored copied : mem) (bytes : list memval),
+    Mem.store Mfloat32 mf br 0 v = Some stored /\
+    MemcpySafety stored br bb /\
+    Mem.loadbytes stored br 0 4 = Some bytes /\
+    bytes = encode_val Mfloat32 v /\
+    extcall_memcpy_sem 4 1 sum3_ge [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+      stored E0 Vundef copied /\
+    Mem.loadbytes copied bb 0 4 = Some bytes /\
+    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+    star Csem.step sum3_ge
+      (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+      (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop 
+         (bits_env bb) copied) :=
+  full_harness_observation m a b c br bb mf v PREFIX in
+match b0 with
+| ex_intro _ x x0 =>
+    (fun (stored : mem)
+       (H : exists (copied : mem) (bytes : list memval),
+              Mem.store Mfloat32 mf br 0 v = Some stored /\
+              MemcpySafety stored br bb /\
+              Mem.loadbytes stored br 0 4 = Some bytes /\
+              bytes = encode_val Mfloat32 v /\
+              extcall_memcpy_sem 4 1 sum3_ge
+                [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0 Vundef
+                copied /\
+              Mem.loadbytes copied bb 0 4 = Some bytes /\
+              Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+              star Csem.step sum3_ge
+                (ExprState sum3_function bits_assertion Kstop 
+                   (bits_env bb) copied)
+                E0
+                (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop
+                   (bits_env bb) copied)) =>
+     match H with
+     | ex_intro _ x1 x2 =>
+         (fun (copied : mem)
+            (H0 : exists bytes : list memval,
+                    Mem.store Mfloat32 mf br 0 v = Some stored /\
+                    MemcpySafety stored br bb /\
+                    Mem.loadbytes stored br 0 4 = Some bytes /\
+                    bytes = encode_val Mfloat32 v /\
+                    extcall_memcpy_sem 4 1 sum3_ge
+                      [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                      Vundef copied /\
+                    Mem.loadbytes copied bb 0 4 = Some bytes /\
+                    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                    star Csem.step sum3_ge
+                      (ExprState sum3_function bits_assertion Kstop
+                         (bits_env bb) copied)
+                      E0
+                      (ExprState sum3_function (Eval (Vint Int.one) tint)
+                         Kstop (bits_env bb) copied)) =>
+          match H0 with
+          | ex_intro _ x3 x4 =>
+              (fun (bytes : list memval)
+                 (H1 : Mem.store Mfloat32 mf br 0 v = Some stored /\
+                       MemcpySafety stored br bb /\
+                       Mem.loadbytes stored br 0 4 = Some bytes /\
+                       bytes = encode_val Mfloat32 v /\
+                       extcall_memcpy_sem 4 1 sum3_ge
+                         [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                         Vundef copied /\
+                       Mem.loadbytes copied bb 0 4 = Some bytes /\
+                       Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                       star Csem.step sum3_ge
+                         (ExprState sum3_function bits_assertion Kstop
+                            (bits_env bb) copied)
+                         E0
+                         (ExprState sum3_function 
+                            (Eval (Vint Int.one) tint) Kstop 
+                            (bits_env bb) copied)) =>
+               match H1 with
+               | conj x5 x6 =>
+                   (fun (STORE : Mem.store Mfloat32 mf br 0 v = Some stored)
+                      (H2 : MemcpySafety stored br bb /\
+                            Mem.loadbytes stored br 0 4 = Some bytes /\
+                            bytes = encode_val Mfloat32 v /\
+                            extcall_memcpy_sem 4 1 sum3_ge
+                              [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                              stored E0 Vundef copied /\
+                            Mem.loadbytes copied bb 0 4 = Some bytes /\
+                            Mem.load Mint32 copied bb 0 =
+                            Some (Vint Int.zero) /\
+                            star Csem.step sum3_ge
+                              (ExprState sum3_function bits_assertion Kstop
+                                 (bits_env bb) copied)
+                              E0
+                              (ExprState sum3_function
+                                 (Eval (Vint Int.one) tint) Kstop
+                                 (bits_env bb) copied)) =>
+                    match H2 with
+                    | conj x7 x8 =>
+                        (fun (SAFE : MemcpySafety stored br bb)
+                           (_ : Mem.loadbytes stored br 0 4 = Some bytes /\
+                                bytes = encode_val Mfloat32 v /\
+                                extcall_memcpy_sem 4 1 sum3_ge
+                                  [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                                  stored E0 Vundef copied /\
+                                Mem.loadbytes copied bb 0 4 = Some bytes /\
+                                Mem.load Mint32 copied bb 0 =
+                                Some (Vint Int.zero) /\
+                                star Csem.step sum3_ge
+                                  (ExprState sum3_function bits_assertion
+                                     Kstop (bits_env bb) copied)
+                                  E0
+                                  (ExprState sum3_function
+                                     (Eval (Vint Int.one) tint) Kstop
+                                     (bits_env bb) copied)) =>
+                         ex_intro
+                           (fun stored0 : mem =>
+                            Mem.store Mfloat32 mf br 0 v = Some stored0 /\
+                            Mem.weak_valid_pointer stored0 bb 4 = true)
+                           stored
+                           (conj STORE
+                              (memcpy_pointer_arithmetic_2 stored br bb SAFE)))
+                          x7 x8
+                    end) x5 x6
+               end) x3 x4
+          end) x1 x2
+     end) x x0
+end
+     : forall (m : mem) (a b c : float32) (br bb : block) 
+         (mf : mem) (v : val),
+       HarnessPrefix m a b c br bb mf v ->
+       exists stored : mem,
+         Mem.store Mfloat32 mf br 0 v = Some stored /\
+         Mem.weak_valid_pointer stored bb 4 = true
+
+Arguments property_memcpy_pointer_arithmetic_2 m a b c br bb mf v _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+property_memcpy_pointer_2 =
+fun (m : mem) (a b c : float32) (br bb : block) (mf : mem) 
+  (v : val) (PREFIX : HarnessPrefix m a b c br bb mf v) =>
+let b0 :
+  exists (stored copied : mem) (bytes : list memval),
+    Mem.store Mfloat32 mf br 0 v = Some stored /\
+    MemcpySafety stored br bb /\
+    Mem.loadbytes stored br 0 4 = Some bytes /\
+    bytes = encode_val Mfloat32 v /\
+    extcall_memcpy_sem 4 1 sum3_ge [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+      stored E0 Vundef copied /\
+    Mem.loadbytes copied bb 0 4 = Some bytes /\
+    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+    star Csem.step sum3_ge
+      (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+      (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop 
+         (bits_env bb) copied) :=
+  full_harness_observation m a b c br bb mf v PREFIX in
+match b0 with
+| ex_intro _ x x0 =>
+    (fun (stored : mem)
+       (H : exists (copied : mem) (bytes : list memval),
+              Mem.store Mfloat32 mf br 0 v = Some stored /\
+              MemcpySafety stored br bb /\
+              Mem.loadbytes stored br 0 4 = Some bytes /\
+              bytes = encode_val Mfloat32 v /\
+              extcall_memcpy_sem 4 1 sum3_ge
+                [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0 Vundef
+                copied /\
+              Mem.loadbytes copied bb 0 4 = Some bytes /\
+              Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+              star Csem.step sum3_ge
+                (ExprState sum3_function bits_assertion Kstop 
+                   (bits_env bb) copied)
+                E0
+                (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop
+                   (bits_env bb) copied)) =>
+     match H with
+     | ex_intro _ x1 x2 =>
+         (fun (copied : mem)
+            (H0 : exists bytes : list memval,
+                    Mem.store Mfloat32 mf br 0 v = Some stored /\
+                    MemcpySafety stored br bb /\
+                    Mem.loadbytes stored br 0 4 = Some bytes /\
+                    bytes = encode_val Mfloat32 v /\
+                    extcall_memcpy_sem 4 1 sum3_ge
+                      [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                      Vundef copied /\
+                    Mem.loadbytes copied bb 0 4 = Some bytes /\
+                    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                    star Csem.step sum3_ge
+                      (ExprState sum3_function bits_assertion Kstop
+                         (bits_env bb) copied)
+                      E0
+                      (ExprState sum3_function (Eval (Vint Int.one) tint)
+                         Kstop (bits_env bb) copied)) =>
+          match H0 with
+          | ex_intro _ x3 x4 =>
+              (fun (bytes : list memval)
+                 (H1 : Mem.store Mfloat32 mf br 0 v = Some stored /\
+                       MemcpySafety stored br bb /\
+                       Mem.loadbytes stored br 0 4 = Some bytes /\
+                       bytes = encode_val Mfloat32 v /\
+                       extcall_memcpy_sem 4 1 sum3_ge
+                         [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                         Vundef copied /\
+                       Mem.loadbytes copied bb 0 4 = Some bytes /\
+                       Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                       star Csem.step sum3_ge
+                         (ExprState sum3_function bits_assertion Kstop
+                            (bits_env bb) copied)
+                         E0
+                         (ExprState sum3_function 
+                            (Eval (Vint Int.one) tint) Kstop 
+                            (bits_env bb) copied)) =>
+               match H1 with
+               | conj x5 x6 =>
+                   (fun (STORE : Mem.store Mfloat32 mf br 0 v = Some stored)
+                      (H2 : MemcpySafety stored br bb /\
+                            Mem.loadbytes stored br 0 4 = Some bytes /\
+                            bytes = encode_val Mfloat32 v /\
+                            extcall_memcpy_sem 4 1 sum3_ge
+                              [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                              stored E0 Vundef copied /\
+                            Mem.loadbytes copied bb 0 4 = Some bytes /\
+                            Mem.load Mint32 copied bb 0 =
+                            Some (Vint Int.zero) /\
+                            star Csem.step sum3_ge
+                              (ExprState sum3_function bits_assertion Kstop
+                                 (bits_env bb) copied)
+                              E0
+                              (ExprState sum3_function
+                                 (Eval (Vint Int.one) tint) Kstop
+                                 (bits_env bb) copied)) =>
+                    match H2 with
+                    | conj x7 x8 =>
+                        (fun (SAFE : MemcpySafety stored br bb)
+                           (_ : Mem.loadbytes stored br 0 4 = Some bytes /\
+                                bytes = encode_val Mfloat32 v /\
+                                extcall_memcpy_sem 4 1 sum3_ge
+                                  [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                                  stored E0 Vundef copied /\
+                                Mem.loadbytes copied bb 0 4 = Some bytes /\
+                                Mem.load Mint32 copied bb 0 =
+                                Some (Vint Int.zero) /\
+                                star Csem.step sum3_ge
+                                  (ExprState sum3_function bits_assertion
+                                     Kstop (bits_env bb) copied)
+                                  E0
+                                  (ExprState sum3_function
+                                     (Eval (Vint Int.one) tint) Kstop
+                                     (bits_env bb) copied)) =>
+                         ex_intro
+                           (fun stored0 : mem =>
+                            Mem.store Mfloat32 mf br 0 v = Some stored0 /\
+                            bb <> br)
+                           stored
+                           (conj STORE (memcpy_pointer_2 stored br bb SAFE)))
+                          x7 x8
+                    end) x5 x6
+               end) x3 x4
+          end) x1 x2
+     end) x x0
+end
+     : forall (m : mem) (a b c : float32) (br bb : block) 
+         (mf : mem) (v : val),
+       HarnessPrefix m a b c br bb mf v ->
+       exists stored : mem,
+         Mem.store Mfloat32 mf br 0 v = Some stored /\ bb <> br
+
+Arguments property_memcpy_pointer_2 m a b c br bb mf v _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+property_memcpy_pointer_arithmetic_3 =
+fun (m : mem) (a b c : float32) (br bb : block) (mf : mem) 
+  (v : val) (PREFIX : HarnessPrefix m a b c br bb mf v) =>
+let b0 :
+  exists (stored copied : mem) (bytes : list memval),
+    Mem.store Mfloat32 mf br 0 v = Some stored /\
+    MemcpySafety stored br bb /\
+    Mem.loadbytes stored br 0 4 = Some bytes /\
+    bytes = encode_val Mfloat32 v /\
+    extcall_memcpy_sem 4 1 sum3_ge [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+      stored E0 Vundef copied /\
+    Mem.loadbytes copied bb 0 4 = Some bytes /\
+    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+    star Csem.step sum3_ge
+      (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+      (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop 
+         (bits_env bb) copied) :=
+  full_harness_observation m a b c br bb mf v PREFIX in
+match b0 with
+| ex_intro _ x x0 =>
+    (fun (stored : mem)
+       (H : exists (copied : mem) (bytes : list memval),
+              Mem.store Mfloat32 mf br 0 v = Some stored /\
+              MemcpySafety stored br bb /\
+              Mem.loadbytes stored br 0 4 = Some bytes /\
+              bytes = encode_val Mfloat32 v /\
+              extcall_memcpy_sem 4 1 sum3_ge
+                [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0 Vundef
+                copied /\
+              Mem.loadbytes copied bb 0 4 = Some bytes /\
+              Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+              star Csem.step sum3_ge
+                (ExprState sum3_function bits_assertion Kstop 
+                   (bits_env bb) copied)
+                E0
+                (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop
+                   (bits_env bb) copied)) =>
+     match H with
+     | ex_intro _ x1 x2 =>
+         (fun (copied : mem)
+            (H0 : exists bytes : list memval,
+                    Mem.store Mfloat32 mf br 0 v = Some stored /\
+                    MemcpySafety stored br bb /\
+                    Mem.loadbytes stored br 0 4 = Some bytes /\
+                    bytes = encode_val Mfloat32 v /\
+                    extcall_memcpy_sem 4 1 sum3_ge
+                      [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                      Vundef copied /\
+                    Mem.loadbytes copied bb 0 4 = Some bytes /\
+                    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                    star Csem.step sum3_ge
+                      (ExprState sum3_function bits_assertion Kstop
+                         (bits_env bb) copied)
+                      E0
+                      (ExprState sum3_function (Eval (Vint Int.one) tint)
+                         Kstop (bits_env bb) copied)) =>
+          match H0 with
+          | ex_intro _ x3 x4 =>
+              (fun (bytes : list memval)
+                 (H1 : Mem.store Mfloat32 mf br 0 v = Some stored /\
+                       MemcpySafety stored br bb /\
+                       Mem.loadbytes stored br 0 4 = Some bytes /\
+                       bytes = encode_val Mfloat32 v /\
+                       extcall_memcpy_sem 4 1 sum3_ge
+                         [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                         Vundef copied /\
+                       Mem.loadbytes copied bb 0 4 = Some bytes /\
+                       Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                       star Csem.step sum3_ge
+                         (ExprState sum3_function bits_assertion Kstop
+                            (bits_env bb) copied)
+                         E0
+                         (ExprState sum3_function 
+                            (Eval (Vint Int.one) tint) Kstop 
+                            (bits_env bb) copied)) =>
+               match H1 with
+               | conj x5 x6 =>
+                   (fun (STORE : Mem.store Mfloat32 mf br 0 v = Some stored)
+                      (H2 : MemcpySafety stored br bb /\
+                            Mem.loadbytes stored br 0 4 = Some bytes /\
+                            bytes = encode_val Mfloat32 v /\
+                            extcall_memcpy_sem 4 1 sum3_ge
+                              [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                              stored E0 Vundef copied /\
+                            Mem.loadbytes copied bb 0 4 = Some bytes /\
+                            Mem.load Mint32 copied bb 0 =
+                            Some (Vint Int.zero) /\
+                            star Csem.step sum3_ge
+                              (ExprState sum3_function bits_assertion Kstop
+                                 (bits_env bb) copied)
+                              E0
+                              (ExprState sum3_function
+                                 (Eval (Vint Int.one) tint) Kstop
+                                 (bits_env bb) copied)) =>
+                    match H2 with
+                    | conj x7 x8 =>
+                        (fun (SAFE : MemcpySafety stored br bb)
+                           (_ : Mem.loadbytes stored br 0 4 = Some bytes /\
+                                bytes = encode_val Mfloat32 v /\
+                                extcall_memcpy_sem 4 1 sum3_ge
+                                  [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                                  stored E0 Vundef copied /\
+                                Mem.loadbytes copied bb 0 4 = Some bytes /\
+                                Mem.load Mint32 copied bb 0 =
+                                Some (Vint Int.zero) /\
+                                star Csem.step sum3_ge
+                                  (ExprState sum3_function bits_assertion
+                                     Kstop (bits_env bb) copied)
+                                  E0
+                                  (ExprState sum3_function
+                                     (Eval (Vint Int.one) tint) Kstop
+                                     (bits_env bb) copied)) =>
+                         ex_intro
+                           (fun stored0 : mem =>
+                            Mem.store Mfloat32 mf br 0 v = Some stored0 /\
+                            Mem.valid_pointer stored0 bb 0 = true)
+                           stored
+                           (conj STORE
+                              (memcpy_pointer_arithmetic_3 stored br bb SAFE)))
+                          x7 x8
+                    end) x5 x6
+               end) x3 x4
+          end) x1 x2
+     end) x x0
+end
+     : forall (m : mem) (a b c : float32) (br bb : block) 
+         (mf : mem) (v : val),
+       HarnessPrefix m a b c br bb mf v ->
+       exists stored : mem,
+         Mem.store Mfloat32 mf br 0 v = Some stored /\
+         Mem.valid_pointer stored bb 0 = true
+
+Arguments property_memcpy_pointer_arithmetic_3 m a b c br bb mf v _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+property_memcpy_pointer_arithmetic_4 =
+fun (m : mem) (a b c : float32) (br bb : block) (mf : mem) 
+  (v : val) (PREFIX : HarnessPrefix m a b c br bb mf v) =>
+let b0 :
+  exists (stored copied : mem) (bytes : list memval),
+    Mem.store Mfloat32 mf br 0 v = Some stored /\
+    MemcpySafety stored br bb /\
+    Mem.loadbytes stored br 0 4 = Some bytes /\
+    bytes = encode_val Mfloat32 v /\
+    extcall_memcpy_sem 4 1 sum3_ge [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+      stored E0 Vundef copied /\
+    Mem.loadbytes copied bb 0 4 = Some bytes /\
+    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+    star Csem.step sum3_ge
+      (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+      (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop 
+         (bits_env bb) copied) :=
+  full_harness_observation m a b c br bb mf v PREFIX in
+match b0 with
+| ex_intro _ x x0 =>
+    (fun (stored : mem)
+       (H : exists (copied : mem) (bytes : list memval),
+              Mem.store Mfloat32 mf br 0 v = Some stored /\
+              MemcpySafety stored br bb /\
+              Mem.loadbytes stored br 0 4 = Some bytes /\
+              bytes = encode_val Mfloat32 v /\
+              extcall_memcpy_sem 4 1 sum3_ge
+                [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0 Vundef
+                copied /\
+              Mem.loadbytes copied bb 0 4 = Some bytes /\
+              Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+              star Csem.step sum3_ge
+                (ExprState sum3_function bits_assertion Kstop 
+                   (bits_env bb) copied)
+                E0
+                (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop
+                   (bits_env bb) copied)) =>
+     match H with
+     | ex_intro _ x1 x2 =>
+         (fun (copied : mem)
+            (H0 : exists bytes : list memval,
+                    Mem.store Mfloat32 mf br 0 v = Some stored /\
+                    MemcpySafety stored br bb /\
+                    Mem.loadbytes stored br 0 4 = Some bytes /\
+                    bytes = encode_val Mfloat32 v /\
+                    extcall_memcpy_sem 4 1 sum3_ge
+                      [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                      Vundef copied /\
+                    Mem.loadbytes copied bb 0 4 = Some bytes /\
+                    Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                    star Csem.step sum3_ge
+                      (ExprState sum3_function bits_assertion Kstop
+                         (bits_env bb) copied)
+                      E0
+                      (ExprState sum3_function (Eval (Vint Int.one) tint)
+                         Kstop (bits_env bb) copied)) =>
+          match H0 with
+          | ex_intro _ x3 x4 =>
+              (fun (bytes : list memval)
+                 (H1 : Mem.store Mfloat32 mf br 0 v = Some stored /\
+                       MemcpySafety stored br bb /\
+                       Mem.loadbytes stored br 0 4 = Some bytes /\
+                       bytes = encode_val Mfloat32 v /\
+                       extcall_memcpy_sem 4 1 sum3_ge
+                         [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored E0
+                         Vundef copied /\
+                       Mem.loadbytes copied bb 0 4 = Some bytes /\
+                       Mem.load Mint32 copied bb 0 = Some (Vint Int.zero) /\
+                       star Csem.step sum3_ge
+                         (ExprState sum3_function bits_assertion Kstop
+                            (bits_env bb) copied)
+                         E0
+                         (ExprState sum3_function 
+                            (Eval (Vint Int.one) tint) Kstop 
+                            (bits_env bb) copied)) =>
+               match H1 with
+               | conj x5 x6 =>
+                   (fun (STORE : Mem.store Mfloat32 mf br 0 v = Some stored)
+                      (H2 : MemcpySafety stored br bb /\
+                            Mem.loadbytes stored br 0 4 = Some bytes /\
+                            bytes = encode_val Mfloat32 v /\
+                            extcall_memcpy_sem 4 1 sum3_ge
+                              [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                              stored E0 Vundef copied /\
+                            Mem.loadbytes copied bb 0 4 = Some bytes /\
+                            Mem.load Mint32 copied bb 0 =
+                            Some (Vint Int.zero) /\
+                            star Csem.step sum3_ge
+                              (ExprState sum3_function bits_assertion Kstop
+                                 (bits_env bb) copied)
+                              E0
+                              (ExprState sum3_function
+                                 (Eval (Vint Int.one) tint) Kstop
+                                 (bits_env bb) copied)) =>
+                    match H2 with
+                    | conj x7 x8 =>
+                        (fun (SAFE : MemcpySafety stored br bb)
+                           (_ : Mem.loadbytes stored br 0 4 = Some bytes /\
+                                bytes = encode_val Mfloat32 v /\
+                                extcall_memcpy_sem 4 1 sum3_ge
+                                  [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero]
+                                  stored E0 Vundef copied /\
+                                Mem.loadbytes copied bb 0 4 = Some bytes /\
+                                Mem.load Mint32 copied bb 0 =
+                                Some (Vint Int.zero) /\
+                                star Csem.step sum3_ge
+                                  (ExprState sum3_function bits_assertion
+                                     Kstop (bits_env bb) copied)
+                                  E0
+                                  (ExprState sum3_function
+                                     (Eval (Vint Int.one) tint) Kstop
+                                     (bits_env bb) copied)) =>
+                         ex_intro
+                           (fun stored0 : mem =>
+                            Mem.store Mfloat32 mf br 0 v = Some stored0 /\
+                            Mem.weak_valid_pointer stored0 br 4 = true)
+                           stored
+                           (conj STORE
+                              (memcpy_pointer_arithmetic_4 stored br bb SAFE)))
+                          x7 x8
+                    end) x5 x6
+               end) x3 x4
+          end) x1 x2
+     end) x x0
+end
+     : forall (m : mem) (a b c : float32) (br bb : block) 
+         (mf : mem) (v : val),
+       HarnessPrefix m a b c br bb mf v ->
+       exists stored : mem,
+         Mem.store Mfloat32 mf br 0 v = Some stored /\
+         Mem.weak_valid_pointer stored br 4 = true
+
+Arguments property_memcpy_pointer_arithmetic_4 m a b c br bb mf v _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

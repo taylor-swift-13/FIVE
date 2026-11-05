@@ -20,3 +20,7 @@ Traditional CBMC returned success for all 10 reported properties. The first sum3
 | prepare/source/sum3.c SHA-256 | 25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03 |
 
 The backend manifest records tool and CompCert semantic dependency hashes, including the NaN policy inputs.
+
+## Current reproducible run
+
+The unchanged original source and memcpy harness were rerun with exact recorded target/check flags and genuine input snapshots. All ten original IDs, descriptions and statuses match the historical result. [Actual run](evidence/current/run.json), [raw results](evidence/current/logs/001-original-harness-current-inputs.stdout.log), [builtin goto guards](evidence/current/logs/002-original-memcpy-goto-semantics.stdout.log), [cost audit](evidence/current/cost-audit.json), [costs](costs.json). The distinct-object first disjunct disables internal cross-object comparisons; this is not a claim that arbitrary C cross-object ordering is defined.

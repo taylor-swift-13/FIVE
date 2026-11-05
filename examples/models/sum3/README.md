@@ -1,14 +1,14 @@
-# sum3: stage review
+# sum3
 
-| Stage | Input and output | Result |
+**Complete:** no error, all-successor termination and all ten properties of the unchanged original memcpy harness. [Rocq summary](rocq/report/report.md). The [examples index](../../README.md) is the authority for future artifact format.
+
+| Stage | Frozen input and outputs | Report and observed costs |
 | --- | --- | --- |
-| Prepare | `prepare/handoff.json`, `prepare/source/sum3.c` | Entry and target fixed; source-level closure has no callees. |
-| CBMC | `prepare/handoff.json` → `cbmc/handoff.json` | Traditional CBMC: 10 checks passed. Concrete output-bit assertion covers one input; the safety call has arbitrary binary32 arguments. |
-| Align | `cbmc/handoff.json` → `align/handoff.json` | CompCert model generated and source audit passed; CBMC property mappings have explicit gaps. |
-| Rocq | `align/handoff.json` → `rocq/handoff.json` | Sol medium proved no-error, all-successor termination and Csem returned-value bits. Complete harness recheck remains pending. |
+| prepare | [source](prepare/source/sum3.c), [bindings](prepare/source/bindings.json), [handoff](prepare/handoff.json) | [report](prepare/report/report.md), [costs](prepare/report/costs.json) |
+| cbmc | [original harness](cbmc/harness.c), [actual ten properties](cbmc/properties.json), [handoff](cbmc/handoff.json) | [report](cbmc/report/report.md), [costs](cbmc/report/costs.json) |
+| align | [original Source.v](align/model/Source.v), [Execution.v](align/model/Execution.v), [manifest](align/model/compcert-manifest.json), [mapping](align/spec-map.json), [handoff](align/handoff.json) | [report](align/report/report.md), [costs](align/report/costs.json) |
+| rocq | [problem/attempt index](rocq/report/report.md), [canonical recheck](rocq/spec-recheck.json), [handoff](rocq/handoff.json) | [report](rocq/report/report.md), [costs](rocq/report/costs.json) |
 
-Stage cost reports record observed figures with their measurement scope. Raw run evidence remains available for audit. Run `source scripts/env.sh && python3 examples/models/sum3/rocq/check.py` to rebuild and independently check the Rocq specifications. No end-to-end verification claim is made while the pending obligations remain.
+The current recheck is [attempt 002](rocq/cbmc_recheck/attempts/002/report.md). [Attempt 001](rocq/cbmc_recheck/attempts/001/report.md) is preserved as incomplete historical evidence. All problems use problem/Spec.v as the question and numbered attempts/Proof.v as the solution; support modules are auxiliary lemmas.
 
-## Authoritative case format
-
-This case is the FIVE reference for four-stage handoffs and proof reporting. Rocq organizes `no_error`, `termination`, and `cbmc_recheck` as named problems. Each `problem/` holds its specification and report. Each numbered `attempts/` entry records the proof, actual outcome, model configuration, input hashes, evidence, and observed costs or a reference to the shared stage run. Each problem has a Sol medium attempt and its own runtime/configuration evidence and measured costs. Cross-model obligations use the same `problem/` and `attempts/` structure in `relations/<name>/`.
+Run `source scripts/env.sh && python3 scripts/check-example-artifacts.py` from repository root for current metadata, provenance hashes and canonical receipt checks. Add `--compile` to rebuild active attempts. Internal CBMC object guards are mapped explicitly to CompCert block separation; no C order between unrelated pointers is asserted.

@@ -1,0 +1,53 @@
+File "./_build/sum3-recheck-002/proof/Proof.v", line 108, characters 24-27:
+Error: Cannot infer the type of ofs in
+environment:
+m : mem
+a, b0, c : float32
+mA : Mem.mem'
+ba : block
+AA : Mem.alloc m 0 4 = (mA, ba)
+mB : Mem.mem'
+bb : block
+AB : Mem.alloc mA 0 4 = (mB, bb)
+ma : Mem.mem'
+bc : block
+AC : Mem.alloc mB 0 4 = (ma, bc)
+e := frame_env ba bb bc : env
+EA : (frame_env ba bb bc) ! _a = Some (ba, tfloat)
+EB : (frame_env ba bb bc) ! _b = Some (bb, tfloat)
+EC : (frame_env ba bb bc) ! _c = Some (bc, tfloat)
+ALLOC :
+  alloc_variables sum3_ge empty_env m
+    (fn_params sum3_function ++ fn_vars sum3_function) e ma
+DAB : ba <> bb
+DAC : ba <> bc
+DBC : bb <> bc
+WA : Mem.valid_access ma Mfloat32 ba 0 Freeable
+WB : Mem.valid_access ma Mfloat32 bb 0 Freeable
+WC : Mem.valid_access ma Mfloat32 bc 0 Freeable
+WAW : Mem.valid_access ma Mfloat32 ba 0 Writable
+m1 : mem
+SA : Mem.store Mfloat32 ma ba 0 (Vsingle a) = Some m1
+WBW : Mem.valid_access m1 Mfloat32 bb 0 Writable
+m2 : mem
+SB : Mem.store Mfloat32 m1 bb 0 (Vsingle b0) = Some m2
+WCW : Mem.valid_access m2 Mfloat32 bc 0 Writable
+m0 : mem
+SC : Mem.store Mfloat32 m2 bc 0 (Vsingle c) = Some m0
+BIND :
+  bind_parameters sum3_ge e ma (fn_params sum3_function)
+    [Vsingle a; Vsingle b0; Vsingle c] m0
+LA : Mem.load Mfloat32 m0 ba 0 = Some (Vsingle a)
+LB : Mem.load Mfloat32 m0 bb 0 = Some (Vsingle b0)
+LC : Mem.load Mfloat32 m0 bc 0 = Some (Vsingle c)
+BODY :
+  stmt_eval sum3_ge e tfloat (fn_body sum3_function) m0 =
+  Some (Nreturn (Vsingle (Float32.add (Float32.add a b0) c)), m0)
+KEEP :
+  forall (chunk : memory_chunk) (bx : block) (ofs : Z) (p : permission),
+  Mem.valid_access ma chunk bx ofs p -> Mem.valid_access m0 chunk bx ofs p
+mf : mem
+FREE :
+  Mem.free_list m0 (blocks_of_env sum3_ge (frame_env ba bb bc)) = Some mf
+b : block
+
