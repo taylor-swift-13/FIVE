@@ -107,15 +107,6 @@ class Validator:
             for ref in refs:
                 self.file(reference(ref))
 
-    @staticmethod
-    def independent(command):
-        argv = command.get('argv', [])
-        if not argv or command.get('exit_code') != 0:
-            return False
-        tool = Path(argv[0]).name
-        return ((tool == 'rocq' and argv[1:2] == ['check']) or tool == 'coqchk') and not any(
-            word in ('-admit', '-norec', '--help', '-help') for word in argv)
-
     def proof_problem(self, problem):
         problem = Path(problem)
         self.links(problem / 'report.md')
@@ -135,26 +126,24 @@ class Validator:
         if not active.is_dir():
             return
         self.active.append(active)
+        if status.get('status') not in ('proved', 'refuted'):
+            try:
+                from example_proof_gate import input_index
+                input_index(self.root, active)
+            except Exception as exc:
+                self.errors.append(f'active input index failed: {active}: {exc}')
         closed = status.get('status') in ('proved', 'refuted')
         report = (active / 'report.md').read_text() if (active / 'report.md').is_file() else ''
         self.require(closed or not re.search(r'\bCOMPLETE\b', report), f'false COMPLETE for open problem: {problem}')
         if closed:
-            receipts = []
-            for receipt in (active / 'evidence').rglob('*.json'):
-                try:
-                    data = json.loads(receipt.read_text())
-                except (OSError, ValueError):
-                    continue
-                if isinstance(data, dict) and any(self.independent(c) for c in data.get('commands', [])):
-                    receipts.append(receipt)
-            self.require(bool(receipts), f'missing successful independent kernel receipt: {active}')
+            try:
+                from example_proof_gate import validate_current
+                validate_current(self.root, problem.resolve(), active, status)
+            except Exception as exc:
+                self.errors.append(f'current proof receipt failed: {problem}: {exc}')
             proof = (active / 'Proof.v').read_text() if (active / 'Proof.v').is_file() else ''
             proof = re.sub(r'\(\*.*?\*\)', '', proof, flags=re.S)
             self.require(not re.search(r'\b(?:Admitted|admit|Axiom|Axioms)\b', proof), f'unproved active proof: {active}')
-        # All active input indexes with repository-relative bindings are fresh.
-        for name in ('inputs.json',):
-            if (active / name).is_file():
-                self.bound(self.root, self.read(active / name).get('inputs', []))
 
     def case(self, case):
         for stage in ('prepare', 'cbmc', 'align', 'rocq'):
