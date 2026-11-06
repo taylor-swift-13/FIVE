@@ -1,0 +1,73 @@
+#define VECT2_COPY(_a, _b) {      \
+    (_a).x = (_b).x;        \
+    (_a).y = (_b).y;        \
+  }
+
+/* a += b */
+#define VECT2_ADD(_a, _b) {     \
+    (_a).x += (_b).x;       \
+    (_a).y += (_b).y;       \
+  }
+
+/* a -= b */
+#define VECT2_SUB(_a, _b) {     \
+    (_a).x -= (_b).x;       \
+    (_a).y -= (_b).y;       \
+  }
+
+/* c = a + b */
+#define VECT2_SUM(_c, _a, _b) {     \
+    (_c).x = (_a).x + (_b).x;     \
+    (_c).y = (_a).y + (_b).y;     \
+  }
+
+/* c = a - b */
+#define VECT2_DIFF(_c, _a, _b) {                \
+    (_c).x = (_a).x - (_b).x;     \
+    (_c).y = (_a).y - (_b).y;     \
+  }
+
+/* _vo = _vi * _s */
+#define VECT2_SMUL(_vo, _vi, _s) {    \
+    (_vo).x =  (_vi).x * (_s);      \
+    (_vo).y =  (_vi).y * (_s);      \
+  }
+
+/* _vo =  _vi / _s */
+#define VECT2_SDIV(_vo, _vi, _s) {    \
+    (_vo).x =  (_vi).x / (_s);      \
+    (_vo).y =  (_vi).y / (_s);      \
+  }
+
+/* _v = Bound(_v, _min, _max) */
+#define VECT2_STRIM(_v, _min, _max) {         \
+    (_v).x = (_v).x < _min ? _min : (_v).x > _max ? _max : (_v).x;  \
+    (_v).y = (_v).y < _min ? _min : (_v).y > _max ? _max : (_v).y;  \
+  }
+
+/* _vo=v1*v2 */
+#define VECT2_DOT_PRODUCT(_v1, _v2) ((_v1).x*(_v2).x + (_v1).y*(_v2).y)
+
+#define VECT2_NORM2(_v) ((_v).x*(_v).x + (_v).y*(_v).y)
+
+/*
+ * Dimension 3 vectors
+ */
+132:#define Min(x,y) (x < y ? x : y)
+141:#define BoundUpper(_x, _max) { if (_x > (_max)) _x = (_max);}
+144:#define Bound(_x, _min, _max) { if (!(_x > (_min))) _x = (_min); else if (!(_x < (_max))) _x = (_max); }
+146:#define BoundInverted(_x, _min, _max) {           \
+154:#define BoundWrapped(_x, _min, _max) {            \
+160:#define BoundAbs(_x, _max) Bound(_x, -(_max), (_max))
+6981fe7b8674ea60485dfb261a489e3c73001fb14ff657ba010ca5d88b57fec4  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h.c
+a6a8ded5de94f6dd9f05b48eea812e717d82882c7beb04af36ad50ec18efc68f  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h.h
+f23962ec946f6dd6d6cd3a01ea05fbf6a3736b294c6a05245ed8928eb8578eaa  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.c
+de949544a34ed5a688534329d040e1b7c747c07de1971c38ea47b93b62187448  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h
+0a4db4b351657bd67661495f3dd1c2b258061457745d56b78cd5d758f7387397  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.c
+d8654a071ceec9a4ff91b19cbdd73afc2e6d26831093f3327f8302f24c8cf683  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.h
+c6e22322ede63329b67f77a26ceaaf898fa31e70f9074d9166e8c4a3473a2ba0  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.c
+f686e279fafa89cc59602d27cf6b0013fec2ab87fe2a58d6d75a43c2763b647b  _build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.h
+f2d2b6e61304f2d43994650a0bc3d4e8480506e926739919a015a8c61eac62f0  _build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h
+e6a55f16e8d25c81ea33885995284b31ba7b3a57e2296dc5da8a53f09c3dd9a0  _build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h
+1c45e4b375367a80d0d77027b3344ccfad8ff48f4e82072beab03f66dd3abe3b  _build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h
+e7aa895800db84129ee354b4d82eb02ae95f279b99d1a52b783038e19beaf2a3  _build/paparazzi/upstream/sw/include/std.h

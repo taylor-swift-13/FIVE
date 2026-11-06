@@ -1,0 +1,9 @@
+# Parameter setter order: exact final named state
+
+Question: from two independent initialized writable GuidanceHRef objects representing the same complete logical state s, run the actual generated CompCert entry wrappers gh_set_omega(o); gh_set_zeta(z) and gh_set_zeta(z); gh_set_omega(o). Prove that both sequences complete normally and every pair of actual normal executions has the same fourteen named-field bits, including unchanged acceleration, speed, position, tau, max_speed, inv_tau and dt.
+
+The canonical propositions in Spec.v are NormalCompletion, AllFinalStateFormula, AllFinalNamedBits and SatisfiableInitial. All float32 o,z and all old named floating fields are quantified, including NaNs, infinities and signed zero. Preconditions require fourteen typed Mem.load observations and Cur Writable permissions for the full64-byte object, plus both actual global-symbol lookups. No conclusion or numerical finite-domain restriction occurs in the precondition.
+
+Both models retain the original complete struct and exact pinned source bodies/macro. Separate Csem.globalenv values name the same shared object block within each sequence; independent route memories need only represent the same logical s. Parameters/local allocation identities, padding bytes, histories, chronological return sequences and floating exception flags are excluded observations. This does not prove future guidance-update traces or GCC/hardware equivalence.
+
+O and Z are the actual source Bound comparisons with binary32 constants. Final omega=O, zeta=Z, omega_2=Float32.mul O O and zeta_omega=Float32.mul Z O, preserving the original multiplication operand order. The pure state commutation lemma is auxiliary; closure requires actual Csem entry correctness and concrete return existence, plus independent kernel receipts and exact goal certification.

@@ -1,0 +1,37 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  a, r : expr
+  b : block
+  offset : Z
+  f : float32
+  mf : mem
+  TA : typeof a = tfloat
+  TR : typeof r = tfloat
+  LOC : pure_lval ge e m a = Some (b, Ptrofs.repr offset, Full)
+  RV : pure_rval ge e m r = Some (Vsingle f)
+  LO : 0 <= offset
+  HI : offset + 4 <= Ptrofs.modulus
+  ST : Mem.store Mfloat32 m b offset (Vsingle f) = Some mf
+  D :
+    do_assign_loc ge quiet_world tfloat m b (Ptrofs.repr offset) Full
+      (Vsingle f) =
+    Some (quiet_world, E0, mf, Vsingle f)
+  ============================
+  match
+    match sem_cast (Vsingle f) tfloat tfloat m with
+    | Some v =>
+        match
+          do_assign_loc ge quiet_world tfloat m b (Ptrofs.repr offset) Full v
+        with
+        | Some (_, _, m', v') => Some (v', m')
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some (_, m') => Some (Nnormal, m')
+  | None => None
+  end = Some (Nnormal, mf)

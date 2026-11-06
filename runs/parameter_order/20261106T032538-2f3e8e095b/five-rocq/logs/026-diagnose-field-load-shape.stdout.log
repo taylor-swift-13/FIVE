@@ -1,0 +1,36 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  a : expr
+  b : block
+  offset : Z
+  f : float32
+  TY : typeof a = tfloat
+  LOC : pure_lval ge e m a = Some (b, Ptrofs.repr offset, Full)
+  LO : 0 <= offset
+  HI : offset + 4 <= Ptrofs.modulus
+  LD : Mem.load Mfloat32 m b offset = Some (Vsingle f)
+  ============================
+  match
+    match access_mode tfloat with
+    | By_value chunk =>
+        if type_is_volatile tfloat
+        then do_volatile_load ge quiet_world chunk m b (Ptrofs.repr offset)
+        else
+         match
+           (if zle (offset + size_chunk chunk) Ptrofs.modulus
+            then Mem.load chunk m b offset
+            else None)
+         with
+         | Some v => Some (quiet_world, E0, v)
+         | None => None
+         end
+    | By_nothing => None
+    | _ => Some (quiet_world, E0, Vptr b (Ptrofs.repr offset))
+    end
+  with
+  | Some (_, _, v) => Some v
+  | None => None
+  end = Some (Vsingle f)

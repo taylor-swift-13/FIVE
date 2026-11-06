@@ -1,0 +1,24 @@
+1 goal
+  
+  ge : genv
+  f : function
+  a : expr
+  s, s0 : statement
+  k : cont
+  e : env
+  m : mem
+  t : trace
+  S' : Csem.state
+  HF : f = omega_function
+  CORE : core_expr a = true
+  CK : core_expr_cont (Kifthenelse s s0 k) = true
+  CORE0 : simple a = true
+  CORE4 : normal_stmt s = true
+  CORE3 : normal_stmt s0 = true
+  CORE1 : normal_cont k = true
+  STEP : Csem.estep ge (ExprState f a (Kifthenelse s s0 k) e m) t S'
+  ============================
+  normal_state S' = true /\
+  (forall result : val * mem,
+   state_eval ge S' = Some result ->
+   state_eval ge (ExprState f a (Kifthenelse s s0 k) e m) = Some result)

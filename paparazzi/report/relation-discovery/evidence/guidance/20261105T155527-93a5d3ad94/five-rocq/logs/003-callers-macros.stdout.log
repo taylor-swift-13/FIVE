@@ -1,0 +1,252 @@
+   240	  }
+   241	
+   242	}
+   243	
+   244	struct StabilizationSetpoint guidance_h_run(bool in_flight)
+   245	{
+   246	  struct StabilizationSetpoint sp;
+   247	  STAB_SP_SET_EULERS_ZERO(sp);
+   248	
+   249	  switch (guidance_h.mode) {
+   250	
+   251	    case GUIDANCE_H_MODE_HOVER:
+   252	      /* set psi command from RC */
+   253	      guidance_h.sp.heading = guidance_h.rc_sp.heading;
+   254	      /* fall trough to GUIDED to update ref, run traj and set final attitude setpoint */
+   255	
+   256	      /* Falls through. */
+   257	    case GUIDANCE_H_MODE_GUIDED:
+   258	      sp = guidance_h_guided_run(in_flight);
+   259	      break;
+   260	
+   261	    case GUIDANCE_H_MODE_NAV:
+   262	      sp = guidance_h_from_nav(in_flight);
+   263	      break;
+   264	
+   265	    default:
+   266	      break;
+   267	  }
+   268	
+   269	  return sp;
+   270	}
+   271	
+   272	
+   273	static void guidance_h_update_reference(void)
+   274	{
+   275	  /* compute reference even if usage temporarily disabled via guidance_h_use_ref */
+   276	#if GUIDANCE_H_USE_REF
+   277	  if (guidance_h.sp.h_mask == GUIDANCE_H_SP_ALL) {
+   278	    struct FloatVect2 sp_accel;
+   279	    sp_accel.x = ACCEL_FLOAT_OF_BFP(guidance_h.sp.accel.x);
+   280	    sp_accel.y = ACCEL_FLOAT_OF_BFP(guidance_h.sp.accel.y);
+   281	    struct FloatVect2 sp_speed;
+   282	    sp_speed.x = SPEED_FLOAT_OF_BFP(guidance_h.sp.speed.x);
+   283	    sp_speed.y = SPEED_FLOAT_OF_BFP(guidance_h.sp.speed.y);
+   284	    gh_set_ref(guidance_h.sp.pos, sp_speed, sp_accel);
+   285	  }
+   286	  else if (guidance_h.sp.h_mask == GUIDANCE_H_SP_ACCEL) {
+   287	    struct FloatVect2 sp_accel_local;
+   288	    sp_accel_local.x = ACCEL_FLOAT_OF_BFP(guidance_h.sp.accel.x);
+   289	    sp_accel_local.y = ACCEL_FLOAT_OF_BFP(guidance_h.sp.accel.y);
+   290	    gh_update_ref_from_accel_sp(sp_accel_local);
+   291	  }
+   292	  else if (guidance_h.sp.h_mask == GUIDANCE_H_SP_SPEED) {
+   293	    struct FloatVect2 sp_speed;
+   294	    sp_speed.x = SPEED_FLOAT_OF_BFP(guidance_h.sp.speed.x);
+   295	    sp_speed.y = SPEED_FLOAT_OF_BFP(guidance_h.sp.speed.y);
+   296	    gh_update_ref_from_speed_sp(sp_speed);
+   297	  } else {
+   298	    gh_update_ref_from_pos_sp(guidance_h.sp.pos);
+   299	  }
+   300	#endif
+   301	
+   302	  /* either use the reference or simply copy the pos setpoint */
+   303	  if (guidance_h.use_ref) {
+   304	    /* convert our reference to generic representation */
+   305	    INT32_VECT2_RSHIFT(guidance_h.ref.pos, gh_ref.pos, (GH_POS_REF_FRAC - INT32_POS_FRAC));
+   306	    guidance_h.ref.speed.x = SPEED_BFP_OF_REAL(gh_ref.speed.x);
+   307	    guidance_h.ref.speed.y = SPEED_BFP_OF_REAL(gh_ref.speed.y);
+   308	    guidance_h.ref.accel.x = ACCEL_BFP_OF_REAL(gh_ref.accel.x);
+   309	    guidance_h.ref.accel.y = ACCEL_BFP_OF_REAL(gh_ref.accel.y);
+   310	  } else {
+   311	    if (guidance_h.mode == GUIDANCE_H_MODE_NAV) {
+   312	      switch (nav.setpoint_mode) {
+   313	        case NAV_SETPOINT_MODE_SPEED:
+   314	          guidance_h.ref.pos.x = stateGetPositionNed_i()->x;
+   315	          guidance_h.ref.pos.y = stateGetPositionNed_i()->y;
+   316	          guidance_h.ref.speed.x = guidance_h.sp.speed.x;
+   317	          guidance_h.ref.speed.y = guidance_h.sp.speed.y;
+   318	          guidance_h.ref.accel.x = 0;
+   319	          guidance_h.ref.accel.y = 0;
+   320	          break;
+   321	
+   322	        case NAV_SETPOINT_MODE_ACCEL:
+   323	          guidance_h.ref.pos.x = stateGetPositionNed_i()->x;
+   324	          guidance_h.ref.pos.y = stateGetPositionNed_i()->y;
+   325	          guidance_h.ref.speed.x = stateGetSpeedNed_i()->x;
+   326	          guidance_h.ref.speed.y = stateGetSpeedNed_i()->y;
+   327	          guidance_h.ref.accel.x = guidance_h.sp.accel.x;
+   328	          guidance_h.ref.accel.y = guidance_h.sp.accel.y;
+   329	          break;
+   330	
+   331	        case NAV_SETPOINT_MODE_POS:
+   332	        default: // Fallback is guidance by pos
+   333	          VECT2_COPY(guidance_h.ref.pos, guidance_h.sp.pos);
+   334	          INT_VECT2_ZERO(guidance_h.ref.speed);
+   335	          INT_VECT2_ZERO(guidance_h.ref.accel);
+   280	  guidance_v.zdd_sp = 0;
+   281	}
+   282	
+   283	void guidance_v_set_ref(int32_t pos, int32_t speed, int32_t accel)
+   284	{
+   285	  gv_set_ref(pos, speed, accel);
+   286	  guidance_v.z_ref = pos;
+   287	  guidance_v.zd_ref = speed;
+   288	  guidance_v.zdd_ref = accel;
+   289	}
+   290	
+   291	
+   292	void guidance_v_update_ref(void)
+   293	{
+   294	  /* convert our reference to generic representation */
+   295	  int64_t tmp  = gv_z_ref >> (GV_Z_REF_FRAC - INT32_POS_FRAC);
+   296	  guidance_v.z_ref = (int32_t)tmp;
+   297	  guidance_v.zd_ref = gv_zd_ref << (INT32_SPEED_FRAC - GV_ZD_REF_FRAC);
+   298	  guidance_v.zdd_ref = gv_zdd_ref << (INT32_ACCEL_FRAC - GV_ZDD_REF_FRAC);
+   299	  /* set flag to indicate that desired zd was updated */
+   300	  desired_zd_updated = true;
+   301	}
+   302	
+   303	struct ThrustSetpoint guidance_v_from_nav(bool in_flight)
+   304	{
+   305	  struct ThrustSetpoint sp;
+   306	  THRUST_SP_SET_ZERO(sp);
+   307	  if (nav.vertical_mode == NAV_VERTICAL_MODE_ALT) {
+   308	    guidance_v.z_sp = -POS_BFP_OF_REAL(nav.nav_altitude);
+   309	    guidance_v.zd_sp = 0;
+   310	    guidance_v.zdd_sp = 0;
+   311	    gv_update_ref_from_z_sp(guidance_v.z_sp);
+   312	    guidance_v_update_ref();
+   313	    sp = guidance_v_run_pos(in_flight, &guidance_v);
+   314	  } else if (nav.vertical_mode == NAV_VERTICAL_MODE_CLIMB) {
+   315	    guidance_v.z_sp = stateGetPositionNed_i()->z;
+   316	    guidance_v.zd_sp = -SPEED_BFP_OF_REAL(nav.climb);
+   317	    guidance_v.zdd_sp = 0;
+   318	    gv_update_ref_from_zd_sp(guidance_v.zd_sp, stateGetPositionNed_i()->z);
+   319	    guidance_v_update_ref();
+   320	    sp = guidance_v_run_speed(in_flight, &guidance_v);
+   321	  } else if (nav.vertical_mode == NAV_VERTICAL_MODE_MANUAL) {
+   322	    guidance_v.z_sp = stateGetPositionNed_i()->z;
+   323	    guidance_v.zd_sp = stateGetSpeedNed_i()->z;
+   324	    guidance_v.zdd_sp = 0;
+   325	    GuidanceVSetRef(guidance_v.z_sp, guidance_v.zd_sp, 0);
+   326	    guidance_v_run_enter();
+   327	    sp = th_sp_from_thrust_i((int32_t)nav.throttle, THRUST_AXIS_Z);
+   328	  } else if (nav.vertical_mode == NAV_VERTICAL_MODE_GUIDED) {
+   329	    sp = guidance_v_guided_run(in_flight);
+   330	  }
+   331	  return sp;
+   332	}
+   333	
+   334	void guidance_v_guided_enter(void)
+   335	{
+   336	  /* set current altitude as setpoint */
+   337	  guidance_v_set_z(stateGetPositionNed_f()->z);
+   338	
+   339	  /* reset guidance reference */
+   340	  guidance_v_run_enter();
+   341	  GuidanceVSetRef(stateGetPositionNed_i()->z, stateGetSpeedNed_i()->z, 0);
+   342	}
+   343	
+   344	struct ThrustSetpoint guidance_v_guided_run(bool in_flight)
+   345	{
+   346	  struct ThrustSetpoint sp;
+   347	  THRUST_SP_SET_ZERO(sp);
+   348	  switch(guidance_v_guided_mode)
+   349	  {
+   350	    case GUIDANCE_V_GUIDED_MODE_ZHOLD:
+   351	      // Altitude Hold
+   352	      guidance_v.zd_sp = 0;
+   353	      gv_update_ref_from_z_sp(guidance_v.z_sp);
+   354	      guidance_v_update_ref();
+   355	      sp = guidance_v_run_pos(in_flight, &guidance_v);
+   356	      break;
+   357	    case GUIDANCE_V_GUIDED_MODE_CLIMB:
+   358	      // Climb
+   359	      gv_update_ref_from_zd_sp(guidance_v.zd_sp, stateGetPositionNed_i()->z);
+   360	      guidance_v_update_ref();
+   361	      sp = guidance_v_run_speed(in_flight, &guidance_v);
+   362	      break;
+   363	    case GUIDANCE_V_GUIDED_MODE_THROTTLE:
+   364	      // Throttle
+   365	      guidance_v.z_sp = stateGetPositionNed_i()->z; // for display only
+   366	      sp = th_sp_from_thrust_i(guidance_v.th_sp, THRUST_AXIS_Z);
+   367	      break;
+   368	    case GUIDANCE_V_GUIDED_MODE_ALL:
+   369	      // update full reference
+   370	      guidance_v_set_ref(guidance_v.z_sp, guidance_v.zd_sp, guidance_v.zdd_sp);
+    28	#ifndef GUIDANCE_V_REF_H
+    29	#define GUIDANCE_V_REF_H
+    30	
+    31	#include "inttypes.h"
+    32	#include "math/pprz_algebra.h"
+    33	#include "math/pprz_algebra_int.h"
+    34	#include "generated/airframe.h"
+    35	
+    36	#ifndef GUIDANCE_V_REF_MIN_ZD
+    37	#define GUIDANCE_V_REF_MIN_ZD (-3.)
+    38	#endif
+    39	
+    40	#ifndef GUIDANCE_V_REF_MAX_ZD
+    41	#define GUIDANCE_V_REF_MAX_ZD ( 3.)
+    42	#endif
+    43	
+    44	
+    45	/** Update frequency
+    46	 */
+    47	#define GV_FREQ_FRAC 9
+    48	#define GV_FREQ (1<<GV_FREQ_FRAC)
+    49	
+    50	/** reference model vertical accel in meters/s^2 (output)
+    51	 *  fixed point representation with #GV_ZDD_REF_FRAC
+    52	 *  Q23.8 : accuracy 0.0039 , range 8388km/s^2
+    53	 */
+    54	extern int32_t gv_zdd_ref;
+    55	
+    56	/** number of bits for the fractional part of #gv_zdd_ref */
+    57	#define GV_ZDD_REF_FRAC 8
+    58	
+    59	/** reference model vertical speed in meters/sec (output)
+    60	 *  fixed point representation with #GV_ZD_REF_FRAC
+    61	 *  Q14.17 : accuracy 0.0000076 , range 16384m/s2
+    62	 */
+    63	extern int32_t gv_zd_ref;
+    64	
+    65	/** number of bits for the fractional part of #gv_zd_ref */
+    66	#define GV_ZD_REF_FRAC (GV_ZDD_REF_FRAC + GV_FREQ_FRAC)
+    67	
+    68	/** reference model altitude in meters (output)
+    69	 *  fixed point representation with #GV_Z_REF_FRAC
+    70	 *  Q37.26 :
+    71	 */
+    72	extern int64_t gv_z_ref;
+    73	
+    74	/** number of bits for the fractional part of #gv_z_ref */
+    75	#define GV_Z_REF_FRAC (GV_ZD_REF_FRAC + GV_FREQ_FRAC)
+    76	
+    77	extern void gv_set_ref(int32_t alt, int32_t speed, int32_t accel);
+    78	extern void gv_update_ref_from_z_sp(int32_t z_sp);
+    79	
+    80	/** update vertical reference from speed setpoint.
+    81	 * @param zd_sp  vertical speed setpoint with INT32_SPEED_FRAC
+    82	 * @param z_pos  current vertical position (z-down) with INT32_POS_FRAC
+    83	 */
+    84	extern void gv_update_ref_from_zd_sp(int32_t zd_sp, int32_t z_pos);
+    85	
+    86	#endif /* GUIDANCE_V_REF_H */
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h:74:#define VECT2_ADD(_a, _b) {     \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h:92:#define VECT2_DIFF(_c, _a, _b) {                \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h:98:#define VECT2_SMUL(_vo, _vi, _s) {    \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h:118:#define VECT2_NORM2(_v) ((_v).x*(_v).x + (_v).y*(_v).y)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:205:#define LBFP_OF_REAL(_vr, _frac)   ((_vr)*(1LL<<(_frac)))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:218:#define POS_FLOAT_OF_BFP(_ai)   FLOAT_OF_BFP((_ai), INT32_POS_FRAC)

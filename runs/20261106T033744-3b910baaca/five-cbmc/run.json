@@ -1,0 +1,336 @@
+{
+  "schema": "five-run/1.0",
+  "run_id": "20261106T033744-3b910baaca",
+  "skill": "five-cbmc",
+  "parent": null,
+  "started_at": "2026-11-06T03:37:44.415263+00:00",
+  "start_epoch": 1793936264.4152799,
+  "invocation_kind": "skill-session",
+  "status": "passed",
+  "timing_scope": "From start to finish of this invocation; not retroactive authoring time",
+  "children": [],
+  "environment": {
+    "os": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "python": "3.10.12",
+    "cwd": "/home/yangfp/five",
+    "measurement": "GNU time + /proc RSS sampling",
+    "tools": {
+      "cbmc": {
+        "path": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "binary_sha256": "01ae2ae74a9dc5673631e42256f780393081650f4a22d6f4220566c0deb1643a"
+      }
+    },
+    "environment_policy": "No full environment dump; secrets excluded"
+  },
+  "scope": {
+    "schema": "five-verification-request/1",
+    "authorization": "User requested complete no-error, all-successor termination, full actual CBMC recheck and cross-entry final named-state bit equality for parameter setter order",
+    "entry": "gh_set_zeta",
+    "implementation": "prepare/source/gh_set_zeta.c",
+    "assumptions": [],
+    "domain": "all binary32 parameter and initialized named state field bitpatterns including NaNs, infinities and signed zeros; valid writable global object, no concurrent writer",
+    "properties": [
+      "automatic CBMC bounds/pointer/overflow/shift checks",
+      "returned parameter bits equal actual Bound result",
+      "written coefficient bits equal source-ordered binary32 multiplication",
+      "all unrelated named fields retain initial bits"
+    ],
+    "bounds": {
+      "loops": "none",
+      "recursion": "none",
+      "unwind": 1
+    },
+    "target": {
+      "semantics": "CompCert Csem/Cexec",
+      "arch": "x86",
+      "bitsize": 64,
+      "system": "linux",
+      "endianness": "little",
+      "float32": "IEEE754 binary32",
+      "rounding": "round-to-nearest-ties-to-even",
+      "nan_policy": "CompCert x86_64 Archi and Floats pinned by generated manifest"
+    },
+    "harness": "cbmc/harness.c",
+    "memory_observation": "named scalar fields by binary32/int64 bits, little endian, padding excluded; exact write offsets and frame in Rocq"
+  },
+  "tokens": {
+    "status": "available",
+    "source": {
+      "kind": "codex-session-event",
+      "reference": "/mnt/c/Users/50635/.codex/sessions/2026/11/06/rollout-2026-11-06T11-25-14-01a1aee3-9bb2-7df0-b2cc-6b7480b07910.jsonl",
+      "thread_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910"
+    },
+    "complete": true,
+    "scope": "explicit event-boundary interval",
+    "boundaries": {
+      "after_event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:2b34c2d7bf3a1d5c999c58a3",
+      "before_event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:1b850dec3158259722350c4f"
+    },
+    "events": [
+      {
+        "event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:e499d7b331ed2e0f09db5a31",
+        "timestamp": "2026-11-06T03:37:44.763Z",
+        "source_line": 305,
+        "input_tokens": 80295,
+        "output_tokens": 269,
+        "cached_input_tokens": 80128,
+        "reasoning_output_tokens": 45
+      },
+      {
+        "event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:78d6890eb9f11c00f7d3f9a1",
+        "timestamp": "2026-11-06T03:38:26.193Z",
+        "source_line": 311,
+        "input_tokens": 82040,
+        "output_tokens": 316,
+        "cached_input_tokens": 80384,
+        "reasoning_output_tokens": 22
+      },
+      {
+        "event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:2b2b36709a7290e7c2ea63e0",
+        "timestamp": "2026-11-06T03:38:47.819Z",
+        "source_line": 318,
+        "input_tokens": 82386,
+        "output_tokens": 742,
+        "cached_input_tokens": 82176,
+        "reasoning_output_tokens": 19
+      },
+      {
+        "event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:1b850dec3158259722350c4f",
+        "timestamp": "2026-11-06T03:38:52.398Z",
+        "source_line": 322,
+        "input_tokens": 83185,
+        "output_tokens": 34,
+        "cached_input_tokens": 82944,
+        "reasoning_output_tokens": 0
+      }
+    ],
+    "notes": [],
+    "totals": {
+      "input_tokens": 327906,
+      "output_tokens": 1361,
+      "cached_input_tokens": 325632,
+      "reasoning_output_tokens": 86
+    },
+    "total_tokens": 329267
+  },
+  "commands": [
+    {
+      "id": "001-cbmc-z3-bv",
+      "argv": [
+        "cbmc",
+        "paparazzi/models/gh_set_zeta/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--unsigned-overflow-check",
+        "--conversion-check",
+        "--undefined-shift-check",
+        "--unwind",
+        "1",
+        "--unwinding-assertions",
+        "--z3",
+        "--json-ui"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-06T03:38:52.703166+00:00",
+      "finished_at": "2026-11-06T03:38:52.918608+00:00",
+      "wall_seconds": 0.2152610140037723,
+      "timeout_seconds": 60.0,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 45232,
+        "user_seconds": 0.14,
+        "system_seconds": 0.02,
+        "elapsed_seconds": 0.18,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 60596224,
+      "rss_sample_count": 17,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.01284956801100634,
+      "rss_sampling_errors": [],
+      "stdout": "logs/001-cbmc-z3-bv.stdout.log",
+      "stderr": "logs/001-cbmc-z3-bv.stderr.log",
+      "time_log": "logs/001-cbmc-z3-bv.time.log"
+    }
+  ],
+  "inputs": [
+    {
+      "role": "input-0",
+      "source": "/home/yangfp/five/paparazzi/models/gh_set_zeta/prepare/handoff.json",
+      "path": "inputs/input-0--handoff.json",
+      "sha256": "f0330c5708d3a4e96badf172483a31837320fe15e598278ff68fef1e21d5372b",
+      "bytes": 1658
+    }
+  ],
+  "codex_usage_boundary": {
+    "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/06/rollout-2026-11-06T11-25-14-01a1aee3-9bb2-7df0-b2cc-6b7480b07910.jsonl",
+    "before": {
+      "thread_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/06/rollout-2026-11-06T11-25-14-01a1aee3-9bb2-7df0-b2cc-6b7480b07910.jsonl",
+      "last_event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:2b34c2d7bf3a1d5c999c58a3",
+      "last_event_timestamp": "2026-11-06T03:37:22.687Z",
+      "observed_event_count": 45,
+      "counters": {
+        "input_tokens": 2841527,
+        "output_tokens": 7461,
+        "cached_input_tokens": 2776960,
+        "reasoning_output_tokens": 818
+      },
+      "notes": []
+    },
+    "after": {
+      "thread_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/06/rollout-2026-11-06T11-25-14-01a1aee3-9bb2-7df0-b2cc-6b7480b07910.jsonl",
+      "last_event_id": "01a1aee3-9bb2-7df0-b2cc-6b7480b07910:1b850dec3158259722350c4f",
+      "last_event_timestamp": "2026-11-06T03:38:52.398Z",
+      "observed_event_count": 49,
+      "counters": {
+        "input_tokens": 3169433,
+        "output_tokens": 8822,
+        "cached_input_tokens": 3102592,
+        "reasoning_output_tokens": 904
+      },
+      "notes": []
+    }
+  },
+  "finished_at": "2026-11-06T03:38:53.061499+00:00",
+  "finish_epoch": 1793936333.0615194,
+  "result": {
+    "verdict": "passed",
+    "summary": "All-three-actual-properties-pass",
+    "outputs": {
+      "harness": {
+        "status": "present",
+        "role": "harness",
+        "source": "/home/yangfp/five/paparazzi/models/gh_set_zeta/cbmc/harness.c",
+        "path": "evidence/harness--harness.c",
+        "sha256": "ccf5454a16779fc66c7be191aa2ff064952d906721f40363be672cdd2a11edfc",
+        "bytes": 1968
+      },
+      "properties": {
+        "status": "present",
+        "role": "properties",
+        "source": "/home/yangfp/five/paparazzi/models/gh_set_zeta/cbmc/properties.json",
+        "path": "evidence/properties--properties.json",
+        "sha256": "e962397628f39b063e06b68e9681fc41b802d2b53c16b0b904619db2fde6d531",
+        "bytes": 2358
+      },
+      "report": {
+        "status": "present",
+        "role": "report",
+        "source": "/home/yangfp/five/paparazzi/models/gh_set_zeta/cbmc/report/report.md",
+        "path": "evidence/report--report.md",
+        "sha256": "73925c4aac9fbe4c2cfa4ad768e581e8bc89688eac73d0e6076b1f5d5e41380d",
+        "bytes": 744
+      }
+    },
+    "verification_scope": {
+      "schema": "five-verification-request/1",
+      "authorization": "User requested complete no-error, all-successor termination, full actual CBMC recheck and cross-entry final named-state bit equality for parameter setter order",
+      "entry": "gh_set_zeta",
+      "implementation": "prepare/source/gh_set_zeta.c",
+      "assumptions": [],
+      "domain": "all binary32 parameter and initialized named state field bitpatterns including NaNs, infinities and signed zeros; valid writable global object, no concurrent writer",
+      "properties": [
+        "automatic CBMC bounds/pointer/overflow/shift checks",
+        "returned parameter bits equal actual Bound result",
+        "written coefficient bits equal source-ordered binary32 multiplication",
+        "all unrelated named fields retain initial bits"
+      ],
+      "bounds": {
+        "loops": "none",
+        "recursion": "none",
+        "unwind": 1
+      },
+      "target": {
+        "semantics": "CompCert Csem/Cexec",
+        "arch": "x86",
+        "bitsize": 64,
+        "system": "linux",
+        "endianness": "little",
+        "float32": "IEEE754 binary32",
+        "rounding": "round-to-nearest-ties-to-even",
+        "nan_policy": "CompCert x86_64 Archi and Floats pinned by generated manifest"
+      },
+      "harness": "cbmc/harness.c",
+      "memory_observation": "named scalar fields by binary32/int64 bits, little endian, padding excluded; exact write offsets and frame in Rocq"
+    },
+    "remaining_obligations": []
+  },
+  "completeness": {
+    "artifacts": "complete",
+    "measurements": "complete",
+    "missing_roles": [],
+    "note": "A passed verifier result does not imply all requested measurements are available."
+  },
+  "cost_audit": {
+    "status": "complete",
+    "run": "/home/yangfp/five/runs/20261106T033744-3b910baaca/five-cbmc",
+    "skill": "five-cbmc",
+    "issues": [],
+    "own_model_tokens_excluding_children": 329267,
+    "inclusive_unique_model_tokens": 329267,
+    "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+  },
+  "artifacts": [
+    {
+      "path": "evidence/harness--harness.c",
+      "bytes": 1968,
+      "sha256": "ccf5454a16779fc66c7be191aa2ff064952d906721f40363be672cdd2a11edfc"
+    },
+    {
+      "path": "evidence/model-usage-receipt--usage.json",
+      "bytes": 1906,
+      "sha256": "bb778f99a7ca5f5ffec068f28f3fbdf08ff861581f09658b6802637e0285a505"
+    },
+    {
+      "path": "evidence/properties--properties.json",
+      "bytes": 2358,
+      "sha256": "e962397628f39b063e06b68e9681fc41b802d2b53c16b0b904619db2fde6d531"
+    },
+    {
+      "path": "evidence/report--report.md",
+      "bytes": 744,
+      "sha256": "73925c4aac9fbe4c2cfa4ad768e581e8bc89688eac73d0e6076b1f5d5e41380d"
+    },
+    {
+      "path": "inputs/input-0--handoff.json",
+      "bytes": 1658,
+      "sha256": "f0330c5708d3a4e96badf172483a31837320fe15e598278ff68fef1e21d5372b"
+    },
+    {
+      "path": "logs/001-cbmc-z3-bv.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/001-cbmc-z3-bv.stdout.log",
+      "bytes": 3547,
+      "sha256": "22dfb506ff9553e9c70b100ee84dc6fcb98f1c93f3c9df28de3ef364848abe4d"
+    },
+    {
+      "path": "logs/001-cbmc-z3-bv.time.log",
+      "bytes": 109,
+      "sha256": "c75628b6427cce6d221f3fe1bd76d0c13f7409398395fc65b8ee5a23b5b193a6"
+    },
+    {
+      "path": "metrics.json",
+      "bytes": 3308,
+      "sha256": "244da448b5a746b2df19f965f7822cdd2b112f221b354517d0dea7931f911b2c"
+    },
+    {
+      "path": "report.md",
+      "bytes": 456,
+      "sha256": "97cbfddd2407ecb62a6e6fbdf0889667ee20e839f56dd456e7354839176f662b"
+    }
+  ]
+}

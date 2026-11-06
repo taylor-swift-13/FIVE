@@ -1,0 +1,69 @@
+File "/home/yangfp/five/paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/checked-007/FiveGhSetOmegaRecheck/Proof.v", line 8, characters 129-140:
+Error: In environment
+x : float32
+m : mem
+Unable to unify "Some (Vint Int.one)" with
+ "match
+    match
+      (if Archi.ptr64 then cast_case_i2i I32 Unsigned else cast_case_pointer)
+    with
+    | cast_case_pointer =>
+        if Archi.ptr64 then None else Some (Vint (Float32.to_bits x))
+    | cast_case_i2i sz2 si2 =>
+        Some (Vint (cast_int_int sz2 si2 (Float32.to_bits x)))
+    | cast_case_i2f si1 =>
+        Some (Vfloat (cast_int_float si1 (Float32.to_bits x)))
+    | cast_case_i2s si1 =>
+        Some (Vsingle (cast_int_single si1 (Float32.to_bits x)))
+    | cast_case_i2l si => Some (Vlong (cast_int_long si (Float32.to_bits x)))
+    | cast_case_i2bool =>
+        Some
+          (Vint
+             (if Int.eq (Float32.to_bits x) Int.zero
+              then Int.zero
+              else Int.one))
+    | cast_case_void => Some (Vint (Float32.to_bits x))
+    | _ => None
+    end
+  with
+  | Some v1' =>
+      match
+        match
+          (if Archi.ptr64
+           then cast_case_i2i I32 Unsigned
+           else cast_case_pointer)
+        with
+        | cast_case_pointer =>
+            if Archi.ptr64 then None else Some (Vint (Float32.to_bits x))
+        | cast_case_i2i sz2 si2 =>
+            Some (Vint (cast_int_int sz2 si2 (Float32.to_bits x)))
+        | cast_case_i2f si1 =>
+            Some (Vfloat (cast_int_float si1 (Float32.to_bits x)))
+        | cast_case_i2s si1 =>
+            Some (Vsingle (cast_int_single si1 (Float32.to_bits x)))
+        | cast_case_i2l si =>
+            Some (Vlong (cast_int_long si (Float32.to_bits x)))
+        | cast_case_i2bool =>
+            Some
+              (Vint
+                 (if Int.eq (Float32.to_bits x) Int.zero
+                  then Int.zero
+                  else Int.one))
+        | cast_case_void => Some (Vint (Float32.to_bits x))
+        | _ => None
+        end
+      with
+      | Some v2' =>
+          match v1' with
+          | Vint n1 =>
+              match v2' with
+              | Vint n2 => Some (Val.of_bool (Int.eq n1 n2))
+              | _ => None
+              end
+          | _ => None
+          end
+      | None => None
+      end
+  | None => None
+  end".
+

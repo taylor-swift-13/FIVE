@@ -1,0 +1,155 @@
+# State and lazy representation relations: discovery only
+
+Source: Paparazzi upstream commit `abfee3dd56eeab12c528635504a429db3daf409a`, `_build/paparazzi/upstream`. No model, proof, CBMC run, numerical experiment, or successful verification is claimed. These are source-grounded candidate specifications. Counts below mean distinct public top-entry functions, excluding a shared `stateInit` fixture and transitive callees. A sequence denotes independent executions from the specified matching initial state; returned structs must be copied at observation time, because the getters return mutable shared-state pointers.
+
+Common conditions: single-threaded execution; no asynchronous producer or writes through returned pointers; valid nonaliasing input objects; identical target floating semantics, compilation options, libm, and configuration; relevant filter accepts the producer ID (`state.h:513`). Finite physically valid origins/coordinates and normalized finite attitude inputs are useful domain restrictions; conversion singularities and nonfinite intermediates must be excluded if making numerical equality meaningful. Bit equality is only a candidate for identical evaluation schedules, never an unrestricted coordinate or attitude roundtrip law. Shared `state` is the observable store, but comparisons below project only named output fields and valid bits, not padding or irrelevant stale fields.
+
+## S1 — relocation invalidates local coordinates while retaining the global position (highest priority)
+
+Four public functions: `stateSetLocalOrigin_i` (`state.h:519`), `stateSetPositionEcef_f` (`:708`), `stateGetPositionNed_f` (`:839`), `stateGetPositionEcef_f` (`:830`).
+
+Top-entry sequences:
+
+- A: `SetLocalOrigin_i(O1); SetPositionEcef_f(P); GetPositionNed_f(); SetLocalOrigin_i(O2); GetPositionNed_f(); GetPositionEcef_f()`.
+- B: `SetLocalOrigin_i(O2); SetPositionEcef_f(P); GetPositionNed_f(); GetPositionEcef_f()`.
+
+Candidate: final NED components in A equal B exactly under the same floating evaluation, final ECEF remains the input P, and the NED_F validity bit is set. This expresses frame relocation with a fixed physical global position and independence from a warmed local cache. Before the final getter, the origin setter must have cleared local coordinate validity; do not require stale numeric NED fields to be cleared.
+
+Grounding: `state.h:523-537` copies the origin, converts all floating origin fields, clears `POS_LOCAL_COORD`, speed local bits and NED acceleration bits, then marks both NED origins initialized. `POS_LOCAL_COORD` (`:81`) contains NED/ENU integer/float bits but not ECEF. `state.c:582-645` selects valid ECEF_F and calls `ned_of_ecef_point_f` at `:593`. The latter (`math/pprz_geodetic_float.c:92`) calls `enu_of_ecef_point_f` (`:85`, subtract origin then matrix product) and swaps/negates ENU to NED. Preconditions include both accepted origin calls and accepted P setter, and no competing position representations remaining valid after the P setter. No claim that moving O changes every NED component, or that a global-to-local-to-global roundtrip is exact.
+
+## S2 — an accepted attitude update removes dependence on old derived attitude caches
+
+Three public functions: `stateSetNedToBodyQuat_f` (`state.h:1261`), `stateGetNedToBodyRMat_f` (`:1308`), `stateGetNedToBodyEulers_f` (`:1314`).
+
+- A: `SetQuat_f(Qold); GetRMat_f(); GetEulers_f(); SetQuat_f(Qnew); GetRMat_f(); GetEulers_f()`.
+- B: `SetQuat_f(Qnew); GetRMat_f(); GetEulers_f()`.
+
+Candidate: final RMat and Euler component values agree between A and B, and the final valid attitude bits agree. This is a producer-update/consumer-query contract across three APIs, ensuring old estimates cannot leak through lazy attitude caches. Accepted new setter is essential; rejected setters intentionally preserve old estimates. The query order is deliberately identical after the new setter.
+
+Grounding: state wrappers delegate to `orientationSetQuat_f` (`math/pprz_orientation_conversion.h:181`) which copies Q and assigns only QUAT_F status. Getters (`:233`, `:242`, `:251`) dispatch only on missing validity. `orientationCalcRMat_f` (`math/pprz_orientation_conversion.c:148-170`) selects `float_rmat_of_quat` (`math/pprz_algebra_float.c:244`), then `orientationCalcEulers_f` (`:173-195`) prefers the newly cached matrix and uses `float_eulers_of_rmat` (`pprz_algebra_float.c:674`). Do not generalize to swapping those two getters: directly asking Euler first uses `float_eulers_of_quat` (`:696`), a different floating computation.
+
+## S3 — a deliberately materialized ECEF bridge agrees with direct LLA-to-NED consumption
+
+Three public functions: `stateSetPositionLla_f` (`state.h:738`), `stateGetPositionEcef_f` (`:830`), `stateGetPositionNed_f` (`:839`). A common initialized NED origin is fixed throughout.
+
+- A: `SetPositionLla_f(L); GetPositionNed_f()`.
+- B: `SetPositionLla_f(L); GetPositionEcef_f(); GetPositionNed_f()`.
+
+Candidate: final NED x/y/z agree exactly for this restricted schedule and finite supported input domain. Intermediate ECEF cache/status differ by design: B has valid ECEF_F, while A's direct helper uses a local temporary and need not set ECEF_F. This is a useful nontrivial observational noninterference law for inserting one representation getter, without demanding whole-state equality.
+
+Grounding: `state.c:599-600` directly calls `ned_of_lla_point_f`. That helper (`math/pprz_geodetic_float.c:119-123`) calls `ecef_of_lla_f` (`:241`) into a temporary and then `ned_of_ecef_point_f` (`:92`). Explicit bridging uses the same ECEF conversion at `state.c:566-567`, followed by the same NED helper at `:592-593`. The LLA setter resets position validity to only LLA_F. Require `ned_initialized_f`, with no intervening integer getter or batch setter that introduces higher-priority representations; UTM-only origin configuration takes another branch. This does not assert LLA/ECEF inverse roundtrip accuracy.
+
+## S4 — explicit quaternion warmup does not alter ZXY attitude output
+
+Three public functions: `stateSetNedToBodyRMat_f` (`state.h:1268`), `stateGetNedToBodyQuat_f` (`:1302`), `stateGetNedToBodyEulersZxy_f` (`:1320`).
+
+- A: `SetRMat_f(R); GetEulersZxy_f()`.
+- B: `SetRMat_f(R); GetQuat_f(); GetEulersZxy_f()`.
+
+Candidate: ZXY output components and final orientation valid bits agree. Preconditions: accepted matrix setter, finite proper rotation matrix, defined conversion domain, no intervening writes/getters. Unlike the unrestricted Euler/RMat order proposal, these schedules take the same conversion chain.
+
+Grounding: `orientationSetRMat_f` (`math/pprz_orientation_conversion.h:189-194`) invalidates everything except RMat_F. `orientationCalcQuat_f` (`.c:123-145`) selects `float_quat_of_rmat` when RMAT_F is valid. `orientationCalcEulersZxy_f` (`.c:198-210`) explicitly materializes QUAT_F if absent and always invokes `float_eulers_of_quat_zxy` (`math/pprz_algebra_float.c:763`). Insertion of the explicit getter only moves that mandatory computation earlier. This is a representation-consumer relation, not equality of ZXY and ZYX angles.
+
+## S5 — ECEF integer producer should isolate float ECEF consumers from stale local history (source flags a likely violation)
+
+Three public functions per speed instance: `stateSetSpeedNed_i` (`state.h:892`), `stateSetSpeedEcef_i` (`:912`), `stateGetSpeedEcef_f` (`:1067`). Acceleration analogue: `stateSetAccelNed_i` (`:1135`), `stateSetAccelEcef_i` (`:1145`), `stateGetAccelEcef_f` (`:1212`). Six public functions for the two-instance family; each candidate separately has three.
+
+- A: `SetSpeedNed_i(N1); SetSpeedEcef_i(E); GetSpeedEcef_f()`.
+- B: `SetSpeedNed_i(N2); SetSpeedEcef_i(E); GetSpeedEcef_f()`.
+- Repeat the analogous three-call sequences for acceleration.
+
+Intended candidate: for any bounded valid N1/N2 and same E, the final ECEF float outputs should match and represent fixed-to-float conversion of E. This is producer provenance/history independence, stronger than a single getter formula. Current source inspection gives reason to expect rejection of the intended relation, so it must not be advertised as an established invariant.
+
+Grounding: ECEF setters copy E and assign only ECEF_I validity, leaving local numeric fields stale. However, `stateCalcSpeedEcef_f` (`state.c:1127`, specifically `:1133-1134`) checks ECEF_I but converts **ned_speed_i** into ecef_speed_f. `stateCalcAccelEcef_f` (`:1315`, specifically `:1322-1323`) analogously converts **ned_accel_i** into ecef_accel_f. Distinct finite N1/N2 with unequal conversions therefore appear capable of affecting the global observation despite identical accepted global updates. This is a source-level issue hypothesis, not an executed counterexample or proof. It makes the coupled relation particularly valuable for later validation. Restrict N/E to conversion-safe bounded values; origin initialization is not required for these ECEF_I branches.
+
+## Other tempting claims to avoid
+
+Attitude getter order is observable through branch priority (`orientationCalcEulers_f:179-184`), so unrestricted cache-order bit invariance is unjustified. Float/integer getter insertion can similarly introduce quantization and higher-priority cache paths. `stateSetLocalOrigin_i` clears local SPEED coordinate bits but does not clear horizontal norm/direction bits (`state.h:532`); therefore do not assume all local-derived speed observations are invalidated by relocation without separately investigating that contract. Invalid-state getters may return stale fields after conversion failure; a nonzero validity flag alone says a representation was supplied/computed, not that the supplied matrix is orthogonal or the supplied quaternion normalized.
+
+## Source fingerprints and accounting boundary
+
+SHA256:
+
+| Path under sw/airborne | SHA256 |
+|---|---|
+| state.c | 585051d825b3b86c92819550fe877c0228df5268a1b9e968dcb5f6442dcb3d65 |
+| state.h | 27b86222dd1c2e8069a6176fed1c2df4cffa7f0e6e09d78bad41c763f5b7a39d |
+| math/pprz_orientation_conversion.c | 2ac756f29fe75f790bcc8c4cca6da8c9d1d2dcca7057ffb4a6d0fe5bd144d0d0 |
+| math/pprz_orientation_conversion.h | c43e1883a10a6b23fdf3c5f409f071cd872f4d4392019f081c4fd67786700829 |
+| math/pprz_geodetic_float.c | 79e39141445dcc4764a1b86ff7242c62999e67223ed4768ee14e62ff8dcd4da2 |
+| math/pprz_algebra_float.c | 68f0476a5cdfef046f71e11eed7146aef2e14d9ed2d2f3a140bd8f5c46b39c00 |
+
+Actor session `01a1ac6b-2f7b-71a1-9ed3-04c21ec7b7b7`, verified `session_meta.source.subagent.thread_spawn.agent_path=/root/relations_state_medium`. Meter began before substantive source reads; initial access/CLI setup excluded. Telemetry uses supported `five-verify` classification solely for discovery accounting, with scope `proof_attempt:false`; the directory is not a verification attempt. Resource metrics cover the wrapped source-survey command, not hosted inference memory or all subsequent shell reads. Token receipt uses the actual actor JSONL and records its model/reasoning events; no inferred token or hosted-memory estimates are substituted. No commits/pushes.
+# Floating filter/controller cross-function relation discovery
+
+Status: discovery only; all propositions below are proposed, unproved questions. No models, CBMC runs, proof attempts, Spec.v files, or stability results were produced. Read the canonical five-rocq skill, shared contract and example index; apply the gold standard to selecting a meaningful question before creating its future problem/attempt artifacts.
+
+Source: `/home/yangfp/five/_build/paparazzi/upstream`, git HEAD `abfee3dd56eeab12c528635504a429db3daf409a`. All file paths below are relative to that source root. Exact source hashes:
+
+- `sw/airborne/filters/pid.h`: `bbb610c5c24e667aaed0ba96682e0fdeb2c3f11e773b09da33d18a2df304ef1b`.
+- `sw/airborne/filters/low_pass_filter.h`: `f2a29f114f47202858d37b9a010c7147d63e95fcce157fcef0888a491830bbcc`.
+- `sw/airborne/filters/low_pass_filter_types.h`: `bea0badb5ffe116db7aaa1d5e1aace6727e733db4a6cabb31f526fe6c8795d5a`.
+
+Notation/common scope: `bits` observes typed float field representations, excluding struct padding. Comparisons are between two executions using one pinned ABI, floating arithmetic/rounding/NaN policy and external math binding; they are not equality claims across host compilers or libm implementations. Fix every binary32 conversion and original expression evaluation order; do not reassociate the recurrence. All pointer objects must be live, initialized, correctly sized/aligned and writable/readable as required, with disjoint frames and no concurrent mutation. For vector/array inputs require no overlap with mutated filter storage. If byte-level conclusions are later wanted, separately state object allocation, endian and memval/frame observation. Finite inputs alone do not imply finite intermediates; a numerical interpretation additionally needs finite reached intermediates and nonzero divisors. These are replay/correspondence relations, not filter stability or real-valued approximation theorems. The finite numerical domain is independently satisfiable (e.g. zero histories and small positive parameters), not the desired conclusion smuggled into a premise.
+
+## 1. Priority A: discrete PID reset/replay and online retuning compatibility
+
+Exact entries in `sw/airborne/filters/pid.h`: `init_pid_df` 174-183; `update_pid_df` 191-199; `get_pid_df` 206-209; `reset_pid_df` 215-222; `set_gains_pid_df` 232-237. State declaration 160-164: history/output `u[2],e[3]`, coefficients `g[3]`.
+
+Actual call graph: these five inline entries do not call one another. The following is a proposed client protocol over the same object, not a source-level call chain.
+
+Question: for any prior defined controller state S and gains `(Kp,Kd,Ki,Ts)`, compare route A `set_gains_pid_df(S,...); reset_pid_df(S)` against route B fresh `init_pid_df(T,...)`. Their observed fields should agree bitwise. For every finite suffix of input values, feed the same suffix to `update_pid_df` on each route and interleave any `get_pid_df` calls; all update returns, getter values and full observed fields should match at every corresponding cycle. Reset and set-gains also commute on observed fields because the writes are disjoint. This yields arbitrary-cycle recovery equivalence from arbitrary stale history, while making retained/current coefficients explicit.
+
+Independent functional observation: with computed coefficients A,B,C and initial histories zero, define `e[-1]=e[-2]=u[-1]=+0`, then use the exact float operation tree `u[k]=(((u[k-1]+A*e[k])+B*e[k-1])+C*e[k-2])`. Returned update and subsequent getter both observe u[k]; updated histories contain the last three inputs and two outputs. Parameter changes replace only A,B,C at that cycle, preserve accumulated histories, and use the same recurrence with the new coefficients. Reset starts a new zero-history epoch; a getter alone does not change it. This is a multi-entry protocol invariant, not just the trivial getter equality.
+
+Conditions/classification: `Ts` nonzero and finite; finite representable gain-coefficient calculations for a numerical view. For pure paired execution with fixed IEEE semantics the recurrence may include infinities/NaNs, but bit equality then depends on the pinned NaN operation policy. Coefficient formulas from init and setter are syntactically identical, including binary32 literals and divisions, so the target is exact bits under the shared semantics, with no real PID approximation or stability claim. Note simple `PID_f` at 50-139 uses a different integrator: line72 computes `Ki*(sum+value)` and line78 accumulates value without dt; do not transfer the documentation's continuous formula to that implementation.
+
+Value: restart testing and controller mode switching can be reasoned about for any number of cycles, without enumerating bounded traces. Gain changes are not resets; this question captures that distinction through observed history.
+
+## 2. Priority A: first-order low-pass retune/reset lifecycle is a canonical replay protocol
+
+Exact entries in `sw/airborne/filters/low_pass_filter.h`: struct 42-46; `init_first_order_low_pass` 60-66; `update_first_order_low_pass` 74-80; `reset_first_order_low_pass` 89-94; `get_first_order_low_pass` 101-104; `update_first_order_low_pass_tau` 112-116.
+
+Actual call graph: all five entries act directly on fields; none calls another. Cross-entry ordering below is a proposed API protocol. Shared state is `time_const,last_in,last_out`.
+
+Question: for arbitrary defined old state S, reset value v, parameters tau,h, compare A `update_first_order_low_pass_tau(S,tau,h); reset_first_order_low_pass(S,v)` with B fresh `init_first_order_low_pass(T,tau,h,v)`. All three fields should agree bitwise. Reset and retune commute on the same object. For every subsequent finite schedule of reset(v), retune(tau,h), update(x), and getter, matched schedules on A and B preserve state/return correspondence. In particular a retune preserves last_in,last_out and the currently visible getter, but changes the next update according to the new time_const.
+
+Independent recurrence: T=fl(fl(2*tau)/h); reset makes L=Y=v; update(x) makes `Y'=fl((fl(x+L)+fl(fl(T-1)*Y))/fl(1+T))` with the exact original operation tree and L'=x; getter returns Y. A retune changes only T, and a reset changes only L,Y. Observe both state and an arbitrary suffix of outputs, not just reset's immediate return.
+
+Conditions/classification: exact bit relation under common target arithmetic, no transcendental bindings. For a finite numerical view require h>0, tau>=0, finite computed T and finite intermediates; then 1+T is nonzero. For arbitrary schedules either impose those conditions at each event or explicitly allow IEEE exceptional outputs under the fixed semantics. No integer scaling is involved. Do not claim a reset to v is a fixed point for every float v: overflow/rounding and exceptional values defeat that generic statement.
+
+Value: reusable arbitrary-cycle reasoning for changing bandwidth and resetting sensors without accidentally losing or retaining the wrong history. Stronger than a one-function assertion because it equates construction and recovery protocols plus future observation.
+
+## 3. Priority B: fourth-order Butterworth is a stateful two-stage stream composition
+
+Exact entries in `sw/airborne/filters/low_pass_filter.h`: `SecondOrderLowPass` 154-159; `init_second_order_low_pass` 170-181; `reset_second_order_low_pass` 190-194; `update_second_order_low_pass` 202-214; `get_second_order_low_pass` 221-224; `Butterworth4LowPass` 400-403; `init_butterworth_4_low_pass` 418-423; `update_butterworth_4_low_pass` 433-437; `get_butterworth_4_low_pass` 444-447; `reset_butterworth_4_low_pass` 455-459.
+
+Actual call graph: fourth-order init calls second-order init twice; fourth-order update calls second-order update on lp1, then feeds its returned tmp to second-order update on lp2. Fourth-order getter reads lp2.o[0] directly. Fourth-order reset directly writes all eight history fields; it does not call the scalar reset. This mixed call-graph/direct-field relation is part of the reason to verify the whole lifecycle.
+
+Question: compare initialized/reset fourth-order object F with two disjoint second-order objects P,Q whose fields correspond to F.lp1,F.lp2. Initialize P with Q-factor 1.30651 and Q with 0.51184, using exactly the conversions at the call sites; resets set both stages' histories to v while preserving their own a,b. For every finite input stream and every matched reset event, run z=update_second_order_low_pass(P,x), then y=update_second_order_low_pass(Q,z); compare to update_butterworth_4_low_pass(F,x). Stage fields and all output bits should match; subsequent fourth-order getter equals second-order getter Q. Coefficients remain stage-specific; no swapping of stages or collapsing into a single reassociated fourth-order polynomial is proposed.
+
+Conditions/classification: exact bit stream composition under fixed arithmetic and deterministic `tanf` binding for matched initialization, or start after separately supplied equal coefficients to isolate the no-libm replay relation. Numeric coefficient domain needs finite tau>0,h>0; tan argument away from poles; finite K, poly, divisions and coefficients, poly nonzero. Each later numerical step additionally needs finite intermediates. C literal values are the actual code values, not mathematically exact Butterworth constants. No fixed-point/int relation: the integer routines have different coefficient construction, scaling and signed-overflow obligations.
+
+Source discrepancy: comment at 408-409 says Q2=0.541184, but actual init at 422 uses 0.51184. This is a design-review lead, not a proved defect. The proposed theorem binds 0.51184 and would certify implementation composition only, not the claimed ideal Butterworth response.
+
+Value: modular stream reasoning and reset propagation for a real cascaded filter; eliminates arbitrary-cycle re-expansion of internal histories while retaining actual floating evaluation order.
+
+## 4. Priority A: Butterworth vector/rate interfaces are coherent under component renaming for an arbitrary lifecycle
+
+Exact wrappers in `sw/airborne/filters/low_pass_filter_types.h`: `Butterworth2LowPassVect3` 210-214; `init_butterworth_2_low_pass_vect3` 223-229; `get_butterworth_2_low_pass_vect3` 237-244; `get_butterworth_2_low_pass_rates` 252-259; `update_butterworth_2_low_pass_vect3` 267-274; `update_butterworth_2_low_pass_rates` 282-289; `reset_butterworth_2_low_pass_vect3` 297-303; `reset_butterworth_2_low_pass_rates` 311-317. Scalar entries in `low_pass_filter.h`: init 313-317, update 325-328, reset 337-340, getter 347-350, delegating to the second-order entries listed above.
+
+Actual call graph: vector/rate updates each call the same scalar update on x,y,z then their respective vector/rate getters; resets similarly call scalar reset three times. Init calls scalar init per axis with tau=1/omega_axis and v=0. The vector and rate entries do not call each other. Their lifecycle correspondence is a proposed relation between alternative interfaces on distinct equal objects.
+
+Question: let component map rho(v)=(p=v.x,q=v.y,r=v.z). Start two independently initialized objects with identical omega,dt (or bit-identical valid per-axis scalar fields). On arbitrary finite schedules, pair update_vect3(v) with update_rates(rho(v)), reset_vect3(v) with reset_rates(rho(v)), and getter_vect3 with getter_rates. Then all per-axis coefficients/history fields agree, and returned vectors/rates agree componentwise under rho. Strengthening: each axis evolves exactly as an independent scalar Butterworth2LowPass protocol; changing only one input axis cannot change the other two axis states, and their update/get traces match scalar replays. Observe complete axis state as well as outputs to support induction across future events.
+
+Conditions/classification: input/value objects must not alias the filter memory because later component reads occur after earlier mutations. FloatRates and FloatVect3 use different C types: the relation is fieldwise rho, never a layout cast. For init require finite positive omega and dt, finite reciprocal tau and the second-order coefficient domain; pin `tanf` and literal 0.7071 conversion. For replay from equal states no analytic interpretation of cutoff is required. Exact component bits under the common semantics; not approximate rotational equivariance (distinct per-axis cutoffs generally prohibit that claim).
+
+Value: high-level sensor/body-rate interface coherence and axis isolation across complete lifecycles. The property crosses multiple actual wrappers, getters and scalar kernels and supports arbitrary-cycle reasoning, rather than checking a single update's assignment.
+
+## Discovery evidence and resource accounting
+
+Own session was located by exact `session_meta.source.subagent.thread_spawn.agent_path=/root/relations_filters_medium`, not by newest file. Session: `/mnt/c/Users/50635/.codex/sessions/2026/11/05/rollout-2026-11-05T23-54-44-01a1ac6b-6dee-7093-90c3-0d1d9cd1e1ed.jsonl`. Observed turn_context is `model=gpt-6.1-sol`, `effort=medium`; metadata provenance agrees with Sol. The actual session-bound five-rocq discovery meter was started before substantive source reads. Pre-boundary instruction/telemetry setup is outside its measured interval and not retrospectively allocated. Initial start rejected a scope string (required JSON path); the succeeding real run retained later failed `rg` lookup and a failed shell-variable read as evidence. WSL lacks rg; file discovery used Python/find instead.
+
+Run and logs: `filters-evidence/20261105T155543-df99d5e2f4/five-rocq/`. Source read receipt is `logs/006-read-filters2.stdout.log`; source hash receipt is `logs/007-hashes.stdout.log`. Runtime receipt and normalized costs are in `filters-evidence/`. The report's final resource record references raw metrics, session usage receipts and independent cost audit. Unknown metrics remain null with reasons. No proof or successful kernel/CBMC result is claimed.
+_build/paparazzi-relation-discovery/guidance-evidence/costs.json
+_build/paparazzi-relation-discovery/filters-evidence/costs.json

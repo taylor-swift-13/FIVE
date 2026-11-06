@@ -1,0 +1,33 @@
+1 goal
+  
+  f : function
+  s, s0 : statement
+  k : cont
+  e : env
+  m : mem
+  HF : f = omega_function
+  v : val
+  ty : type
+  CORE : core_expr (Eval v ty) = true
+  CK : core_expr_cont (Kifthenelse s s0 k) = true
+  CORE0 : simple (Eval v ty) = true
+  CORE4 : normal_stmt s = true
+  CORE3 : normal_stmt s0 = true
+  CORE1 : normal_cont k = true
+  result : val * mem
+  LIT : literal RV (Eval v ty) = true
+  EVAL :
+    match bool_val v (typeof (Eval v ty)) m with
+    | Some b =>
+        match stmt_eval omega_ge e (fn_return f) (if b then s else s0) m with
+        | Some (out, m') => cont_eval omega_ge e (fn_return f) k out m'
+        | None => None
+        end
+    | None => None
+    end = Some result
+  BOOL : bool_val v ty m = None
+  ============================
+  normal_return (ExprState f (Eval v ty) (Kifthenelse s s0 k) e m) \/
+  (exists (t : trace) (s' : Csem.state),
+     Csem.step omega_ge (ExprState f (Eval v ty) (Kifthenelse s s0 k) e m) t
+       s')

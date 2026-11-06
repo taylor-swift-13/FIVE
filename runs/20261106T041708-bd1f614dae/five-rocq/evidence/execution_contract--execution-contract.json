@@ -1,0 +1,111 @@
+{
+  "purpose": "execution-translation",
+  "status": "proved",
+  "execution_backend": "compcert-csyntax-cexec",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "9c2e4e15536d416d4b7eedaafa0e537838804ed72c8e91980603830ddca90645",
+  "execution_domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem including invalid, uninitialized, unwritable states"
+  },
+  "domain_restrictions": [],
+  "execution_entry": {
+    "module": "FiveGhSetOmega.Execution",
+    "symbol": "entry",
+    "source": "paparazzi/models/gh_set_omega/align/model/Execution.v",
+    "sha256": "56b251e0c35ddba8e48dff09bb523d5571d4f7f17c4fade2f7f6ad7f0d3a1de9"
+  },
+  "source_semantics": {
+    "id": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "target": {
+      "semantics": "CompCert Csem/Cexec",
+      "version": "3.17",
+      "arch": "x86",
+      "model": "64",
+      "abi": "standard",
+      "bitsize": 64,
+      "system": "linux",
+      "endianness": "little",
+      "float32": "IEEE754 binary32",
+      "rounding": "round-to-nearest-ties-to-even",
+      "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+      "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+    },
+    "source_sha256": {
+      "paparazzi/models/gh_set_omega/prepare/source/gh_set_omega.c": "188ff85c02a653515535369e9c78ebb1759066468e0f4abe64d8d75fdbfda40a",
+      "paparazzi/models/gh_set_omega/align/model/Source.v": "3a8845bfa4f41151a50abb729b0cc755c533a590217092b31ec3f1fe72b3124b",
+      "paparazzi/models/gh_set_omega/align/model/Execution.v": "56b251e0c35ddba8e48dff09bb523d5571d4f7f17c4fade2f7f6ad7f0d3a1de9"
+    }
+  },
+  "obligations": [
+    {
+      "id": "domain-preservation",
+      "status": "proof-backed",
+      "coverage": "Actual generated entry accepts every list val and arbitrary memory; syntactic invariant only.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "floating-point-correspondence",
+      "status": "proof-backed",
+      "coverage": "Exact raw transition equivalence includes every original floating operation and value bit pattern, including NaNs; no alternative float implementation.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "machine-integer-correspondence",
+      "status": "proof-backed",
+      "coverage": "Exact raw transition equivalence retains original CompCert integer and pointer operations, struct layout and fields.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "memory-access-correspondence",
+      "status": "proof-backed",
+      "coverage": "Exact raw transition equivalence retains all actual loads/stores and unknown-byte/error behavior; observe_bytes is original Mem.loadbytes.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "control-and-exhaustion-correspondence",
+      "status": "proof-backed",
+      "coverage": "Bidirectional original/model star equivalence for every trace and final state; no fuel limit.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "normal-result-and-memory-correspondence",
+      "status": "proof-backed",
+      "coverage": "Actual Returnstate val and memory preserved; original Mem.loadbytes observation unchanged.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "invalid-operation-correspondence",
+      "status": "proof-backed",
+      "coverage": "On every reachable original state, non-normal-return and source nostep iff model nostep; all legal successors retained.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "whole-execution-correspondence",
+      "status": "proof-backed",
+      "coverage": "Bidirectional unbounded execution equivalence from arbitrary generated entry args/memory.",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/execution/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    }
+  ],
+  "alignment_issues": [],
+  "external_library_bindings": {},
+  "external_environment": "No reachable external calls, volatile operations, I/O or assembly. Raw quiet Cexec callbacks are irrelevant under proved source syntax invariant.",
+  "trusted_boundary": "Recorded CompCert frontend and inherited kernel library assumptions; no GCC/hardware or cross-tool NaN payload equivalence claimed."
+}

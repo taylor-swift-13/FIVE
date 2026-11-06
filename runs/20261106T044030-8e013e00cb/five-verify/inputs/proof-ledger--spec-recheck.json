@@ -1,0 +1,585 @@
+{
+  "schema": "five-cbmc-rocq-recheck/1",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "9c2e4e15536d416d4b7eedaafa0e537838804ed72c8e91980603830ddca90645",
+  "verification_method": "traditional-bounded-model-checking",
+  "cbmc_run": "runs/20261106T041708-bd1f614dae/five-rocq",
+  "cbmc_command_id": "001-authoritative-direct-cbmc",
+  "cbmc_json": "runs/20261106T041708-bd1f614dae/five-rocq/logs/001-authoritative-direct-cbmc.stdout.log",
+  "cbmc_input_sha256": {
+    "paparazzi/models/gh_set_omega/prepare/source/gh_set_omega.c": "188ff85c02a653515535369e9c78ebb1759066468e0f4abe64d8d75fdbfda40a",
+    "paparazzi/models/gh_set_omega/cbmc/harness.c": "9554b665ab696ed9ebae01bfcecb09496f167a565b845035436e0ae092a30974"
+  },
+  "properties": [
+    {
+      "property_id": "memcpy.pointer.1",
+      "status": "proved",
+      "scope": {
+        "original_description": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+        "location": {
+          "comment": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer",
+          "propertyId": "memcpy.pointer.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.1",
+      "status": "proved",
+      "scope": {
+        "original_description": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.2",
+      "status": "proved",
+      "scope": {
+        "original_description": "pointer relation: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "memcpy.pointer.2",
+      "status": "proved",
+      "scope": {
+        "original_description": "same object violation in (const unsigned char *)(void *)&u >= (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+        "location": {
+          "comment": "same object violation in (const unsigned char *)(void *)&u >= (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "34",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer",
+          "propertyId": "memcpy.pointer.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.3",
+      "status": "proved",
+      "scope": {
+        "original_description": "pointer relation: dead object in (const unsigned char *)(void *)&u",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(void *)&u",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "34",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.3",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.4",
+      "status": "proved",
+      "scope": {
+        "original_description": "pointer relation: dead object in (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "34",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.4",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "bits.precondition_instance.1",
+      "status": "proved",
+      "scope": {
+        "original_description": "memcpy src/dst overlap",
+        "location": {
+          "comment": "memcpy src/dst overlap",
+          "file": "paparazzi/models/gh_set_omega/cbmc/harness.c",
+          "function": "bits",
+          "line": "5",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "precondition_instance",
+          "propertyId": "bits.precondition_instance.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "bits.precondition_instance.2",
+      "status": "proved",
+      "scope": {
+        "original_description": "memcpy source region readable",
+        "location": {
+          "comment": "memcpy source region readable",
+          "file": "paparazzi/models/gh_set_omega/cbmc/harness.c",
+          "function": "bits",
+          "line": "5",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "precondition_instance",
+          "propertyId": "bits.precondition_instance.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "bits.precondition_instance.3",
+      "status": "proved",
+      "scope": {
+        "original_description": "memcpy destination region writeable",
+        "location": {
+          "comment": "memcpy destination region writeable",
+          "file": "paparazzi/models/gh_set_omega/cbmc/harness.c",
+          "function": "bits",
+          "line": "5",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "precondition_instance",
+          "propertyId": "bits.precondition_instance.3",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "main.assertion.1",
+      "status": "proved",
+      "scope": {
+        "original_description": "returned and stored Bound result bits",
+        "location": {
+          "comment": "returned and stored Bound result bits",
+          "file": "paparazzi/models/gh_set_omega/cbmc/harness.c",
+          "function": "main",
+          "line": "24",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.main_assertion_1",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "main.assertion.2",
+      "status": "proved",
+      "scope": {
+        "original_description": "omega_2 source-order multiplication bits",
+        "location": {
+          "comment": "omega_2 source-order multiplication bits",
+          "file": "paparazzi/models/gh_set_omega/cbmc/harness.c",
+          "function": "main",
+          "line": "25",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.main_assertion_2",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "main.assertion.3",
+      "status": "proved",
+      "scope": {
+        "original_description": "zeta_omega source-order multiplication bits",
+        "location": {
+          "comment": "zeta_omega source-order multiplication bits",
+          "file": "paparazzi/models/gh_set_omega/cbmc/harness.c",
+          "function": "main",
+          "line": "26",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.3",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.main_assertion_3",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "main.assertion.4",
+      "status": "proved",
+      "scope": {
+        "original_description": "unaffected named fields bit frame",
+        "location": {
+          "comment": "unaffected named fields bit frame",
+          "file": "paparazzi/models/gh_set_omega/cbmc/harness.c",
+          "function": "main",
+          "line": "27",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.4",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.main_assertion_4",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "memcpy.overflow.1",
+      "status": "proved",
+      "scope": {
+        "original_description": "arithmetic overflow on unsigned to signed type conversion in (signed long int)n",
+        "location": {
+          "comment": "arithmetic overflow on unsigned to signed type conversion in (signed long int)n",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "45",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "overflow",
+          "propertyId": "memcpy.overflow.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "property_id": "memcpy.overflow.2",
+      "status": "proved",
+      "scope": {
+        "original_description": "arithmetic overflow on signed to unsigned type conversion in (unsigned long int)(signed long int)n",
+        "location": {
+          "comment": "arithmetic overflow on signed to unsigned type conversion in (unsigned long int)(signed long int)n",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "45",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "overflow",
+          "propertyId": "memcpy.overflow.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "inputs": "all binary32 input and all initialized old named field bitpatterns; valid writable gh_ref64 bytes; no concurrent writer",
+        "bounds": "one original setter call, no loops/recursion; unwind1",
+        "observation": "exact binary32/int64 named scalar bits, padding excluded",
+        "adapter": "Each bits(float) has distinct fresh4-byte formal source and uint32 destination. CompCert store+Mem.loadbytes+extcall_memcpy+Mint32 decoder preserves every binary32 bit including NaN. Internal cross-object order guards short-circuit by separation; no C order asserted. Fixed size4 signed/unsigned casts in range. Actual returned/store values linked by original Csem all-return theorem."
+      },
+      "theorem": "FiveGhSetOmegaRecheck.Proof.bits_adapter_guards",
+      "evidence": [
+        "paparazzi/models/gh_set_omega/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    }
+  ]
+}

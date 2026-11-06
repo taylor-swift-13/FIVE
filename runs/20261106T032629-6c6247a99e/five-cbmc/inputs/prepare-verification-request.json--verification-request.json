@@ -1,0 +1,31 @@
+{
+  "schema": "five-verification-request/1",
+  "authorization": "User requested complete no-error, all-successor termination, full actual CBMC recheck and cross-entry final named-state bit equality for parameter setter order",
+  "entry": "gh_set_omega",
+  "implementation": "prepare/source/gh_set_omega.c",
+  "assumptions": [],
+  "domain": "all binary32 parameter and initialized named state field bitpatterns including NaNs, infinities and signed zeros; valid writable global object, no concurrent writer",
+  "properties": [
+    "automatic CBMC bounds/pointer/overflow/shift checks",
+    "returned parameter bits equal actual Bound result",
+    "written coefficient bits equal source-ordered binary32 multiplication",
+    "all unrelated named fields retain initial bits"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert x86_64 Archi and Floats pinned by generated manifest"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "named scalar fields by binary32/int64 bits, little endian, padding excluded; exact write offsets and frame in Rocq"
+}

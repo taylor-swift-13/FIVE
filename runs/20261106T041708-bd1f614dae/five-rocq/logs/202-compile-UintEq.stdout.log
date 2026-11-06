@@ -1,0 +1,30 @@
+1 goal
+  
+  ge : composite_env
+  x : float32
+  m : mem
+  CAST :
+    sem_cast (Vint (Float32.to_bits x)) tuint tuint m =
+    Some (Vint (Float32.to_bits x))
+  ============================
+  match
+    sem_cast (Vint (Float32.to_bits x)) tuint (Tint I32 Unsigned noattr) m
+  with
+  | Some v1' =>
+      match
+        sem_cast (Vint (Float32.to_bits x)) tuint 
+          (Tint I32 Unsigned noattr) m
+      with
+      | Some v2' =>
+          match v1' with
+          | Vint n1 =>
+              match v2' with
+              | Vint n2 => Some (Val.of_bool (Int.eq n1 n2))
+              | _ => None
+              end
+          | _ => None
+          end
+      | None => None
+      end
+  | None => None
+  end = Some (Vint Int.one)

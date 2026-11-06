@@ -1,0 +1,24 @@
+File "./paparazzi/models/gh_set_omega/rocq/support/Entry.v", line 121, characters 36-43:
+Error:
+In environment
+s : state
+m : mem
+b : block
+e : PTree.tree (block * type)
+ENV : e ! _gh_ref = None
+SYM : Genv.find_symbol omega_ge _gh_ref = Some b
+REP : repr s m b
+W : writable m b
+LD : Mem.load Mfloat32 m b 36 = Some (Vsingle (omega s))
+RD : pure_rval omega_ge e m (rd _omega) = Some (Vsingle (omega s))
+CMP1 :
+  pure_rval omega_ge e m
+    (Eunop Onotbool (Ebinop Ogt (rd _omega) (cn omega_min) tint) tint) =
+  Some (Val.of_bool (negb (Float32.cmp Cgt (omega s) omega_min)))
+CMP2 :
+  pure_rval omega_ge e m
+    (Eunop Onotbool (Ebinop Olt (rd _omega) (cn omega_max) tint) tint) =
+  Some (Val.of_bool (negb (Float32.cmp Clt (omega s) omega_max)))
+The term "eq_refl" has type "typeof ?a = typeof ?a"
+while it is expected to have type "typeof ?a = tint".
+

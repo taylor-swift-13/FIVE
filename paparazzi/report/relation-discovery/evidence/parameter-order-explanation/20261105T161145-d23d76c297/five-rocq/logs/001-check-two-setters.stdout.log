@@ -1,0 +1,21 @@
+    78	float gh_set_omega(float omega)
+    79	{
+    80	  gh_ref.omega = omega;
+    81	  Bound(gh_ref.omega, 0.1f, 5.0f);
+    82	  gh_ref.omega_2 = gh_ref.omega * gh_ref.omega;
+    83	  gh_ref.zeta_omega = gh_ref.zeta * gh_ref.omega;
+    84	  return gh_ref.omega;
+    85	}
+    86	
+    87	float gh_set_zeta(float zeta)
+    88	{
+    89	  gh_ref.zeta = zeta;
+    90	  Bound(gh_ref.zeta, 0.7f, 1.2f);
+    91	  gh_ref.zeta_omega = gh_ref.zeta * gh_ref.omega;
+    92	  return gh_ref.zeta;
+    93	}
+   141	#define BoundUpper(_x, _max) { if (_x > (_max)) _x = (_max);}
+   142	
+   143	// Note: the bound function will bound NaN to min as any comparison that contains NaN is false.
+   144	#define Bound(_x, _min, _max) { if (!(_x > (_min))) _x = (_min); else if (!(_x < (_max))) _x = (_max); }
+   145	

@@ -1,0 +1,47 @@
+1 goal
+  
+  ge : genv
+  f : function
+  a : expr
+  s1, s2 : statement
+  k : cont
+  e : env
+  m : mem
+  STEP :
+    sstep ge (State f (Sifthenelse a s1 s2) k e m) E0
+      (ExprState f a (Kifthenelse s1 s2 k) e m)
+  CORE : simple a = true
+  CORE6 : normal_stmt s1 = true
+  CORE5 : normal_stmt s2 = true
+  CORE3 : normal_cont k = true
+  H : f = omega_function
+  CORE1 : core_expr a = true
+  CORE2 : core_stmt s1 = true
+  CORE0 : core_stmt s2 = true
+  H1 : core_cont k = true
+  ============================
+  match
+    match pure_rval ge e m a with
+    | Some v =>
+        match bool_val v (typeof a) m with
+        | Some b => stmt_eval ge e (fn_return f) (if b then s1 else s2) m
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some (out, m') => cont_eval ge e (fn_return f) k out m'
+  | None => None
+  end =
+  match pure_rval ge e m a with
+  | Some v =>
+      match bool_val v (typeof a) m with
+      | Some b =>
+          match stmt_eval ge e (fn_return f) (if b then s1 else s2) m with
+          | Some (out, m') => cont_eval ge e (fn_return f) k out m'
+          | None => None
+          end
+      | None => None
+      end
+  | None => None
+  end

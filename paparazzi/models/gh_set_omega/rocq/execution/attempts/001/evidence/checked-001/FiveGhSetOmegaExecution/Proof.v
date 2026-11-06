@@ -1,0 +1,21 @@
+From FiveGhSetOmegaExecution Require Import Spec.
+From FiveGhSetOmegaProof Require Import WholeExecution.
+Theorem domain_preservation:Spec.domain_preservation_goal.
+Proof. exact WholeExecution.domain_preservation. Qed.
+Print Assumptions domain_preservation.
+
+Theorem one_step_correspondence:Spec.one_step_correspondence_goal.
+Proof. exact WholeExecution.one_step_correspondence. Qed.
+Print Assumptions one_step_correspondence.
+
+Theorem whole_execution_correspondence:Spec.whole_execution_correspondence_goal.
+Proof. exact WholeExecution.whole_execution_correspondence. Qed.
+Print Assumptions whole_execution_correspondence.
+
+Theorem invalid_operation_correspondence:Spec.invalid_operation_correspondence_goal.
+Proof. exact WholeExecution.invalid_operation_correspondence. Qed.
+Print Assumptions invalid_operation_correspondence.
+
+Theorem normal_result_memory_correspondence:Spec.normal_result_memory_correspondence_goal.
+Proof. exact WholeExecution.normal_result_memory_correspondence. Qed.
+Print Assumptions normal_result_memory_correspondence.
