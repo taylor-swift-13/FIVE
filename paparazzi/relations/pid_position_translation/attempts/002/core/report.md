@@ -1,0 +1,13 @@
+# PID position translation: attempt 002 core component
+
+Core proof work is complete. It uses unchanged PidPositionRunPos.Source and CompCert 3.17 Csem, x86-64 Linux layout, little endian memory and binary32 round-to-nearest-even. All original branches remain; runtime approx_force_by_thrust=false excludes the force branch.
+
+The original PID controller and hidden-result factory call are proved with initialized reads, exact scalar store traces, active return fields, precise byte frames, and allocation/free of all eleven stack blocks. Original entry getter assignments and clamps retain every operand evaluation order. Padding is not treated as initialized fields.
+
+All 48 original core arithmetic IDs (41 overflow, 7 undefined shift) are independently proved. Each goal binds an exact original AST node and signed-int32 operand/result types, then quantifies actual ready-operation states reachable by original Csem from canonical InputGood entry. The observer retains annotations through controller, getter, factory, copy and cleanup phases. The five force checks use the actual false short-circuit phase. No copied or pruned C implementation is used.
+
+Safety/lead authors integrate the six core pointer checks and the other 70 original IDs. Full-task status, six main goals, final124 interface and cold checker belong to the parent attempt.
+
+Independent receipts: [kernel-receipts.json](evidence/kernel-receipts.json). Parent024 checks precise memory/stack shape; parent044 checks observer engines; parent046 checks all48 final arithmetic rechecks. Every command uses default rocq check without admission or recursive bypass. [proof-index.json](evidence/proof-index.json) freezes component source hashes; [source-map.json](cbmc/source-map.json) preserves original IDs/expressions/scope and current bindings. Printed assumptions are inherited CompCert/Flocq/classical assumptions; no target axiom or admitted proof was added.
+
+[runtime.json](runtime.json) records actual gpt-6.1-sol Ultra. Failed attempts/timeouts remain in one author run. Authoritative costs and event boundaries: [run.json](runs/20261108T041531-b910be4c42/five-rocq/run.json), [metrics.json](runs/20261108T041531-b910be4c42/five-rocq/metrics.json). Fifteen timeout GNU-time receipts are unavailable: complete tool CPU and complete individual-process peak memory remain unknown, and strict cost audit is incomplete. Recorded subtotals and sampled tool-tree peaks remain available. Model-server memory and combined concurrent-task memory are unknown. See [cost-limitations.json](evidence/cost-limitations.json). No receipt was repaired, estimated or replaced.

@@ -63,6 +63,8 @@ The [reference examples](examples/README.md) use `models/` for single-entry mode
 
 `examples/models/sum3/` contains the four sequential stage directories `prepare/`, `cbmc/`, `align/`, and `rocq/`. The [example guide](examples/models/sum3/README.md) specifies their handoffs and current state. Shared semantic libraries are in `shared/`, workflow tools in `scripts/`, skills in `.agents/skills/`, and the manuscript in `paper/`.
 
+The [Paparazzi horizontal PID case](paparazzi/models/guidance_pid_h_run_pos/README.md) documents the original entry, its inputs and outputs, and the verified position-translation and ground-integral relations.
+
 ## Example file structure
 
 `examples/models/sum3/` contains `prepare/`, `cbmc/`, `align/`, and `rocq/` stage directories. The [sum3 guide](examples/models/sum3/README.md) lists what each stage reads and writes, including the current evidence and pending obligations.

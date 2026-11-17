@@ -1,0 +1,88 @@
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "guidance_pid_h_run_pos",
+  "stage": "rocq",
+  "status": "pending",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case",
+  "outputs": [
+    {
+      "role": "align-handoff",
+      "path": "align/handoff.json",
+      "sha256": "4d04e2a27c88b7c958c59cb85b2be27f143205c1f1ccdf9f5e90a8e0418646a9"
+    },
+    {
+      "role": "Source.v",
+      "path": "align/model/Source.v",
+      "sha256": "f33d6cd38506ff1e080cda6d2261f873a6f269ccb8be1b924ca56c2fa8c4e26f"
+    },
+    {
+      "role": "Execution.v",
+      "path": "align/model/Execution.v",
+      "sha256": "92b467146447e6b549f6224440049979e58911b55b9418defd3b28c10cf8fea1"
+    },
+    {
+      "role": "spec-recheck",
+      "path": "rocq/spec-recheck.json",
+      "sha256": "7f18f915fb8653c8f251847bf6a4969f05af28e5a17b3930f2fba3e89569df54"
+    },
+    {
+      "role": "report",
+      "path": "rocq/report/report.md",
+      "sha256": "8c283f9dd62d243550ef7f9a9129e1da3a090c5258bb77bc062e226954c1c154"
+    },
+    {
+      "role": "costs",
+      "path": "rocq/report/costs.json",
+      "sha256": "3ffa53f9438e16c088b28dc0c1f52dda910546d17f651e3ac87a3b37e9a78fe9"
+    },
+    {
+      "role": "relation-question",
+      "path": "../../relations/pid_position_translation/problem/Spec.v",
+      "sha256": "19ab086cf8d218c40c69f84f2aa3f985258358f36fe69c10253b411e5f4491fe"
+    },
+    {
+      "role": "relation-proof-attempt",
+      "path": "../../relations/pid_position_translation/attempts/001/Proof.v",
+      "sha256": "346e3c368a01c674fd0dad4bef20d5c6b6775bd35495e9735626700ccf283b96"
+    },
+    {
+      "role": "getter-subproof",
+      "path": "../../relations/pid_position_translation/support/GetterSemantics.v",
+      "sha256": "0200601c2d5344540316c415b5a9e2da2a7b4ed83b538c9e79290d622289990b"
+    },
+    {
+      "role": "auxiliary-validation",
+      "path": "../../relations/pid_position_translation/attempts/001/evidence/auxiliary-validation.json",
+      "sha256": "f9e3fe5bb24afbc20bb07b794ad8ea3ec122d6415d488d694941f1a7c7392f41"
+    },
+    {
+      "role": "no-error-question",
+      "path": "rocq/no_error/problem/Spec.v",
+      "sha256": "5d6b59c44486f9d02ef80ac553e32d7649cfe49bcac083961c8759a36a5635da"
+    },
+    {
+      "role": "termination-question",
+      "path": "rocq/termination/problem/Spec.v",
+      "sha256": "6bc1324b2780b07cf805fe8c07fb72977494f8f48fd2ce1ab96a2a7202fd3d63"
+    }
+  ],
+  "limitations": [
+    "All main source Csem goals, all124 independent Rocq rechecks and full external-environment correspondence remain pending.",
+    "Only the explicitly scoped arithmetic/path/getter auxiliary theorems are independently kernel-checked.",
+    "Concrete initial-memory computation hit the stated resource cap before function execution; not a refutation or impossibility theorem."
+  ]
+}

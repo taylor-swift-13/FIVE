@@ -1,0 +1,3 @@
+The 124 requested goals in unchanged Spec.v refine the original properties.json questions. Runtime properties quantify actual original-entry-reachable Csem redexes; harness properties use the original logical InputPair domain and fresh typed local Csyntax expression observations. No CBMC result is used as a Rocq premise.
+
+Current attempt003 proves all124 goals and closes their exact expected-type binding with the standard deterministic GoalBinding.v, all124 Print Assumptions outputs, and separate independent kernel checks of Proof and GoalBinding. The197 consumed source files were actually compiled in the same bound run. Attempts001/002 and their actual outcomes/costs remain immutable historical evidence.

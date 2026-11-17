@@ -1,0 +1,4 @@
+Require Import PidPositionRunPosTerminationProblem.Spec.
+Require Import PidPositionRunPosTerminationAttempt002.Proof.
+Definition goal_0 : PidPositionRunPosTerminationProblem.Spec.RequestedGoal := PidPositionRunPosTerminationAttempt002.Proof.termination.
+Print Assumptions goal_0.

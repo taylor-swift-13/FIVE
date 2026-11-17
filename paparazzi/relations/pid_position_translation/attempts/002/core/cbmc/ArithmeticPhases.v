@@ -1,0 +1,116 @@
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Errors Maps AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation BlockExecution CallfreeExecution PhaseComposition PureIfShell.
+From PidPositionSafety Require Import PureSound ConditionalBlock TaggedCallee.
+From PidPositionTranslationCore Require Import ConditionalPure ConditionalAssignment ConditionalStrategy.
+From CoreCBMC Require Import ArithmeticTree ArithmeticAtomic ArithmeticAssignment ArithmeticConditional.
+
+Definition tree_state(ge:genv)(s:Csem.state):Prop:=match s with
+| ExprState _ a _ e m=>arithmetic_tree ge e m a|_=>True end.
+Definition annotated_state(ge:genv)(f:function)(s:Csem.state):Prop:=
+ function_scope f s /\tree_state ge s.
+Definition observed_certificate(ge:genv)(Observe:Csem.state->Prop)(initial target:Csem.state):Prop:=
+ exists P,certificate ge P target /\P initial /\forall s,P s->Observe s.
+Lemma observed_singleton:forall ge Observe s,Observe s->observed_certificate ge Observe s s.
+Proof. intros;exists(fun t=>t=s);split;[apply singleton_certificate|];split;[reflexivity|intros;subst;assumption]. Qed.
+Lemma observed_join:forall ge Observe initial middle target,
+ observed_certificate ge Observe initial middle ->
+ observed_certificate ge Observe middle target ->
+ observed_certificate ge Observe initial target.
+Proof.
+ intros ge Observe initial middle target[P[CP[PI PO]]][Q[CQ[QI QO]]].
+ exists(fun s=>P s\/Q s);split;[eapply join_certificate;eauto|];split;[auto|].
+ intros s[PS|QS];[apply PO|apply QO];assumption.
+Qed.
+Lemma observed_prepend:forall ge Observe initial middle target,
+ unique_transition ge initial middle ->Observe initial ->
+ observed_certificate ge Observe middle target ->
+ observed_certificate ge Observe initial target.
+Proof.
+ intros ge Observe initial middle target TRANS OI[P[CP[PI PO]]].
+ exists(fun s=>s=initial\/P s);split.
+ - eapply chain_certificate with(P:=fun s=>s=initial)(middle:=initial)(initial:=middle);
+   [apply singleton_certificate|exact CP|exact TRANS|exact PI].
+ - split;[auto|];intros s[EQ|PS];[subst;exact OI|apply PO;exact PS].
+Qed.
+Lemma observed_sequence:forall ge Observe f e k m mid first second target,
+ Observe(State f(Ssequence first second)k e m) ->
+ Observe(State f Sskip(Kseq second k)e mid) ->
+ observed_certificate ge Observe(State f first(Kseq second k)e m)(State f Sskip(Kseq second k)e mid) ->
+ observed_certificate ge Observe(State f second k e mid)target ->
+ observed_certificate ge Observe(State f(Ssequence first second)k e m)target.
+Proof.
+ intros ge Observe f e k m mid first second target O1 O2 C1 C2.
+ eapply observed_prepend;[apply sequence_transition|exact O1|].
+ eapply observed_join;[exact C1|].
+ eapply observed_prepend;[apply skip_sequence_transition|exact O2|exact C2].
+Qed.
+Lemma atomic_annotated_scope:forall ge f e k mf v s,
+ arithmetic_atomic_invariant ge f e k mf v s ->function_scope f s.
+Proof.
+ intros ge f e k mf v s[DONE|[a[ma[EQ REST]]]];subst s;reflexivity.
+Qed.
+Theorem observed_atomic_from_normal:forall ge f e k m mf a,
+ atomic_expr a=true ->exec_stmt ge e m(Sdo a)E0 mf Out_normal ->
+ arithmetic_tree ge e m a ->
+ observed_certificate ge(annotated_state ge f)(State f(Sdo a)k e m)(State f Sskip k e mf).
+Proof.
+ intros ge f e k m mf a SY EX TREE.
+ pose proof(normal_statement_path ge e m(Sdo a)mf EX f)as PATH.
+ pose proof(block_normal_correspondence ge(State f(Sdo a)Kstop e m)E0 f e mf ltac:(cbn[block_state block_stmt block_cont];rewrite SY;reflexivity) PATH)as DEN.
+ cbn[block_denotation block_eval]in DEN.
+ destruct(atomic_eval ge e m a)as[[v mm]|]eqn:AE;try discriminate.
+ injection DEN as MM;subst mm.
+ eapply observed_prepend.
+ - split;[right;constructor|];intros t next[ES|SS];[inversion ES|].
+   inversion SS;subst;auto;repeat match goal with H:_\/_|-_=>destruct H end;discriminate.
+ - split;[reflexivity|exact I].
+ - exists(arithmetic_atomic_invariant ge f e k mf v);split;[apply arithmetic_atomic_certificate|].
+   split;[eapply arithmetic_atomic_initial;eauto|].
+   intros s PS;split;[eapply atomic_annotated_scope;exact PS|].
+   destruct s;cbn[tree_state];try exact I.
+   eapply arithmetic_atomic_observation;exact PS.
+Qed.
+
+Theorem observed_conditional_assignment_from_normal:
+ forall ge f e k m mf l r ty,
+ source_simple l=true ->conditional_shape r=true ->
+ typeof l=ty ->nv ty=true ->
+ exec_stmt ge e m(Sdo(Eassign l r ty))E0 mf Out_normal ->
+ arithmetic_tree ge e m(Eassign l r ty) ->
+ observed_certificate ge(annotated_state ge f)
+ (State f(Sdo(Eassign l r ty))k e m)(State f Sskip k e mf).
+Proof.
+ intros ge f e k m mf l r ty LS RS LT NV EXEC TREE;subst ty.
+ inversion EXEC;subst.
+ lazymatch goal with EX:eval_expression ge e m(Eassign l r(typeof l))E0 mf _|-_=>inversion EX;subst end.
+ lazymatch goal with EX:eval_expr ge e m RV(Eassign l r(typeof l))E0 mf _|-_=>inversion EX;subst end.
+ lazymatch goal with LE:eval_expr ge e m LV l ?t1 ?m1 ?l1|-_ =>
+  destruct(strategy_simple_identity _ _ _ _ _ _ _ _ LE LS)as[T1[M1 L1]];subst end.
+ lazymatch goal with RE:eval_expr ge e m RV r ?t2 ?m2 ?r2,
+                 RR:eval_simple_rvalue ge e ?m2 ?r2 ?vr|-_ =>
+  destruct(strategy_conditional_value r RS ge e m t2 m2 r2 vr RE RR)as[T2[M2 CV]];subst end.
+ lazymatch goal with
+ AS:assign_loc ge(typeof l)m ?bb ?oo ?bfield ?converted ?tt mf ?output,
+ VALUE:conditional_value ge e m r ?input,
+ CAST:sem_cast ?input(typeof r)(typeof l)m=Some ?converted|-_ =>
+  assert(TT:tt=E0)by(eapply assign_loc_silent;[exact NV|exact AS]);subst tt;
+  pose proof(Cexec.do_assign_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ _ AS(possible_trace_nil _))as STORE;
+  assert(PENDING:ArithmeticAssignment.pending ge e m(typeof l)(typeof r)bb oo bfield input l r);
+  [unfold ArithmeticAssignment.pending;split;[apply source_simple_is_simple;exact LS|];split;[reflexivity|];split;
+   [eapply(proj2(simple_big_denotation ge e m));[eassumption|apply source_simple_is_simple;exact LS]
+   |split;[reflexivity|exact VALUE]]
+  |exists(assignment_arithmetic_invariant ge f e k m mf(typeof l)(typeof r)bb oo bfield input output l r);
+   split;[eapply conditional_arithmetic_assignment_certificate with(vc:=converted);eassumption|];
+   split;[apply conditional_arithmetic_assignment_initial|];
+   intros s PS;split;
+   [unfold assignment_arithmetic_invariant,before_commit in PS;
+    destruct PS as[[START|[PENDING0|DONE]]|POST];
+    [subst s;reflexivity|destruct PENDING0 as[ll[rr[EQ REST]]];subst s;reflexivity
+    |subst s;reflexivity|eapply atomic_annotated_scope;exact POST]
+   |destruct s;cbn[tree_state];try exact I;
+    eapply conditional_arithmetic_assignment_observation;exact PS]]
+ end.
+Qed.
+Print Assumptions observed_conditional_assignment_from_normal.

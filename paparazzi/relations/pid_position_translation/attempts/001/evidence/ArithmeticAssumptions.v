@@ -1,0 +1,5 @@
+From PidPositionTranslationSupport Require Import TranslationArithmetic.
+Print Assumptions common_translation_difference.
+Print Assumptions physical_translation_preserves_representable_error.
+Print Assumptions common_translation_trimmed_error.
+Print Assumptions nonzero_physical_translation_witness.
