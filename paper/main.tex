@@ -750,6 +750,402 @@ proofs, and semantic correspondence obligations agree. Tests and bounded
 checks remain useful evidence, while an arbitrary-cycle functional claim
 rests on the Rocq induction and its proved link to CompCert execution.
 
+\subsection{Fixed-point specification of the Paparazzi position controller}
+\label{sec:paparazzi-pid}
+
+The Paparazzi function \texttt{guidance\_pid\_h\_run\_pos} tracks a
+horizontal reference trajectory. Each call uses reference and measured
+position and velocity, reference acceleration, and the stored integral.
+It returns a tilt setpoint for each horizontal axis and the encoded
+desired heading. We describe one axis below. The north and east axes
+use the same equations with separate integral states.
+
+We express the equations in physical units for the verified configuration,
+which assumes valid position and velocity caches and disables thrust
+correction. Position is in metres, velocity in metres per second,
+acceleration in metres per second squared, and angles in radians. The
+position, velocity, and acceleration values are the decoded fixed-point
+inputs. Write $\operatorname{sat}_L(x)=\max(-L,\min(L,x))$ for symmetric
+clamping and $Q_\delta(x)=\delta\lfloor x/\delta\rfloor$ for rounding
+down to a multiple of $\delta$. Define
+$Q_\theta=Q_{2^{-12}}$ and $Q_v=Q_{2^{-17}}$. Rounding down preserves
+the arithmetic right shifts in the C code, including their behavior on
+negative operands.
+
+For the $k$th call, let $e_p=\operatorname{sat}_{16}(p_{\rm ref}-p)$ and
+$e_v=\operatorname{sat}_{16}(v_{\rm ref}-v)$. With integer gains
+$k_p,k_d,k_i,k_v,k_a$, the proportional, derivative, and feedforward
+contributions are
+\begin{align}
+ P_k &= Q_\theta(k_p e_p/1024),\\
+ D_k &= Q_\theta\bigl(k_d Q_v(e_v)/1024\bigr),\\
+ F_k &= Q_\theta(k_v v_{\rm ref}/1024)
+       + Q_\theta(k_a a_{\rm ref}/1024).
+\end{align}
+The derivative term rounds the velocity error before multiplication.
+The two feedforward terms are rounded separately before addition.
+
+Let $J_k$ be the stored integral decoded with $28$ fractional bits, and
+let $\alpha=1429/4096$ and $\beta=3216/4096$ be the exact angle limits
+in radians. They correspond to approximately $20^\circ$ and $45^\circ$.
+The state update and tilt output are
+\begin{align}
+ J_k &=
+ \begin{cases}
+ \operatorname{sat}_{\alpha}\!\left(
+   J_{k-1}+\dfrac{k_i}{2^{16}}(P_k+D_k)\right),
+    & \text{in flight},\\
+ 0, & \text{on the ground},
+ \end{cases}\\
+ \theta_k
+ &= \operatorname{sat}_{\beta}\!\left(
+      \operatorname{sat}_{\alpha}(P_k+D_k+F_k)+Q_\theta(J_k)\right).
+ \label{eq:paparazzi-tilt}
+\end{align}
+The controller accumulates $P_k+D_k$ in $J_k$. It stores the full
+$J_k$ for the next call and adds only the rounded contribution
+$Q_\theta(J_k)$ to the current setpoint. As a worked example, a northward
+position error of $2\,\mathrm{m}$, a velocity error of
+$-1/64\,\mathrm{m/s}$, and gains $k_p=k_d=100$ give
+$P_k=800/4096$ and $D_k=-7/4096$ radians. With zero previous integral
+and feedforward and $k_i=1$, the in-flight update stores
+$J_k=793/2^{28}$. Its contribution rounds to zero, and the requested
+northward tilt is $793/4096$ radians, approximately $11.09^\circ$.
+
+We first present two established relations on the CompCert model under
+their stated input and memory preconditions. Bold symbols collect the
+north and east components, and superscripts $A$ and $B$ distinguish
+the two calls.
+
+\paragraph{Position translation invariance.}
+Keep the flight flag, velocities, reference acceleration, gains, desired
+heading, and previous integral fixed across the two calls. For any common
+translation $\boldsymbol{\delta}$ satisfying the representability
+conditions, the following implication holds:
+\begin{equation}
+\left.
+\begin{aligned}
+\mathbf p^B &= \mathbf p^A+\boldsymbol{\delta},\\
+\mathbf p_{\rm ref}^B &= \mathbf p_{\rm ref}^A+\boldsymbol{\delta}
+\end{aligned}
+\right\}
+\quad\Longrightarrow\quad
+\begin{aligned}
+\boldsymbol{\theta}_k^A &= \boldsymbol{\theta}_k^B,\\
+\mathbf J_k^A &= \mathbf J_k^B.
+\end{aligned}
+\label{eq:paparazzi-translation}
+\end{equation}
+The common translation cancels in $\mathbf p_{\rm ref}-\mathbf p$,
+so it preserves the position error used in the proportional term.
+
+\paragraph{Ground-mode integral independence.}
+Both calls run on the ground. The previous integrals
+$\mathbf J_{k-1}^A$ and $\mathbf J_{k-1}^B$ may differ within the
+precondition, and the other inputs agree. The update gives
+\begin{equation}
+\mathbf J_k^A = \mathbf J_k^B = \mathbf 0
+\qquad\text{and}\qquad
+\boldsymbol{\theta}_k^A = \boldsymbol{\theta}_k^B.
+\label{eq:paparazzi-ground-integral}
+\end{equation}
+Both calls add $Q_\theta(0)=0$ in Equation~\eqref{eq:paparazzi-tilt},
+where $Q_\theta$ acts on each axis separately. In both relations the
+equalities of tilt and updated integral also hold for the corresponding
+machine encodings. The active return fields, including the heading
+encoding, agree bit for bit.
+
+
+\subsubsection{Ideal PID symmetry and implementation-level deviations}
+\label{sec:pid-rounding-relations}
+
+These cases study the relationship between a reference implementation
+and an optimized or deployed implementation. If both prescribe the same
+floating-point semantics and output encoding, their observable results
+can be required to agree bit for bit. If the reference uses exact
+arithmetic or a different numerical structure, the relation instead
+states an explicit deviation bound or formula. The following PID
+theorems establish exact properties of actual Csem executions and compare
+them mathematically with ideal reference equations. Directly relating
+two executable implementations additionally calls for an explicit
+reference model, related initial states and execution correspondence.
+
+For an ideal position PID with fixed real gains~\cite[Chapter~10]{AstromMurray2008}, write
+\begin{equation}
+ u^{\rm id}(t)=K_P e_p(t)+K_I\int_0^t e_p(\tau)\,d\tau
+                  +K_D\dot e_p(t).
+ \label{eq:pid-ideal}
+\end{equation}
+With zero initial integral, reversing the error history and its
+derivative reverses the output. At a fixed sampling interval $h$, the
+exact-arithmetic integral update
+$J_k^{\rm id}=J_{k-1}^{\rm id}+K_I h e_{p,k}$ also cancels every
+equal-amplitude, equal-duration positive/negative error pair.
+
+The implementation in Equation~\eqref{eq:paparazzi-tilt} accumulates
+$P_k+D_k$. To compare arithmetic effects with the ideal controller, we
+use the verified slice $k_d=k_v=k_a=0$ and calibrate the gains at the
+same sampling interval. Removing rounding and saturation in this slice
+gives the sampled PI equations with
+\begin{equation}
+ K_P=\frac{k_p}{2^{10}},\qquad
+ K_I h=\frac{k_i k_p}{2^{26}},\qquad K_D=0.
+ \label{eq:pid-ideal-gain-map}
+\end{equation}
+Thus positive/negative cancellation is an exact-arithmetic expectation
+for the same accumulation structure in the cases studied below.
+The comparison keeps the code's gains $k_p,k_i$ distinct from the
+calibrated real gains $K_P,K_I$.
+
+\paragraph{Notation and exact encoded recurrence.}
+We retain the physical quantities $P_k,J_k,\theta_k$ defined above and
+write their signed integer encodings as
+\begin{equation}
+ \widehat E_{p,k}=2^8e_{p,k},\quad
+ \widehat P_k=2^{12}P_k,\quad
+ \widehat J_k=2^{28}J_k,\quad
+ \widehat\theta_k=2^{12}\theta_k .
+ \label{eq:pid-encoding-map}
+\end{equation}
+In particular, $\widehat J_k$ is the signed value read from
+\texttt{guidance\_\allowbreak pid\_\allowbreak trim\_\allowbreak att\_\allowbreak integrator.x};
+the formal observation uses \texttt{Mem.load Mint32} and
+\texttt{Int.signed}. Let
+$L=2^{28}\alpha=1429\cdot2^{16}=93650944$.
+In the in-flight slice above, the exact recurrence is
+\begin{align}
+ \widehat P_k
+   &=\left\lfloor\frac{k_p\widehat E_{p,k}}{64}\right\rfloor,\label{eq:pid-code-p}\\
+ \widehat J_k
+   &=\operatorname{sat}_L\!\left(\widehat J_{k-1}+k_i\widehat P_k\right),
+       \label{eq:pid-code-integral}\\
+ \widehat\theta_k
+   &=\operatorname{sat}_{3216}\!\left(
+       \operatorname{sat}_{1429}(\widehat P_k)
+       +\left\lfloor\frac{\widehat J_k}{65536}\right\rfloor\right).
+       \label{eq:pid-code-output}
+\end{align}
+These equations expose two distinct rounding sites: computing the
+proportional contribution and converting the stored integral into an
+output contribution.
+
+\paragraph{A proved refutation of single-call sign symmetry.}
+The canonical \texttt{StrictSymmetryGoal} asks whether mirrored
+admissible inputs always yield opposite returned x commands.
+The theorem \texttt{proved\_\allowbreak strict\_\allowbreak symmetry\_\allowbreak refuted} proves its
+negation, supported by \texttt{proved\_\allowbreak actual\_\allowbreak counterexample}.
+Both executions start with zero integral and use $k_p=k_i=1$.
+Reference x positions have codes $+64$ and $-64$ ($\pm0.25$ metres);
+measured positions, velocities, reference acceleration, the other axis,
+and heading are zero. Both calls are in flight, with valid NED caches
+and thrust correction disabled. The checked observations are
+shown in Table~\ref{tab:pid-sign-counterexample}.
+
+\begin{table}[tb]
+\caption{Actual CompCert Csem sign-symmetry counterexample.
+Superscripts A and B denote independent calls from mirrored inputs.
+Commands have unit $2^{-12}$ rad; stored integrals have unit $2^{-28}$ rad.}
+\label{tab:pid-sign-counterexample}
+\centering
+\begin{tabular}{lrr}
+\toprule
+Observation & Call A & Call B\\
+\midrule
+Position-error code $\widehat E_p$ & $64$ & $-64$\\
+Proportional code $\widehat P$ & $1$ & $-1$\\
+Updated integral code $\widehat J$ & $1$ & $-1$\\
+Integral contribution $\lfloor\widehat J/65536\rfloor$ & $0$ & $-1$\\
+Returned and stored command $\widehat\theta$ & $1$ & $-2$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Here the stored integrals are opposite, but their output contributions
+are not: $\lfloor 1/65536\rfloor=0$ and
+$\lfloor-1/65536\rfloor=-1$.
+Consequently $\widehat\theta^{\rm B}=-2\ne
+-\widehat\theta^{\rm A}=-1$.
+The proof constructs admissible memories and two actual normal-return
+Csem executions, then checks both returned fields and stored commands.
+The counterexample establishes output asymmetry at the integral-to-output
+conversion site.
+
+\paragraph{A proved arbitrary-horizon integral-drift relation.}
+To determine when rounding also changes the accumulated state, the
+\texttt{pid\_\allowbreak alternating\_\allowbreak bias} relation considers symbolic
+$A,k_p,k_i,n$ satisfying
+\begin{equation}
+ 0\le A\le4096,\qquad 0\le k_p,k_i\le100,\qquad n\in\mathbb N.
+ \label{eq:pid-drift-domain}
+\end{equation}
+Starting from $\widehat J_0=0$, each pair of calls receives
+$\widehat E_{p,2j-1}=+A$ and $\widehat E_{p,2j}=-A$.
+The measured positions and remaining specified inputs are zero, so the
+physical errors are $\pm A/256$ metres. The configuration matches the
+single-call case, with fixed symbolic gains.
+Each call satisfies the original \texttt{InputGood} memory and numeric
+conditions. The environment preserves the actual integrator across
+calls.
+
+Define
+\begin{equation}
+ q=\left\lfloor\frac{k_pA}{64}\right\rfloor,\qquad
+ \rho=
+ \begin{cases}
+ 0,&64\mid k_pA,\\
+ 1,&64\not\mid k_pA.
+ \end{cases}
+ \label{eq:pid-residue}
+\end{equation}
+The code-level identity corresponding to \texttt{negative\_\allowbreak floor\_\allowbreak exact}
+is
+\begin{equation}
+ \widehat P_+=q,\qquad
+ \widehat P_-=-q-\rho,\qquad
+ \widehat P_++\widehat P_-=-\rho .
+ \label{eq:pid-pair-residual}
+\end{equation}
+Thus, before saturation, a pair with zero total position error leaves
+the integral increment $-k_i\rho$. The bias enters at the proportional
+rounding site in Equation~\eqref{eq:pid-code-p}, before the integral
+is updated.
+
+The theorem \texttt{proved\_\allowbreak drift}, whose canonical statement is
+\texttt{DriftGoal}, proves
+\begin{equation}
+ \boxed{
+ \widehat J_{2n}=
+ \begin{cases}
+ 0,&64\mid k_pA,\\
+ -\min(nk_i,L),&64\not\mid k_pA .
+ \end{cases}}
+ \label{eq:pid-proved-drift}
+\end{equation}
+This is a universal statement about the actual stored word after every
+admissible $2n$-call Csem execution. Its proof derives the exact single-call
+machine update, then inducts over pairs of calls. Within the stated
+domain, $k_iq\le640000<L$. Since each even-step integral is nonpositive,
+the positive half-pair cannot reach the upper integral limit; the negative
+half-pair accounts for lower saturation through the minimum in
+Equation~\eqref{eq:pid-proved-drift}.
+The additional checked theorems
+\texttt{proved\_\allowbreak initial\_\allowbreak existence} and
+\texttt{proved\_\allowbreak execution\_\allowbreak existence} construct a legal initial memory
+and actual $2n$-call executions for every parameter tuple and every
+finite $n$. Input preparation changes the reference x field while
+retaining the integrator; the execution-existence result has no
+unproved ready-driver premise.
+
+\paragraph{How local asymmetry becomes persistent bias.}
+The two results identify different effects of the same arithmetic rule
+$\lfloor-x\rfloor=-\lceil x\rceil$.
+The single-call counterexample has $A=64$ and $k_p=1$, hence $\rho=0$:
+its output is asymmetric, but alternating those particular errors
+cancels the stored integral after each pair.
+For $\rho=1$ and $k_i>0$, the earlier proportional shift instead
+leaves a negative increment in the stored state after every pair.
+The next pair starts from that retained state, giving the linear
+growth and eventual saturation in Equation~\eqref{eq:pid-proved-drift}.
+For example, $A=k_p=k_i=1$ gives
+$\widehat J_{2n}=-\min(n,L)$ despite physical errors alternating
+between $\pm1/256$ metres. After $65536$ pairs,
+$J_{131072}=-65536/2^{28}=-1/4096$ rad, and the stored bias contributes
+to the tilt through $Q_\theta(J_k)$.
+The arbitrary-horizon theorem therefore distinguishes a one-call
+output-rounding discrepancy from a persistent, quantifiable integral
+bias. It also states exactly when that bias vanishes.
+
+
+\paragraph{A proved refutation of input-order invariance.}
+The third relation compares two histories from the same initial C memory.
+For an ideal unsaturated integral, permuting the same error samples
+preserves the sum of their increments.
+The canonical \texttt{OrderInvarianceGoal} requires nonempty input lists
+that are permutations with the same final sample, and asks whether the
+final returned x command, stored x command and stored integral agree.
+Its observations also check the return type and format.
+
+Both runs start from the same admissible state with $\widehat J_0=L$,
+reference x zero, $k_p=k_i=1$ and $k_d=k_v=k_a=0$.
+The remaining inputs and configuration are those used above. The
+reference-error sequences in position codes are
+\begin{equation}
+ X^{\rm A}=(64,-64,0),\qquad X^{\rm B}=(-64,64,0).
+ \label{eq:pid-order-inputs}
+\end{equation}
+The nonzero physical errors are $\pm0.25$ metres. Each input is installed
+by an actual reference-field \texttt{Mem.store}, followed by an original
+Csem call. The proportional increments are exactly $+1,-1$:
+this case has no proportional rounding residue.
+
+Without integral clamping, both sequences return the integral to $L$.
+The implemented $\operatorname{sat}_L$ update instead gives
+Table~\ref{tab:pid-input-order}. Run A discards the first positive
+increment at the upper limit but retains the following negative
+increment. Run B first creates room for the positive increment,
+retaining both updates.
+
+\begin{table}[tb]
+\caption{Input-order counterexample from the same saturated initial
+integral. All entries are signed integer codes; both final calls receive
+zero error.}
+\label{tab:pid-input-order}
+\centering
+\begin{tabular}{lcc}
+\toprule
+Observation & Run A & Run B\\
+\midrule
+Error sequence & $(64,-64,0)$ & $(-64,64,0)$\\
+Initial $\widehat J_0$ & $L$ & $L$\\
+After first call $\widehat J_1$ & $L$ & $L-1$\\
+After second call $\widehat J_2$ & $L-1$ & $L$\\
+After final zero call $\widehat J_3$ & $L-1$ & $L$\\
+Returned and stored $\widehat\theta_3$ & $1428$ & $1429$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The integral-code difference is $2^{-28}$ rad.
+Since $L=1429\cdot65536$ lies on a conversion boundary,
+\begin{equation}
+ \left\lfloor\frac{L-1}{65536}\right\rfloor=1428,\qquad
+ \left\lfloor\frac{L}{65536}\right\rfloor=1429 .
+ \label{eq:pid-order-output}
+\end{equation}
+The common last input makes $\widehat P_3=0$, exposing a final command
+difference of one code, or $2^{-12}$ rad.
+\begin{samepage}
+The theorem
+\texttt{proved\_\allowbreak actual\_\allowbreak order\_\allowbreak counterexample}
+constructs the common legal initial memory, all six actual calls and
+the final scalar observations.
+The theorem
+\texttt{proved\_\allowbreak order\_\allowbreak invariance\_\allowbreak refuted}
+proves $\neg\texttt{OrderInvarianceGoal}$.
+The saturated initial state is an explicit premise of this relation.
+This result isolates state clamping as a source of order sensitivity,
+complementing the output-conversion asymmetry and update-rounding drift
+established above.
+\par
+\end{samepage}
+
+\paragraph{Proof artifacts.}
+The three developments reuse the same original CompCert model.
+The sign-symmetry refutation and the arbitrary-horizon drift result are
+available with their canonical specifications, proofs, assumptions,
+independent kernel receipts and cost records in
+\href{https://github.com/taylor-swift-13/FIVE/tree/f6a1f4d7ee419fc25042b769ef2cf8da741c2a96/paparazzi/relations/pid_sign_symmetry}{\texttt{pid\_\allowbreak sign\_\allowbreak symmetry}}
+and
+\href{https://github.com/taylor-swift-13/FIVE/tree/f6a1f4d7ee419fc25042b769ef2cf8da741c2a96/paparazzi/relations/pid_alternating_bias}{\texttt{pid\_\allowbreak alternating\_\allowbreak bias}}.
+The drift development cold-compiles 134 local modules and independently
+kernel-checks both the main proof and its four exact goal bindings.
+The input-order refutation independently kernel-checks its proof and two
+exact goal bindings after cold-compiling 136 source modules.
+Its specification, proof, explanation and cost records are in
+\href{https://github.com/taylor-swift-13/FIVE/tree/main/paparazzi/relations/pid_input_order}{\texttt{pid\_\allowbreak input\_\allowbreak order}}.
+
+
+
 \section{Empirical Evaluation}
 
 

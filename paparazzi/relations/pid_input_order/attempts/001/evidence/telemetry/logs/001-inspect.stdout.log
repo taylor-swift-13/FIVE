@@ -1,0 +1,604 @@
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Integers Floats Values Memory Globalenvs Ctypes.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidMeasurementProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+Module P:=PidPositionRunPos.Source.
+Definition Parameters(A kp ki:Z):Prop:=0<=A<=4096 /\0<=kp<=100 /\0<=ki<=100.
+Definition integral_limit:Z:=1429*65536.
+Definition integral_load(m:mem)(i:int):Prop:=
+ load_global Mint32 m P._guidance_pid_trim_att_integrator vec_type[P._x]=Some(Vint i).
+(** These are input facts about the unchanged original model, with the actual
+    stored x integral [ix]; no future execution or output is assumed. *)
+Definition AlternatingInput(m:mem)(gh ret:block)(r kp ki:Z)(ix:int):Prop:=
+ InputGood m gh ret /\
+ load_path Mint32 m gh gh_type[P._ref;P._pos;P._x]=Some(Vint(Int.repr r)) /\
+ load_path Mint32 m gh gh_type[P._ref;P._pos;P._y]=Some(Vint Int.zero) /\
+ load_global Mint32 m P._state state_type[P._ned_pos_i;P._x]=Some(Vint Int.zero) /\
+ load_global Mint32 m P._state state_type[P._ned_pos_i;P._y]=Some(Vint Int.zero) /\
+ (forall axis,In axis[P._x;P._y] ->
+ load_path Mint32 m gh gh_type[P._ref;P._speed;axis]=Some(Vint Int.zero) /\
+ load_path Mint32 m gh gh_type[P._ref;P._accel;axis]=Some(Vint Int.zero) /\
+ load_global Mint32 m P._state state_type[P._ned_speed_i;axis]=Some(Vint Int.zero)) /\
+ load_global Mint32 m P._guidance_pid pid_type[P._kp]=Some(Vint(Int.repr kp)) /\
+ load_global Mint32 m P._guidance_pid pid_type[P._kd]=Some(Vint Int.zero) /\
+ load_global Mint32 m P._guidance_pid pid_type[P._ki]=Some(Vint(Int.repr ki)) /\
+ load_global Mint32 m P._guidance_pid pid_type[P._kv]=Some(Vint Int.zero) /\
+ load_global Mint32 m P._guidance_pid pid_type[P._ka]=Some(Vint Int.zero) /\
+ load_global Mfloat32 m P._guidance_h gh_type[P._sp;P._heading]=Some(Vsingle Float32.zero) /\
+ integral_load m ix /\
+ load_global Mint32 m P._guidance_pid_trim_att_integrator vec_type[P._y]=Some(Vint Int.zero).
+(** EnvironmentStep permits only input bytes and explicitly preserves the
+    actual stored integrators.  The two original Csem calls form one pair. *)
+Inductive AlternatingPairs(gh ret:block)(A kp ki:Z):nat->mem->mem->Prop:=
+ | pairs_zero:forall m,AlternatingPairs gh ret A kp ki O m m
+ | pairs_step:forall n m a qa ma qb mb ix iy,
+ AlternatingPairs gh ret A kp ki n m a ->
+ EnvironmentStep gh a qa ->AlternatingInput qa gh ret A kp ki ix ->
+ NormalCall gh ret true qa ma ->
+ EnvironmentStep gh ma qb ->AlternatingInput qb gh ret (-A) kp ki iy ->
+ NormalCall gh ret true qb mb ->
+ AlternatingPairs gh ret A kp ki (Datatypes.S n)m mb.
+Fixpoint ReadyPairs(gh ret:block)(A kp ki:Z)(n:nat)(m:mem):Prop:=
+ match n with
+ | O=>True
+ | Datatypes.S k=>exists qa ix,
+ EnvironmentStep gh m qa /\AlternatingInput qa gh ret A kp ki ix /\
+ (forall ma,NormalCall gh ret true qa ma ->exists qb iy,
+ EnvironmentStep gh ma qb /\AlternatingInput qb gh ret (-A) kp ki iy /\
+ (forall mb,NormalCall gh ret true qb mb ->ReadyPairs gh ret A kp ki k mb))
+ end.
+Definition ObservedIntegral(m:mem)(z:Z):Prop:=exists i,integral_load m i /\Int.signed i=z.
+Definition DriftGoal:Prop:=forall A kp ki n gh ret m mf,
+ Parameters A kp ki ->integral_load m Int.zero ->
+ AlternatingPairs gh ret A kp ki n m mf ->
+ ObservedIntegral mf(if Z.eqb((kp*A) mod 64)0 then 0
+ else -Z.min(Z.of_nat n*ki)integral_limit).
+Definition RecurrenceGoal:Prop:=forall A kp ki n gh ret m mf,
+ Parameters A kp ki ->integral_load m Int.zero ->
+ AlternatingPairs gh ret A kp ki n m mf ->
+ ObservedIntegral mf(-Z.min(Z.of_nat n*ki*((- (kp*A))/64 + (kp*A)/64)*(-1))integral_limit).
+Definition InitialExistenceGoal:Prop:=forall A kp ki,Parameters A kp ki ->
+ exists gh ret m,AlternatingInput m gh ret A kp ki Int.zero.
+Definition ReadyExecutionGoal:Prop:=forall A kp ki n gh ret m,
+ ReadyPairs gh ret A kp ki n m ->exists mf,AlternatingPairs gh ret A kp ki n m mf.
+Definition ExecutionExistenceGoal:Prop:=forall A kp ki n,Parameters A kp ki ->
+ exists gh ret m mf,AlternatingInput m gh ret A kp ki Int.zero /\
+ AlternatingPairs gh ret A kp ki n m mf.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import AST Integers Values Memory Globalenvs Ctypes.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationAttempt002 Require Import CoreInputs NormalReturn.
+From PidMeasurementProblem Require Import Spec.
+From PidAlternatingProblem Require Import Spec.
+From PidAlternatingAttempt001 Require Import Semantic DriftArithmetic Witness Driver.
+Import ListNotations.
+Open Scope Z_scope.
+Module P:=PidPositionRunPos.Source.
+Lemma input_integral:forall m gh ret r kp ki ix,
+ AlternatingInput m gh ret r kp ki ix ->integral_load m ix.
+Proof. intros;unfold AlternatingInput in H;tauto. Qed.
+Lemma environment_integral:forall gh m mf i,
+ EnvironmentStep gh m mf ->integral_load m i ->integral_load mf i.
+Proof.
+ intros gh m mf i[_ KEEP]LOAD;unfold integral_load in *.
+ rewrite(KEEP P._x ltac:(cbn;auto));exact LOAD.
+Qed.
+Lemma integral_unique:forall m i j,integral_load m i ->integral_load m j ->i=j.
+Proof. unfold integral_load;intros;congruence. Qed.
+Lemma pairs_exact:forall A kp ki n gh ret m mf,
+ Parameters A kp ki ->integral_load m Int.zero ->
+ AlternatingPairs gh ret A kp ki n m mf ->
+ ObservedIntegral mf(drift_even(kp*A)ki n).
+Proof.
+ intros A kp ki n gh ret m mf PARAM ZERO RUN.
+ destruct PARAM as(AR&KP&KI).
+ induction RUN as[m|n m a qa ma qb mb ix iy RUN IH E1 I1 C1 E2 I2 C2].
+ - exists Int.zero;rewrite drift_even_zero;split;[exact ZERO|exact Int.signed_zero].
+ - specialize(IH ZERO);destruct IH as[ia[LA SA]].
+   assert(LAQ:integral_load qa ia)by exact(environment_integral gh a qa ia E1 LA).
+   assert(IX:ix=ia)by exact(integral_unique qa ix ia(input_integral _ _ _ _ _ _ _ I1)LAQ).
+   destruct(original_call_integral_exact qa ma gh ret A kp ki ix ltac:(lia) KP KI I1 C1)as[j1[L1 S1]].
+   assert(LQB:integral_load qb j1)by exact(environment_integral gh ma qb j1 E2 L1).
+   assert(IY:iy=j1)by exact(integral_unique qb iy j1(input_integral _ _ _ _ _ _ _ I2)LQB).
+   destruct(original_call_integral_exact qb mb gh ret (-A)kp ki iy ltac:(lia) KP KI I2 C2)as[j2[L2 S2]].
+   exists j2;split;[exact L2|].
+   rewrite IY,S1,IX,SA in S2.
+   change(Int.signed j2=alternating_step kp ki (-A)
+     (alternating_step kp ki A(drift_even(kp*A)ki n)))in S2.
+   rewrite S2;exact(pair_drift_step kp ki A n AR KP KI).
+Qed.
+Theorem proved_drift:DriftGoal.
+Proof.
+ intros A kp ki n gh ret m mf PARAM ZERO RUN.
+ pose proof(pairs_exact A kp ki n gh ret m mf PARAM ZERO RUN)as RESULT.
+ rewrite drift_divisible_split in RESULT;exact RESULT.
+Qed.
+Lemma pairs_append:forall gh ret A kp ki k a b,
+ AlternatingPairs gh ret A kp ki k a b ->forall n m,
+ AlternatingPairs gh ret A kp ki n m a ->
+ AlternatingPairs gh ret A kp ki (n+k)m b.
+Proof.
+ intros gh ret A kp ki k a b RUN.
+ induction RUN as[a|k start a qa ma qb mb ix iy RUN IH E1 I1 C1 E2 I2 C2];intros j m PREFIX.
+ - rewrite Nat.add_0_r;exact PREFIX.
+ - rewrite Nat.add_succ_r.
+   eapply pairs_step with(a:=a)(qa:=qa)(ma:=ma)(qb:=qb)(ix:=ix)(iy:=iy).
+   + exact(IH j m PREFIX).
+   + exact E1.
+   + exact I1.
+   + exact C1.
+   + exact E2.
+   + exact I2.
+   + exact C2.
+Qed.
+Lemma normal_call_exists:forall m gh ret,InputGood m gh ret ->
+ exists mf,NormalCall gh ret true m mf.
+Proof.
+ intros m gh ret GOOD.
+ destruct(inputgood_core_initial_data m gh ret GOOD)as[D _].
+ destruct(original_entry_normal_result m gh ret true D GOOD)as(mf&rx&ry&px&py&sx&sy&vx&vy&sb&CALL&REST).
+ exists mf;exact CALL.
+Qed.
+Theorem proved_ready_execution:ReadyExecutionGoal.
+Proof.
+ intros A kp ki n;induction n as[|n IH];intros gh ret m READY.
+ - exists m;constructor.
+ - destruct READY as[qa[ix[E1[I1 NEXT]]]].
+   destruct(normal_call_exists qa gh ret(input_good _ _ _ _ _ _ _ I1))as[ma C1].
+   destruct(NEXT ma C1)as[qb[iy[E2[I2 NEXT2]]]].
+   destruct(normal_call_exists qb gh ret(input_good _ _ _ _ _ _ _ I2))as[mb C2].
+   destruct(IH gh ret mb(NEXT2 mb C2))as[mf SUFFIX].
+   exists mf;replace(Datatypes.S n)with(1+n)%nat by lia.
+   apply(pairs_append gh ret A kp ki n mb mf SUFFIX 1%nat m).
+   eapply pairs_step with(a:=m)(qa:=qa)(ma:=ma)(qb:=qb)(ix:=ix)(iy:=iy).
+   + constructor.
+   + exact E1.
+   + exact I1.
+   + exact C1.
+   + exact E2.
+   + exact I2.
+   + exact C2.
+Qed.
+Print Assumptions proved_drift.
+Print Assumptions proved_ready_execution.
+
+Theorem proved_initial_existence:InitialExistenceGoal.
+Proof. exact initial_input_exists. Qed.
+Lemma private_driver_pairs:forall A kp ki gh ret,
+ Parameters A kp ki ->PrivateBlocks gh ret ->
+ forall n m r ix,-4096<=r<=4096 ->AlternatingInput m gh ret r kp ki ix ->Mem.range_perm m gh 0 84 Cur Writable ->
+ exists mf r' iy,AlternatingPairs gh ret A kp ki n m mf /\
+ (-4096<=r'<=4096) /\AlternatingInput mf gh ret r' kp ki iy /\Mem.range_perm mf gh 0 84 Cur Writable.
+Proof.
+ intros A kp ki gh ret PARAM PRIVATE n;induction n as[|n IH];intros m r ix R INPUT WRITE.
+ - exists m,r,ix;split;[constructor|];auto.
+ - destruct(IH m r ix R INPUT WRITE)as(a&ar&ia&PREFIX&AR&AINPUT&AW).
+   destruct PARAM as(AP&KP&KI).
+   destruct(prepare_input a gh ret ar A kp ki ia ltac:(lia) AINPUT AW PRIVATE)as(qa&E1&I1&W1).
+   destruct(normal_call_exists qa gh ret(input_good _ _ _ _ _ _ _ I1))as(ma&C1).
+   destruct(returned_input qa ma gh ret A kp ki ia ltac:(lia) KP KI I1 W1 PRIVATE C1)as(ib&MID&MW).
+   destruct(prepare_input ma gh ret A (-A)kp ki ib ltac:(lia) MID MW PRIVATE)as(qb&E2&I2&W2).
+   destruct(normal_call_exists qb gh ret(input_good _ _ _ _ _ _ _ I2))as(mb&C2).
+   destruct(returned_input qb mb gh ret (-A)kp ki ib ltac:(lia) KP KI I2 W2 PRIVATE C2)as(ic&FINAL&FW).
+   exists mb,(-A),ic;split.
+   + eapply pairs_step with(a:=a)(qa:=qa)(ma:=ma)(qb:=qb)(ix:=ia)(iy:=ib).
+     * exact PREFIX.
+     * exact E1.
+     * exact I1.
+     * exact C1.
+     * exact E2.
+     * exact I2.
+     * exact C2.
+   + split;[lia|];split;assumption.
+Qed.
+Theorem proved_execution_existence:ExecutionExistenceGoal.
+Proof.
+ intros A kp ki n PARAM.
+ destruct(initial_private_writable_input_exists A kp ki PARAM)as(gh&ret&m&INPUT&WRITE&PRIVATE).
+ destruct(private_driver_pairs A kp ki gh ret PARAM PRIVATE n m A Int.zero
+   ltac:(unfold Parameters in PARAM;lia)INPUT WRITE)as(mf&r&iy&RUN&REST).
+ exists gh,ret,m,mf;split;assumption.
+Qed.
+Print Assumptions proved_initial_existence.
+Print Assumptions proved_execution_existence.
+#!/usr/bin/env python3
+"""Cold-check the symbolic arbitrary-horizon PID measurement proof.
+
+The checker compiles immutable snapshots of the complete imported local
+source closure, instantiates every canonical goal with its claimed theorem,
+prints the actual inherited assumptions, and independently checks both proof
+and goal-certificate modules.  --publish installs current hash-bound receipts;
+ordinary replay preserves all published evidence.  --run charges commands to
+an existing, open proof-author session; otherwise reproduction is tool-only.
+"""
+from pathlib import Path
+import argparse
+import hashlib
+import importlib.util
+import json
+import re
+import shlex
+import shutil
+import sys
+from datetime import datetime, timezone
+
+ATTEMPT = Path(__file__).resolve().parent
+ROOT = ATTEMPT.parents[4]
+PROBLEM = ATTEMPT.parent.parent / "problem"
+OLD_CONFIGURATION = ROOT / "paparazzi/relations/pid_position_translation/attempts/002/core/BuildConfiguration.py"
+MODEL = ROOT / "paparazzi/models/guidance_pid_h_run_pos"
+MANIFEST = MODEL / "align/model/compcert-manifest.json"
+sys.path.insert(0, str(ROOT / "scripts"))
+from five_telemetry import Run
+from example_proof_gate import certificate_source, input_index
+
+GOALS = [
+    ("drift", "DriftGoal"),
+    ("initial_existence", "InitialExistenceGoal"),
+    ("ready_execution", "ReadyExecutionGoal"),
+    ("execution_existence", "ExecutionExistenceGoal"),
+]
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def dump(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+
+
+def relative(path):
+    return str(Path(path).resolve().relative_to(ROOT))
+
+
+def config():
+    spec = importlib.util.spec_from_file_location("pid_build_configuration", OLD_CONFIGURATION)
+    obj = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(obj)
+    pairs = list(obj.LOADPATHS)
+    pairs.extend([("paparazzi/relations/pid_measurement_robustness/problem","PidMeasurementProblem"),("paparazzi/relations/pid_measurement_robustness/attempts/001","PidMeasurementAttempt001")])
+    pairs.extend([
+        (relative(PROBLEM), "PidAlternatingProblem"),
+        (relative(ATTEMPT), "PidAlternatingAttempt001"),
+    ])
+    if len({prefix for _, prefix in pairs}) != len(pairs):
+        raise ValueError("Duplicate logical namespace")
+    return pairs
+
+
+def module(path, pairs):
+    path = Path(path).resolve()
+    candidates = [
+        (len(str(ROOT / directory)), directory, prefix)
+        for directory, prefix in pairs
+        if path.is_relative_to(ROOT / directory)
+    ]
+    if not candidates:
+        raise ValueError("No explicit namespace for " + str(path))
+    _, directory, prefix = max(candidates)
+    return prefix + "." + ".".join(path.relative_to(ROOT / directory).with_suffix("").parts)
+
+
+def problem():
+    status = json.loads((PROBLEM / "status.json").read_text())
+    expected = [goal for goal, _ in GOALS]
+    if status.get("requested_goals") != expected:
+        raise ValueError("Canonical requested goals differ from the exact checker bindings")
+    return {
+        "attempt": ATTEMPT,
+        "problem": PROBLEM,
+        "imports": ["PidAlternatingProblem.Spec", "PidAlternatingAttempt001.Proof"],
+        "bindings": [
+            {
+                "requested_goal": goal,
+                "theorem": "PidAlternatingAttempt001.Proof.proved_" + goal,
+                "type": "PidAlternatingProblem.Spec." + goal_type,
+            }
+            for goal, goal_type in GOALS
+        ],
+    }
+
+
+def semantic_dependencies():
+    data = json.loads(MANIFEST.read_text()).get("semantic_dependencies")
+    if not isinstance(data, dict) or not data:
+        raise ValueError("Missing pinned external semantic dependencies")
+    for name, expected in data.items():
+        source = Path(name)
+        if not source.is_absolute() or not source.is_file() or digest(source) != expected:
+            raise ValueError("Changed or missing external semantics: " + str(source))
+    return data
+
+
+def model_binding_inputs():
+    """Check relevant frozen source/model bindings without changing stage scope."""
+    handoff = MODEL / "align/handoff.json"
+    data = json.loads(handoff.read_text())
+    if data.get("schema") != "five-stage-handoff/1" or data.get("paths_relative_to") != "case":
+        raise ValueError("Unsupported original model handoff")
+    roles = {
+        "prepared-source", "prepared-bindings", "model-manifest",
+        "model-Source.v", "model-Execution.v",
+    }
+    rows = [row for row in data.get("outputs", []) if row.get("role") in roles]
+    if len(rows) != len(roles) or {row["role"] for row in rows} != roles:
+        raise ValueError("Missing or duplicate original source/model bindings")
+    result = {handoff: digest(handoff)}
+    for row in rows:
+        source = (MODEL / row["path"]).resolve()
+        if not source.is_relative_to(MODEL) or not source.is_file() or digest(source) != row["sha256"]:
+            raise ValueError("Original source/model handoff changed: " + str(source))
+        result[source] = row["sha256"]
+    return result
+
+
+def source_closure(run, pairs, root_sources):
+    flags = [item for directory, prefix in pairs for item in ("-Q", directory, prefix)]
+    excluded = {"runs", "inputs", "checked", "exploratory", "__pycache__", "cold-checks"}
+    files = set()
+    for directory, _ in pairs:
+        base = ROOT / directory
+        if not base.is_dir():
+            continue
+        for source in base.rglob("*.v"):
+            if set(source.relative_to(base).parts) & excluded:
+                continue
+            if re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", source.stem):
+                files.add(source.resolve())
+    for source in root_sources:
+        if source.resolve() not in files:
+            raise FileNotFoundError("Missing proof root: " + str(source))
+    dep = run.command(
+        ["rocq", "dep", *flags, *[relative(source) for source in sorted(files)]],
+        "cold-proof-dependency-graph", timeout=120, cwd=ROOT,
+    )
+    graph = {}
+    dependency_text = (run.folder / dep["stdout"]).read_text().replace("\\\n", "")
+    for line in dependency_text.splitlines():
+        if ":" not in line:
+            continue
+        lhs, rhs = line.split(":", 1)
+        targets = shlex.split(lhs)
+        if not targets or not targets[0].endswith(".vo"):
+            continue
+        source = (ROOT / targets[0]).with_suffix(".v").resolve()
+        graph[source] = [
+            (ROOT / item).with_suffix(".v").resolve()
+            for item in shlex.split(rhs)
+            if item.endswith(".vo") and (ROOT / item).with_suffix(".v").is_file()
+        ]
+    order, visiting, done = [], set(), set()
+
+    def visit(source):
+        source = source.resolve()
+        if source in done:
+            return
+        if source in visiting:
+            raise ValueError("Cyclic local dependency: " + str(source))
+        if not source.is_relative_to(ROOT):
+            raise ValueError("Unexpected external compilation target: " + str(source))
+        if source not in graph:
+            raise ValueError("Missing local dependency declaration: " + str(source))
+        visiting.add(source)
+        for child in graph[source]:
+            visit(child)
+        visiting.remove(source)
+        done.add(source)
+        order.append(source)
+
+    for source in root_sources:
+        visit(source)
+    return order
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run", type=Path, help="existing open metered proof-author run")
+    parser.add_argument("--publish", action="store_true", help="install current canonical receipts")
+    parser.add_argument("--plan", action="store_true", help="dependency plan only; no proof acceptance")
+    parser.add_argument("--timeout", type=int, default=360)
+    args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
+    owned = args.run is None
+    if owned:
+        run = Run.start(
+            ROOT / "_build/pid-alternating-cold-checks", "five-rocq", [],
+            {
+                "scope": "tool-only cold reproduction, no mathematical authoring",
+                "requested_proof_model": "gpt-6.1-sol",
+                "requested_proof_effort": "ultra",
+            },
+            invocation_kind="tool-only",
+        )
+    else:
+        run = Run(args.run.resolve())
+        if run.read("run.json")["status"] != "running":
+            raise ValueError("Cannot append to a closed historical run")
+    final = {}
+    try:
+        group = problem()
+        pairs = config()
+        semantics = semantic_dependencies()
+        frozen = model_binding_inputs()
+        if not args.publish and not args.plan and (ATTEMPT / "provenance.json").is_file():
+            _, indexed_sources = input_index(ROOT, ATTEMPT)
+            for source, expected in indexed_sources.items():
+                if digest(source) != expected:
+                    raise ValueError("Published input changed: " + str(source))
+        roots = [ATTEMPT / "Proof.v"]
+        order = source_closure(run, pairs, roots)
+        if args.plan:
+            note = run.folder / "evidence/dependency-plan.json"
+            dump(note, {"scope": "dependency plan only", "sources": [relative(source) for source in order]})
+            print(note.read_text())
+            if owned:
+                run.finish("passed", "Dependency plan only; no theorem acceptance.", {"plan": note})
+            return
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+        base = (
+            ATTEMPT / "evidence/cold-checks"
+            if args.publish else ROOT / "_build/pid-alternating-cold-replays"
+        ) / stamp
+        checked = base / "checked"
+        current = {source: digest(source) for source in order}
+        extra_inputs = [
+            Path(__file__).resolve(), OLD_CONFIGURATION, MANIFEST,
+            MODEL / "prepare/source/guidance_pid_h_run_pos.c",
+            MODEL / "prepare/source/bindings.json",
+        ]
+        extra_hashes = {**frozen, **{source: digest(source) for source in extra_inputs}}
+        snapshots = {}
+        for source, expected in current.items():
+            target = checked / relative(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+            if digest(target) != expected:
+                raise ValueError("Source changed while snapshotting: " + str(source))
+            snapshots[source] = target
+            run.capture(
+                target,
+                "cold-dependency-" + stamp + "-" + hashlib.sha256(relative(source).encode()).hexdigest()[:18],
+                area="inputs",
+            )
+        cold_flags = [
+            item
+            for directory, prefix in pairs
+            for item in ("-Q", relative(checked / directory), prefix)
+        ]
+        for source in order:
+            print("cold compile " + relative(source), flush=True)
+            run.command(
+                ["rocq", "compile", "-q", *cold_flags, relative(snapshots[source])],
+                "cold-compile-" + source.stem, timeout=args.timeout, cwd=ROOT,
+            )
+        theorem_names = [binding["theorem"] for binding in group["bindings"]]
+        kernel_modules = list(dict.fromkeys(name.rsplit(".", 1)[0] for name in theorem_names))
+        print("cold independent Proof kernel", flush=True)
+        kernel = run.command(
+            ["rocq", "check", "-silent", *cold_flags, *kernel_modules],
+            "cold-independent-proof-kernel", timeout=args.timeout, cwd=ROOT,
+        )
+        hashes = {relative(snapshots[source]): expected for source, expected in current.items()}
+        proof_receipt = base / "proof-kernel-evidence.json"
+        dump(proof_receipt, {
+            "kind": "rocq-kernel-check",
+            "run": relative(run.folder),
+            "command_id": kernel["id"],
+            "theorems": theorem_names,
+            "statement_artifacts": [relative(snapshots[source.resolve()]) for source in roots],
+            "dependency_sha256": hashes,
+        })
+        target = checked / relative(ATTEMPT) / "GoalBinding.v"
+        target.write_text(certificate_source(group["imports"], group["bindings"]))
+        run.capture(
+            target,
+            "cold-certificate-" + hashlib.sha256(relative(target).encode()).hexdigest()[:18],
+            area="inputs",
+        )
+        print("cold exact GoalBinding compile and kernel", flush=True)
+        compile_cmd = run.command(
+            ["rocq", "compile", "-q", *cold_flags, relative(target)],
+            "cold-exact-goalbinding", timeout=args.timeout, cwd=ROOT,
+        )
+        certificate_module = module(ATTEMPT / "GoalBinding.v", pairs)
+        certificate_kernel = run.command(
+            ["rocq", "check", "-silent", *cold_flags, certificate_module],
+            "cold-exact-goalbinding-kernel", timeout=args.timeout, cwd=ROOT,
+        )
+        certificate_receipt = target.parent / "certificate-kernel-evidence.json"
+        dump(certificate_receipt, {
+            "kind": "rocq-kernel-check",
+            "run": relative(run.folder),
+            "command_id": certificate_kernel["id"],
+            "theorems": [certificate_module + ".goal_" + str(i) for i in range(len(group["bindings"]))],
+            "statement_artifacts": [relative(target)],
+            "dependency_sha256": {**hashes, relative(target): digest(target)},
+        })
+        # Publishing happens only after both kernel checks and source-stability
+        # checks.  A concurrent edit cannot leave a newly published proved flag.
+        for source, expected in {**current, **extra_hashes}.items():
+            if digest(source) != expected:
+                raise ValueError("Input changed during cold build: " + str(source))
+        if semantic_dependencies() != semantics:
+            raise ValueError("Semantic dependency map changed during cold build")
+        if model_binding_inputs() != frozen:
+            raise ValueError("Original model binding changed during cold build")
+        if args.publish:
+            index = ATTEMPT / "provenance.json"
+            if (ATTEMPT / "inputs.json").exists():
+                raise ValueError("Do not create competing input indexes")
+            indexed = {relative(source): expected for source, expected in {**current, **extra_hashes}.items()}
+            dump(index, {
+                "schema": "five-proof-inputs/1",
+                "dependency_sha256": indexed,
+                "semantic_dependencies": semantics,
+            })
+            rows = [
+                {
+                    "path": name,
+                    "sha256": expected,
+                    **({"snapshot": relative(snapshots[ROOT / name])} if ROOT / name in snapshots else {}),
+                }
+                for name, expected in sorted(indexed.items())
+            ]
+            validation = ATTEMPT / "evidence/goal-validation.json"
+            dump(validation, {
+                "schema": "five-proof-validation/1",
+                "index": {"path": relative(index), "sha256": digest(index)},
+                "inputs": rows,
+                "kernel_evidence": relative(proof_receipt),
+                "goal_bindings": group["bindings"],
+                "certificate": {
+                    "path": relative(target),
+                    "sha256": digest(target),
+                    "module": certificate_module,
+                    "imports": group["imports"],
+                    "run": relative(run.folder),
+                    "compile_command_id": compile_cmd["id"],
+                    "kernel_command_id": certificate_kernel["id"],
+                    "kernel_evidence": relative(certificate_receipt),
+                },
+            })
+            status_path = PROBLEM / "status.json"
+            status = json.loads(status_path.read_text())
+            if status.get("requested_goals") != [goal for goal, _ in GOALS]:
+                raise ValueError("Canonical goal list changed during build")
+            status.update({
+                "status": "proved",
+                "active_attempt": "../attempts/001",
+                "goal_status": {binding["requested_goal"]: "proved" for binding in group["bindings"]},
+            })
+            dump(status_path, status)
+            final["validation"] = validation
+        print(json.dumps({
+            "status": "passed",
+            "source_count": len(order),
+            "goals": theorem_names,
+            "run": relative(run.folder),
+            "kernel_evidence": relative(proof_receipt),
+        }, indent=2))
+        if owned:
+            run.finish(
+                "passed",
+                "Cold source snapshots, exact typed goals and independent kernels passed.",
+                {**final, "kernel": proof_receipt},
+            )
+    except BaseException:
+        if owned and run.read("run.json")["status"] == "running":
+            note = run.folder / "evidence/checker-failure.json"
+            dump(note, {"scope": "cold checker did not complete; inspect retained command logs"})
+            run.finish("failed", "Cold checker failed; no completion claim.", {"failure": note})
+        raise
+
+
+if __name__ == "__main__":
+    main()

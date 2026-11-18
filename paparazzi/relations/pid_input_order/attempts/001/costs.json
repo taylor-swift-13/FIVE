@@ -1,0 +1,169 @@
+{
+  "schema": "five-stage-costs/1",
+  "records": [
+    {
+      "stage": "five-rocq",
+      "run": "paparazzi/relations/pid_input_order/attempts/001/evidence/telemetry",
+      "status": "recorded",
+      "evidence": [
+        "evidence/telemetry/metrics.json",
+        "evidence/telemetry/run.json",
+        "evidence/runtime-config.json",
+        "evidence/cost-audit.stdout.log"
+      ],
+      "time": {
+        "wall_seconds": 1740.270150899887,
+        "tool_cpu_seconds": null,
+        "recorded_tool_cpu_seconds": 490.0699999999999
+      },
+      "token": {
+        "input": 11742305,
+        "output": 42049,
+        "total": 11784354,
+        "cached_input": 11647104,
+        "reasoning_output": 20180
+      },
+      "memory": {
+        "tool_peak_rss_bytes": 1422036992,
+        "max_individual_process_rss_bytes": 1419730944,
+        "model_server_peak_rss_bytes": null,
+        "desktop_agent_peak_rss_bytes": null
+      },
+      "scope": "Actual single proof-author session from pre-analysis --session start through finish; includes failed/timeout compilation and repairs; excludes preflight contract/setup reads and post-finish metadata/cost audit. No other agent/session allocation.",
+      "limitations": [
+        "Tool CPU total unavailable because timed-out commands did not emit GNU time records; recorded subtotal retained. No reconstruction or invented zero.",
+        "Tool RSS is 10ms process-tree sampling and sequential command maximum, may miss brief peaks or double count shared pages.",
+        "Model-serving and desktop-agent memory are outside observable scope and remain null.",
+        "Cache/reasoning tokens are subsets of input/output."
+      ],
+      "raw_measurement_status": "partial",
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "evidence": "evidence/runtime-config.json"
+      },
+      "raw_cost_audit": {
+        "status": "incomplete",
+        "stages": [
+          {
+            "status": "incomplete",
+            "run": "/home/yangfp/five/paparazzi/relations/pid_input_order/attempts/001/evidence/telemetry",
+            "skill": "five-rocq",
+            "issues": [
+              "Missing CPU/RSS receipt: 145-dev-proof-001",
+              "Missing CPU/RSS receipt: 146-dev-proof-time-002",
+              "Missing CPU/RSS receipt: 147-dev-proof-time-003",
+              "Missing CPU/RSS receipt: 148-dev-proof-time-004",
+              "Missing CPU/RSS receipt: 151-dev-proof-time-007",
+              "Missing/mismatched tool CPU total",
+              "Measurements are marked partial"
+            ],
+            "own_model_tokens_excluding_children": 11784354,
+            "inclusive_unique_model_tokens": 11784354,
+            "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+          }
+        ]
+      }
+    },
+    {
+      "stage": "five-rocq",
+      "actor": "Metadata transition between the two actual session boundaries",
+      "run": null,
+      "status": "recorded",
+      "evidence": [
+        "evidence/metadata-transition-usage.json",
+        "evidence/telemetry/run.json",
+        "evidence/telemetry/recheck-20261118T173105-9265dba09b/run.json",
+        "evidence/runtime-config.json"
+      ],
+      "time": {
+        "wall_seconds": 443.62478971481323,
+        "tool_cpu_seconds": null
+      },
+      "token": {
+        "input": 2001141,
+        "output": 6772,
+        "total": 2007913,
+        "cached_input": 1977984,
+        "reasoning_output": 2368
+      },
+      "memory": {
+        "tool_peak_rss_bytes": null
+      },
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "evidence": "evidence/runtime-config.json"
+      },
+      "missing_reason": "Only actual Codex session usage events can be recovered mechanically between retained boundaries. Metadata-transition tool CPU/RSS were not metered and remain null; no historical tool replay substitutes for them."
+    },
+    {
+      "stage": "five-rocq",
+      "actor": "Final full cold validation with every compiled input captured",
+      "run": "paparazzi/relations/pid_input_order/attempts/001/evidence/telemetry/recheck-20261118T173105-9265dba09b",
+      "status": "recorded",
+      "evidence": [
+        "evidence/telemetry/recheck-20261118T173105-9265dba09b/run.json",
+        "evidence/telemetry/recheck-20261118T173105-9265dba09b/metrics.json",
+        "evidence/runtime-config.json",
+        "evidence/cost-audit-recheck.stdout.log"
+      ],
+      "time": {
+        "wall_seconds": 581.509890794754,
+        "tool_cpu_seconds": 464.7799999999996
+      },
+      "token": {
+        "input": 4343294,
+        "output": 8528,
+        "total": 4351822,
+        "cached_input": 4333824,
+        "reasoning_output": 6160
+      },
+      "memory": {
+        "tool_peak_rss_bytes": 1421123584,
+        "max_individual_process_rss_bytes": 1419251712
+      },
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "evidence": "evidence/runtime-config.json"
+      },
+      "raw_measurement_status": "complete",
+      "raw_cost_audit": {
+        "status": "complete",
+        "stages": [
+          {
+            "status": "complete",
+            "run": "/home/yangfp/five/paparazzi/relations/pid_input_order/attempts/001/evidence/telemetry/recheck-20261118T173105-9265dba09b",
+            "skill": "five-rocq",
+            "issues": [],
+            "own_model_tokens_excluding_children": 4351822,
+            "inclusive_unique_model_tokens": 4351822,
+            "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+          }
+        ]
+      },
+      "scope": "Fresh actual --session interval; all 136 immutable inputs captured before full compilation, exact GoalBinding captured before compile, both independent kernels. No historical command replay relabeling."
+    }
+  ],
+  "aggregate": {
+    "scope": "Direct endpoint elapsed wall from original author start through final cold-validation finish; token event-id union over author, actual metadata transition, and final validation. No sum of stage walls is used. Final post-finish report handoff excluded.",
+    "wall_seconds": 2765.4048314094543,
+    "token": {
+      "input_tokens": 18086740,
+      "output_tokens": 57349,
+      "cached_input_tokens": 17958912,
+      "reasoning_output_tokens": 28708,
+      "total_tokens": 18144089
+    },
+    "event_count": 137,
+    "tool_cpu_seconds": null,
+    "recorded_tool_cpu_subtotal_seconds": 954.8499999999995,
+    "tool_peak_rss_bytes": null,
+    "maximum_observed_metered_tree_rss_bytes": 1422036992,
+    "missing_reason": "Original timeout GNU time receipts and transition tool measurements are absent. Model-server/desktop RSS is outside scope. Full CPU/RSS totals remain unknown."
+  }
+}

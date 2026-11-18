@@ -20,11 +20,12 @@ The [ground integral-history relation](relations/pid_ground_integral_independenc
 | PID measurement perturbation over arbitrary horizons | Proved under the stated input/environment contract | [Problem](relations/pid_measurement_robustness/problem/report.md), [proof and costs](relations/pid_measurement_robustness/attempts/001/report.md) |
 | PID strict sign symmetry | Refuted by an actual CompCert Csem execution pair | [Problem](relations/pid_sign_symmetry/problem/report.md), [counterexample proof and costs](relations/pid_sign_symmetry/attempts/001/report.md) |
 | PID integral drift under alternating zero-mean errors | Proved for symbolic amplitude, gains and arbitrary horizons | [Problem](relations/pid_alternating_bias/problem/report.md), [proof and costs](relations/pid_alternating_bias/attempts/001/report.md) |
+| PID input-order invariance | Refuted by two executions from the same initial memory | [Problem](relations/pid_input_order/problem/report.md), [proof and costs](relations/pid_input_order/attempts/001/report.md) |
 
 Each relation keeps its canonical question under `problem/` and actual proof
 attempts under `attempts/`. A proved negation theorem is evidence that the
 candidate relation is **refuted**, not that symmetry holds. Current inventory:
-ten Paparazzi relations, nine established positive relations and one refutation.
+eleven Paparazzi relations, nine established positive relations and two refutations.
 
 ## Symbolic PID integral drift
 
@@ -57,3 +58,28 @@ conditions and actual Csem execution sequences.
    followed by the same ground-mode call and then identical future inputs should
    have identical future control observations. This extends the existing one-call
    integral-history independence to arbitrary subsequent call counts.
+
+## Implementation-to-reference candidates (not yet verified)
+
+These candidates compare an explicit reference model with an optimized or
+deployed implementation. Their reference models and relations have not yet
+been constructed or proved in FIVE.
+
+| Reference and implementation | Proposed relation |
+| --- | --- |
+| Full sine lookup table versus flash-compressed lookup | Bit-identical decoded values after successful initialization, then identical sine/cosine observations on their defined angle domains |
+| Direct positional PID reference versus incremental PID_df | Align trapezoidal integration and backward-difference differentiation; establish exact-arithmetic equivalence, then quantify binary32 deviation |
+| Existing first-order filter division versus proposed precomputed coefficients | Compare output bits or establish a finite-horizon error bound from matching input histories |
+| Sine lookup backend versus floating backend | Check common output encoding before numerical error bounds; the floating branch uses ANGLE_BFP_OF_REAL while the lookup uses the trigonometric scale |
+
+Source grounding at pinned Paparazzi commit
+abfee3dd56eeab12c528635504a429db3daf409a:
+[trigonometric backends](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/math/pprz_trig_int.c#L865),
+[compressed lookup](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/math/pprz_trig_int.c#L609),
+[PID_df](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/filters/pid.h#L174),
+[first-order filter](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/filters/low_pass_filter.h#L74).
+
+The coefficient rewrite is a proposed optimization to construct. The PID
+reference must use the same discretization as PID_df; update_pid_f is not
+assumed equivalent. The sine-backend scale concern is a source-level
+hypothesis, not a verified bug.

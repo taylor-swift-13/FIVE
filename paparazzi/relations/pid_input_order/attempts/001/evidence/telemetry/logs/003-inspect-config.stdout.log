@@ -1,0 +1,91 @@
+README.md
+guidance_mode
+lowpass_readback
+lowpass_recovery
+lowpass_update_readback
+parameter_order
+parameter_order.md
+pid_alternating_bias
+pid_ground_integral_independence
+pid_input_order
+pid_measurement_robustness
+pid_position_translation
+pid_sign_symmetry
+{
+  "requested_model": "gpt-6.1-sol",
+  "requested_effort": "ultra",
+  "authorization": "explicit user override of reference medium default",
+  "observations": [
+    {
+      "session_id": "01a1edf3-05ec-7a32-9e7f-d793c6904f28",
+      "source": "/mnt/c/Users/50635/.codex/sessions/2026/11/18/rollout-2026-11-18T17-18-09-01a1edf3-05ec-7a32-9e7f-d793c6904f28.jsonl",
+      "turn_context_observations": [
+        {
+          "timestamp": "2026-11-18T09:18:22.618Z",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "session_id": "01a1edf3-05ec-7a32-9e7f-d793c6904f28"
+        }
+      ]
+    },
+    {
+      "session_id": "01a1edf5-4a8c-7a43-b270-3deaaee907cc",
+      "source": "/mnt/c/Users/50635/.codex/sessions/2026/11/18/rollout-2026-11-18T17-20-38-01a1edf5-4a8c-7a43-b270-3deaaee907cc.jsonl",
+      "turn_context_observations": [
+        {
+          "timestamp": "2026-11-18T09:20:38.038Z",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "session_id": "01a1edf5-4a8c-7a43-b270-3deaaee907cc"
+        },
+        {
+          "timestamp": "2026-11-18T09:20:52.375Z",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "session_id": "01a1edf5-4a8c-7a43-b270-3deaaee907cc"
+        }
+      ]
+    },
+    {
+      "session_id": "01a1edf6-1223-7862-b92e-e842bc801016",
+      "source": "/mnt/c/Users/50635/.codex/sessions/2026/11/18/rollout-2026-11-18T17-21-29-01a1edf6-1223-7862-b92e-e842bc801016.jsonl",
+      "turn_context_observations": [
+        {
+          "timestamp": "2026-11-18T09:21:29.133Z",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "session_id": "01a1edf6-1223-7862-b92e-e842bc801016"
+        },
+        {
+          "timestamp": "2026-11-18T09:21:38.200Z",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "session_id": "01a1edf6-1223-7862-b92e-e842bc801016"
+        }
+      ]
+    }
+  ],
+  "actual": {
+    "model": "gpt-6.1-sol",
+    "effort": "ultra"
+  }
+}
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[6]
+CORE = Path(__file__).resolve().parent
+RUN = CORE / "runs/20261108T041531-b910be4c42/five-rocq"
+LOADPATHS = [
+ ("shared","FiveShared"),
+ ("paparazzi/models/guidance_pid_h_run_pos/align/model","PidPositionRunPos"),
+ ("paparazzi/relations/guidance_mode/support/semantics","FiveGuidanceSemantics"),
+ ("paparazzi/relations/guidance_mode/support/allocation","FiveGuidanceAllocation"),
+ ("paparazzi/relations/guidance_mode/support/entry","FiveGuidanceEntry"),
+ ("paparazzi/relations/guidance_mode/support/allorder","FiveGuidanceAllOrder"),
+ ("paparazzi/relations/pid_position_translation/support","PidPositionTranslationSupport"),
+ ("paparazzi/relations/pid_position_translation/problem","PidPositionTranslationProblem"),
+ ("paparazzi/relations/pid_position_translation/attempts/002","PidPositionTranslationAttempt002"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/core","PidPositionTranslationCore"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/safety","PidPositionSafety"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/core/cbmc","CoreCBMC"),
+]
+FLAGS = [arg for path,namespace in LOADPATHS for arg in ("-Q",path,namespace)]
