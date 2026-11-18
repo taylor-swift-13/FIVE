@@ -1,0 +1,210 @@
+From Stdlib Require Import ZArith Lia Psatz.
+Open Scope Z_scope.
+
+(** Saturation and ceiling are on mathematical signed integer codes. *)
+Definition zclamp (limit value : Z) : Z :=
+  Z.max (-limit) (Z.min limit value).
+
+Definition ceil_div (error denominator : Z) : Z :=
+  - ((-error) / denominator).
+
+Lemma zclamp_bounds : forall limit value,
+  0 <= limit -> -limit <= zclamp limit value <= limit.
+Proof.
+  intros limit value LIMIT; unfold zclamp.
+  pose proof (Z.max_spec (-limit) (Z.min limit value)).
+  pose proof (Z.min_spec limit value).
+  destruct H as [[? ?]|[? ?]]; destruct H0 as [[? ?]|[? ?]]; lia.
+Qed.
+
+Lemma zclamp_identity : forall limit value,
+  -limit <= value <= limit -> zclamp limit value = value.
+Proof.
+  intros limit value [LO HI]; unfold zclamp.
+  rewrite Z.min_r by exact HI.
+  rewrite Z.max_r by exact LO; reflexivity.
+Qed.
+
+Lemma zclamp_nonexpansive : forall limit x y,
+  0 <= limit ->
+  Z.abs (zclamp limit x - zclamp limit y) <= Z.abs (x-y).
+Proof.
+  intros limit x y LIMIT; unfold zclamp.
+  pose proof (Z.max_spec (-limit) (Z.min limit x)) as HX.
+  pose proof (Z.max_spec (-limit) (Z.min limit y)) as HY.
+  pose proof (Z.min_spec limit x) as MX.
+  pose proof (Z.min_spec limit y) as MY.
+  destruct HX as [[? ?]|[? ?]]; destruct HY as [[? ?]|[? ?]];
+  destruct MX as [[? ?]|[? ?]]; destruct MY as [[? ?]|[? ?]];
+  apply Z.abs_le;
+  destruct (Z.abs_spec (x-y)); lia.
+Qed.
+
+Lemma zclamp_pair_cap : forall limit x y,
+  0 <= limit -> Z.abs (zclamp limit x - zclamp limit y) <= 2*limit.
+Proof.
+  intros limit x y LIMIT.
+  pose proof (zclamp_bounds limit x LIMIT).
+  pose proof (zclamp_bounds limit y LIMIT).
+  apply Z.abs_le; lia.
+Qed.
+
+Lemma ceil_div_zero : forall denominator, ceil_div 0 denominator = 0.
+Proof. intros denominator; destruct denominator; reflexivity. Qed.
+
+Lemma ceil_div_cover : forall error denominator,
+  0 <= error -> 0 < denominator ->
+  0 <= ceil_div error denominator /\ error <= denominator * ceil_div error denominator.
+Proof.
+  intros error denominator ERROR DEN.
+  pose proof (Z.div_mod (-error) denominator ltac:(lia)) as DIV.
+  pose proof (Z.mod_pos_bound (-error) denominator DEN) as MOD.
+  unfold ceil_div; split; nia.
+Qed.
+
+Lemma ceil_div_positive_formula : forall error denominator,
+  0 <= error -> 0 < denominator ->
+  ceil_div error denominator = (error + denominator - 1) / denominator.
+Proof.
+  intros error denominator ERROR DEN.
+  pose proof (Z.div_mod (-error) denominator ltac:(lia)) as NEG.
+  pose proof (Z.mod_pos_bound (-error) denominator DEN) as RN.
+  pose proof (Z.div_mod (error+denominator-1) denominator ltac:(lia)) as POS.
+  pose proof (Z.mod_pos_bound (error+denominator-1) denominator DEN) as RP.
+  unfold ceil_div; nia.
+Qed.
+
+Lemma floor_div_difference_bound : forall x y error denominator,
+  0 <= error -> 0 < denominator -> Z.abs (x-y) <= error ->
+  Z.abs (x/denominator-y/denominator) <= ceil_div error denominator.
+Proof.
+  intros x y error denominator ERROR DEN DIFFERENCE.
+  apply Z.abs_le in DIFFERENCE.
+  pose proof (ceil_div_cover error denominator ERROR DEN) as [NONNEG COVER].
+  pose proof (Z.div_mod x denominator ltac:(lia)) as DX.
+  pose proof (Z.mod_pos_bound x denominator DEN) as RX.
+  pose proof (Z.div_mod y denominator ltac:(lia)) as DY.
+  pose proof (Z.mod_pos_bound y denominator DEN) as RY.
+  apply Z.abs_le; split; nia.
+Qed.
+
+Lemma floor_div_difference_zero : forall x y denominator,
+  0 < denominator -> Z.abs (x-y) <= 0 ->
+  x/denominator = y/denominator.
+Proof.
+  intros x y denominator DEN DIFFERENCE.
+  pose proof (floor_div_difference_bound x y 0 denominator ltac:(lia) DEN DIFFERENCE).
+  rewrite ceil_div_zero in H.
+  apply Z.abs_le in H; lia.
+Qed.
+
+Lemma multiply_difference_bound : forall gain x y error,
+  0 <= gain -> Z.abs (x-y) <= error ->
+  Z.abs (gain*x-gain*y) <= gain*error.
+Proof.
+  intros gain x y error GAIN DIFF.
+  replace (gain*x-gain*y) with (gain*(x-y)) by ring.
+  rewrite Z.abs_mul, Z.abs_eq by exact GAIN; nia.
+Qed.
+
+Lemma addition_difference_bound : forall x y a b dx da,
+  Z.abs (x-y) <= dx -> Z.abs (a-b) <= da ->
+  Z.abs ((x+a)-(y+b)) <= dx+da.
+Proof.
+  intros x y a b dx da HX HA.
+  replace ((x+a)-(y+b)) with ((x-y)+(a-b)) by ring.
+  eapply Z.le_trans; [apply Z.abs_triangle|lia].
+Qed.
+
+Print Assumptions zclamp_nonexpansive.
+Print Assumptions floor_div_difference_bound.
+Print Assumptions ceil_div_positive_formula.
+
+From Stdlib Require Import ZArith Lia Psatz.
+From PidMeasurementAttempt001 Require Import IntegerBounds MachineArithmetic.
+Open Scope Z_scope.
+Definition position_bound (kp epsilon:Z):Z := ceil_div (kp*epsilon) 64.
+Definition integral_cap:Z := 2*1429*65536.
+Definition command_cap:Z := 2*3216.
+Definition position_error (r p:Z):Z := zclamp 4096 (r-p).
+
+Lemma position_error_difference : forall r a b epsilon,
+ Z.abs(a-b)<=epsilon ->
+ Z.abs(position_error r a-position_error r b)<=epsilon.
+Proof.
+ intros;unfold position_error.
+ eapply Z.le_trans;[apply zclamp_nonexpansive;lia|].
+ replace (r-a-(r-b)) with (-(a-b)) by ring.
+ rewrite Z.abs_opp;assumption.
+Qed.
+
+Theorem integer_cycle_robustness : forall kp kd ki kv ka r pa pb se rs acc ia ib epsilon distance,
+ 0<=kp ->0<=ki ->0<=epsilon ->
+ Z.abs(pa-pb)<=epsilon -> Z.abs(ia-ib)<=distance ->
+ let peA:=position_error r pa in
+ let peB:=position_error r pb in
+ let B:=position_bound kp epsilon in
+ let nextA:=integral_z kp kd ki peA se ia in
+ let nextB:=integral_z kp kd ki peB se ib in
+ Z.abs(nextA-nextB)<=Z.min integral_cap (distance+ki*B) /\
+ Z.abs(command_z kp kd ki kv ka peA se rs acc ia-
+       command_z kp kd ki kv ka peB se rs acc ib)
+ <=Z.min command_cap (B+ceil_div (distance+ki*B) 65536).
+Proof.
+ intros kp kd ki kv ka r pa pb se rs acc ia ib epsilon distance KP KI EPS MEASURE OLD.
+ cbv zeta.
+ pose proof(ceil_div_cover (kp*epsilon) 64 ltac:(nia) ltac:(lia))as[BN BC].
+ fold(position_bound kp epsilon)in BN,BC.
+ assert(PE:Z.abs(position_error r pa-position_error r pb)<=epsilon)
+ by(apply position_error_difference;exact MEASURE).
+ pose proof(multiply_difference_bound kp (position_error r pa)(position_error r pb)epsilon KP PE)as PROD.
+ pose proof(floor_div_difference_bound (kp*position_error r pa)(kp*position_error r pb)(kp*epsilon)64 ltac:(nia)ltac:(lia)PROD)as DIV.
+ fold(position_bound kp epsilon)in DIV.
+ assert(PD:Z.abs(pd_z kp kd(position_error r pa)se-pd_z kp kd(position_error r pb)se)<=position_bound kp epsilon).
+ { unfold pd_z;replace (kp*position_error r pa/64+kd*(se/4)/32768-(kp*position_error r pb/64+kd*(se/4)/32768))
+ with(kp*position_error r pa/64-kp*position_error r pb/64)by ring;exact DIV. }
+ assert(FF:Z.abs(ff_z kp kd kv ka(position_error r pa)se rs acc-
+ ff_z kp kd kv ka(position_error r pb)se rs acc)<=position_bound kp epsilon).
+ { unfold ff_z;replace(pd_z kp kd(position_error r pa)se+kv*rs/131072+ka*acc/256-
+ (pd_z kp kd(position_error r pb)se+kv*rs/131072+ka*acc/256))
+ with(pd_z kp kd(position_error r pa)se-pd_z kp kd(position_error r pb)se)by ring;exact PD. }
+ pose proof(multiply_difference_bound ki _ _ _ KI PD)as IM.
+ pose proof(addition_difference_bound ia ib _ _ distance _ OLD IM)as SUM.
+ assert(GROW:Z.abs(integral_z kp kd ki(position_error r pa)se ia-
+ integral_z kp kd ki(position_error r pb)se ib)<=distance+ki*position_bound kp epsilon).
+ { unfold integral_z;eapply Z.le_trans;[apply zclamp_nonexpansive;lia|exact SUM]. }
+ assert(CAP:Z.abs(integral_z kp kd ki(position_error r pa)se ia-
+ integral_z kp kd ki(position_error r pb)se ib)<=integral_cap).
+ { unfold integral_z,integral_cap;apply zclamp_pair_cap;lia. }
+ split;[apply Z.min_glb;assumption|].
+ assert(TR:Z.abs(zclamp 1429(ff_z kp kd kv ka(position_error r pa)se rs acc)-
+ zclamp 1429(ff_z kp kd kv ka(position_error r pb)se rs acc))<=position_bound kp epsilon).
+ { eapply Z.le_trans;[apply zclamp_nonexpansive;lia|exact FF]. }
+ assert(GNON:0<=distance+ki*position_bound kp epsilon).
+ { pose proof(Z.abs_nonneg(ia-ib));nia. }
+ pose proof(floor_div_difference_bound _ _ (distance+ki*position_bound kp epsilon)65536 GNON ltac:(lia)GROW)as ID.
+ pose proof(addition_difference_bound _ _ _ _ _ _ TR ID)as CSUM.
+ apply Z.min_glb.
+ - unfold command_z,command_cap;apply zclamp_pair_cap;lia.
+ - unfold command_z;eapply Z.le_trans;[apply zclamp_nonexpansive;lia|exact CSUM].
+Qed.
+Print Assumptions integer_cycle_robustness.
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[6]
+CORE = Path(__file__).resolve().parent
+RUN = CORE / "runs/20261108T041531-b910be4c42/five-rocq"
+LOADPATHS = [
+ ("shared","FiveShared"),
+ ("paparazzi/models/guidance_pid_h_run_pos/align/model","PidPositionRunPos"),
+ ("paparazzi/relations/guidance_mode/support/semantics","FiveGuidanceSemantics"),
+ ("paparazzi/relations/guidance_mode/support/allocation","FiveGuidanceAllocation"),
+ ("paparazzi/relations/guidance_mode/support/entry","FiveGuidanceEntry"),
+ ("paparazzi/relations/guidance_mode/support/allorder","FiveGuidanceAllOrder"),
+ ("paparazzi/relations/pid_position_translation/support","PidPositionTranslationSupport"),
+ ("paparazzi/relations/pid_position_translation/problem","PidPositionTranslationProblem"),
+ ("paparazzi/relations/pid_position_translation/attempts/002","PidPositionTranslationAttempt002"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/core","PidPositionTranslationCore"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/safety","PidPositionSafety"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/core/cbmc","CoreCBMC"),
+]
+FLAGS = [arg for path,namespace in LOADPATHS for arg in ("-Q",path,namespace)]

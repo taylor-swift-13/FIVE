@@ -19,11 +19,28 @@ The [ground integral-history relation](relations/pid_ground_integral_independenc
 | Low-pass update/readback consistency | Proved | [Problem](relations/lowpass_update_readback/problem/report.md) |
 | PID measurement perturbation over arbitrary horizons | Proved under the stated input/environment contract | [Problem](relations/pid_measurement_robustness/problem/report.md), [proof and costs](relations/pid_measurement_robustness/attempts/001/report.md) |
 | PID strict sign symmetry | Refuted by an actual CompCert Csem execution pair | [Problem](relations/pid_sign_symmetry/problem/report.md), [counterexample proof and costs](relations/pid_sign_symmetry/attempts/001/report.md) |
+| PID integral drift under alternating zero-mean errors | Proved for symbolic amplitude, gains and arbitrary horizons | [Problem](relations/pid_alternating_bias/problem/report.md), [proof and costs](relations/pid_alternating_bias/attempts/001/report.md) |
 
 Each relation keeps its canonical question under `problem/` and actual proof
 attempts under `attempts/`. A proved negation theorem is evidence that the
 candidate relation is **refuted**, not that symmetry holds. Current inventory:
-nine Paparazzi relations, eight established positive relations and one refutation.
+ten Paparazzi relations, nine established positive relations and one refutation.
+
+## Symbolic PID integral drift
+
+The [alternating-input relation](relations/pid_alternating_bias/problem/report.md)
+uses the existing CompCert model with position-error codes +A and -A, zero initial
+integral, fixed gains kp and ki, and zero remaining contributions. For every
+0 <= A <= 4096, 0 <= kp,ki <= 100 and natural n, the actual stored integral after
+2*n calls is zero when 64 divides kp*A, and -min(n*ki,1429*65536) otherwise.
+The proof also constructs actual executions for every admitted parameter tuple
+and finite horizon. This establishes the exact stored-integral drift caused
+by asymmetric rounding.
+
+The [attempt report](relations/pid_alternating_bias/attempts/001/report.md)
+links the four checked goals, independent kernel receipts and archived runs.
+[Costs](relations/pid_alternating_bias/attempts/001/costs.json) preserve actual
+usage and the recorded command-index and memory-sampling gaps.
 
 ## Further PID questions (not yet proved)
 
@@ -31,19 +48,12 @@ All candidates below reuse `guidance_pid_h_run_pos` with valid NED caches and
 thrust correction disabled. They require explicit safe arithmetic and memory
 conditions and actual Csem execution sequences.
 
-1. **Accumulation under alternating zero-mean errors.** Start with zero integral,
-   gains `kp=ki=1` and all other contributions zero. Alternate position-error
-   codes `+1,-1` (each code is 1/256 metre). Source arithmetic predicts
-   proportional codes `0,-1`, so the stored integral after `2*n` calls is
-   `-min(n,1429*65536)`. This is a candidate exact recurrence, not a checked
-   theorem. It asks whether local rounding asymmetry becomes a persistent
-   directional bias under symmetric sensor jitter.
-2. **Recovery after integral saturation.** Compare histories that reach the
+1. **Recovery after integral saturation.** Compare histories that reach the
    integral limit and then receive the same corrective PD input. Derive the exact
    number of calls before the stored integral leaves saturation, crosses zero,
    and the output resumes the opposite direction. This quantifies recovery delay;
    output clamping alone does not freeze the integral.
-3. **Landing erases history for subsequent executions.** Two admissible histories
+2. **Landing erases history for subsequent executions.** Two admissible histories
    followed by the same ground-mode call and then identical future inputs should
    have identical future control observations. This extends the existing one-call
    integral-history independence to arbitrary subsequent call counts.

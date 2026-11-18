@@ -1,0 +1,14 @@
+Qed.
+
+Lemma store_unchanged_on:
+  forall chunk m b ofs v m',
+  store chunk m b ofs v = Some m' ->
+  (forall i, ofs <= i < ofs + size_chunk chunk -> ~ P b i) ->
+  unchanged_on m m'.
+Proof.
+  intros; constructor; intros.
+- rewrite (nextblock_store _ _ _ _ _ _ H). apply Ple_refl.
+- split; intros; eauto with mem.
+- erewrite store_mem_contents; eauto. rewrite PMap.gsspec.
+  destruct (peq b0 b); auto. subst b0. apply setN_outside.
+  rewrite encode_val_length. rewrite <- size_chunk_conv.

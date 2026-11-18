@@ -1,0 +1,35 @@
+20: Definition SymbolicInitial (m:mem)(gh ret:block)(r kp ki:Z):Prop:=
+38: Definition symbolic_updates(gh sb bp bi:block)(r kp ki:Z):list scalar_update:=[
+59: Lemma symbolic_updates_exist : forall base gh sb bp bi r kp ki,
+64:  exists mf,replay_stores base(symbolic_updates gh sb bp bi r kp ki kp ki)=Some mf.
+66:  intros base gh sb bp bi r kp ki WG WS WP WI;apply replay_stores_exists.
+74: Lemma symbolic_updated_loads : forall base mf gh sb bp bi r kp ki,
+76:  replay_stores base(symbolic_updates gh sb bp bi r kp ki kp ki)=Some mf ->
+98:  intros base mf gh sb bp bi r kp ki GS GP GI SP SI PI RUN.
+100:  { eapply replay_stores_value_at with(i:=0%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.repr 2));
+103:  { eapply replay_stores_value_at with(i:=1%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.repr 2));
+106:  { eapply replay_stores_value_at with(i:=2%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.repr r));
+109:  { eapply replay_stores_value_at with(i:=3%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+112:  { eapply replay_stores_value_at with(i:=4%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+115:  { eapply replay_stores_value_at with(i:=5%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+118:  { eapply replay_stores_value_at with(i:=6%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+121:  { eapply replay_stores_value_at with(i:=7%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+124:  { eapply replay_stores_value_at with(i:=8%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+127:  { eapply replay_stores_value_at with(i:=9%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+130:  { eapply replay_stores_value_at with(i:=10%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+133:  { eapply replay_stores_value_at with(i:=11%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+136:  { eapply replay_stores_value_at with(i:=12%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.one));
+139:  { eapply replay_stores_value_at with(i:=13%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+142:  { eapply replay_stores_value_at with(i:=14%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.one));
+145:  { eapply replay_stores_value_at with(i:=15%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+148:  { eapply replay_stores_value_at with(i:=16%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+151:  { eapply replay_stores_value_at with(i:=17%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+154:  { eapply replay_stores_value_at with(i:=18%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+157:  { eapply replay_stores_value_at with(i:=19%nat)(us:=symbolic_updates gh sb bp bi r kp ki kp ki)(m:=base)(v:=Vint(Int.zero));
+161: Theorem symbolic_initial_memory_exists : forall A kp ki,
+163:  exists gh ret m,SymbolicInitial m gh ret A kp ki.
+165:  intros A kp ki AR KPR KIR.
+185:  assert(GOOD:forall r mf,-4096<=r<=4096 ->
+186:  replay_stores base(symbolic_updates gh sb bp bi r kp ki kp ki)=Some mf ->SymbolicInitial mf gh ret r kp ki).
+188:    destruct(symbolic_updated_loads base mf gh sb bp bi r kp ki GS ltac:(congruence) ltac:(congruence) ltac:(congruence) ltac:(congruence) ltac:(congruence) RUN)
+275:  destruct(symbolic_updates_exist base gh sb bp bi A kp ki WG WS WP WI)as[m RUN].

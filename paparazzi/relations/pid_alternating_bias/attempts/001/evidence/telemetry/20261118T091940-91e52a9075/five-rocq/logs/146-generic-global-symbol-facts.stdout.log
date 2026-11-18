@@ -1,0 +1,44 @@
+83:    forall id b, invert_symbol b = Some id -> find_symbol id = Some b;
+84:  find_invert_symbol:
+85:    forall id b, find_symbol id = Some b -> invert_symbol b = Some id;
+86:  public_symbol_exists:
+87:    forall id, public_symbol id = true -> exists b, find_symbol id = Some b;
+88:  find_symbol_below:
+89:    forall id b, find_symbol id = Some b -> Plt b nextblock;
+90:  block_is_volatile_below:
+91:    forall b, block_is_volatile b = true -> Plt b nextblock
+92:}.
+93:
+341:
+342:(** ** Properties of the operations over global environments *)
+343:
+344:Theorem public_symbol_exists:
+345:  forall ge id, public_symbol ge id = true -> exists b, find_symbol ge id = Some b.
+346:Proof.
+347:  unfold public_symbol; intros. destruct (find_symbol ge id) as [b|].
+348:  exists b; auto.
+349:  discriminate.
+350:Qed.
+351:
+434:  intros (b & A & B); congruence.
+435:Qed.
+436:
+437:Theorem find_symbol_exists:
+438:  forall p id g,
+439:  In (id, g) (prog_defs p) ->
+440:  exists b, find_symbol (globalenv p) id = Some b.
+441:Proof.
+442:  intros. unfold globalenv. eapply add_globals_ensures; eauto.
+443:(* preserves *)
+444:  intros. unfold find_symbol; simpl. rewrite PTree.gsspec. destruct (peq id id0).
+602:    ge.(genv_vars_inj)
+603:    (invert_find_symbol ge)
+604:    (find_invert_symbol ge)
+605:    (public_symbol_exists ge)
+606:    ge.(genv_symb_range)
+607:    (block_is_volatile_below ge).
+608:
+609:(** * Construction of the initial memory state *)
+610:
+611:Section INITMEM.
+612:

@@ -1,0 +1,70 @@
+Theorem find_symbol_inversion : forall p x b,
+  find_symbol (globalenv p) x = Some b ->
+  In x (prog_defs_names p).
+Proof.
+  intros until b; unfold globalenv. eapply add_globals_preserves.
+(* preserves *)
+  unfold find_symbol; simpl; intros. rewrite PTree.gsspec in H1.
+  destruct (peq x id). subst x. change id with (fst (id, g)). apply List.in_map; auto.
+  auto.
+(* base *)
+  unfold find_symbol; simpl; intros. rewrite PTree.gempty in H. discriminate.
+Qed.
+
+Theorem find_def_inversion:
+  forall p b g,
+  find_def (globalenv p) b = Some g ->
+  exists id, In (id, g) (prog_defs p).
+Proof.
+  intros until g. unfold globalenv. apply add_globals_preserves.
+(* preserves *)
+  unfold find_def; simpl; intros.
+  rewrite PTree.gsspec in H1. destruct (peq b (genv_next ge)).
+  inv H1. exists id; auto.
+  auto.
+(* base *)
+  unfold find_def; simpl; intros. rewrite PTree.gempty in H. discriminate.
+Qed.
+
+Corollary find_funct_ptr_inversion:
+  forall p b f,
+  find_funct_ptr (globalenv p) b = Some f ->
+  exists id, In (id, Gfun f) (prog_defs p).
+Proof.
+  intros. apply find_def_inversion with b. apply find_funct_ptr_iff; auto.
+Qed.
+
+Corollary find_funct_inversion:
+  forall p v f,
+  find_funct (globalenv p) v = Some f ->
+  exists id, In (id, Gfun f) (prog_defs p).
+Proof.
+  intros. exploit find_funct_inv; eauto. intros [b EQ]. subst v.
+  rewrite find_funct_find_funct_ptr in H.
+  eapply find_funct_ptr_inversion; eauto.
+Qed.
+
+Theorem find_funct_ptr_prop:
+  forall (P: F -> Prop) p b f,
+  (forall id f, In (id, Gfun f) (prog_defs p) -> P f) ->
+  find_funct_ptr (globalenv p) b = Some f ->
+  P f.
+Proof.
+  intros. exploit find_funct_ptr_inversion; eauto. intros [id IN]. eauto.
+Qed.
+
+Theorem find_funct_prop:
+  forall (P: F -> Prop) p v f,
+  (forall id f, In (id, Gfun f) (prog_defs p) -> P f) ->
+  find_funct (globalenv p) v = Some f ->
+  P f.
+Proof.
+  intros. exploit find_funct_inversion; eauto. intros [id IN]. eauto.
+Qed.
+
+Theorem global_addresses_distinct:
+  forall ge id1 id2 b1 b2,
+  id1 <> id2 ->
+  find_symbol ge id1 = Some b1 ->
+  find_symbol ge id2 = Some b2 ->
+  b1 <> b2.

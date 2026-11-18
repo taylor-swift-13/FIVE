@@ -1,0 +1,101 @@
+/home/yangfp/five/paparazzi/relations/pid_alternating_bias/attempts/001/Driver.v
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Coqlib AST Integers Floats Values Memory Memdata Globalenvs Ctypes Csem.
+3: From PidPositionRunPos Require Import Source Execution.
+4: From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+5: From PidPositionTranslationProblem Require Import Spec.
+6: From PidPositionTranslationCore Require Import FactoryMemory CoreMemory MemoryShape FlightSemantics ControllerPrefix.
+7: From PidPositionTranslationAttempt002 Require Import WitnessMemory WitnessUpdates ByteAgreement CoreInputs FramedNormalReturn MainGoals InputSemantics.
+8: From PidMeasurementAttempt001 Require Import IntegerBounds MachineArithmetic SemanticBridge.
+9: From PidMeasurementProblem Require Import Spec.
+10: From PidAlternatingProblem Require Import Spec.
+11: From PidAlternatingAttempt001 Require Import Witness Semantic.
+12: Import ListNotations.
+13: Open Scope Z_scope.
+14: Module S:=PidPositionRunPos.Source.
+15: Module E:=PidPositionRunPos.Execution.
+16: 
+17: Lemma prepare_input : forall m gh ret r r' kp ki ix,
+18:  -4096<=r'<=4096 ->AlternatingInput m gh ret r kp ki ix ->
+19:  Mem.range_perm m gh 0 84 Cur Writable ->PrivateBlocks gh ret ->
+20:  exists q,EnvironmentStep gh m q /\AlternatingInput q gh ret r' kp ki ix /\
+21:  Mem.range_perm q gh 0 84 Cur Writable.
+22: Proof.
+23:  intros m gh ret r r' kp ki ix RANGE INPUT WG PRIVATE.
+24:  pose proof INPUT as INPUT0.
+25:  destruct INPUT as(GOOD&RX&RY&PX&PY&AXES&KP&KD&KI&KV&KA&HEAD&IX&IY).
+26:  pose proof GOOD as GOOD0.
+27:  destruct GOOD as(LEG&INIT&SAFE).
+28:  destruct LEG as(GR&UNIQ&RET&GHREAD&RETWRITE&GLOBAL&CTRL&CACHE&APP&HS&GAINS&BOUNDS).
+29:  assert(ACCESS:Mem.valid_access m Mint32 gh 44 Writable).
+30:  { eapply scalar_access_inside with(n:=84);[exact WG|lia|cbn;lia|witness_align]. }
+31:  destruct(Mem.valid_access_store m Mint32 gh 44(Vint(Int.repr r'))ACCESS)as[q STORE].
+32:  assert(KEEP:forall ch b ofs v,Mem.load ch m b ofs=Some v ->
+33:  (b<>gh \/ofs+size_chunk ch<=44 \/48<=ofs) ->Mem.load ch q b ofs=Some v).
+34:  { intros ch b ofs v LOAD MISS;erewrite Mem.load_store_other;[exact LOAD|exact STORE|cbn;exact MISS]. }
+35:  assert(GKEEP:forall id ty path ch v,load_global ch m id ty path=Some v ->
+36:  load_global ch q id ty path=Some v).
+37:  { intros id ty path ch v LOAD;unfold load_global in *.
+38:    destruct(Genv.find_symbol E.ge id)as[b|]eqn:SY;try discriminate.
+39:    destruct(path_info ty path)as[[ft ofs]|]eqn:PATH;try discriminate.
+40:    apply KEEP;[exact LOAD|left].
+41:    intro EQ;subst b;specialize(UNIQ id SY);subst id.
+42:    destruct(actual_global_variable_binding S._guidance_h S.v_guidance_h ltac:(vm_compute;reflexivity))as[hb[SH VH]].
+43:    rewrite SY in SH;injection SH as<-;exact(proj1(PRIVATE gh _ VH)eq_refl). }
+44:  assert(RXF:load_path Mint32 q gh gh_type[S._ref;S._pos;S._x]=Some(Vint(Int.repr r'))).
+45:  { change(Mem.load Mint32 q gh 44=Some(Vint(Int.repr r')));eapply Mem.load_store_same;exact STORE. }
+46:  assert(RYF:load_path Mint32 q gh gh_type[S._ref;S._pos;S._y]=Some(Vint Int.zero)).
+47:  { apply KEEP;[exact RY|right;right;cbn;lia]. }
+48:  assert(AXESF:forall axis,In axis[S._x;S._y]->
+49:  load_path Mint32 q gh gh_type[S._ref;S._speed;axis]=Some(Vint Int.zero) /\
+50:  load_path Mint32 q gh gh_type[S._ref;S._accel;axis]=Some(Vint Int.zero) /\
+51:  load_global Mint32 q S._state state_type[S._ned_speed_i;axis]=Some(Vint Int.zero)).
+52:  { intros axis IN;destruct(AXES axis IN)as(SPEED&ACCEL&VEL).
+53:    split;[|split].
+54:    - destruct IN as[<-|[<-|[]]];apply KEEP;[exact SPEED|right;right;cbn;lia].
+55:    - destruct IN as[<-|[<-|[]]];apply KEEP;[exact ACCEL|right;right;cbn;lia].
+56:    - apply GKEEP;exact VEL. }
+57:  assert(SAFEF:position_subtractions_safe q gh).
+58:  { intros axis IN;destruct IN as[<-|[<-|[]]].
+59:    - exists(Int.repr r'),Int.zero;split;[exact RXF|];split;[apply GKEEP;exact PX|].
+60:      unfold signed32;rewrite Int.signed_repr by(change(-2147483648<=r'<=2147483647);lia);rewrite Int.signed_zero;lia.
+61:    - exists Int.zero,Int.zero;split;[exact RYF|];split;[apply GKEEP;exact PY|].
+62:      unfold signed32;rewrite Int.signed_zero;lia. }
+63:  assert(INITF:initialized_positions q gh).
+64:  { intros axis IN;destruct(SAFEF axis IN)as(a&b&L&M&N);eauto. }
+65:  assert(LEGF:InputGoodLegacy q gh ret).
+66:  { unfold InputGoodLegacy;repeat(first[assumption|split]).
+67:    - intros z R;eapply Mem.perm_store_1;[exact STORE|apply GHREAD;exact R].
+68:    - intros z R;eapply Mem.perm_store_1;[exact STORE|apply RETWRITE;exact R].
+69:    - eapply global_contract_after_store;[exact GLOBAL| |exact STORE].
+70:      intros b gv VAR RO;exact(proj1(PRIVATE b gv VAR)).
+71:    - intros id IN;destruct(CTRL id IN)as(b&gv&SY&VA&RP);exists b,gv;repeat(first[assumption|split]).
+72:      intros z R;eapply Mem.perm_store_1;[exact STORE|apply RP;exact R].
+73:    - destruct CACHE as(ps&ss&PS&SS&BP&BS);exists ps,ss;repeat(first[assumption|split]);apply GKEEP;assumption.
+74:    - apply GKEEP;exact APP.
+75:    - destruct HS as(h&LOAD&LO&HI);exists h;repeat(first[assumption|split]);apply GKEEP;exact LOAD.
+76:    - intros gain IN;destruct(GAINS gain IN)as(v&LOAD&BOUND);exists v;split;[apply GKEEP;exact LOAD|exact BOUND].
+77:    - intros axis IN;destruct(BOUNDS axis IN)as(INT&SPD&ACC&VEL).
+78:      split.
+79:      + destruct INT as(v&LOAD&BOUND);exists v;split;[apply GKEEP;exact LOAD|exact BOUND].
+80:      + destruct(AXESF axis IN)as(SPEED&ACCEL&MEASURED);split.
+81:        * exists Int.zero;split;[exact SPEED|rewrite Int.signed_zero;lia].
+82:        * split.
+83:          -- exists Int.zero;split;[exact ACCEL|rewrite Int.signed_zero;lia].
+84:          -- exists Int.zero;split;[exact MEASURED|rewrite Int.signed_zero;lia]. }
+85:  exists q;split.
+86:  - split.
+87:    + eapply Mem.store_unchanged_on;[exact STORE|].
+88:      intros z R NOT;apply NOT;left;split;[reflexivity|cbn in R;lia].
+89:    + intros axis IN;unfold load_global.
+90:      destruct(Genv.find_symbol E.ge S._guidance_pid_trim_att_integrator)as[b|]eqn:SY;[|reflexivity].
+91:      destruct(path_info vec_type[axis])as[[ty ofs]|]eqn:PI;[|reflexivity].
+92:      erewrite Mem.load_store_other;[reflexivity|exact STORE|left].
+93:      destruct(actual_global_variable_binding S._guidance_pid_trim_att_integrator S.v_guidance_pid_trim_att_integrator ltac:(vm_compute;reflexivity))as[bi[SI VI]].
+94:      rewrite SY in SI;injection SI as<-;exact(proj1(PRIVATE bi _ VI)).
+95:  - split.
+96:    + unfold AlternatingInput;split;[unfold InputGood;tauto|].
+97:      repeat(first[assumption|split]);apply GKEEP;assumption.
+98:    + intros z R;eapply Mem.perm_store_1;[exact STORE|apply WG;exact R].
+99: Qed.
+

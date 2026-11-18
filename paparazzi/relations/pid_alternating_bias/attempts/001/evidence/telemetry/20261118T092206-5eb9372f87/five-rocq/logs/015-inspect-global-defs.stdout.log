@@ -1,0 +1,100 @@
+- auto.
+Qed.
+
+Theorem find_funct_inv:
+  forall ge v f,
+  find_funct ge v = Some f -> exists b, v = Vptr b Ptrofs.zero.
+Proof.
+  intros until f; unfold find_funct.
+  destruct v; try congruence.
+  destruct (Ptrofs.eq_dec i Ptrofs.zero); try congruence.
+  intros. exists b; congruence.
+Qed.
+
+Theorem find_funct_find_funct_ptr:
+  forall ge b,
+  find_funct ge (Vptr b Ptrofs.zero) = find_funct_ptr ge b.
+Proof.
+  intros; simpl. apply dec_eq_true.
+Qed.
+
+Theorem find_funct_ptr_iff:
+  forall ge b f, find_funct_ptr ge b = Some f <-> find_def ge b = Some (Gfun f).
+Proof.
+  intros. unfold find_funct_ptr. destruct (find_def ge b) as [[f1|v1]|]; intuition congruence.
+Qed.
+
+Theorem find_var_info_iff:
+  forall ge b v, find_var_info ge b = Some v <-> find_def ge b = Some (Gvar v).
+Proof.
+  intros. unfold find_var_info. destruct (find_def ge b) as [[f1|v1]|]; intuition congruence.
+Qed.
+
+Theorem find_def_symbol:
+  forall p id g,
+  (prog_defmap p)!id = Some g <-> exists b, find_symbol (globalenv p) id = Some b /\ find_def (globalenv p) b = Some g.
+Proof.
+  intros.
+  set (P := fun m ge => m!id = Some g <-> exists b, find_symbol ge id = Some b /\ find_def ge b = Some g).
+  assert (REC: forall l m ge,
+            P m ge ->
+            P (fold_left (fun m idg => PTree.set idg#1 idg#2 m) l m)
+              (add_globals ge l)).
+  { induction l as [ | [id1 g1] l]; intros; simpl.
+  - auto.
+  - apply IHl. unfold P, add_global, find_symbol, find_def; simpl.
+Proof.
+  intros. exploit find_funct_inversion; eauto. intros [id IN]. eauto.
+Qed.
+
+Theorem global_addresses_distinct:
+  forall ge id1 id2 b1 b2,
+  id1 <> id2 ->
+  find_symbol ge id1 = Some b1 ->
+  find_symbol ge id2 = Some b2 ->
+  b1 <> b2.
+Proof.
+  intros. red; intros; subst. elim H. destruct ge. eauto.
+Qed.
+
+Theorem invert_find_symbol:
+  forall ge id b,
+  invert_symbol ge b = Some id -> find_symbol ge id = Some b.
+Proof.
+  intros until b; unfold find_symbol, invert_symbol.
+  apply PTree_Properties.fold_rec.
+  intros. rewrite H in H0; auto.
+  congruence.
+  intros. destruct (eq_block b v). inv H2. apply PTree.gss.
+  rewrite PTree.gsspec. destruct (peq id k).
+  subst. assert (m!k = Some b) by auto. congruence.
+  auto.
+Qed.
+
+Theorem find_invert_symbol:
+  forall ge id b,
+  find_symbol ge id = Some b -> invert_symbol ge b = Some id.
+Proof.
+  intros until b.
+  assert (find_symbol ge id = Some b -> exists id', invert_symbol ge b = Some id').
+  unfold find_symbol, invert_symbol.
+  apply PTree_Properties.fold_rec.
+  intros. rewrite H in H0; auto.
+  rewrite PTree.gempty; congruence.
+  intros. destruct (eq_block b v). exists k; auto.
+  rewrite PTree.gsspec in H2. destruct (peq id k).
+  inv H2. congruence. auto.
+
+  intros; exploit H; eauto. intros [id' A].
+  assert (id = id'). eapply genv_vars_inj; eauto. apply invert_find_symbol; auto.
+  congruence.
+Qed.
+
+Definition advance_next (gl: list (ident * globdef F V)) (x: positive) :=
+  List.fold_left (fun n g => Pos.succ n) gl x.
+
+Remark genv_next_add_globals:
+  forall gl ge,
+  genv_next (add_globals ge gl) = advance_next gl (genv_next ge).
+Proof.
+  induction gl; simpl; intros.

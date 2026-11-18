@@ -1,0 +1,91 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationAttempt002.core.cbmc; it is
+remapped to PidPositionTranslationCore.cbmc
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/__pycache__
+was previously bound to PidPositionTranslationAttempt002.core.__pycache__; it
+is remapped to PidPositionTranslationCore.__pycache__
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/evidence
+was previously bound to PidPositionTranslationAttempt002.safety.evidence; it
+is remapped to PidPositionSafety.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationCore.cbmc; it is remapped to
+CoreCBMC [overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_alternating_bias/attempts/001/Witness.v", line 393, characters 55-78:
+Error:
+In environment
+A, kp, ki : Z
+AR : 0 <= A <= 4096
+KPR : 0 <= kp <= 100
+KIR : 0 <= ki <= 100
+gh, ret : block
+m : mem
+INPUT : SymbolicInitial m gh ret A kp ki
+WG : Mem.range_perm m gh 0 84 Cur Writable
+PRIVATE : PrivateBlocks gh ret
+Unable to unify
+ "InputGood ?m ?gh ?ret /\
+  load_path Mint32 ?m ?gh gh_type [P._ref; P._pos; P._x] =
+  Some (Vint (Int.repr ?A)) /\
+  load_path Mint32 ?m ?gh gh_type [P._ref; P._pos; P._y] =
+  Some (Vint Int.zero) /\
+  load_global Mint32 ?m P._state state_type [P._ned_pos_i; P._x] =
+  Some (Vint Int.zero) /\
+  load_global Mint32 ?m P._state state_type [P._ned_pos_i; P._y] =
+  Some (Vint Int.zero) /\
+  (forall axis : ident,
+   In axis [P._x; P._y] ->
+   load_path Mint32 ?m ?gh gh_type [P._ref; P._speed; axis] =
+   Some (Vint Int.zero) /\
+   load_path Mint32 ?m ?gh gh_type [P._ref; P._accel; axis] =
+   Some (Vint Int.zero) /\
+   load_global Mint32 ?m P._state state_type [P._ned_speed_i; axis] =
+   Some (Vint Int.zero)) /\
+  load_global Mint32 ?m P._guidance_pid pid_type [P._kp] =
+  Some (Vint (Int.repr ?kp)) /\
+  load_global Mint32 ?m P._guidance_pid pid_type [P._kd] =
+  Some (Vint Int.zero) /\
+  load_global Mint32 ?m P._guidance_pid pid_type [P._ki] =
+  Some (Vint (Int.repr ?ki)) /\
+  load_global Mint32 ?m P._guidance_pid pid_type [P._kv] =
+  Some (Vint Int.zero) /\
+  load_global Mint32 ?m P._guidance_pid pid_type [P._ka] =
+  Some (Vint Int.zero) /\
+  load_global Mfloat32 ?m P._guidance_h gh_type [P._sp; P._heading] =
+  Some (Vsingle Float32.zero) /\
+  integral_load ?m Int.zero /\
+  load_global Mint32 ?m P._guidance_pid_trim_att_integrator vec_type [P._y] =
+  Some (Vint Int.zero)"
+with "gh = ret -> False".
+

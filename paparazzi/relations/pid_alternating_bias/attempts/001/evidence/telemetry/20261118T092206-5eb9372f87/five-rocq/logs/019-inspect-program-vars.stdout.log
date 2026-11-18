@@ -1,0 +1,121 @@
+Definition global_definitions : list (ident * globdef fundef type) :=
+((___compcert_va_int32,
+   Gfun(External (EF_runtime "__compcert_va_int32"
+                   (mksignature (AST.Xptr :: nil) AST.Xint cc_default))
+     ((tptr tvoid) :: nil) tuint cc_default)) ::
+ (___compcert_va_int64,
+   Gfun(External (EF_runtime "__compcert_va_int64"
+                   (mksignature (AST.Xptr :: nil) AST.Xlong cc_default))
+     ((tptr tvoid) :: nil) tulong cc_default)) ::
+ (___compcert_va_float64,
+   Gfun(External (EF_runtime "__compcert_va_float64"
+                   (mksignature (AST.Xptr :: nil) AST.Xfloat cc_default))
+     ((tptr tvoid) :: nil) tdouble cc_default)) ::
+ (___compcert_va_composite,
+   Gfun(External (EF_runtime "__compcert_va_composite"
+                   (mksignature (AST.Xptr :: AST.Xlong :: nil) AST.Xptr
+                     cc_default)) ((tptr tvoid) :: tulong :: nil)
+     (tptr tvoid) cc_default)) ::
+ (___compcert_i64_dtos,
+   Gfun(External (EF_runtime "__compcert_i64_dtos"
+                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+     (tdouble :: nil) tlong cc_default)) ::
+ (___compcert_i64_dtou,
+   Gfun(External (EF_runtime "__compcert_i64_dtou"
+                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+     (tdouble :: nil) tulong cc_default)) ::
+ (___compcert_i64_stod,
+   Gfun(External (EF_runtime "__compcert_i64_stod"
+                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+     (tlong :: nil) tdouble cc_default)) ::
+ (___compcert_i64_utod,
+   Gfun(External (EF_runtime "__compcert_i64_utod"
+                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+     (tulong :: nil) tdouble cc_default)) ::
+ (___compcert_i64_stof,
+   Gfun(External (EF_runtime "__compcert_i64_stof"
+                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+     (tlong :: nil) tfloat cc_default)) ::
+ (___compcert_i64_utof,
+   Gfun(External (EF_runtime "__compcert_i64_utof"
+                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+     (tulong :: nil) tfloat cc_default)) ::
+ (___compcert_i64_sdiv,
+   Gfun(External (EF_runtime "__compcert_i64_sdiv"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_udiv,
+   Gfun(External (EF_runtime "__compcert_i64_udiv"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___compcert_i64_smod,
+   Gfun(External (EF_runtime "__compcert_i64_smod"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_umod,
+   Gfun(External (EF_runtime "__compcert_i64_umod"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___compcert_i64_shl,
+   Gfun(External (EF_runtime "__compcert_i64_shl"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+ (___compcert_i64_shr,
+   Gfun(External (EF_runtime "__compcert_i64_shr"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tulong :: tint :: nil) tulong cc_default)) ::
+ (___compcert_i64_sar,
+   Gfun(External (EF_runtime "__compcert_i64_sar"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+ (___compcert_i64_smulh,
+   Gfun(External (EF_runtime "__compcert_i64_smulh"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_umulh,
+   Gfun(External (EF_runtime "__compcert_i64_umulh"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___builtin_ais_annot,
+   Gfun(External (EF_builtin "__builtin_ais_annot"
+                   (mksignature (AST.Xptr :: nil) AST.Xvoid
+                     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
+     ((tptr tschar) :: nil) tvoid
+     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
+ (___builtin_bswap64,
+   Gfun(External (EF_builtin "__builtin_bswap64"
+                   (mksignature (AST.Xlong :: nil) AST.Xlong cc_default))
+     (tulong :: nil) tulong cc_default)) ::
+ (___builtin_bswap,
+   Gfun(External (EF_builtin "__builtin_bswap"
+                   (mksignature (AST.Xint :: nil) AST.Xint cc_default))
+     (tuint :: nil) tuint cc_default)) ::
+ (___builtin_bswap32,
+   Gfun(External (EF_builtin "__builtin_bswap32"
+                   (mksignature (AST.Xint :: nil) AST.Xint cc_default))
+     (tuint :: nil) tuint cc_default)) ::
+ (___builtin_bswap16,
+   Gfun(External (EF_builtin "__builtin_bswap16"
+                   (mksignature (AST.Xint16unsigned :: nil)
+                     AST.Xint16unsigned cc_default)) (tushort :: nil) tushort
+     cc_default)) ::
+ (___builtin_clz,
+   Gfun(External (EF_builtin "__builtin_clz"
+                   (mksignature (AST.Xint :: nil) AST.Xint cc_default))
+     (tuint :: nil) tint cc_default)) ::
+ (___builtin_clzl,
+   Gfun(External (EF_builtin "__builtin_clzl"
+                   (mksignature (AST.Xlong :: nil) AST.Xint cc_default))
+     (tulong :: nil) tint cc_default)) ::
+ (___builtin_clzll,
+   Gfun(External (EF_builtin "__builtin_clzll"
+                   (mksignature (AST.Xlong :: nil) AST.Xint cc_default))
+     (tulong :: nil) tint cc_default)) ::
+ (___builtin_ctz,
+   Gfun(External (EF_builtin "__builtin_ctz"
+                   (mksignature (AST.Xint :: nil) AST.Xint cc_default))
+     (tuint :: nil) tint cc_default)) ::
+ (

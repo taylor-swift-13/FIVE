@@ -1,0 +1,326 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata.
+From PidPositionTranslationCore Require Import FactoryMemory.
+From PidPositionTranslationProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma loadbytes_from_equal_units : forall n a b blk ofs bytes,
+ Mem.loadbytes a blk ofs(Z.of_nat n)=Some bytes ->
+ (forall i,0<=i<Z.of_nat n ->Mem.loadbytes a blk(ofs+i)1=Mem.loadbytes b blk(ofs+i)1) ->
+ Mem.loadbytes b blk ofs(Z.of_nat n)=Some bytes.
+Proof.
+ induction n as[|n IH];intros a b blk ofs bytes LOAD UNIT.
+ - change(Mem.loadbytes a blk ofs 0=Some bytes)in LOAD.
+   rewrite Mem.loadbytes_empty in LOAD by lia;inversion LOAD;subst bytes.
+   apply Mem.loadbytes_empty;lia.
+ - replace(Z.of_nat(S n))with(1+Z.of_nat n)in LOAD by lia.
+   destruct(Mem.loadbytes_split a blk ofs 1(Z.of_nat n)bytes LOAD ltac:(lia)ltac:(lia))
+    as[head[tail[HEAD[TAIL EQ]]]];subst bytes.
+   replace(Z.of_nat(S n))with(1+Z.of_nat n)by lia.
+   apply Mem.loadbytes_concat;try lia.
+   + replace ofs with(ofs+0)at 1 by lia.
+     rewrite<-(UNIT 0 ltac:(lia));replace(ofs+0)with ofs by lia;exact HEAD.
+   + apply IH with(a:=a);[exact TAIL|].
+     intros i RANGE;replace(ofs+1+i)with(ofs+(1+i))by lia;apply UNIT;lia.
+Qed.
+
+Lemma scalar_load_from_equal_units : forall ch a b blk ofs v,
+ Mem.load ch a blk ofs=Some v ->
+ (forall i,0<=i<size_chunk ch ->Mem.loadbytes a blk(ofs+i)1=Mem.loadbytes b blk(ofs+i)1) ->
+ Mem.load ch b blk ofs=Some v.
+Proof.
+ intros ch a b blk ofs v LOAD UNIT.
+ destruct(Mem.load_loadbytes _ _ _ _ _ LOAD)as[bytes[BY DECODE]].
+ rewrite DECODE;apply Mem.loadbytes_load.
+ - replace(size_chunk ch)with(Z.of_nat(Z.to_nat(size_chunk ch)))in BY|-* by(rewrite Z2Nat.id;[reflexivity|pose proof(size_chunk_pos ch);lia]).
+   eapply loadbytes_from_equal_units;[exact BY|].
+   intros i R;apply UNIT;rewrite Z2Nat.id in R;[exact R|pose proof(size_chunk_pos ch);lia].
+ - exact(proj2(Mem.load_valid_access _ _ _ _ _ LOAD)).
+Qed.
+
+Lemma canonical_frame_load_transfer : forall gh ret a b ch blk ofs v,
+ same_except_positions_and_return gh ret a b ->
+ blk<>ret ->
+ (forall i,0<=i<size_chunk ch ->~translated_byte gh blk(ofs+i)) ->
+ Mem.load ch a blk ofs=Some v ->Mem.load ch b blk ofs=Some v.
+Proof.
+ intros gh ret a b ch blk ofs v[_[_ BY]]RET NOT LOAD.
+ eapply scalar_load_from_equal_units;[exact LOAD|].
+ intros i R;apply BY;[apply NOT;exact R|exact RET].
+Qed.
+
+Lemma synchronized_store_preserves_canonical_frame : forall gh ret a b dst ofs ch v af bf,
+ same_except_positions_and_return gh ret a b ->
+ Mem.store ch a dst ofs v=Some af ->Mem.store ch b dst ofs v=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dst ofs ch v af bf[NEXT[PERM BY]]SA SB;split.
+ - rewrite(Mem.nextblock_store _ _ _ _ _ _ SA),(Mem.nextblock_store _ _ _ _ _ _ SB);exact NEXT.
+ - split.
+   + intros blk i k p;split;intro H.
+     * eapply Mem.perm_store_1;[exact SB|]. apply(proj1(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SA|exact H].
+     * eapply Mem.perm_store_1;[exact SA|]. apply(proj2(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SB|exact H].
+   + intros blk i NT RET.
+     destruct(peq blk dst)as[->|DIFF].
+     * destruct(zlt i ofs)as[LEFT|LEFT].
+       -- rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA dst i 1)by(right;right;left;lia).
+          rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB dst i 1)by(right;right;left;lia).
+          apply BY;assumption.
+       -- destruct(zle(ofs+size_chunk ch)i)as[RIGHT|RIGHT].
+          ++ rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA dst i 1)by(right;right;right;lia).
+             rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB dst i 1)by(right;right;right;lia).
+             apply BY;assumption.
+          ++ pose proof(Mem.loadbytes_store_same _ _ _ _ _ _ SA)as LA.
+             pose proof(Mem.loadbytes_store_same _ _ _ _ _ _ SB)as LB.
+             replace i with(ofs+(i-ofs))by lia.
+             eapply loadbytes_equal_subrange;[exact LA|exact LB|lia|lia|lia].
+     * rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA blk i 1)by(left;exact DIFF).
+       rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB blk i 1)by(left;exact DIFF).
+       apply BY;assumption.
+Qed.
+Print Assumptions canonical_frame_load_transfer.
+Print Assumptions synchronized_store_preserves_canonical_frame.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma replay_stores_exists : forall us m,
+ Forall(fun u=>let '(ch,b,ofs,_):=u in Mem.valid_access m ch b ofs Writable)us ->
+ exists mf,replay_stores m us=Some mf.
+Proof.
+ induction us as[|[[[ch b]ofs]v]us IH];intros m ACCESS.
+ - exists m;reflexivity.
+ - inversion ACCESS as[|u tail A REST];subst.
+   destruct(Mem.valid_access_store m ch b ofs v A)as[ma STORE].
+   destruct(IH ma ltac:(eapply Forall_impl;[|exact REST];intros[[[cu bu]ou]vu] VA;eapply Mem.store_valid_access_1;eauto))as[mf RUN].
+   exists mf;cbn[replay_stores];rewrite STORE;exact RUN.
+Qed.
+Lemma replay_stores_value_at : forall i us m mf ch b ofs v,
+ nth_error us i=Some(ch,b,ofs,v) ->replay_stores m us=Some mf ->
+ Forall(misses_chunk ch b ofs)(skipn(S i)us) ->
+ Mem.load ch mf b ofs=Some(Val.load_result ch v).
+Proof.
+ induction i as[|i IH];intros us m mf ch b ofs v NTH RUN MISS;
+ destruct us as[|[[[cu bu]ou]vu]us];try discriminate;
+ cbn[replay_stores]in RUN;
+ destruct(Mem.store cu m bu ou vu)as[ma|]eqn:STORE;try discriminate.
+ - cbn[nth_error]in NTH;injection NTH as<- <- <- <-.
+   cbn[skipn]in MISS;rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN MISS).
+   eapply Mem.load_store_same;exact STORE.
+ - eapply IH;[exact NTH|exact RUN|exact MISS].
+Qed.
+
+Lemma global_contract_after_allocation : forall m ma fresh lo hi,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->Mem.valid_block m b) ->
+ Mem.alloc m lo hi=(ma,fresh) ->global_bytes_initialized ma.
+Proof.
+ intros m ma fresh lo hi[init[INIT GLOBAL]]VALID ALLOC.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros ofs R;eapply Mem.perm_alloc_1;[exact ALLOC|apply RP;exact R].
+ - intros RO ofs R;erewrite Mem.loadbytes_alloc_unchanged;[|exact ALLOC|apply VALID with(gv:=gv);exact VAR].
+   apply BY;assumption.
+Qed.
+Lemma global_contract_after_store : forall m mf ch dst ofs v,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst) ->
+ Mem.store ch m dst ofs v=Some mf ->global_bytes_initialized mf.
+Proof.
+ intros m mf ch dst ofs v[init[INIT GLOBAL]]OUT STORE.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros i R;eapply Mem.perm_store_1;[exact STORE|apply RP;exact R].
+ - intros RO i R;rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ STORE b i 1)
+    by(left;eapply OUT;eauto);apply BY;assumption.
+Qed.
+Lemma global_contract_after_replay : forall us m mf,
+ global_bytes_initialized m ->
+ Forall(fun u=>let '(_,dst,_,_):=u in
+ forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst)us ->
+ replay_stores m us=Some mf ->global_bytes_initialized mf.
+Proof.
+ induction us as[|[[[ch dst]ofs]v]us IH];intros m mf GOOD OUT RUN;cbn[replay_stores]in RUN.
+ - injection RUN as<-;exact GOOD.
+ - destruct(Mem.store ch m dst ofs v)as[ma|]eqn:STORE;try discriminate.
+   inversion OUT as[|u tail HEAD REST];subst.
+   eapply IH;[eapply global_contract_after_store;eauto|exact REST|exact RUN].
+Qed.
+
+Lemma translated_store_pair_preserves_canonical_frame : forall gh ret a b dst ofs ch va vb af bf,
+ same_except_positions_and_return gh ret a b ->
+ (forall i,ofs<=i<ofs+size_chunk ch ->translated_byte gh dst i) ->
+ Mem.store ch a dst ofs va=Some af ->Mem.store ch b dst ofs vb=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dst ofs ch va vb af bf[NEXT[PERM BY]]TRAN SA SB;split.
+ - rewrite(Mem.nextblock_store _ _ _ _ _ _ SA),(Mem.nextblock_store _ _ _ _ _ _ SB);exact NEXT.
+ - split.
+   + intros blk i k p;split;intro H.
+     * eapply Mem.perm_store_1;[exact SB|]. apply(proj1(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SA|exact H].
+     * eapply Mem.perm_store_1;[exact SA|]. apply(proj2(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SB|exact H].
+   + intros blk i NT RET.
+     assert(OUT:blk<>dst \/i+1<=ofs\/ofs+size_chunk ch<=i).
+     { destruct(peq blk dst)as[->|D];[right|left;exact D].
+       destruct(zlt i ofs);[left;lia|right].
+       destruct(zle(ofs+size_chunk ch)i);[exact l|].
+       exfalso;apply NT;apply TRAN;lia. }
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA blk i 1)by(tauto).
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB blk i 1)by(tauto).
+     apply BY;assumption.
+Qed.
+Definition compatible_update(gh:block)(u v:scalar_update):Prop:=
+ exists ch dst ofs va vb,u=(ch,dst,ofs,va)/\v=(ch,dst,ofs,vb)/\
+ (va=vb\/(forall i,ofs<=i<ofs+size_chunk ch->translated_byte gh dst i)).
+Lemma compatible_replay_preserves_canonical_frame : forall gh ret us vs a b af bf,
+ Forall2(compatible_update gh)us vs ->
+ same_except_positions_and_return gh ret a b ->
+ replay_stores a us=Some af ->replay_stores b vs=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret us vs a b af bf COMP;revert a b af bf.
+ induction COMP;intros a b af bf FRAME UA UB.
+ - cbn[replay_stores]in UA,UB;injection UA as<-;injection UB as<-;exact FRAME.
+ - destruct H as[ch[dst[ofs[va[vb[-> [-> CASE]]]]]]].
+   cbn[replay_stores]in UA,UB.
+   destruct(Mem.store ch a dst ofs va)as[ma|]eqn:SA;try discriminate.
+   destruct(Mem.store ch b dst ofs vb)as[mb|]eqn:SB;try discriminate.
+   eapply IHCOMP;[|exact UA|exact UB].
+   destruct CASE as[EQ|TR].
+   + subst vb;eapply synchronized_store_preserves_canonical_frame;eauto.
+   + eapply translated_store_pair_preserves_canonical_frame;eauto.
+Qed.
+Print Assumptions compatible_replay_preserves_canonical_frame.
+From Stdlib Require Import ZArith Lia Psatz.
+Open Scope Z_scope.
+
+(** Saturation and ceiling are on mathematical signed integer codes. *)
+Definition zclamp (limit value : Z) : Z :=
+  Z.max (-limit) (Z.min limit value).
+
+Definition ceil_div (error denominator : Z) : Z :=
+  - ((-error) / denominator).
+
+Lemma zclamp_bounds : forall limit value,
+  0 <= limit -> -limit <= zclamp limit value <= limit.
+Proof.
+  intros limit value LIMIT; unfold zclamp.
+  pose proof (Z.max_spec (-limit) (Z.min limit value)).
+  pose proof (Z.min_spec limit value).
+  destruct H as [[? ?]|[? ?]]; destruct H0 as [[? ?]|[? ?]]; lia.
+Qed.
+
+Lemma zclamp_identity : forall limit value,
+  -limit <= value <= limit -> zclamp limit value = value.
+Proof.
+  intros limit value [LO HI]; unfold zclamp.
+  rewrite Z.min_r by exact HI.
+  rewrite Z.max_r by exact LO; reflexivity.
+Qed.
+
+Lemma zclamp_nonexpansive : forall limit x y,
+  0 <= limit ->
+  Z.abs (zclamp limit x - zclamp limit y) <= Z.abs (x-y).
+Proof.
+  intros limit x y LIMIT; unfold zclamp.
+  pose proof (Z.max_spec (-limit) (Z.min limit x)) as HX.
+  pose proof (Z.max_spec (-limit) (Z.min limit y)) as HY.
+  pose proof (Z.min_spec limit x) as MX.
+  pose proof (Z.min_spec limit y) as MY.
+  destruct HX as [[? ?]|[? ?]]; destruct HY as [[? ?]|[? ?]];
+  destruct MX as [[? ?]|[? ?]]; destruct MY as [[? ?]|[? ?]];
+  apply Z.abs_le;
+  destruct (Z.abs_spec (x-y)); lia.
+Qed.
+
+Lemma zclamp_pair_cap : forall limit x y,
+  0 <= limit -> Z.abs (zclamp limit x - zclamp limit y) <= 2*limit.
+Proof.
+  intros limit x y LIMIT.
+  pose proof (zclamp_bounds limit x LIMIT).
+  pose proof (zclamp_bounds limit y LIMIT).
+  apply Z.abs_le; lia.
+Qed.
+
+Lemma ceil_div_zero : forall denominator, ceil_div 0 denominator = 0.
+Proof. intros denominator; destruct denominator; reflexivity. Qed.
+
+Lemma ceil_div_cover : forall error denominator,
+  0 <= error -> 0 < denominator ->
+  0 <= ceil_div error denominator /\ error <= denominator * ceil_div error denominator.
+Proof.
+  intros error denominator ERROR DEN.
+  pose proof (Z.div_mod (-error) denominator ltac:(lia)) as DIV.
+  pose proof (Z.mod_pos_bound (-error) denominator DEN) as MOD.
+  unfold ceil_div; split; nia.
+Qed.
+
+Lemma ceil_div_positive_formula : forall error denominator,
+  0 <= error -> 0 < denominator ->
+  ceil_div error denominator = (error + denominator - 1) / denominator.
+Proof.
+  intros error denominator ERROR DEN.
+  pose proof (Z.div_mod (-error) denominator ltac:(lia)) as NEG.
+  pose proof (Z.mod_pos_bound (-error) denominator DEN) as RN.
+  pose proof (Z.div_mod (error+denominator-1) denominator ltac:(lia)) as POS.
+  pose proof (Z.mod_pos_bound (error+denominator-1) denominator DEN) as RP.
+  unfold ceil_div; nia.
+Qed.
+
+Lemma floor_div_difference_bound : forall x y error denominator,
+  0 <= error -> 0 < denominator -> Z.abs (x-y) <= error ->
+  Z.abs (x/denominator-y/denominator) <= ceil_div error denominator.
+Proof.
+  intros x y error denominator ERROR DEN DIFFERENCE.
+  apply Z.abs_le in DIFFERENCE.
+  pose proof (ceil_div_cover error denominator ERROR DEN) as [NONNEG COVER].
+  pose proof (Z.div_mod x denominator ltac:(lia)) as DX.
+  pose proof (Z.mod_pos_bound x denominator DEN) as RX.
+  pose proof (Z.div_mod y denominator ltac:(lia)) as DY.
+  pose proof (Z.mod_pos_bound y denominator DEN) as RY.
+  apply Z.abs_le; split; nia.
+Qed.
+
+Lemma floor_div_difference_zero : forall x y denominator,
+  0 < denominator -> Z.abs (x-y) <= 0 ->
+  x/denominator = y/denominator.
+Proof.
+  intros x y denominator DEN DIFFERENCE.
+  pose proof (floor_div_difference_bound x y 0 denominator ltac:(lia) DEN DIFFERENCE).
+  rewrite ceil_div_zero in H.
+  apply Z.abs_le in H; lia.
+Qed.
+
+Lemma multiply_difference_bound : forall gain x y error,
+  0 <= gain -> Z.abs (x-y) <= error ->
+  Z.abs (gain*x-gain*y) <= gain*error.
+Proof.
+  intros gain x y error GAIN DIFF.
+  replace (gain*x-gain*y) with (gain*(x-y)) by ring.
+  rewrite Z.abs_mul, Z.abs_eq by exact GAIN; nia.
+Qed.
+
+Lemma addition_difference_bound : forall x y a b dx da,
+  Z.abs (x-y) <= dx -> Z.abs (a-b) <= da ->
+  Z.abs ((x+a)-(y+b)) <= dx+da.
+Proof.
+  intros x y a b dx da HX HA.
+  replace ((x+a)-(y+b)) with ((x-y)+(a-b)) by ring.
+  eapply Z.le_trans; [apply Z.abs_triangle|lia].
+Qed.
+
+Print Assumptions zclamp_nonexpansive.
+Print Assumptions floor_div_difference_bound.
+Print Assumptions ceil_div_positive_formula.
+
