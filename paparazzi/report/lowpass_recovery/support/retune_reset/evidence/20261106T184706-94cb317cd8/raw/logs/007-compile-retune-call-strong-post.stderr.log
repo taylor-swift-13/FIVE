@@ -1,0 +1,90 @@
+File "./paparazzi/relations/lowpass_recovery/support/RetuneCall.v", line 105, characters 78-81:
+Error:
+In environment
+m : mem
+b : block
+p : ptrofs
+tau, h : float32
+P : writable12 m b p
+W0 : Mem.valid_access m Mfloat32 b (Ptrofs.unsigned p) Writable
+OBJ : Mem.valid_block m b
+e : env
+ma : mem
+ALLOC : do_alloc_variables ge empty_env m retune_declarations = (e, ma)
+AV : alloc_variables ge empty_env m retune_declarations e ma
+ALL :
+  forall (id : ident) (ty : type),
+  In (id, ty) retune_declarations ->
+  exists bx : block,
+    e ! id = Some (bx, ty) /\
+    ~ Mem.valid_block m bx /\
+    Mem.range_perm ma bx 0 (sizeof ge ty) Cur Freeable
+bp : block
+LP : e ! _filter = Some (bp, retune_filter_type)
+FP : ~ Mem.valid_block m bp
+RP : Mem.range_perm ma bp 0 (sizeof ge retune_filter_type) Cur Freeable
+bt : block
+LT : e ! _tau = Some (bt, tfloat)
+FT : ~ Mem.valid_block m bt
+RT : Mem.range_perm ma bt 0 (sizeof ge tfloat) Cur Freeable
+bh : block
+LH : e ! _sample_time = Some (bh, tfloat)
+FH : ~ Mem.valid_block m bh
+RH : Mem.range_perm ma bh 0 (sizeof ge tfloat) Cur Freeable
+SEP : env_separated e
+PT : bp <> bt
+PH : bp <> bh
+TH : bt <> bh
+OUTENV :
+  forall q : block,
+  Mem.valid_block m q ->
+  forall (id : positive) (ty : type), e ! id = Some (q, ty) -> False
+WP : Mem.valid_access ma Mptr bp 0 Writable
+mb : mem
+SP : Mem.store Mptr ma bp 0 (Vptr b p) = Some mb
+WT : Mem.valid_access mb Mfloat32 bt 0 Writable
+mc : mem
+ST : Mem.store Mfloat32 mb bt 0 (Vsingle tau) = Some mc
+WH : Mem.valid_access mc Mfloat32 bh 0 Writable
+md : mem
+SH : Mem.store Mfloat32 mc bh 0 (Vsingle h) = Some md
+BIND :
+  bind_parameters ge e ma retune_declarations
+    [Vptr b p; Vsingle tau; Vsingle h] md
+LOADP : Mem.load Mptr md bp 0 = Some (Vptr b p)
+LOADT : Mem.load Mfloat32 md bt 0 = Some (Vsingle tau)
+LOADH : Mem.load Mfloat32 md bh 0 = Some (Vsingle h)
+PMA : writable12 ma b p
+PMD : writable12 md b p
+me : mem
+S0 :
+  Mem.store Mfloat32 md b (Ptrofs.unsigned p)
+    (Vsingle (retune_coefficient tau h)) =
+  Some me
+BODY :
+  stmt_eval ge e tvoid (fn_body f_update_first_order_low_pass_tau) md =
+  Some (Nnormal, me)
+FREER :
+  forall (id : positive) (bx : block) (ty : type),
+  e ! id = Some (bx, ty) ->
+  Mem.range_perm me bx 0 (sizeof ge ty) Cur Freeable
+mf : mem
+FREE : Mem.free_list me (blocks_of_env ge e) = Some mf
+KEEP :
+  forall (ch : memory_chunk) (b : block) (ofs : Z),
+  (forall (id : positive) (ty : type), e ! id = Some (b, ty) -> False) ->
+  Mem.load ch mf b ofs = Mem.load ch me b ofs
+ACCESS :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (p : permission),
+  (forall (id : positive) (ty : type), e ! id = Some (b, ty) -> False) ->
+  Mem.valid_access me ch b ofs p -> Mem.valid_access mf ch b ofs p
+q : block
+z, n : Z
+VB : Mem.valid_block m q
+OUT : q <> b \/ z + n <= Ptrofs.unsigned p \/ Ptrofs.unsigned p + 4 <= z
+The term "OUT" has type
+ "q <> b \/ z + n <= Ptrofs.unsigned p \/ Ptrofs.unsigned p + 4 <= z"
+while it is expected to have type
+ "q <> b \/
+  n <= 0 \/ z + n <= Ptrofs.unsigned p \/ Ptrofs.unsigned p + 4 <= z".
+

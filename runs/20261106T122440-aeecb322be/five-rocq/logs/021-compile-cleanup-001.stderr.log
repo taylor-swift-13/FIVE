@@ -1,0 +1,37 @@
+File "./paparazzi/relations/guidance_mode/support/entry/StackCleanup.v", line 39, characters 13-28:
+Error:
+In environment
+b : block
+lo, hi : Z
+regions : list (block * Z * Z)
+IH :
+  forall m : mem,
+  list_norepet (map region_block regions) ->
+  (forall (b : block) (lo hi : Z),
+   In (b, lo, hi) regions -> Mem.range_perm m b lo hi Cur Freeable) ->
+  exists mf : mem,
+    Mem.free_list m regions = Some mf /\
+    (forall (ch : memory_chunk) (b : block) (ofs : Z),
+     ~ In b (map region_block regions) ->
+     Mem.load ch mf b ofs = Mem.load ch m b ofs) /\
+    (forall (ch : memory_chunk) (b : block) (ofs : Z) (p : permission),
+     ~ In b (map region_block regions) ->
+     Mem.valid_access m ch b ofs p -> Mem.valid_access mf ch b ofs p)
+m : mem
+ND : list_norepet (b :: map region_block regions)
+FREE :
+  forall (b0 : block) (lo0 hi0 : Z),
+  In (b0, lo0, hi0) ((b, lo, hi) :: regions) ->
+  Mem.range_perm m b0 lo0 hi0 Cur Freeable
+NOT : ~ In b (map region_block regions)
+NDREST : list_norepet (map region_block regions)
+ma : mem
+F : Mem.free m b lo hi = Some ma
+bx : block
+lox, hix : Z
+IN : In (bx, lox, hix) regions
+ofs : Z
+RANGE : lox <= ofs < hix
+Unable to unify "Mem.range_perm m bx lox hix Cur Freeable" with
+ "bx <> b \/ ofs < lo \/ hi <= ofs".
+

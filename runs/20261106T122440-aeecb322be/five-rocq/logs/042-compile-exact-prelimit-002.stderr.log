@@ -1,0 +1,116 @@
+File "./paparazzi/relations/guidance_mode/support/entry/PrelimitExact.v", line 96, characters 10-34:
+Error:
+In environment
+s : state
+sp : vector
+e : PTree.tree (block * type)
+m : mem
+bg, param, bp, bs, bu, be, ba : block
+dx, dy : int64
+ENV : e ! S._gh_ref = None
+SYM : Genv.find_symbol ge S._gh_ref = Some bg
+EH : e ! S._gh_saturate_accel = None
+LP : e ! S._speed_sp = Some (param, vt)
+LPS : e ! S._pos_step = Some (bp, vt)
+LSS : e ! S._speed_step = Some (bs, vt)
+LPU : e ! S._pos_update = Some (bu, it)
+LE : e ! S._speed_err = Some (be, vt)
+LA : e ! S._accel_sp = Some (ba, vt)
+DGP : bg <> bp
+DGS : bg <> bs
+DGU : bg <> bu
+DPS : bp <> bs
+DPU : bp <> bu
+DSU : bs <> bu
+DPG : param <> bg
+DPP : param <> bp
+DPSP : param <> bs
+DPUA : param <> bu
+DGE : bg <> be
+DGA : bg <> ba
+DPE : param <> be
+DPA : param <> ba
+DEA : be <> ba
+REP : repr s m bg
+W : writable m bg
+LX : Mem.load Mfloat32 m param 0 = Some (Vsingle (vx sp))
+LY : Mem.load Mfloat32 m param 4 = Some (Vsingle (vy sp))
+AP0 : Mem.valid_access m Mfloat32 bp 0 Writable
+AP4 : Mem.valid_access m Mfloat32 bp 4 Writable
+AS0 : Mem.valid_access m Mfloat32 bs 0 Writable
+AS4 : Mem.valid_access m Mfloat32 bs 4 Writable
+AU0 : Mem.valid_access m Mint64 bu 0 Writable
+AU8 : Mem.valid_access m Mint64 bu 8 Writable
+AE0 : Mem.valid_access m Mfloat32 be 0 Writable
+AE4 : Mem.valid_access m Mfloat32 be 4 Writable
+AA0 : Mem.valid_access m Mfloat32 ba 0 Writable
+AA4 : Mem.valid_access m Mfloat32 ba 4 Writable
+CX : pos_increment (speed_x s) (dt s) = Some dx
+CY : pos_increment (speed_y s) (dt s) = Some dy
+mi, before, mx, my, ms : mem
+CE :
+  forall (tail : statement) (out : outcome) (final : mem),
+  exec_stmt ge e mi tail E0 final out ->
+  exec_stmt ge e m (integration_context tail) E0 final out
+PATHI :
+  forall (f : function) (k : cont) (tail : statement),
+  star Csem.step ge (State f (integration_context tail) k e m) E0
+    (State f tail k e mi)
+RI : repr (integrated s dx dy) mi bg
+WI : writable mi bg
+AI : access_preserved m mi
+LOCAL : stores_to (fun b : block => b = bp \/ b = bs \/ b = bu) m before
+SX : Mem.store Mint64 before bg 16 (Vlong (Int64.add (pos_x s) dx)) = Some mx
+SY : Mem.store Mint64 mx bg 24 (Vlong (Int64.add (pos_y s) dy)) = Some my
+SSX :
+  Mem.store Mfloat32 my bg 8
+    (Vsingle (Float32.add (speed_x s) (Float32.mul (accel_x s) (dt s)))) =
+  Some ms
+SSY :
+  Mem.store Mfloat32 ms bg 12
+    (Vsingle (Float32.add (speed_y s) (Float32.mul (accel_y s) (dt s)))) =
+  Some mi
+HISTORY :
+  stores_to (fun b : block => b = bg \/ b = bp \/ b = bs \/ b = bu) m mi
+LXI : Mem.load Mfloat32 mi param 0 = Some (Vsingle (vx sp))
+LYI : Mem.load Mfloat32 mi param 4 = Some (Vsingle (vy sp))
+mf : mem
+CR :
+  forall (tail : statement) (out : outcome) (final : mem),
+  exec_stmt ge e mf tail E0 final out ->
+  exec_stmt ge e mi (raw_context tail) E0 final out
+PATHR :
+  forall (f : function) (k : cont) (tail : statement),
+  star Csem.step ge (State f (raw_context tail) k e mi) E0
+    (State f tail k e mf)
+RF : repr (integrated s dx dy) mf bg
+WF : writable mf bg
+AR : access_preserved mi mf
+RAW : stores_to (fun b : block => b = be \/ b = ba) mi mf
+AX :
+  Mem.load Mfloat32 mf ba 0 =
+  Some (Vsingle (vx (raw_speed_accel (integrated s dx dy) sp)))
+AY :
+  Mem.load Mfloat32 mf ba 4 =
+  Some (Vsingle (vy (raw_speed_accel (integrated s dx dy) sp)))
+BYTES : exists bytes : list memval, Mem.loadbytes mf ba 0 8 = Some bytes
+CALL :
+  star Csem.step ge
+    (State S.f_gh_update_ref_from_speed_sp
+       (Ssequence saturation_call after_saturation) Kstop e mf)
+    E0
+    (Callstate (Internal S.f_gh_saturate_accel) [Vptr ba Ptrofs.zero]
+       (Kcall S.f_gh_update_ref_from_speed_sp e (fun x : expr => x) tvoid
+          (Kdo (Kseq after_saturation Kstop)))
+       mf)
+ALLHISTORY :
+  stores_to
+    (fun b : block =>
+     b = bg \/ b = bp \/ b = bs \/ b = bu \/ b = be \/ b = ba)
+    m mf
+Unable to unify
+ "Mem.loadbytes ?m2 ?b ?ofs (size_chunk ?chunk) = Some (encode_val ?chunk ?v)"
+with
+ "Mem.loadbytes mx bg 16 8 =
+  Some (encode_val Mint64 (Vlong (Int64.add (pos_x s) dx)))".
+

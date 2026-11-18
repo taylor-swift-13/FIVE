@@ -1,0 +1,104 @@
+File "./paparazzi/relations/guidance_mode/support/software/GuardMemorySound.v", line 15, characters 6-14:
+Warning: Use of "Notation" keyword for abbreviations is deprecated, use
+"Abbreviation" instead.
+[notation-for-abbreviation,deprecated-since-9.2,deprecated,default]
+File "./paparazzi/relations/guidance_mode/support/software/GuardMemorySound.v", line 182, characters 148-150:
+Error:
+In environment
+uid, ff, uf : ident
+gamma : PTree.t type
+e : expr
+s1, s2 : statement
+IHs1 :
+  forall (ret : type) (ids : list ident) (expected : static_outcome)
+    (off : nat) (rho : PTree.t val) (ge : genv) (le : env) 
+    (m : mem),
+  source_statement s1 = true ->
+  check_statement uid ff uf gamma ret ids s1 = Some expected ->
+  env_matches gamma le ->
+  union_layout uid ff uf ge ->
+  env_separated le ->
+  locals_repr rho le m ->
+  locals_writable le m ->
+  initialized_values uid gamma ids rho ->
+  exists (o : value_outcome) (mf : mem) (t : list guard_event),
+    value_statement uid ff uf gamma rho s1 = Some o /\
+    statement_trace uid ff uf gamma off rho s1 = Some (o, t) /\
+    statement_eval ge le s1 m = Some (runtime_outcome o, mf) /\
+    good_value_outcome uid gamma ret expected o /\
+    heap_result le m mf o /\ instrumented_execution ge le off rho m s1 o mf t
+IHs2 :
+  forall (ret : type) (ids : list ident) (expected : static_outcome)
+    (off : nat) (rho : PTree.t val) (ge : genv) (le : env) 
+    (m : mem),
+  source_statement s2 = true ->
+  check_statement uid ff uf gamma ret ids s2 = Some expected ->
+  env_matches gamma le ->
+  union_layout uid ff uf ge ->
+  env_separated le ->
+  locals_repr rho le m ->
+  locals_writable le m ->
+  initialized_values uid gamma ids rho ->
+  exists (o : value_outcome) (mf : mem) (t : list guard_event),
+    value_statement uid ff uf gamma rho s2 = Some o /\
+    statement_trace uid ff uf gamma off rho s2 = Some (o, t) /\
+    statement_eval ge le s2 m = Some (runtime_outcome o, mf) /\
+    good_value_outcome uid gamma ret expected o /\
+    heap_result le m mf o /\ instrumented_execution ge le off rho m s2 o mf t
+ret : type
+ids : list ident
+off : nat
+rho : PTree.t val
+ge : genv
+le : env
+m : mem
+COND : source_simple e && core_expr e = true
+S1 : source_statement s1 = true
+S2 : source_statement s2 = true
+CE : ce ids e = true
+a : static_outcome
+C1 : check_statement uid ff uf gamma ret ids s1 = Some a
+b : static_outcome
+C2 : check_statement uid ff uf gamma ret ids s2 = Some b
+ENV : env_matches gamma le
+LAYOUT : union_layout uid ff uf ge
+SEP : env_separated le
+REP : locals_repr rho le m
+W : locals_writable le m
+INIT : initialized_values uid gamma ids rho
+SOURCEWHOLE : source_statement (Sifthenelse e s1 s2) = true
+v : val
+VE : value_expr uid ff uf gamma rho e = Some v
+TV : typed_value (typeof e) v
+PE : pure_rval ge le m e = Some v
+B : forall m : mem, bool_val v (typeof e) m = Some true
+POINTS : Forall (event_at ge le m) (expression_trace off rho e)
+o : value_outcome
+mf : mem
+t : list guard_event
+VO : value_statement uid ff uf gamma rho s1 = Some o
+TO :
+  statement_trace uid ff uf gamma
+    (off + Datatypes.length (expression_sites e) + 0) rho s1 =
+  Some (o, t)
+EO : statement_eval ge le s1 m = Some (runtime_outcome o, mf)
+GO : good_value_outcome uid gamma ret a o
+HO : heap_result le m mf o
+TREE :
+  instrumented_execution ge le
+    (off + Datatypes.length (expression_sites e) + 0) rho m s1 o mf t
+E :
+  statement_eval ge le (Sifthenelse e s1 s2) m = Some (runtime_outcome o, mf)
+The term "TO" has type
+ "statement_trace uid ff uf gamma
+    (off + Datatypes.length (expression_sites e) + 0) rho s1 =
+  Some (o, t)"
+while it is expected to have type
+ "match
+    statement_trace uid ff uf gamma
+      (off + Datatypes.length (expression_sites e) + 0) rho s1
+  with
+  | Some (o, t) => Some (o, expression_trace off rho e ++ t)
+  | None => None
+  end = Some (o, expression_trace off rho e ++ t)".
+

@@ -1,0 +1,15 @@
+#include "../prepare/source/update_first_order_low_pass.c"
+#include <stdint.h>
+#include <string.h>
+extern float nondet_float(void);
+static uint32_t bits(float x) { uint32_t u; memcpy(&u,&x,4); return u; }
+void main(void) {
+ struct FirstOrderLowPass f={nondet_float(),nondet_float(),nondet_float()};
+ float old_tc=f.time_const;
+ float input=nondet_float();
+ float result=update_first_order_low_pass(&f,input);
+ __CPROVER_assert(bits(result)==bits(f.last_out),"update returns stored last_out exact bits");
+ __CPROVER_assert(bits(f.last_in)==bits(input),"last_in input exact bits");
+ __CPROVER_assert(bits(f.time_const)==bits(old_tc),"time_const readonly");
+}
+

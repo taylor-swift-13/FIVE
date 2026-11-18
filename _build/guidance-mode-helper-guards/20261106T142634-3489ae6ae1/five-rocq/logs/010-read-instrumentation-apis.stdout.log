@@ -1,0 +1,35 @@
+Local Notation place :=(place_of union_id float_field uint_field gamma).
+Definition env_matches(e:env):Prop:=forall id ty,gamma!id=Some ty->exists b,e!id=Some(b,ty).
+Definition union_layout(ge:Csem.genv):Prop:=exists co,
+ (genv_cenv ge)!union_id=Some co /\
+ union_field_offset ge float_field(co_members co)=OK(0,Full) /\
+ union_field_offset ge uint_field(co_members co)=OK(0,Full).
+Lemma place_shape:forall l p,place l=Some p ->
+ gamma!(place_id p)=Some(place_container p) /\typeof l=place_type p /\
+ ((place_union p=false /\l=Evar(place_id p)(place_container p) /\place_type p=place_container p)\/
+ (place_union p=true /\place_container p=Tunion union_id noattr /\
+ ((place_type p=tfloat /\l=Efield(Evalof(Evar(place_id p)(Tunion union_id noattr))(Tunion union_id noattr))float_field tfloat)\/
+  (place_type p=tuint /\l=Efield(Evalof(Evar(place_id p)(Tunion union_id noattr))(Tunion union_id noattr))uint_field tuint)))).
+Proof.
+ intros l p P;unfold place_of in P;option_cases P;inversion P;subst;cbn;repeat split;try assumption;eauto 10.
+Qed.
+Lemma place_location:forall(ge:Csem.genv)e m l p,
+ env_matches e ->union_layout ge ->place l=Some p ->
+ exists b,e!(place_id p)=Some(b,place_container p) /\
+ pure_lval ge e m l=Some(b,Ptrofs.zero,Full).
+Proof.
+ intros ge e m l p ENV[co[GET[FF UF]]]P.
+ destruct(place_shape l p P)as[LOOK[TYPE CASE]].
+ destruct(ENV _ _ LOOK)as[b LB];exists b;split;[exact LB|].
+ destruct CASE as[[UN[-> SAME]]|[UN[CONT[[FLOAT ->]|[UINT ->]]]]].
+ - cbn[pure_lval];rewrite LB,dec_eq_true;reflexivity.
+ - eapply local_union_location;[rewrite <- CONT;exact LB|exact GET|exact FF].
+ - eapply local_union_location;[rewrite <- CONT;exact LB|exact GET|exact UF].
+Qed.
+Lemma scalar_mode : forall ty,scalar_type ty=true ->
+ access_mode ty=By_value(slot_chunk ty) /\type_is_volatile ty=false.
+Proof.
+ intros ty S;unfold scalar_type,numeric_kind in S.
+ destruct(numeric_tag ty)as[tag|]eqn:T;try discriminate.
+ pose proof(numeric_tag_sound ty tag T)as EQ;subst ty;destruct tag;split;reflexivity.
+Qed.

@@ -1,0 +1,67 @@
+(match
+   match
+     match
+       match
+         match (if zle 4 Ptrofs.modulus then Some (Vsingle h) else None) with
+         | Some v => Some (PureDenotation.quiet_world, E0, v)
+         | None => None
+         end
+       with
+       | Some (_, _, v) => Some v
+       | None => None
+       end
+     with
+     | Some w =>
+         match
+           match w with
+           | Vsingle f => Some (Vsingle f)
+           | _ => None
+           end
+         with
+         | Some (Vsingle n2) =>
+             Some
+               (Vsingle
+                  (Float32.div
+                     (Float32.mul (Float32.of_bits (Int.repr 1073741824)) tau)
+                     n2))
+         | _ => None
+         end
+     | None => None
+     end
+   with
+   | Some v =>
+       match
+         match v with
+         | Vsingle f => Some (Vsingle f)
+         | _ => None
+         end
+       with
+       | Some vc =>
+           match
+             (if attr_volatile (attr_of_type tfloat)
+              then
+               do_volatile_store ge PureDenotation.quiet_world Mfloat32 m b p
+                 vc
+              else
+               match
+                 (if
+                   zle (Ptrofs.unsigned p + size_chunk Mfloat32)
+                     Ptrofs.modulus
+                  then Mem.store Mfloat32 m b (Ptrofs.unsigned p) vc
+                  else None)
+               with
+               | Some m' => Some (PureDenotation.quiet_world, E0, m', vc)
+               | None => None
+               end)
+           with
+           | Some (_, _, mf, vf) => Some (vf, mf)
+           | None => None
+           end
+       | None => None
+       end
+   | None => None
+   end
+ with
+ | Some (_, m') => Some (Nnormal, m')
+ | None => None
+ end = Some (Nnormal, m1))

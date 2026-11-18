@@ -1,0 +1,60 @@
+(match
+   match
+     match pure_rval ge e m (input_var _value) with
+     | Some v =>
+         sem_binary_operation ge Oadd v (typeof (input_var _value))
+           (Vsingle li) (typeof (fv _last_in)) m
+     | None => None
+     end
+   with
+   | Some v =>
+       match
+         match
+           match pure_rval ge e m unit with
+           | Some w =>
+               sem_binary_operation ge Osub (Vsingle tc)
+                 (typeof (fv _time_const)) w (typeof unit) m
+           | None => None
+           end
+         with
+         | Some v0 =>
+             sem_binary_operation ge Omul v0
+               (typeof (Ebinop Osub (fv _time_const) unit tfloat))
+               (Vsingle lo) (typeof (fv _last_out)) m
+         | None => None
+         end
+       with
+       | Some w =>
+           sem_binary_operation ge Oadd v
+             (typeof (Ebinop Oadd (input_var _value) (fv _last_in) tfloat)) w
+             (typeof
+                (Ebinop Omul (Ebinop Osub (fv _time_const) unit tfloat)
+                   (fv _last_out) tfloat))
+             m
+       | None => None
+       end
+   | None => None
+   end
+ with
+ | Some v =>
+     match
+       match pure_rval ge e m unit with
+       | Some v0 =>
+           sem_binary_operation ge Oadd v0 (typeof unit) 
+             (Vsingle tc) (typeof (fv _time_const)) m
+       | None => None
+       end
+     with
+     | Some w =>
+         sem_binary_operation ge Odiv v
+           (typeof
+              (Ebinop Oadd
+                 (Ebinop Oadd (input_var _value) (fv _last_in) tfloat)
+                 (Ebinop Omul (Ebinop Osub (fv _time_const) unit tfloat)
+                    (fv _last_out) tfloat)
+                 tfloat))
+           w (typeof (Ebinop Oadd unit (fv _time_const) tfloat)) m
+     | None => None
+     end
+ | None => None
+ end = Some (Vsingle (output tc li lo value)))

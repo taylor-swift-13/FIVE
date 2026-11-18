@@ -1,0 +1,15 @@
+# Independent recheck: all122 actual properties
+
+All122 canonical questions passed exact-type GoalBinding compilation, Print Assumptions and independent Rocq kernel checking. This includes14 manual assertions and108 automatic guards. The original IDs and locations are preserved in ../../property-map.json and the canonical CBMC ledger.
+
+The input domain is precisely the two nonzero control scenarios with arbitrary guarded signed64 positions and arbitrary six frame float bit patterns. Both saturation branches execute. The execution model remains unrestricted, and separate safety/functionality/relation problems cover the full natural domain.
+
+Each of53 helper guard goals includes the complete explicit AST site table, actual instrumented Cstrategy memory/operand execution, and a whole-entry ANY-original-Csem-call theorem fixing the exact helper argument. It also includes source-ordered reference input facts, real caller readiness and initialized nonzero witnesses for both scenarios. Numeric conversion guards include CBMC strict lower/upper float bounds; signed arithmetic bounds are proved independently of Csem wrapping semantics. Pointer guards include actual norm/factor/scale source memory chains and preserved permissions. Manual assertions use real four-byte stores, official memcpy semantics, uint32 loads and Csem integer equality; both operand orders and sequential eight-field frame tests are covered. No whole-harness AST export is claimed.
+
+The final clean measured run captures18 actual existing inputs with a valid actor-session boundary and no missing rows. Every dependency was directly compiled at the same immutable physical path in that bound run; the second model shares those exact paths. No compiled object is relocated to an uncompiled source path. Each model Spec, Proof and122-goal certificate is separately compiled. Default check.py rebuilds in an empty temporary directory.
+
+The initial authoring run retained a literal C-pointer/Coq-comment syntax failure and malformed CLI input-capture rows; it is explicitly interrupted and not canonical acceptance evidence. Its successful mathematical support, failed logs, source snapshots and costs remain in evidence/pre-canonical-authoring-001 for speed and the raw authoring run.
+
+Trust boundary: pinned CompCert3.17 libraries and frontend, x86-64 Linux little endian binary32 nearest-even; inherited assumptions are printed in the recorded logs. No new target axioms or admitted goals. The common fixed C math implementation is verified as actual C execution; native-libm equivalence and a separate ideal IEEE-accuracy theorem are outside scope. Actual model: gpt-6.1-sol; requested and observed effort: medium, from evidence/runtime-metadata.json.
+
+Costs are recorded in costs.json, including all authoring failures and shared certification. Tool CPU coverage lost in the historical direct-timeout command remains null with its raw known lower bound. Global accounting deduplicates event IDs; no joint parallel RSS is estimated.

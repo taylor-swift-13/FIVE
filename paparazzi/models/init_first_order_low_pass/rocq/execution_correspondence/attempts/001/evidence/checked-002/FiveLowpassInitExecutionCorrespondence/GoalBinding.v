@@ -1,0 +1,18 @@
+Require Import FiveLowpassInitExecutionCorrespondence.Spec.
+Require Import FiveLowpassInitExecutionCorrespondence.Proof.
+Definition goal_0 : FiveLowpassInitExecutionCorrespondence.Spec.domain_preservation_goal := FiveLowpassInitExecutionCorrespondence.Proof.domain_preservation.
+Print Assumptions goal_0.
+Definition goal_1 : FiveLowpassInitExecutionCorrespondence.Spec.floating_point_correspondence_goal := FiveLowpassInitExecutionCorrespondence.Proof.floating_point_correspondence.
+Print Assumptions goal_1.
+Definition goal_2 : FiveLowpassInitExecutionCorrespondence.Spec.machine_integer_correspondence_goal := FiveLowpassInitExecutionCorrespondence.Proof.machine_integer_correspondence.
+Print Assumptions goal_2.
+Definition goal_3 : FiveLowpassInitExecutionCorrespondence.Spec.memory_access_correspondence_goal := FiveLowpassInitExecutionCorrespondence.Proof.memory_access_correspondence.
+Print Assumptions goal_3.
+Definition goal_4 : FiveLowpassInitExecutionCorrespondence.Spec.control_and_exhaustion_correspondence_goal := FiveLowpassInitExecutionCorrespondence.Proof.control_and_exhaustion_correspondence.
+Print Assumptions goal_4.
+Definition goal_5 : FiveLowpassInitExecutionCorrespondence.Spec.normal_result_and_memory_correspondence_goal := FiveLowpassInitExecutionCorrespondence.Proof.normal_result_and_memory_correspondence.
+Print Assumptions goal_5.
+Definition goal_6 : FiveLowpassInitExecutionCorrespondence.Spec.invalid_operation_correspondence_goal := FiveLowpassInitExecutionCorrespondence.Proof.invalid_operation_correspondence.
+Print Assumptions goal_6.
+Definition goal_7 : FiveLowpassInitExecutionCorrespondence.Spec.whole_execution_correspondence_goal := FiveLowpassInitExecutionCorrespondence.Proof.whole_execution_correspondence.
+Print Assumptions goal_7.

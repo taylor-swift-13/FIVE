@@ -1,0 +1,26 @@
+File "./paparazzi/relations/guidance_mode/support/allorder/LeafInstances.v", line 29, characters 16-41:
+Error:
+In environment
+CONTRACT : SaturationBody.sqrt_call_contract
+m : mem
+n : float32
+k : cont
+CALL : is_call_cont k
+mf : mem
+EXEC :
+  eval_funcall SymbolicPrefix.ge m (Internal SaturationBody.S.f_five_sqrtf)
+    [Vsingle n] E0 mf (Vsingle (software_sqrt n))
+KEEP : access_preserved m mf
+FRAME : SaturationBody.old_load_frame m mf
+BFRAME : SaturationBody.old_bytes_frame m mf
+WIT :
+  star Csem.step SymbolicPrefix.ge
+    (Callstate (Internal SaturationBody.S.f_five_sqrtf) [Vsingle n] Kstop m)
+    E0 (Returnstate (Vsingle (software_sqrt n)) Kstop mf)
+Unable to unify
+ "match ?base with
+  | Kstop | Kcall _ _ _ _ _ => True
+  | _ => False
+  end"
+with "Csem.state".
+

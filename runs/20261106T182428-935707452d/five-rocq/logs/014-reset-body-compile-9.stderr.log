@@ -1,0 +1,84 @@
+File "./paparazzi/relations/lowpass_recovery/support/ResetBody.v", line 21, characters 62-63:
+Error: Cannot infer this placeholder of type "option composite" in
+environment:
+e : PTree.tree (block * type)
+m : mem
+bp, bv, b : block
+value : float32
+m1, m2 : mem
+LP : e ! _filter = Some (bp, filter_type)
+LV : e ! _value = Some (bv, tfloat)
+PF : Mem.load Mptr m bp 0 = Some (Vptr b Ptrofs.zero)
+VF : Mem.load Mfloat32 m bv 0 = Some (Vsingle value)
+PB : bp <> b
+VB : bv <> b
+S1 : Mem.store Mfloat32 m b 4 (Vsingle value) = Some m1
+S2 : Mem.store Mfloat32 m1 b 8 (Vsingle value) = Some m2
+LAY :
+  ge ! _FirstOrderLowPass =
+  Some
+    {|
+      co_su := Struct;
+      co_members :=
+        [Member_plain 1683323178995770525%positive
+           (Tfloat F32 {| attr_volatile := false; attr_alignas := None |});
+         Member_plain 5998969733781%positive
+           (Tfloat F32 {| attr_volatile := false; attr_alignas := None |});
+         Member_plain 411106727543445%positive
+           (Tfloat F32 {| attr_volatile := false; attr_alignas := None |})];
+      co_attr := {| attr_volatile := false; attr_alignas := None |};
+      co_sizeof := 12;
+      co_alignof := 4;
+      co_rank := 0;
+      co_sizeof_pos :=
+        Z.le_ge 0 12
+          (Z.le_trans 0 12 12
+             (sizeof_composite_pos PTree.Empty Struct
+                [Member_plain 1683323178995770525%positive
+                   (Tfloat F32
+                      {| attr_volatile := false; attr_alignas := None |});
+                 Member_plain 5998969733781%positive
+                   (Tfloat F32
+                      {| attr_volatile := false; attr_alignas := None |});
+                 Member_plain 411106727543445%positive
+                   (Tfloat F32
+                      {| attr_volatile := false; attr_alignas := None |})])
+             (align_le 12 4
+                (alignof_composite_pos PTree.Empty
+                   [Member_plain 1683323178995770525%positive
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |});
+                    Member_plain 5998969733781%positive
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |});
+                    Member_plain 411106727543445%positive
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})]
+                   {| attr_volatile := false; attr_alignas := None |})));
+      co_alignof_two_p :=
+        align_attr_two_p 4 {| attr_volatile := false; attr_alignas := None |}
+          (alignof_composite_two_p PTree.Empty
+             [Member_plain 1683323178995770525%positive
+                (Tfloat F32
+                   {| attr_volatile := false; attr_alignas := None |});
+              Member_plain 5998969733781%positive
+                (Tfloat F32
+                   {| attr_volatile := false; attr_alignas := None |});
+              Member_plain 411106727543445%positive
+                (Tfloat F32
+                   {| attr_volatile := false; attr_alignas := None |})]);
+      co_sizeof_alignof :=
+        align_divides 12 4
+          (alignof_composite_pos PTree.Empty
+             [Member_plain 1683323178995770525%positive
+                (Tfloat F32
+                   {| attr_volatile := false; attr_alignas := None |});
+              Member_plain 5998969733781%positive
+                (Tfloat F32
+                   {| attr_volatile := false; attr_alignas := None |});
+              Member_plain 411106727543445%positive
+                (Tfloat F32
+                   {| attr_volatile := false; attr_alignas := None |})]
+             {| attr_volatile := false; attr_alignas := None |})
+    |}
+

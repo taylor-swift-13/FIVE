@@ -1,0 +1,78 @@
+File "./paparazzi/relations/guidance_mode/support/entry/EntryPrelimit.v", line 41, characters 1-63:
+Error: Cannot infer an existential variable of type
+"(S._speed_sp, vt) = (S._speed_err, vt) \/
+ (S._pos_step, Tstruct S._FloatVect2 noattr) = (S._speed_err, vt) \/
+ (S._speed_step, Tstruct S._FloatVect2 noattr) = (S._speed_err, vt) \/
+ (S._pos_update, Tstruct S._Int64Vect2 noattr) = (S._speed_err, vt) \/
+ (S._speed_err, Tstruct S._FloatVect2 noattr) = (S._speed_err, vt) \/
+ (S._accel_sp, Tstruct S._FloatVect2 noattr) = (S._speed_err, vt) \/ False"
+in
+environment:
+s : state
+sp : vector
+m : mem
+bg, src : block
+o : ptrofs
+REP : repr s m bg
+W : writable m bg
+LXS : Mem.load Mfloat32 m src (Ptrofs.unsigned o) = Some (Vsingle (vx sp))
+LYS :
+  Mem.load Mfloat32 m src (Ptrofs.unsigned o + 4) = Some (Vsingle (vy sp))
+RANGE : 0 <= Ptrofs.unsigned o
+HI : Ptrofs.unsigned o + 8 <= Ptrofs.max_unsigned
+BYTES :
+  exists bytes : list memval,
+    Mem.loadbytes m src (Ptrofs.unsigned o) 8 = Some bytes
+dx, dy : int64
+CX : pos_increment (speed_x s) (dt s) = Some dx
+CY : pos_increment (speed_y s) (dt s) = Some dy
+NX : signed_sum_ok (pos_x s) dx
+NY : signed_sum_ok (pos_y s) dy
+SYM :
+  Genv.find_symbol FiveGhSpeed.Execution.ge FiveGhSpeed.Source._gh_ref =
+  Some bg
+bc : block
+CSYM :
+  Genv.find_symbol FiveGhSpeed.Execution.ge FiveGhSpeed.Source._gh_max_accel =
+  Some bc
+CONST : Mem.load Mfloat32 m bc 0 = Some (Vsingle fixed_maximum)
+e : env
+ma, mb : mem
+param : block
+AV :
+  alloc_variables ge empty_env m
+    ((S._speed_sp, vt) :: fn_vars S.f_gh_update_ref_from_speed_sp) e ma
+BIND : bind_parameters ge e ma [(S._speed_sp, vt)] [Vptr src o] mb
+LP : e ! S._speed_sp = Some (param, vt)
+LX : Mem.load Mfloat32 mb param 0 = Some (Vsingle (vx sp))
+LY : Mem.load Mfloat32 mb param 4 = Some (Vsingle (vy sp))
+REP1 : repr s mb bg
+W1 : writable mb bg
+C1 : Mem.load Mfloat32 mb bc 0 = Some (Vsingle fixed_maximum)
+SEP : env_separated e
+NONE :
+  forall id : ident,
+  ~
+  In id
+    (map fst ((S._speed_sp, vt) :: fn_vars S.f_gh_update_ref_from_speed_sp)) ->
+  e ! id = None
+ALL :
+  forall (id : ident) (ty : type),
+  In (id, ty) ((S._speed_sp, vt) :: fn_vars S.f_gh_update_ref_from_speed_sp) ->
+  exists b : block,
+    e ! id = Some (b, ty) /\
+    ~ Mem.valid_block m b /\
+    Mem.range_perm mb b 0 (sizeof ge ty) Cur Freeable
+bp : block
+LPS : e ! S._pos_step = Some (bp, vt)
+FP : ~ Mem.valid_block m bp
+PP : Mem.range_perm mb bp 0 (sizeof ge vt) Cur Freeable
+bs : block
+LSS : e ! S._speed_step = Some (bs, vt)
+FS : ~ Mem.valid_block m bs
+PS : Mem.range_perm mb bs 0 (sizeof ge vt) Cur Freeable
+bu : block
+LPU : e ! S._pos_update = Some (bu, it)
+FU : ~ Mem.valid_block m bu
+PU : Mem.range_perm mb bu 0 (sizeof ge it) Cur Freeable
+

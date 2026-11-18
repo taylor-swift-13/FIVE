@@ -1,0 +1,73 @@
+File "./paparazzi/relations/lowpass_recovery/support/InitCall.v", line 73, characters 293-294:
+Error:
+In environment
+m : mem
+b : block
+p : ptrofs
+value, tau, h : float32
+W : writable12 m b p
+W0 : Mem.valid_access m Mfloat32 b (Ptrofs.unsigned p + 0) Writable
+W4 : Mem.valid_access m Mfloat32 b (Ptrofs.unsigned p + 4) Writable
+W8 : Mem.valid_access m Mfloat32 b (Ptrofs.unsigned p + 8) Writable
+e : env
+ma : mem
+ALLOC : do_alloc_variables ge empty_env m init_declarations = (e, ma)
+AV : alloc_variables ge empty_env m init_declarations e ma
+ALL :
+  forall (id : ident) (ty : type),
+  In (id, ty) init_declarations ->
+  exists bx : block,
+    e ! id = Some (bx, ty) /\
+    ~ Mem.valid_block m bx /\
+    Mem.range_perm ma bx 0 (sizeof ge ty) Cur Freeable
+bp : block
+LP : e ! _filter = Some (bp, filter_type)
+FP : ~ Mem.valid_block m bp
+RP : Mem.range_perm ma bp 0 (sizeof ge filter_type) Cur Freeable
+bv : block
+LV : e ! _value = Some (bv, tfloat)
+FV : ~ Mem.valid_block m bv
+RV : Mem.range_perm ma bv 0 (sizeof ge tfloat) Cur Freeable
+bt : block
+LT : e ! _tau = Some (bt, tfloat)
+FT : ~ Mem.valid_block m bt
+RT : Mem.range_perm ma bt 0 (sizeof ge tfloat) Cur Freeable
+bh : block
+LH : e ! _sample_time = Some (bh, tfloat)
+FH : ~ Mem.valid_block m bh
+RH : Mem.range_perm ma bh 0 (sizeof ge tfloat) Cur Freeable
+SEP : env_separated e
+PB : bp <> b
+VB : bv <> b
+PV : bp <> bv
+TB : bt <> b
+HB : bh <> b
+DISTINCT :
+  forall (x y : positive) (bx by0 : block) (tx ty : type),
+  e ! x = Some (bx, tx) -> e ! y = Some (by0, ty) -> x <> y -> bx <> by0
+WP : Mem.valid_access ma Mptr bp 0 Writable
+mb : mem
+SP : Mem.store Mptr ma bp 0 (Vptr b p) = Some mb
+WT : Mem.valid_access mb Mfloat32 bt 0 Writable
+mt : mem
+ST : Mem.store Mfloat32 mb bt 0 (Vsingle tau) = Some mt
+WH : Mem.valid_access mt Mfloat32 bh 0 Writable
+mh : mem
+SH : Mem.store Mfloat32 mt bh 0 (Vsingle h) = Some mh
+WV : Mem.valid_access mh Mfloat32 bv 0 Writable
+mc : mem
+SV : Mem.store Mfloat32 mh bv 0 (Vsingle value) = Some mc
+BIND :
+  bind_parameters ge e ma init_declarations
+    [Vptr b p; Vsingle tau; Vsingle h; Vsingle value] mc
+LOADP : Mem.load Mptr mc bp 0 = Some (Vptr b p)
+LOADV : Mem.load Mfloat32 mc bv 0 = Some (Vsingle value)
+LOADT : Mem.load Mfloat32 mc bt 0 = Some (Vsingle tau)
+LOADH : Mem.load Mfloat32 mc bh 0 = Some (Vsingle h)
+H :
+  Mem.valid_access (snd (e, ma)) Mfloat32 b (Ptrofs.unsigned p + 4) Writable
+The term "H" has type
+ "Mem.valid_access (snd (e, ma)) Mfloat32 b (Ptrofs.unsigned p + 4) Writable"
+while it is expected to have type
+ "Mem.valid_access ma Mfloat32 b 4 Writable".
+

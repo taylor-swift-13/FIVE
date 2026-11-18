@@ -1,0 +1,393 @@
+#!/usr/bin/env python3
+"""Compile exact dependency snapshots, assumptions, and independent kernel check."""
+from pathlib import Path
+import argparse, hashlib, json, re, shutil, subprocess, sys, tempfile
+attempt=Path(__file__).resolve().parent
+root=attempt.parents[6]
+relation=root/"paparazzi/relations/parameter_order"
+case=attempt.parents[3]
+problem=attempt.parents[1]
+def digest(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def dump(p,o): p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+chr(10))
+mappings={
+ "FiveGhSetOmega":root/"paparazzi/models/gh_set_omega/align/model",
+ "FiveGhSetOmegaProof":root/"paparazzi/models/gh_set_omega/rocq/support",
+ "FiveGhSetZeta":root/"paparazzi/models/gh_set_zeta/align/model",
+ "FiveGhSetZetaProof":root/"paparazzi/models/gh_set_zeta/rocq/support",
+ "FiveShared":case/"rocq/shared", "FivePaparazziState":relation/"support"}
+special={"FiveGhSetOmegaTermination.Spec":problem/"problem/Spec.v","FiveGhSetOmegaTermination.Proof":attempt/"Proof.v"}
+def resolve(name):
+ if name in special:return special[name]
+ for ns,d in mappings.items():
+  if name.startswith(ns+"."):return d.joinpath(*name[len(ns)+1:].split(".")).with_suffix(".v")
+ return None
+def imports(p):
+ s=re.sub(r"\(\*.*?\*\)","",p.read_text(),flags=re.S)
+ rows=[]
+ for prefix,names in re.findall(r"From\s+([A-Za-z0-9_.]+)\s+Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.",s):
+  rows += [prefix+"."+x for x in names.split()]
+ s=re.sub(r"From\s+[A-Za-z0-9_.]+\s+Require\s+(?:Import\s+|Export\s+)?[A-Za-z0-9_.\s]+?\.","",s)
+ for names in re.findall(r"Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.(?=\s|$)",s):rows+=names.split()
+ return rows
+order=[];seen=set()
+def visit(name):
+ p=resolve(name)
+ if p is None:return
+ if name in seen:return
+ seen.add(name)
+ if not p.is_file():raise FileNotFoundError(str(p))
+ for n in imports(p):visit(n)
+ order.append((name,p))
+def main():
+ parser=argparse.ArgumentParser();parser.add_argument("--record-run");args=parser.parse_args()
+ provenance=attempt/"provenance.json"
+ if provenance.exists():
+  for row in json.loads(provenance.read_text())["files"]:
+   if (root/row["path"]).suffix in (".v",".c") and digest(root/row["path"])!=row["sha256"]:raise RuntimeError("Changed proof input: "+row["path"])
+ visit("FiveGhSetOmegaTermination.Proof")
+ if args.record_run:
+  sys.path.insert(0,str(root/"scripts"))
+  from five_telemetry import Run
+  run=Run(args.record_run);build=attempt/"evidence"/("checked-"+str(len(list((attempt/"evidence").glob("checked-*")))+1).zfill(3))
+  if build.exists():raise RuntimeError("Immutable checked snapshot already exists")
+  build.mkdir(parents=True)
+  recorded(run,build)
+ else:
+  with tempfile.TemporaryDirectory(prefix="five-parameter-order-") as tmp:
+   build=Path(tmp);compile_all(build,None)
+
+def compile_all(build,run):
+ flags=[];nsmap={}
+ for ns in [*mappings,"FiveGhSetOmegaTermination"]:
+  d=build/ns;d.mkdir(parents=True,exist_ok=True);nsmap[ns]=d;flags += ["-Q",str(d),ns]
+ sources=[];bindings=[]
+ for name,p in order:
+  ns=next(n for n in nsmap if name.startswith(n+"."))
+  dest=nsmap[ns].joinpath(*name[len(ns)+1:].split(".")).with_suffix(".v");dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dest)
+  sources.append(dest);bindings.append({"path":str(p.relative_to(root)),"sha256":digest(p),"snapshot":str(dest.relative_to(root)) if dest.is_relative_to(root) else None})
+ def command(argv,label):
+  if run:return run.command(argv,label,timeout=600,cwd=str(root))
+  subprocess.run(argv,cwd=root,check=True);return None
+ if run:
+  for i,p in enumerate(sources):run.capture(p,"dependency-"+str(i),area="inputs")
+ for i,p in enumerate(sources):command(["/home/yangfp/.opam/five/bin/rocq","compile",*flags,str(p)],"relation-dependency-"+str(i))
+ kernel=command(["/home/yangfp/.opam/five/bin/rocq","check","-silent",*flags,"FiveGhSetOmegaTermination.Proof"],"relation-independent-kernel")
+ return flags,sources,bindings,kernel,command
+
+def recorded(run,build):
+ flags,sources,bindings,kernel,command=compile_all(build,run)
+ names=['Goal']
+ lemmas=['termination']
+ goals=[{"requested_goal":g,"theorem":"FiveGhSetOmegaTermination.Proof."+t,"type":"FiveGhSetOmegaTermination.Spec."+g} for g,t in zip(names,lemmas)]
+ from example_proof_gate import certificate_source
+ cert=build/"FiveGhSetOmegaTermination/GoalBinding.v";cert.write_text(certificate_source(["FiveGhSetOmegaTermination.Spec","FiveGhSetOmegaTermination.Proof"],goals));run.capture(cert,"goal-binding-certificate",area="inputs")
+ comp=command(["/home/yangfp/.opam/five/bin/rocq","compile",*flags,str(cert)],"relation-goal-certificate")
+ check=command(["/home/yangfp/.opam/five/bin/rocq","check","-silent",*flags,"FiveGhSetOmegaTermination.GoalBinding"],"relation-certificate-kernel")
+ evidence=attempt/"evidence";runpath=str(run.folder.relative_to(root));deps={str(p.relative_to(root)):digest(p) for p in sources}
+ receipt={"kind":"rocq-kernel-check","run":runpath,"command_id":kernel["id"],"theorems":[g["theorem"] for g in goals],"statement_artifacts":[str((build/"FiveGhSetOmegaTermination/Spec.v").relative_to(root)),str((build/"FiveGhSetOmegaTermination/Proof.v").relative_to(root))],"dependency_sha256":deps}
+ dump(evidence/"kernel-evidence.json",receipt)
+ cr={**receipt,"command_id":check["id"],"theorems":["FiveGhSetOmegaTermination.GoalBinding.goal_"+str(i) for i in range(len(goals))],"statement_artifacts":[str(cert.relative_to(root))],"dependency_sha256":{**deps,str(cert.relative_to(root)):digest(cert)}}
+ dump(evidence/"certificate-kernel-evidence.json",cr)
+ indexed={row["path"]:row["sha256"] for row in bindings}
+ for e in ("gh_set_omega","gh_set_zeta"):
+  c=root/"paparazzi/models"/e
+  for rel in ("prepare/source/"+e+".c","prepare/source/bindings.json","align/handoff.json","align/model/compcert-manifest.json","align/model/preprocessed.i"):
+   p=c/rel;indexed[str(p.relative_to(root))]=digest(p)
+ indexed[str((attempt/"check.py").relative_to(root))]=digest(attempt/"check.py")
+ dump(attempt/"provenance.json",{"schema":"five-proof-attempt-provenance/1","files":[{"path":p,"sha256":h} for p,h in sorted(indexed.items())]})
+ bound={x["path"]:x for x in bindings}
+ for p,h in indexed.items():bound.setdefault(p,{"path":p,"sha256":h})
+ validation={"schema":"five-proof-validation/1","index":{"path":str((attempt/"provenance.json").relative_to(root)),"sha256":digest(attempt/"provenance.json")},"inputs":list(bound.values()),"kernel_evidence":str((evidence/"kernel-evidence.json").relative_to(root)),"goal_bindings":goals,"certificate":{"path":str(cert.relative_to(root)),"sha256":digest(cert),"module":"FiveGhSetOmegaTermination.GoalBinding","imports":["FiveGhSetOmegaTermination.Spec","FiveGhSetOmegaTermination.Proof"],"run":runpath,"compile_command_id":comp["id"],"kernel_command_id":check["id"],"kernel_evidence":str((evidence/"certificate-kernel-evidence.json").relative_to(root))}}
+ dump(evidence/"goal-validation.json",validation)
+ print("All exact goals compiled, assumptions emitted, independently kernel checked.")
+if __name__=="__main__":main()
+#!/usr/bin/env python3
+"""Compile exact dependency snapshots, assumptions, and independent kernel check."""
+from pathlib import Path
+import argparse, hashlib, json, re, shutil, subprocess, sys, tempfile
+attempt=Path(__file__).resolve().parent
+root=attempt.parents[6]
+relation=root/"paparazzi/relations/parameter_order"
+case=attempt.parents[3]
+problem=attempt.parents[1]
+def digest(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def dump(p,o): p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+chr(10))
+mappings={
+ "FiveGhSetOmega":root/"paparazzi/models/gh_set_omega/align/model",
+ "FiveGhSetOmegaProof":root/"paparazzi/models/gh_set_omega/rocq/support",
+ "FiveGhSetZeta":root/"paparazzi/models/gh_set_zeta/align/model",
+ "FiveGhSetZetaProof":root/"paparazzi/models/gh_set_zeta/rocq/support",
+ "FiveShared":case/"rocq/shared", "FivePaparazziState":relation/"support"}
+special={"FiveGhSetOmegaExecution.Spec":problem/"problem/Spec.v","FiveGhSetOmegaExecution.Proof":attempt/"Proof.v"}
+def resolve(name):
+ if name in special:return special[name]
+ for ns,d in mappings.items():
+  if name.startswith(ns+"."):return d.joinpath(*name[len(ns)+1:].split(".")).with_suffix(".v")
+ return None
+def imports(p):
+ s=re.sub(r"\(\*.*?\*\)","",p.read_text(),flags=re.S)
+ rows=[]
+ for prefix,names in re.findall(r"From\s+([A-Za-z0-9_.]+)\s+Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.",s):
+  rows += [prefix+"."+x for x in names.split()]
+ s=re.sub(r"From\s+[A-Za-z0-9_.]+\s+Require\s+(?:Import\s+|Export\s+)?[A-Za-z0-9_.\s]+?\.","",s)
+ for names in re.findall(r"Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.(?=\s|$)",s):rows+=names.split()
+ return rows
+order=[];seen=set()
+def visit(name):
+ p=resolve(name)
+ if p is None:return
+ if name in seen:return
+ seen.add(name)
+ if not p.is_file():raise FileNotFoundError(str(p))
+ for n in imports(p):visit(n)
+ order.append((name,p))
+def main():
+ parser=argparse.ArgumentParser();parser.add_argument("--record-run");args=parser.parse_args()
+ provenance=attempt/"provenance.json"
+ if provenance.exists():
+  for row in json.loads(provenance.read_text())["files"]:
+   if digest(root/row["path"])!=row["sha256"]:raise RuntimeError("Changed proof input: "+row["path"])
+ visit("FiveGhSetOmegaExecution.Proof")
+ if args.record_run:
+  sys.path.insert(0,str(root/"scripts"))
+  from five_telemetry import Run
+  run=Run(args.record_run);build=attempt/"evidence"/("checked-"+str(len(list((attempt/"evidence").glob("checked-*")))+1).zfill(3))
+  if build.exists():raise RuntimeError("Immutable checked snapshot already exists")
+  build.mkdir(parents=True)
+  recorded(run,build)
+ else:
+  with tempfile.TemporaryDirectory(prefix="five-parameter-order-") as tmp:
+   build=Path(tmp);compile_all(build,None)
+
+def compile_all(build,run):
+ flags=[];nsmap={}
+ for ns in [*mappings,"FiveGhSetOmegaExecution"]:
+  d=build/ns;d.mkdir(parents=True,exist_ok=True);nsmap[ns]=d;flags += ["-Q",str(d),ns]
+ sources=[];bindings=[]
+ for name,p in order:
+  ns=next(n for n in nsmap if name.startswith(n+"."))
+  dest=nsmap[ns].joinpath(*name[len(ns)+1:].split(".")).with_suffix(".v");dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dest)
+  sources.append(dest);bindings.append({"path":str(p.relative_to(root)),"sha256":digest(p),"snapshot":str(dest.relative_to(root)) if dest.is_relative_to(root) else None})
+ def command(argv,label):
+  if run:return run.command(argv,label,timeout=600,cwd=str(root))
+  subprocess.run(argv,cwd=root,check=True);return None
+ if run:
+  for i,p in enumerate(sources):run.capture(p,"dependency-"+str(i),area="inputs")
+ for i,p in enumerate(sources):command(["/home/yangfp/.opam/five/bin/rocq","compile",*flags,str(p)],"relation-dependency-"+str(i))
+ kernel=command(["/home/yangfp/.opam/five/bin/rocq","check","-silent",*flags,"FiveGhSetOmegaExecution.Proof"],"relation-independent-kernel")
+ return flags,sources,bindings,kernel,command
+
+def recorded(run,build):
+ flags,sources,bindings,kernel,command=compile_all(build,run)
+ names=['domain_preservation_goal', 'one_step_correspondence_goal', 'whole_execution_correspondence_goal', 'invalid_operation_correspondence_goal', 'normal_result_memory_correspondence_goal']
+ lemmas=['domain_preservation', 'one_step_correspondence', 'whole_execution_correspondence', 'invalid_operation_correspondence', 'normal_result_memory_correspondence']
+ goals=[{"requested_goal":g,"theorem":"FiveGhSetOmegaExecution.Proof."+t,"type":"FiveGhSetOmegaExecution.Spec."+g} for g,t in zip(names,lemmas)]
+ from example_proof_gate import certificate_source
+ cert=build/"FiveGhSetOmegaExecution/GoalBinding.v";cert.write_text(certificate_source(["FiveGhSetOmegaExecution.Spec","FiveGhSetOmegaExecution.Proof"],goals));run.capture(cert,"goal-binding-certificate",area="inputs")
+ comp=command(["/home/yangfp/.opam/five/bin/rocq","compile",*flags,str(cert)],"relation-goal-certificate")
+ check=command(["/home/yangfp/.opam/five/bin/rocq","check","-silent",*flags,"FiveGhSetOmegaExecution.GoalBinding"],"relation-certificate-kernel")
+ evidence=attempt/"evidence";runpath=str(run.folder.relative_to(root));deps={str(p.relative_to(root)):digest(p) for p in sources}
+ receipt={"kind":"rocq-kernel-check","run":runpath,"command_id":kernel["id"],"theorems":[g["theorem"] for g in goals],"statement_artifacts":[str((build/"FiveGhSetOmegaExecution/Spec.v").relative_to(root)),str((build/"FiveGhSetOmegaExecution/Proof.v").relative_to(root))],"dependency_sha256":deps}
+ dump(evidence/"kernel-evidence.json",receipt)
+ cr={**receipt,"command_id":check["id"],"theorems":["FiveGhSetOmegaExecution.GoalBinding.goal_"+str(i) for i in range(len(goals))],"statement_artifacts":[str(cert.relative_to(root))],"dependency_sha256":{**deps,str(cert.relative_to(root)):digest(cert)}}
+ dump(evidence/"certificate-kernel-evidence.json",cr)
+ indexed={row["path"]:row["sha256"] for row in bindings}
+ for e in ("gh_set_omega","gh_set_zeta"):
+  c=root/"paparazzi/models"/e
+  for rel in ("prepare/source/"+e+".c","prepare/source/bindings.json","align/handoff.json","align/model/compcert-manifest.json","align/model/preprocessed.i"):
+   p=c/rel;indexed[str(p.relative_to(root))]=digest(p)
+ indexed[str((attempt/"check.py").relative_to(root))]=digest(attempt/"check.py")
+ dump(attempt/"provenance.json",{"schema":"five-proof-attempt-provenance/1","files":[{"path":p,"sha256":h} for p,h in sorted(indexed.items())]})
+ bound={x["path"]:x for x in bindings}
+ for p,h in indexed.items():bound.setdefault(p,{"path":p,"sha256":h})
+ validation={"schema":"five-proof-validation/1","index":{"path":str((attempt/"provenance.json").relative_to(root)),"sha256":digest(attempt/"provenance.json")},"inputs":list(bound.values()),"kernel_evidence":str((evidence/"kernel-evidence.json").relative_to(root)),"goal_bindings":goals,"certificate":{"path":str(cert.relative_to(root)),"sha256":digest(cert),"module":"FiveGhSetOmegaExecution.GoalBinding","imports":["FiveGhSetOmegaExecution.Spec","FiveGhSetOmegaExecution.Proof"],"run":runpath,"compile_command_id":comp["id"],"kernel_command_id":check["id"],"kernel_evidence":str((evidence/"certificate-kernel-evidence.json").relative_to(root))}}
+ dump(evidence/"goal-validation.json",validation)
+ print("All exact goals compiled, assumptions emitted, independently kernel checked.")
+if __name__=="__main__":main()
+From Stdlib Require Import List ZArith.
+From compcert Require Import Values Memory Globalenvs Floats Csem Smallstep.
+From FiveGhSetOmega Require Import Source Execution.
+From FiveGhSetOmegaProof Require Import Public.
+From FivePaparazziState Require Import State.
+Import ListNotations.
+From FiveGhSetOmega.proof Require Import Obligations.
+Definition Goal:Prop:=Obligations.termination_goal caller_precondition.
+{
+  "schema": "five-proof-validation/1",
+  "index": {
+    "path": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/provenance.json",
+    "sha256": "140894ab659ae06db34aff2a5ea6ff713a642625a74d853a4e17a6dbf993c447"
+  },
+  "inputs": [
+    {
+      "path": "paparazzi/models/gh_set_omega/align/model/Source.v",
+      "sha256": "3a8845bfa4f41151a50abb729b0cc755c533a590217092b31ec3f1fe72b3124b",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmega/Source.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/align/model/Execution.v",
+      "sha256": "56b251e0c35ddba8e48dff09bb523d5571d4f7f17c4fade2f7f6ad7f0d3a1de9",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmega/Execution.v"
+    },
+    {
+      "path": "paparazzi/relations/parameter_order/support/State.v",
+      "sha256": "864796133866105c0cfbe99a879faed1974cd79eb194e634bda5c300cf117ce2",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FivePaparazziState/State.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_zeta/align/model/Source.v",
+      "sha256": "a2b14d1514fd06d22c8454faeb2a2486a07f92652e75ce43053848f9bbf31eb8",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetZeta/Source.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_zeta/align/model/Execution.v",
+      "sha256": "3b4472bcbd4418905dcdaa962e036eda5eb8ee11946707814909e15947afebca",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetZeta/Execution.v"
+    },
+    {
+      "path": "paparazzi/relations/parameter_order/support/Layout.v",
+      "sha256": "749809618101c4267bb936b89c5c1e83ec8f595d29376939bde92ee94c7ac637",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FivePaparazziState/Layout.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/Public.v",
+      "sha256": "a93c461643c205417f566b33f1a370ed036fd834c60f8a09a3dcd283edf1e74d",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/Public.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/shared/verification/Obligations.v",
+      "sha256": "b248d4397fbd3ddc2ea8f6324f32752d1493d6a5f48f097e0fd214212010a6b4",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveShared/verification/Obligations.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/align/model/proof/Precondition.v",
+      "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmega/proof/Precondition.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/align/model/proof/Obligations.v",
+      "sha256": "39429340a79b014b1be34d1d40c7d190cb6a531ee069f527c576f72d98ed51bd",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmega/proof/Obligations.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/termination/problem/Spec.v",
+      "sha256": "eb22bc256f347808c50b221a83981b8188d1585043d40e414c1ccf75a6ffcd5c",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaTermination/Spec.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/shared/pure_semantics/SemanticsSupport.v",
+      "sha256": "c788b34e8e9d3b84660250496472580d515d39de02e80be566f5381988c92de5",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveShared/pure_semantics/SemanticsSupport.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/SourceInvariant.v",
+      "sha256": "c5272b5318809b88e2fb0d0c7db2005eae710259021f8ff095f62026fbb1ccc4",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/SourceInvariant.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/NormalCorrespondence.v",
+      "sha256": "8d3323ab3838966e1139f85c3ffe6ba156a301da72e509c2b5791a88a1682019",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/NormalCorrespondence.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/PureProgress.v",
+      "sha256": "07eaea7b798c8c4a5781587675a71e9d0261c8a572b9631b907fc6168f2720cb",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/PureProgress.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/Invariant.v",
+      "sha256": "7e38bd69787249a8ab765855c39aa8878b132f1f55f2a621e64c87540e52c44e",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/Invariant.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/Termination.v",
+      "sha256": "fadafb76edf03bc891e8e20a6857e04c8961e3333ee27c5b9e7e71b85ca21674",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/Termination.v"
+    },
+    {
+      "path": "paparazzi/relations/parameter_order/support/MemorySupport.v",
+      "sha256": "3fb36b5aa069ca148ed5db9bf448c79735603fd1c522e45cff479ac1f1712492",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FivePaparazziState/MemorySupport.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/FieldSupport.v",
+      "sha256": "dc16e5a32c2b22615e980c3883ca4cb44762e9c3721533cdad823b291f734149",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/FieldSupport.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/support/Entry.v",
+      "sha256": "1f269d854831e6a8d86f6c2dadfaa96ea01b5e24c616fec82e364dc50b706742",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaProof/Entry.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/Proof.v",
+      "sha256": "debc65e5a22240f8db1c74423af90be0b3bcff9421b03a44ab9a62e7742d829f",
+      "snapshot": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaTermination/Proof.v"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/prepare/source/gh_set_omega.c",
+      "sha256": "188ff85c02a653515535369e9c78ebb1759066468e0f4abe64d8d75fdbfda40a"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/prepare/source/bindings.json",
+      "sha256": "4b7667ccd2e5cd78814ac56b6e3060da90fd20561341053032dd6b00feb8323c"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/align/handoff.json",
+      "sha256": "3ef8c30545f9419cef10cef1ef0a332e50f03289b2eedab9ebc83fcccc5b8614"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/align/model/compcert-manifest.json",
+      "sha256": "9c2e4e15536d416d4b7eedaafa0e537838804ed72c8e91980603830ddca90645"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/align/model/preprocessed.i",
+      "sha256": "1182b1ff3433acd172166ee8b7e5d1271bfa2da3b28841e351e271f662ce3a26"
+    },
+    {
+      "path": "paparazzi/models/gh_set_zeta/prepare/source/gh_set_zeta.c",
+      "sha256": "651ff4fdb6459c47d99de791fb5c2e035aa027a4c914b156a363ed16ccdfc580"
+    },
+    {
+      "path": "paparazzi/models/gh_set_zeta/prepare/source/bindings.json",
+      "sha256": "d90dd65cdc0448f2dceda29dc6708b8078d07af9f1bc51df1de4ad91875eb2cf"
+    },
+    {
+      "path": "paparazzi/models/gh_set_zeta/align/handoff.json",
+      "sha256": "45785ebf2cc08d0ca210dcceb45385671430096ae90f672105e08c86ed0ee43a"
+    },
+    {
+      "path": "paparazzi/models/gh_set_zeta/align/model/compcert-manifest.json",
+      "sha256": "dd4c9c9b6d2e68f23b1be6733889992c09e0b18c48e4b2d61d4ae43b8e794cf0"
+    },
+    {
+      "path": "paparazzi/models/gh_set_zeta/align/model/preprocessed.i",
+      "sha256": "13ef113a3ce43c662bfa8223ee84cdc2ae073c322c699d333f09ea5d00745f38"
+    },
+    {
+      "path": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/check.py",
+      "sha256": "56dcd2b0199d7b9550fd00582de226f49f1ba94049fe718b1db130f42b7109a4"
+    }
+  ],
+  "kernel_evidence": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/kernel-evidence.json",
+  "goal_bindings": [
+    {
+      "requested_goal": "Goal",
+      "theorem": "FiveGhSetOmegaTermination.Proof.termination",
+      "type": "FiveGhSetOmegaTermination.Spec.Goal"
+    }
+  ],
+  "certificate": {
+    "path": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/checked-001/FiveGhSetOmegaTermination/GoalBinding.v",
+    "sha256": "dd5957dd08a7fa67ba7014cc7afcf50940fede0e1ee28296ba44049b6e3a8872",
+    "module": "FiveGhSetOmegaTermination.GoalBinding",
+    "imports": [
+      "FiveGhSetOmegaTermination.Spec",
+      "FiveGhSetOmegaTermination.Proof"
+    ],
+    "run": "runs/20261106T041708-bd1f614dae/five-rocq",
+    "compile_command_id": "048-relation-goal-certificate",
+    "kernel_command_id": "049-relation-certificate-kernel",
+    "kernel_evidence": "paparazzi/models/gh_set_omega/rocq/termination/attempts/001/evidence/certificate-kernel-evidence.json"
+  }
+}

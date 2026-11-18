@@ -1,0 +1,43 @@
+1 goal
+  
+  ge : genv
+  e : env
+  caller, leaf : function
+  k : cont
+  ifactor, imax, isqrt, inorm : ident
+  bfactor, bmax, bsqrt, bnorm : block
+  m : mem
+  maximum, norm : float32
+  factor_local : e ! ifactor = Some (bfactor, tfloat)
+  max_global : e ! imax = None
+  max_symbol : Genv.find_symbol ge imax = Some bmax
+  sqrt_global : e ! isqrt = None
+  sqrt_symbol : Genv.find_symbol ge isqrt = Some bsqrt
+  norm_local : e ! inorm = Some (bnorm, tfloat)
+  max_deref :
+    do_deref_loc ge quiet_world tfloat m bmax Ptrofs.zero Full =
+    Some (quiet_world, E0, Vsingle maximum)
+  norm_deref :
+    do_deref_loc ge quiet_world tfloat m bnorm Ptrofs.zero Full =
+    Some (quiet_world, E0, Vsingle norm)
+  leaf_find :
+    Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) = Some (Internal leaf)
+  leaf_signature : type_of_fundef (Internal leaf) = leaf_type
+  lr : bool
+  ms, rs, ns : read_stage
+  t : trace
+  C : expr -> expr
+  a' : expr
+  m' : mem
+  ES :
+    Csem.estep ge (pre_state lr ms rs ns) t
+      (ExprState caller (C a') (Kdo k) e m')
+  CORE :
+    SourceClosure.core_expr ge (fun _ : fundef => True)
+      (fun (_ : type) (_ : fundef) => True) (pre_expr lr ms rs ns)
+  a : expr
+  H6 : rred ge a m t a' m'
+  H7 : context RV RV C
+  H0 : C a = pre_expr lr ms rs ns
+  ============================
+  t = E0

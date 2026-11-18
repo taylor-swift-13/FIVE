@@ -1,0 +1,11 @@
+# Entry proof support
+
+The canonical universal `ActualPrelimitExists` is proved by `FiveGuidanceEntry.EntryPrelimit.actual_prelimit_exists`, from the exact natural `speed_initial` domain. It executes the original CompCert Csem from the real struct-by-value call to the actual saturation helper Callstate. It observes all fourteen integrated global fields, the raw acceleration computed after integration, and actual eight readable local argument bytes. Exact type GoalBinding compilation and independent kernel check are in `evidence/checked-002/canonical-prelimit-evidence.json`.
+
+`SoftwareSqrt.v` is the exact source-order integer-restoring algorithm denotation for the final frozen `five_sqrtf.c`. It does not prove ideal IEEE sqrt accuracy or the C callee bridge. `Entry.v` public saturation uses that software denotation; the earlier binary64 binding and binary-search v1 denotation are retained in the telemetry run inputs. Universal atomic/compound assignment, integration and raw-command prefix proofs retain actual memory stores and frame/access evidence.
+
+Pending requested scope: actual `five_sqrtf` C body bridge, saturation/helper and whole-entry normal-return proofs, whole-entry functional correspondence for every original Csem order, and no-error. A successful prefix path is not safety, termination, or full normal return. No pending goal is admitted or assumed as an axiom.
+
+The expensive concrete prefix experiment was abandoned after retained timeouts/interruption; its uncompiled source is inactive under `evidence/abandoned-prefix-execution`. The delivered universal prefix proof uses symbolic arbitrary memory and genuine struct-copy binding instead.
+
+Actual worker: gpt-6.1-sol, medium, actor `/root/guidance_mode_complete_medium/guidance_entry`; runtime receipt is in `evidence/checked-001/runtime.json`. Own authoring/checking telemetry: `runs/20261106T111221-7a25959e59/five-rocq`. Four early command index records were lost by an overlapping stale telemetry write. Original GNU time and stdout/stderr are retained in `evidence/orphaned-command-costs.json` in that run; their sampled tree RSS is unknown. Cost completeness is therefore partial even if indexed-command audit passes. Failed and timed-out attempts remain included; no replay replaces their cost.

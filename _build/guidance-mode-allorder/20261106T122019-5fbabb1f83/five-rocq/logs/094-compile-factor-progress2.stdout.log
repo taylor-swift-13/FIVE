@@ -1,0 +1,134 @@
+Section Variables:
+sqrt_symbol
+: Genv.find_symbol ge isqrt = Some bsqrt
+sqrt_global
+: e ! isqrt = None
+norm_local
+: e ! inorm = Some (bnorm, tfloat)
+norm_deref
+: do_deref_loc ge quiet_world tfloat m bnorm Ptrofs.zero Full =
+  Some (quiet_world, E0, Vsingle norm)
+norm
+: float32
+maximum
+: float32
+max_symbol
+: Genv.find_symbol ge imax = Some bmax
+max_global
+: e ! imax = None
+max_deref
+: do_deref_loc ge quiet_world tfloat m bmax Ptrofs.zero Full =
+  Some (quiet_world, E0, Vsingle maximum)
+m
+: mem
+leaf_signature
+: type_of_fundef (Internal leaf) = leaf_type
+leaf_find
+: Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) = Some (Internal leaf)
+leaf
+: function
+k
+: cont
+isqrt
+: ident
+inorm
+: ident
+imax
+: ident
+ifactor
+: ident
+ge
+: genv
+factor_local
+: e ! ifactor = Some (bfactor, tfloat)
+e
+: env
+caller
+: function
+bsqrt
+: block
+bnorm
+: block
+bmax
+: block
+bfactor
+: block
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Section Variables:
+sqrt_symbol
+: Genv.find_symbol ge isqrt = Some bsqrt
+sqrt_global
+: e ! isqrt = None
+norm_local
+: e ! inorm = Some (bnorm, tfloat)
+norm_deref
+: do_deref_loc ge quiet_world tfloat m bnorm Ptrofs.zero Full =
+  Some (quiet_world, E0, Vsingle norm)
+norm
+: float32
+maximum
+: float32
+max_symbol
+: Genv.find_symbol ge imax = Some bmax
+max_global
+: e ! imax = None
+max_deref
+: do_deref_loc ge quiet_world tfloat m bmax Ptrofs.zero Full =
+  Some (quiet_world, E0, Vsingle maximum)
+m
+: mem
+leaf_signature
+: type_of_fundef (Internal leaf) = leaf_type
+leaf_find
+: Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) = Some (Internal leaf)
+leaf
+: function
+k
+: cont
+isqrt
+: ident
+inorm
+: ident
+imax
+: ident
+ifactor
+: ident
+ge
+: genv
+factor_local
+: e ! ifactor = Some (bfactor, tfloat)
+e
+: env
+caller
+: function
+bsqrt
+: block
+bnorm
+: block
+bmax
+: block
+bfactor
+: block
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

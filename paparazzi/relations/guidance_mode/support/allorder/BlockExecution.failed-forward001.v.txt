@@ -1,0 +1,162 @@
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress ContinuationLift.
+Import ListNotations.
+Fixpoint block_stmt(s:statement):bool :=
+ match s with
+ | Sskip=>true | Sdo a=>atomic_expr a
+ | Ssequence a b=>block_stmt a && block_stmt b
+ | Sifthenelse a b c=>simple a && block_stmt b && block_stmt c
+ | _=>false end.
+Fixpoint block_cont(k:cont):bool :=
+ match k with Kstop=>true|Kseq s k=>block_stmt s && block_cont k|_=>false end.
+Definition block_state(s:Csem.state):bool :=
+ match s with
+ | State _ st k _ _=>block_stmt st && block_cont k
+ | ExprState _ a(Kdo k)_ _=>atomic_expr a && block_cont k
+ | ExprState _ a(Kifthenelse b c k)_ _=>simple a && block_stmt b && block_stmt c && block_cont k
+ | _=>false end.
+Fixpoint block_eval(ge:genv)(e:env)(s:statement)(m:mem):option mem :=
+ match s with
+ | Sskip=>Some m
+ | Sdo a=>option_map snd(atomic_eval ge e m a)
+ | Ssequence a b=>match block_eval ge e a m with Some ma=>block_eval ge e b ma|None=>None end
+ | Sifthenelse a b c=>
+   match pure_rval ge e m a with
+   | Some v=>match bool_val v(typeof a)m with Some bv=>block_eval ge e(if bv then b else c)m|None=>None end
+   | None=>None end
+ | _=>None end.
+Fixpoint block_tail(ge:genv)(e:env)(k:cont)(m:mem):option mem :=
+ match k with
+ | Kstop=>Some m
+ | Kseq s k=>match block_eval ge e s m with Some ma=>block_tail ge e k ma|None=>None end
+ | _=>None end.
+Definition block_denotation(ge:genv)(s:Csem.state):option mem :=
+ match s with
+ | State _ st k e m=>match block_eval ge e st m with Some ma=>block_tail ge e k ma|None=>None end
+ | ExprState _ a(Kdo k)e m=>match atomic_eval ge e m a with Some(_,ma)=>block_tail ge e k ma|None=>None end
+ | ExprState _ a(Kifthenelse b c k)e m=>
+   match pure_rval ge e m a with
+   | Some v=>match bool_val v(typeof a)m with
+     | Some bv=>match block_eval ge e(if bv then b else c)m with Some ma=>block_tail ge e k ma|None=>None end
+     | None=>None end
+   | None=>None end
+ | _=>None end.
+Definition block_done(s:Csem.state):Prop :=
+ exists f e m,s=State f Sskip Kstop e m.
+Lemma block_stmt_normal:forall s,block_stmt s=true -> CallfreeExecution.normal_stmt s=true.
+Proof. induction s;simpl;intros;core_unpack;try discriminate;core_build;eauto. Qed.
+Lemma block_cont_normal:forall k,block_cont k=true -> CallfreeExecution.normal_cont k=true.
+Proof. induction k;simpl;intros;core_unpack;try discriminate;core_build;eauto using block_stmt_normal. Qed.
+Lemma block_state_normal:forall s,block_state s=true -> CallfreeExecution.normal_state s=true.
+Proof.
+ destruct s;simpl;intros;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+ destruct k;simpl in *;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+Qed.
+Lemma block_estep:forall ge f a k e m t next,
+ block_state(ExprState f a k e m)=true ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ (next=Stuckstate \/
+ block_state next=true /\
+ block_denotation ge(ExprState f a k e m)=block_denotation ge next).
+Proof.
+ intros ge f a k e m t next BL STEP.
+ destruct k;simpl in BL;try discriminate;core_unpack.
+ - match goal with AT:atomic_expr a=true |- _=>
+   destruct(atomic_estep ge f a(Kdo k)e m t next AT STEP)
+    as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a(Kifthenelse s s0 k)e m t next SI STEP)
+    as[BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN,<-TY;auto.
+Qed.
+Lemma block_sstep:forall ge s t next,
+ block_state s=true -> ~block_done s -> Csem.sstep ge s t next ->
+ block_state next=true /\ block_denotation ge s=block_denotation ge next.
+Proof.
+ intros ge s t next BL ND STEP;inversion STEP;subst;simpl in BL;core_unpack;try discriminate.
+ all: try solve[split;[simpl;core_build;auto|reflexivity]].
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(atomic_eval ge e m x)as [[v ma]|];reflexivity.
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(block_eval ge e s1 m);reflexivity.
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(pure_rval ge e m a);[destruct(bool_val v(typeof a)m)|];reflexivity.
+ - split;[destruct b;simpl;core_build;auto|].
+   cbn[block_denotation pure_rval typeof];rewrite H;reflexivity.
+ - destruct k;simpl in BL;core_unpack;try discriminate.
+   + exfalso;apply ND;unfold block_done;eauto.
+   + contradiction.
+Qed.
+
+Lemma block_expression_not_stuck:forall ge f a k e m mf,
+ block_state(ExprState f a k e m)=true ->
+ block_denotation ge(ExprState f a k e m)=Some mf ->
+ not_stuck ge e a m.
+Proof.
+ intros ge f a k e m mf BL DEN;destruct k;simpl in BL;try discriminate;core_unpack;
+ cbn[block_denotation] in DEN.
+ - destruct(atomic_eval ge e m a)as [[v ma]|]eqn:AE;try discriminate.
+   eapply atomic_not_stuck;eauto.
+ - destruct(pure_rval ge e m a)eqn:PV;try discriminate.
+   eapply pure_not_stuck;eauto.
+Qed.
+Lemma block_estep_defined:forall ge f a k e m mf t next,
+ block_state(ExprState f a k e m)=true ->
+ block_denotation ge(ExprState f a k e m)=Some mf ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ block_state next=true /\ block_denotation ge next=Some mf.
+Proof.
+ intros ge f a k e m mf t next BL DEN STEP.
+ destruct(block_estep _ _ _ _ _ _ _ _ BL STEP)as [BAD|[BN EQ]].
+ - subst next;inversion STEP;subst;exfalso.
+   match goal with N:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _ |- _=>
+     apply N;eapply block_expression_not_stuck;[exact BL|exact DEN|exact CT|reflexivity] end.
+ - split;auto;congruence.
+Qed.
+Definition block_invariant(ge:genv)(mf:mem)(s:Csem.state):Prop :=
+ block_state s=true /\ block_denotation ge s=Some mf.
+Lemma block_successors:forall ge mf s t next,
+ block_invariant ge mf s -> ~block_done s ->
+ Csem.step ge s t next -> block_invariant ge mf next.
+Proof.
+ intros ge mf s t next[BL DEN]ND[ES|SS].
+ - destruct s;inversion ES;subst;eapply block_estep_defined;eauto.
+ - destruct(block_sstep ge s t next BL ND SS)as [BN EQ];split;auto;congruence.
+Qed.
+Lemma block_progress_raw:forall ge mf s,
+ block_invariant ge mf s ->
+ block_done s \/ exists t next,Csem.step ge s t next.
+Proof.
+ intros ge mf s[BL DEN].
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];
+ cbn[block_state] in BL;try discriminate.
+ - core_unpack;destruct st;cbn[block_stmt] in *;core_unpack;try discriminate.
+   + destruct k;cbn[block_cont] in *;core_unpack;try discriminate.
+     * left;unfold block_done;eauto.
+     * right;eexists;eexists;right;eapply step_skip_seq.
+   + right;eexists;eexists;right;eapply step_do_1.
+   + right;eexists;eexists;right;eapply step_seq.
+   + right;eexists;eexists;right;eapply step_ifthenelse_1.
+ - destruct k;cbn[block_state] in BL;try discriminate;core_unpack.
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as[v[ty EQ]];subst a.
+       right;eexists;eexists;right;eapply step_do_2.
+     * right;eapply CallfreeExecution.immediate_has_step;eauto.
+       eapply block_expression_not_stuck;[simpl;core_build;eauto|exact DEN|constructor|reflexivity].
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as[v[ty EQ]];subst a.
+       cbn[block_denotation pure_rval typeof] in DEN.
+       destruct(bool_val v ty m)eqn:BV;try discriminate.
+       right;eexists;eexists;right;eapply step_ifthenelse_2;exact BV.
+     * right;eapply CallfreeExecution.immediate_has_step;eauto.
+       eapply block_expression_not_stuck;[simpl;core_build;eauto|exact DEN|constructor|reflexivity].
+Qed.
+Print Assumptions block_successors.

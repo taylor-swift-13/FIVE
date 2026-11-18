@@ -1,0 +1,56 @@
+from pathlib import Path
+import json,os
+root=Path(__file__).resolve().parents[4];case=root/'paparazzi/models/get_first_order_low_pass';report=root/'paparazzi/report/lowpass_readback'
+def dump(p,o):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+'\n')
+def rel(p,b):return os.path.relpath(p,b)
+def row(run,base):
+ r=json.loads((run/'run.json').read_text());m=json.loads((run/'metrics.json').read_text());t=m['tokens'];stage=r['skill']
+ result={'stage':stage,'run':str(run.relative_to(root)),'outcome':r['status'],'status':'recorded','time':{'wall_seconds':m['time']['wall_seconds'],'tool_cpu_seconds':m['time']['cpu_tool_seconds'] if m.get('command_count') else None},'token':{k:t.get(v)for k,v in [('input','input_tokens'),('output','output_tokens'),('total','total_tokens'),('cached_input','cached_input_tokens'),('reasoning_output','reasoning_output_tokens')]},'memory':{'tool_peak_rss_bytes':m['memory']['peak_process_tree_rss_sampled_bytes'] if m.get('command_count') else None},'inclusive_resources':{'tool_cpu_seconds':None,'tool_peak_rss_bytes':None,'reason':'Direct authoring/setup Python file-construction helpers outside Run.command were not sampled. The displayed tool CPU/RSS are the actual metered command set only; inclusive unknowns remain null.'},'evidence':[rel(run/'run.json',base),rel(run/'metrics.json',base)],'measurement_scope':'Genuine skill-session event boundaries and direct elapsed wall. Metered command CPU and requested10ms tool-tree RSS; cache/reasoning subsets; no historical model expense reallocation. RSS may miss short peaks or count shared pages, excludes model service/desktop.'}
+ return result
+runs=[]
+for run in sorted((root/'_build/lowpass-readback').glob('*/*')):
+ if not(run/'run.json').exists():continue
+ if json.loads((run/'run.json').read_text()).get('status')=='running':continue
+ runs.append(run)
+for stage in ['prepare','cbmc','align','rocq']:
+ p=case/stage/'report/costs.json';records=[row(r,p.parent)for r in runs if json.loads((r/'run.json').read_text())['skill']=='five-'+stage]
+ dump(p,{'schema':'five-stage-costs/1','records':records})
+dump(report/'evidence/cost-run-index.json',{'schema':'five-cost-run-index/1','closed_worker_runs':[str(r.relative_to(root))for r in runs],'historical_reset_reuse':{'source':'paparazzi/models/reset_first_order_low_pass','costs':'paparazzi/models/reset_first_order_low_pass/rocq/report/costs.json','classification':'historical reuse, excluded from new verification cost; fresh independent parent review expense separately counted'},'inclusive_setup_cpu_rss':'null; genuinely unobserved, no replay or estimate substitutes missing data'})
+dump(report/'costs.json',{'schema':'five-stage-costs/1','records':[row(r,report)for r in runs],'historical_reuse_costs':rel(root/'paparazzi/models/reset_first_order_low_pass/rocq/report/costs.json',report),'task_aggregate_status':'awaiting closed parent and worker final verification receipts; every existing record is actual observed expense'})
+print('updated exact closed-stage observed costs, inclusive CPU/RSS remain null')
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import StackCleanup FunctionAllocation.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassSupport Require Import Expressions LowpassMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition Args(b:block)(p:ptrofs):list val:=[Vptr b p].
+Definition ReadableOut(m:mem)(b:block)(p:ptrofs)(value:float32):Prop:=
+ (4|Ptrofs.unsigned p) /\ Ptrofs.unsigned p+12<=Ptrofs.modulus /\
+ Mem.load Mfloat32 m b(Ptrofs.unsigned p+8)=Some(Vsingle value).
+Definition Precondition(args:list val)(m:mem):Prop:=exists b p value,args=Args b p /\ReadableOut m b p value.
+Definition Frame(m mf:mem):Prop:=forall q z n,Mem.valid_block m q->Mem.loadbytes mf q z n=Mem.loadbytes m q z n.
+Definition Post(m mf:mem)(b:block)(p:ptrofs)(value:float32):Prop:=ReadableOut mf b p value /\ Frame m mf.
+Lemma read_out_valid:forall m b p value,ReadableOut m b p value->Mem.valid_block m b.
+Proof. intros m b p value [_[_ L]];eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact L|constructor]. Qed.
+Lemma out_pointer:forall m b p value,ReadableOut m b p value->
+ Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr 8))=Ptrofs.unsigned p+8.
+Proof. intros m b p value[AL[NW LD]];rewrite Ptrofs.add_unsigned. rewrite(Ptrofs.unsigned_repr 8 ltac:(change(0<=8<=18446744073709551615);lia)).
+ apply Ptrofs.unsigned_repr;pose proof(Ptrofs.unsigned_range p);change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(0<=Ptrofs.unsigned p+8<=18446744073709551615);lia. Qed.
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassSupport Require Import LowpassMemory.
+From FiveLowpassReset Require Import Execution.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition coefficient(tau h:float32):float32:=Float32.div(Float32.mul(Float32.of_bits(Int.repr 1073741824))tau)h.
+Definition Args(b:block)(p:ptrofs)(value:float32):list val:=[Vptr b p;Vsingle value].
+Definition Output(value:float32):val:=Vsingle value.
+Definition Precondition(args:list val)(m:mem):Prop:=exists(b:block)(p:ptrofs)(value:float32),args=Args b p value /\ writable12 m b p.
+Definition Post(m mf:mem)(b:block)(p:ptrofs)(value:float32):Prop:=
+ writable12 mf b p /\ Mem.loadbytes mf b(Ptrofs.unsigned p+4)8=Some(encode_val Mfloat32(Vsingle value)++encode_val Mfloat32(Vsingle value)) /\
+ (forall q z n,Mem.valid_block m q -> q<>b \/ z+n<=Ptrofs.unsigned p+4 \/ Ptrofs.unsigned p+12<=z ->Mem.loadbytes mf q z n=Mem.loadbytes m q z n).

@@ -1,0 +1,31 @@
+File "/home/yangfp/five/_build/lowpass-execution-worker/20261106T184023-8bd0fac8b2/five-rocq/evidence/adapter-checked-002/FiveLowpassSupport/CbmcBits.v", line 132, characters 63-68:
+Error:
+In environment
+G : mem -> block -> block -> Prop
+GUARD :
+  forall (m : mem) (src dst : block), MemcpyPacket m src dst -> G m src dst
+ge : genv
+x : float32
+m, mf : mem
+result : int
+ma : Mem.mem'
+src : block
+mb : Mem.mem'
+dst : block
+stored : mem
+bytes : list memval
+A : Mem.alloc m 0 4 = (ma, src)
+B : Mem.alloc ma 0 4 = (mb, dst)
+S : Mem.store Mfloat32 mb src 0 (Vsingle x) = Some stored
+P : MemcpyPacket stored src dst
+REST :
+  Mem.loadbytes stored src 0 4 = Some bytes /\
+  bytes = encode_val Mfloat32 (Vsingle x) /\
+  Lib.official_memcpy ge
+    [Vptr dst Ptrofs.zero; Vptr src Ptrofs.zero; Vlong (Int64.repr 4)] stored
+    E0 (Vptr dst Ptrofs.zero) mf /\
+  Mem.loadbytes mf dst 0 4 = Some bytes /\
+  Mem.load Mint32 mf dst 0 = Some (Vint result) /\
+  result = Float32.to_bits x /\ Mem.loadbytes mf src 0 4 = Some bytes
+Unable to unify "G ?m ?src ?dst" with "src = dst -> False".
+

@@ -1,0 +1,42 @@
+File "./paparazzi/relations/guidance_mode/support/entry/SaturationEntry.v", line 33, characters 111-112:
+Error:
+In environment
+m : mem
+ba, bc : block
+a : vector
+maximum : float32
+CONTRACT : sqrt_call_contract
+SYM : Genv.find_symbol ge S._gh_max_accel = Some bc
+LC : Mem.load Mfloat32 m bc 0 = Some (Vsingle maximum)
+LX : Mem.load Mfloat32 m ba 0 = Some (Vsingle (vx a))
+LY : Mem.load Mfloat32 m ba 4 = Some (Vsingle (vy a))
+A0 : Mem.valid_access m Mfloat32 ba 0 Writable
+A4 : Mem.valid_access m Mfloat32 ba 4 Writable
+decl := fn_params S.f_gh_saturate_accel ++ fn_vars S.f_gh_saturate_accel
+  : list (ident * type)
+ND : NoDup (map fst decl)
+e : env
+ma : mem
+ALLOC : do_alloc_variables ge empty_env m decl = (e, ma)
+AV : alloc_variables ge empty_env m decl e ma
+id : ident
+ty : type
+IN : In (id, ty) decl
+H :
+  exists b : block,
+    (fst (e, ma)) ! id = Some (b, ty) /\
+    ~ Mem.valid_block m b /\
+    Mem.valid_block (snd (e, ma)) b /\
+    Mem.range_perm (snd (e, ma)) b 0 (sizeof ge ty) Cur Freeable
+The term "H" has type
+ "exists b : block,
+    (fst (e, ma)) ! id = Some (b, ty) /\
+    ~ Mem.valid_block m b /\
+    Mem.valid_block (snd (e, ma)) b /\
+    Mem.range_perm (snd (e, ma)) b 0 (sizeof ge ty) Cur Freeable"
+while it is expected to have type
+ "exists b : block,
+    e ! id = Some (b, ty) /\
+    ~ Mem.valid_block m b /\
+    Mem.range_perm ma b 0 (sizeof ge ty) Cur Freeable".
+

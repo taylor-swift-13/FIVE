@@ -1,0 +1,28 @@
+File "./paparazzi/relations/guidance_mode/support/entry/PrefixWitness.v", line 47, characters 35-46:
+Error:
+In environment
+n : nat
+IH :
+  forall s last : Csem.state,
+  checked_prefix n s = Some last ->
+  star Csem.step Execution.ge s E0 last /\ helper_call last = true
+s, last : Csem.state
+STOP : helper_call s = false
+SUP : supported s = true
+rule : string
+next : Csem.state
+rest : list transition
+STEP : Execution.closed_transitions s = TR rule [] next :: rest
+NS : nonstuck next = true
+H : checked_prefix n next = Some last
+PATH : star Csem.step Execution.ge next E0 last
+END : helper_call last = true
+Unable to unify
+ "(fix app (l m : list event) {struct l} : list event :=
+     match l with
+     | [] => m
+     | a :: l1 => a :: app l1 m
+     end)
+    ?t1 E0"
+with "[]".
+

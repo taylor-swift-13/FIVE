@@ -1,0 +1,79 @@
+100:Variable ge: genv.
+436:Variable do_external_function:
+439:Hypothesis do_external_function_sound:
+441:  do_external_function id sg ge w vargs m = Some(w', t, vres, m') ->
+442:  external_functions_sem id sg ge vargs m t vres m' /\ possible_trace w t w'.
+444:Hypothesis do_external_function_complete:
+446:  external_functions_sem id sg ge vargs m t vres m' ->
+448:  do_external_function id sg ge w vargs m = Some(w', t, vres, m').
+450:Variable do_inline_assembly:
+453:Hypothesis do_inline_assembly_sound:
+458:Hypothesis do_inline_assembly_complete:
+560:Definition do_builtin_or_external (name: string) (sg: signature)
+562:  match lookup_builtin_function name sg with
+563:  | Some bf => match builtin_function_sem bf vargs with Some v => Some(w, E0, v, m) | None => None end
+564:  | None    => do_external_function name sg ge w vargs m
+567:Definition do_external (ef: external_function):
+570:  | EF_external name sg => do_external_function name sg ge
+571:  | EF_builtin name sg => do_builtin_or_external name sg
+572:  | EF_runtime name sg => do_builtin_or_external name sg
+594:    do_builtin_or_external name sg w vargs m = Some (w', t, vres, m') ->
+595:    builtin_or_external_sem name sg ge vargs m t vres m' /\ possible_trace w t w').
+596:  { unfold do_builtin_or_external, builtin_or_external_sem; intros. 
+597:    destruct (lookup_builtin_function name sg ) as [bf|].
+598:  - destruct (builtin_function_sem bf vargs) as [vres1|] eqn:BF; inv H.
+600:  - eapply do_external_function_sound; eauto.
+604:  eapply do_external_function_sound; eauto.
+605:- (* EF_builtin *)
+662:    builtin_or_external_sem name sg ge vargs m t vres m' ->
+663:    do_builtin_or_external name sg w vargs m = Some (w', t, vres, m')).
+664:  { unfold do_builtin_or_external, builtin_or_external_sem; intros.
+665:    destruct (lookup_builtin_function name sg) as [bf|].
+667:  - eapply do_external_function_complete; eauto.
+671:  eapply do_external_function_complete; eauto.
+672:- (* EF_builtin *)
+715:Variable e: env.
+716:Variable w: world.
+961:  | RV, Ebuiltin ef tyargs rargs ty =>
+967:          | Some(w',t,v,m') => topred (Rred "red_builtin" (Eval v ty) m' t)
+970:          incontext (fun x => Ebuiltin ef tyargs x ty) (step_exprlist rargs m)
+1075:  | Ebuiltin ef tyargs rargs ty =>
+1344:  reducts_ok RV (Ebuiltin ef tyargs al ty) m
+1345:                (incontext (fun x => Ebuiltin ef tyargs x ty) res).
+1413:Theorem step_expr_sound:
+1579:(* builtin *)
+1586:  apply topred_ok; auto. red. split; auto. eapply red_builtin; eauto.
+1688:(* builtin *)
+1849:(* builtin *)
+1850:  eapply reducts_incl_trans with (C' := fun x => Ebuiltin ef tyargs x ty). apply step_exprlist_context. auto.
+1875:  intros. generalize (step_expr_sound a k m). intros [A B].
+2136:      | Some(w',t,v,m') => TR "step_external_function" t (Returnstate v k m') :: nil
+2163:Theorem do_step_sound:
+2186:  generalize (step_expr_sound e w r RV m). unfold reducts_ok. intros [P Q].
+287-      sem_cast v2 ty2 ty1 m = Some v ->
+288-      assign_loc ty1 m b ofs bf v t m' v' ->
+289-      rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+290-         t (Eval v' ty1) m'
+291:  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+292-      deref_loc ty1 m b ofs bf t v1 ->
+293-      rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+294-         t (Eassign (Eloc b ofs bf ty1)
+295-                    (Ebinop op (Eval v1 ty1) (Eval v2 ty2) tyres) ty1) m
+296-  | red_postincr: forall id b ofs ty bf m t v1 op,
+297-      deref_loc ty m b ofs bf t v1 ->
+298-      op = match id with Incr => Oadd | Decr => Osub end ->
+299-      rred (Epostincr id (Eloc b ofs bf ty) ty) m
+300-         t (Ecomma (Eassign (Eloc b ofs bf ty)
+301-                            (Ebinop op (Eval v1 ty)
+302-                                       (Eval (Vint Int.one) type_int32s)
+303-                                       (incrdecr_type ty))
+304-                           ty)
+305-                   (Eval v1 ty) ty) m
+306-  | red_comma: forall v ty1 r2 ty m,
+307-      typeof r2 = ty ->
+308-      rred (Ecomma (Eval v ty1) r2 ty) m
+309-        E0 r2 m
+310-  | red_paren: forall v1 ty1 ty2 ty m v,
+311-      sem_cast v1 ty1 ty2 m = Some v ->
+312-      rred (Eparen (Eval v1 ty1) ty2 ty) m
+313-        E0 (Eval v ty) m

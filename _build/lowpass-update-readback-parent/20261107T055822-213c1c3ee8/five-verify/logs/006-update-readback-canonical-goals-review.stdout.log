@@ -1,0 +1,93 @@
+paparazzi/models/update_first_order_low_pass/rocq/functional/problem/Spec.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassUpdateCase Require Import Contract UpdateCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NormalCompletion:Prop:=forall m b p tc li lo value,Initialized m b p tc li lo->exists t mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p value)m)t(Returnstate(Vsingle(output tc li lo value))Kstop mf) /\Post m mf b p tc li lo value.
+Definition AllReturns:Prop:=forall m b p tc li lo value,Initialized m b p tc li lo->forall t result mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p value)m)t(Returnstate result Kstop mf)->result=Vsingle(output tc li lo value) /\Post m mf b p tc li lo value.
+
+paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/problem/Spec.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Values Memory Events Ctypes Csyntax Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveLowpassUpdateExecutionCorrespondence Require Import Closure.
+Import ListNotations.
+Definition source_state := Closure.SS.
+Definition closed_step := Closure.closed_step.
+Definition domain_preservation_goal:Prop := forall args m,
+ Execution.entry args m=Callstate(Internal Source.f_update_first_order_low_pass)args Kstop m /\ source_state(Execution.entry args m).
+Definition reachable_step_goal:Prop := forall args m t reached tr next,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (closed_step tt reached tr next <-> Csem.step Execution.ge reached tr next).
+Definition floating_point_correspondence_goal := reachable_step_goal.
+Definition machine_integer_correspondence_goal := reachable_step_goal.
+Definition memory_access_correspondence_goal := reachable_step_goal.
+Definition control_and_exhaustion_correspondence_goal:Prop := forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step Execution.ge(Execution.entry args m)t final.
+Definition normal_result_and_memory_correspondence_goal:Prop := forall args m t v mf b ofs n,
+ (star closed_step tt(Execution.entry args m)t(Returnstate v Kstop mf) <->
+ star Csem.step Execution.ge(Execution.entry args m)t(Returnstate v Kstop mf)) /\
+ Execution.observe_bytes mf b ofs n=Mem.loadbytes mf b ofs n.
+Definition invalid_operation_correspondence_goal:Prop := forall args m t reached,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <-> ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Definition whole_execution_correspondence_goal := control_and_exhaustion_correspondence_goal.
+
+paparazzi/models/update_first_order_low_pass/rocq/no_error/problem/Spec.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassUpdateCase Require Import Contract UpdateCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NoError:Prop:=forall args m,Precondition args m->no_error Execution.ge(Execution.entry args m).
+
+paparazzi/models/update_first_order_low_pass/rocq/termination/problem/Spec.v
+From compcert Require Import Values Memory.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Execution.
+Definition AllSuccessorsTerminate : Prop := forall args m,Acc(successor Execution.ge)(Execution.entry args m).
+
+paparazzi/relations/lowpass_update_readback/problem/Spec.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory Memdata Events Csem Smallstep.
+Require FiveLowpassUpdate.Execution FiveLowpassGet.Execution FiveLowpassGetCase.Contract FiveLowpassUpdateCase.Contract.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module U:=FiveLowpassUpdateCase.Contract.
+Definition Update(m:mem)(b:block)(p:ptrofs)(input:float32)(t:trace)(result:val)(mu:mem):Prop:=
+ star Csem.step FiveLowpassUpdate.Execution.ge(FiveLowpassUpdate.Execution.entry[Vptr b p;Vsingle input]m)t(Returnstate result Kstop mu).
+Definition Get(mu:mem)(b:block)(p:ptrofs)(t:trace)(result:val)(mf:mem):Prop:=
+ star Csem.step FiveLowpassGet.Execution.ge(FiveLowpassGet.Execution.entry[Vptr b p]mu)t(Returnstate result Kstop mf).
+Definition Bits(v:val):option int:=match v with Vsingle f=>Some(Float32.to_bits f)|_=>None end.
+Definition Observations(m mu mf:mem)(b:block)(p:ptrofs)(input:float32)(returned:val):Prop:=
+ Mem.loadbytes mu b(Ptrofs.unsigned p)4=Mem.loadbytes m b(Ptrofs.unsigned p)4 /\
+ Mem.loadbytes mf b(Ptrofs.unsigned p)4=Mem.loadbytes m b(Ptrofs.unsigned p)4 /\
+ Mem.loadbytes mu b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle input)) /\
+ Mem.loadbytes mf b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle input)) /\
+ Mem.loadbytes mu b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32 returned) /\
+ Mem.loadbytes mf b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32 returned) /\
+ FiveLowpassGetCase.Contract.Frame mu mf /\ U.Frame m mu b p.
+Definition NormalCompletion:Prop:=forall m b p tc li lo input,U.Initialized m b p tc li lo->
+ exists tu mu tg mf,
+ Update m b p input tu(Vsingle(U.output tc li lo input))mu /\
+ Get mu b p tg(Vsingle(U.output tc li lo input))mf /\
+ Observations m mu mf b p input(Vsingle(U.output tc li lo input)).
+Definition AllReturns:Prop:=forall m b p tc li lo input,U.Initialized m b p tc li lo->
+ forall tu r mu tg y mf,Update m b p input tu r mu->Get mu b p tg y mf->
+ r=Vsingle(U.output tc li lo input) /\y=r /\Bits r=Bits y /\
+ Observations m mu mf b p input r.
+

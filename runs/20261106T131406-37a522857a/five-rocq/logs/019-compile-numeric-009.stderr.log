@@ -1,0 +1,59 @@
+File "./paparazzi/relations/guidance_mode/support/software/NumericOps.v", line 159, characters 63-74:
+Error:
+In environment
+lit : option val
+x : int
+T1 : typed_value tint (Vint x)
+shift : int
+T2 : typed_value tint (Vint shift)
+SAFE : shift_literal NInt NInt lit = true
+LIT : literal_constraint lit (Vint shift)
+BOUND : Int.ltu shift (shift_width NInt) = true
+cenv : composite_env
+m : mem
+Unable to unify "Some ?result" with
+ "match
+    match
+      remove_attributes
+        (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |})
+    with
+    | Tint I32 Unsigned _ =>
+        match
+          remove_attributes
+            (Tint I32 Signed
+               {| attr_volatile := false; attr_alignas := None |})
+        with
+        | Tint _ _ _ => shift_case_ii Unsigned
+        | Tlong _ _ => shift_case_il Unsigned
+        | _ => shift_default
+        end
+    | Tint I8 _ _ | Tint I16 _ _ | Tint I32 Signed _ | Tint IBool _ _ =>
+        match
+          remove_attributes
+            (Tint I32 Signed
+               {| attr_volatile := false; attr_alignas := None |})
+        with
+        | Tint _ _ _ => shift_case_ii Signed
+        | Tlong _ _ => shift_case_il Signed
+        | _ => shift_default
+        end
+    | Tlong s _ =>
+        match
+          remove_attributes
+            (Tint I32 Signed
+               {| attr_volatile := false; attr_alignas := None |})
+        with
+        | Tint _ _ _ => shift_case_li s
+        | Tlong _ _ => shift_case_ll s
+        | _ => shift_default
+        end
+    | _ => shift_default
+    end
+  with
+  | shift_case_ii _ =>
+      if Int.ltu shift Int.iwordsize
+      then Some (Vint (Int.shl x shift))
+      else None
+  | _ => None
+  end".
+

@@ -1,0 +1,25 @@
+File "/home/yangfp/five/paparazzi/relations/guidance_mode/support/cbmc_adapters/BitsAdapter.v", line 102, characters 35-36:
+Error: Cannot infer this placeholder of type "Senv.t" in
+environment:
+ge : genv
+x : float32
+m : mem
+ma : Mem.mem'
+br : block
+mb : Mem.mem'
+bb : block
+stored, copied : mem
+bytes : list memval
+AR : Mem.alloc m 0 4 = (ma, br)
+AB : Mem.alloc ma 0 4 = (mb, bb)
+ST : Mem.store Mfloat32 mb br 0 (Vsingle x) = Some stored
+SAFE : MemcpySafety stored br bb
+READ : Mem.loadbytes stored br 0 4 = Some bytes
+ENC : bytes = encode_val Mfloat32 (Vsingle x)
+COPY :
+  extcall_memcpy_sem 4 1 ge [Vptr bb Ptrofs.zero; Vptr br Ptrofs.zero] stored
+    E0 Vundef copied
+BYTES : Mem.loadbytes copied bb 0 4 = Some bytes
+LOAD : Mem.load Mint32 copied bb 0 = Some (Vint (Float32.to_bits x))
+SOURCE : Mem.loadbytes copied br 0 4 = Some bytes
+

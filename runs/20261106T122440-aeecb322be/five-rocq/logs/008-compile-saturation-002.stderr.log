@@ -1,0 +1,182 @@
+File "./paparazzi/relations/guidance_mode/support/entry/SaturationBody.v", line 133, characters 30-41:
+Error:
+In environment
+e : PTree.tree (block * type)
+m : mem
+bn, bf, bc : block
+n, maximum : float32
+CONTRACT : sqrt_call_contract
+ES : e ! S._five_sqrtf = None
+EM : e ! S._gh_max_accel = None
+SYM : Genv.find_symbol ge S._gh_max_accel = Some bc
+LN : e ! S._a_norm2 = Some (bn, tfloat)
+LF : e ! S._factor = Some (bf, tfloat)
+LOADN : Mem.load Mfloat32 m bn 0 = Some (Vsingle n)
+LOADC : Mem.load Mfloat32 m bc 0 = Some (Vsingle maximum)
+ACCESS : Mem.valid_access m Mfloat32 bf 0 Writable
+mc : mem
+CALL :
+  eval_funcall ge m (Internal S.f_five_sqrtf) [Vsingle n] E0 mc
+    (Vsingle (software_sqrt n))
+KEEP : access_preserved m mc
+FRAME : old_load_frame m mc
+BFRAME : old_bytes_frame m mc
+RF : eval_simple_rvalue ge e m sqrt_rf (Vptr sqrt_block Ptrofs.zero)
+RN : eval_simple_rvalue ge e m (named_read S._a_norm2) (Vsingle n)
+RM : eval_simple_rvalue ge e m (named_read S._gh_max_accel) (Vsingle maximum)
+Unable to unify "Some ?v" with
+ "match classify_cast (typeof (named_read S._a_norm2)) ?ty with
+  | cast_case_pointer =>
+      match Vsingle n with
+      | Vint _ => if Archi.ptr64 then None else Some (Vsingle n)
+      | Vlong _ => if Archi.ptr64 then Some (Vsingle n) else None
+      | Vptr _ _ => Some (Vsingle n)
+      | _ => None
+      end
+  | cast_case_i2i sz2 si2 =>
+      match Vsingle n with
+      | Vint i => Some (Vint (cast_int_int sz2 si2 i))
+      | _ => None
+      end
+  | cast_case_f2f =>
+      match Vsingle n with
+      | Vfloat f => Some (Vfloat f)
+      | _ => None
+      end
+  | cast_case_s2s =>
+      match Vsingle n with
+      | Vsingle f => Some (Vsingle f)
+      | _ => None
+      end
+  | cast_case_f2s =>
+      match Vsingle n with
+      | Vfloat f => Some (Vsingle (Float.to_single f))
+      | _ => None
+      end
+  | cast_case_s2f =>
+      match Vsingle n with
+      | Vsingle f => Some (Vfloat (Float.of_single f))
+      | _ => None
+      end
+  | cast_case_i2f si1 =>
+      match Vsingle n with
+      | Vint i => Some (Vfloat (cast_int_float si1 i))
+      | _ => None
+      end
+  | cast_case_i2s si1 =>
+      match Vsingle n with
+      | Vint i => Some (Vsingle (cast_int_single si1 i))
+      | _ => None
+      end
+  | cast_case_f2i sz2 si2 =>
+      match Vsingle n with
+      | Vfloat f =>
+          match cast_float_int si2 f with
+          | Some i => Some (Vint (cast_int_int sz2 si2 i))
+          | None => None
+          end
+      | _ => None
+      end
+  | cast_case_s2i sz2 si2 =>
+      match Vsingle n with
+      | Vsingle f =>
+          match cast_single_int si2 f with
+          | Some i => Some (Vint (cast_int_int sz2 si2 i))
+          | None => None
+          end
+      | _ => None
+      end
+  | cast_case_l2l =>
+      match Vsingle n with
+      | Vlong n => Some (Vlong n)
+      | _ => None
+      end
+  | cast_case_i2l si =>
+      match Vsingle n with
+      | Vint n => Some (Vlong (cast_int_long si n))
+      | _ => None
+      end
+  | cast_case_l2i sz si =>
+      match Vsingle n with
+      | Vlong n =>
+          Some (Vint (cast_int_int sz si (Int.repr (Int64.unsigned n))))
+      | _ => None
+      end
+  | cast_case_l2f si1 =>
+      match Vsingle n with
+      | Vlong i => Some (Vfloat (cast_long_float si1 i))
+      | _ => None
+      end
+  | cast_case_l2s si1 =>
+      match Vsingle n with
+      | Vlong i => Some (Vsingle (cast_long_single si1 i))
+      | _ => None
+      end
+  | cast_case_f2l si2 =>
+      match Vsingle n with
+      | Vfloat f =>
+          match cast_float_long si2 f with
+          | Some i => Some (Vlong i)
+          | None => None
+          end
+      | _ => None
+      end
+  | cast_case_s2l si2 =>
+      match Vsingle n with
+      | Vsingle f =>
+          match cast_single_long si2 f with
+          | Some i => Some (Vlong i)
+          | None => None
+          end
+      | _ => None
+      end
+  | cast_case_i2bool =>
+      match Vsingle n with
+      | Vint n =>
+          Some (Vint (if Int.eq n Int.zero then Int.zero else Int.one))
+      | Vptr b ofs =>
+          if Archi.ptr64
+          then None
+          else
+           if Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)
+           then Some Vone
+           else None
+      | _ => None
+      end
+  | cast_case_l2bool =>
+      match Vsingle n with
+      | Vlong n =>
+          Some (Vint (if Int64.eq n Int64.zero then Int.zero else Int.one))
+      | Vptr b ofs =>
+          if negb Archi.ptr64
+          then None
+          else
+           if Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)
+           then Some Vone
+           else None
+      | _ => None
+      end
+  | cast_case_f2bool =>
+      match Vsingle n with
+      | Vfloat f =>
+          Some
+            (Vint (if Float.cmp Ceq f Float.zero then Int.zero else Int.one))
+      | _ => None
+      end
+  | cast_case_s2bool =>
+      match Vsingle n with
+      | Vsingle f =>
+          Some
+            (Vint
+               (if Float32.cmp Ceq f Float32.zero then Int.zero else Int.one))
+      | _ => None
+      end
+  | cast_case_struct id1 id2 | cast_case_union id1 id2 =>
+      match Vsingle n with
+      | Vptr _ _ => if ident_eq id1 id2 then Some (Vsingle n) else None
+      | _ => None
+      end
+  | cast_case_void => Some (Vsingle n)
+  | cast_case_default => None
+  end".
+

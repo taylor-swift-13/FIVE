@@ -1,0 +1,57 @@
+Section Variables:
+vectype
+: type
+vector_nonvolatile
+: type_is_volatile vectype = false
+vector_local
+: e ! ivector = Some (bvector, vectype)
+result
+: val
+m
+: mem
+k
+: cont
+ivector
+: ident
+ifunction
+: ident
+ge
+: genv
+function_symbol
+: Genv.find_symbol ge ifunction = Some bfunction
+function_global
+: e ! ifunction = None
+final_mem
+: mem
+e
+: env
+caller
+: function
+callee_signature
+: type_of_fundef callee = call_type
+callee_invariant
+: Csem.state -> Prop
+callee_find
+: Genv.find_funct ge (Vptr bfunction Ptrofs.zero) = Some callee
+callee_entry
+: callee_invariant (Callstate callee [Vptr bvector Ptrofs.zero] call_frame m)
+callee_certificate
+: certificate ge callee_invariant (Returnstate result call_frame final_mem)
+callee
+: fundef
+bvector
+: block
+bfunction
+: block
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+classic : forall P : Prop, P \/ ~ P

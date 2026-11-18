@@ -1,0 +1,169 @@
+From FiveGuidanceMode Require Import Spec.
+From FiveGuidanceAllOrder Require Import EntryCorollaries EntrySafety.
+From FiveGuidanceSoftwareProof Require Import FunctionEntry.
+Require FiveGuidanceEntry.SaturationBody FiveGuidanceEntry.SaturationBodyAccel.
+
+Theorem speed_sqrt_contract:FiveGuidanceEntry.SaturationBody.sqrt_call_contract.
+Proof. exact speed_helper_funcall. Qed.
+Theorem accel_sqrt_contract:FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract.
+Proof. exact accel_helper_funcall. Qed.
+
+Theorem normal_completion:Spec.NormalCompletion.
+Proof. exact(normal_completion_from_all_orders speed_sqrt_contract accel_sqrt_contract). Qed.
+Theorem all_final_state_formula:Spec.AllFinalStateFormula.
+Proof. exact(all_final_formula_given_software speed_sqrt_contract accel_sqrt_contract). Qed.
+Theorem all_final_named_bits:Spec.AllFinalNamedBits.
+Proof. exact(all_final_named_bits_given_software speed_sqrt_contract accel_sqrt_contract). Qed.
+Definition speed_safe_termination:=speed_safe_termination_given_software speed_sqrt_contract.
+Definition accel_safe_termination:=accel_safe_termination_given_software accel_sqrt_contract.
+Definition speed_no_error:=speed_no_error_given_software speed_sqrt_contract.
+Definition accel_no_error:=accel_no_error_given_software accel_sqrt_contract.
+Print Assumptions normal_completion.
+Print Assumptions all_final_state_formula.
+Print Assumptions all_final_named_bits.
+Print Assumptions speed_safe_termination.
+Print Assumptions accel_safe_termination.
+From Stdlib Require Import List.
+From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.
+From FivePaparazziState Require Import State.
+From FiveGuidanceEntry Require Import Entry ConditionalCompletion.
+From FiveGuidanceMode Require Import Spec.
+From FiveGuidanceAllOrder Require Import PhaseComposition SpeedExecution AccelExecution.
+Require FiveGuidanceEntry.SaturationBody FiveGuidanceEntry.SaturationBodyAccel.
+Import ListNotations.
+
+Theorem speed_all_returns_given_software:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->forall s sp m bg src o,
+ speed_initial s sp m bg src o ->forall fa,speed_call m src o fa ->
+ exists sf,speed_update fixed_maximum s sp=Some sf /\repr sf fa bg.
+Proof.
+ intros SQ s sp m bg src o INIT fa[t[v PATH]].
+ destruct(speed_entry_certificate SQ s sp m bg src o INIT)as(sf&mf&P&UPDATE&CERT&PI&REP&REST).
+ destruct(certificate_normal_unique _ P Vundef mf _ CERT PI t v fa PATH)as[EV EM];subst fa.
+ exists sf;auto.
+Qed.
+Theorem accel_all_returns_given_software:
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->forall s sp m bg src o,
+ accel_initial s sp m bg src o ->forall fa,accel_call m src o fa ->
+ exists sf,accel_update fixed_maximum s sp=Some sf /\repr sf fa bg.
+Proof.
+ intros SQ s sp m bg src o INIT fa[t[v PATH]].
+ destruct(accel_entry_certificate SQ s sp m bg src o INIT)as(sf&mf&P&UPDATE&CERT&PI&REP&REST).
+ destruct(certificate_normal_unique _ P Vundef mf _ CERT PI t v fa PATH)as[EV EM];subst fa.
+ exists sf;auto.
+Qed.
+Theorem all_final_formula_given_software:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->AllFinalStateFormula.
+Proof.
+ intros SQ AQ;unfold AllFinalStateFormula;intros s sp a ma mb ba bb pa pb oa ob fa fb IA IB MATCH CA CB.
+ destruct MATCH as[si[INT BITS]];apply vector_bits_injective in BITS;subst a.
+ destruct(speed_all_returns_given_software SQ s sp ma ba pa oa IA fa CA)as[sf[US RS]].
+ destruct(accel_all_returns_given_software AQ s(raw_speed_accel si sp)mb bb pb ob IB fb CB)as[sg[UA RA]].
+ pose proof(matching_accel_after_integration fixed_maximum s si sp INT)as MATCHUPDATE.
+ rewrite <-MATCHUPDATE,US in UA;injection UA as EQ;subst sg.
+ exists sf;auto.
+Qed.
+Theorem all_final_named_bits_given_software:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->AllFinalNamedBits.
+Proof.
+ intros SQ AQ;unfold AllFinalNamedBits;intros s sp a ma mb ba bb pa pb oa ob fa fb sa sb IA IB MATCH CA CB RSA RSB.
+ destruct(all_final_formula_given_software SQ AQ s sp a ma mb ba bb pa pb oa ob fa fb IA IB MATCH CA CB)
+ as[sf[UPDATE[RS RA]]].
+ pose proof(repr_unique sa sf fa ba RSA RS)as EQA.
+ pose proof(repr_unique sb sf fb bb RSB RA)as EQB;subst;reflexivity.
+Qed.
+Theorem speed_no_error_given_software:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->forall s sp m bg src o,
+ speed_initial s sp m bg src o ->forall t reached,
+ star Csem.step FiveGhSpeed.Execution.ge(FiveGhSpeed.Execution.entry[Vptr src o]m)t reached ->
+ (exists mf,reached=Returnstate Vundef Kstop mf) \/exists tr next,Csem.step FiveGhSpeed.Execution.ge reached tr next.
+Proof.
+ intros SQ s sp m bg src o INIT t reached PATH.
+ destruct(speed_entry_certificate SQ s sp m bg src o INIT)as(sf&mf&P&UPDATE&CERT&PI&REP&REST).
+ assert(STOP:nostep Csem.step FiveGhSpeed.Execution.ge(Returnstate Vundef Kstop mf)).
+ { intros tr next[ES|SS];inversion ES||inversion SS. }
+ destruct(certificate_no_error _ P _ _ CERT PI STOP t reached PATH)as[EQ|STEP];[left;eauto|auto].
+Qed.
+Theorem accel_no_error_given_software:
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->forall s sp m bg src o,
+ accel_initial s sp m bg src o ->forall t reached,
+ star Csem.step FiveGhAccel.Execution.ge(FiveGhAccel.Execution.entry[Vptr src o]m)t reached ->
+ (exists mf,reached=Returnstate Vundef Kstop mf) \/exists tr next,Csem.step FiveGhAccel.Execution.ge reached tr next.
+Proof.
+ intros SQ s sp m bg src o INIT t reached PATH.
+ destruct(accel_entry_certificate SQ s sp m bg src o INIT)as(sf&mf&P&UPDATE&CERT&PI&REP&REST).
+ assert(STOP:nostep Csem.step FiveGhAccel.Execution.ge(Returnstate Vundef Kstop mf)).
+ { intros tr next[ES|SS];inversion ES||inversion SS. }
+ destruct(certificate_no_error _ P _ _ CERT PI STOP t reached PATH)as[EQ|STEP];[left;eauto|auto].
+Qed.
+Print Assumptions all_final_formula_given_software.
+Print Assumptions all_final_named_bits_given_software.
+Print Assumptions speed_no_error_given_software.
+Print Assumptions accel_no_error_given_software.
+From Stdlib Require Import List.
+From compcert Require Import Integers Values Memory Events Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FivePaparazziState Require Import State.
+From FiveGuidanceEntry Require Import Entry ConditionalCompletion.
+From FiveGuidanceMode Require Import Spec.
+From FiveGuidanceAllOrder Require Import PhaseComposition SpeedExecution AccelExecution EntryCorollaries.
+Require FiveGuidanceSemantics.SpeedSource FiveGuidanceSemantics.AccelSource.
+Require FiveGuidanceEntry.SaturationBody FiveGuidanceEntry.SaturationBodyAccel.
+Import ListNotations.
+
+Lemma certificate_normal_path:forall ge P target initial,
+ certificate ge P target ->P initial ->Acc(successor ge)initial ->
+ exists t,star Csem.step ge initial t target.
+Proof.
+ intros ge P target initial CERT PI ACCESS;revert PI.
+ induction ACCESS as[s ACCESS IH];intros PI.
+ destruct(proj1 CERT s PI)as[EQ|[t[next[STEP PN]]]].
+ - subst s;exists E0;apply star_refl.
+ - destruct(IH next ltac:(exists t;exact STEP)PN)as[tail PATH].
+   exists(t**tail);eapply star_step;[exact STEP|exact PATH|reflexivity].
+Qed.
+Theorem speed_safe_termination_given_software:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->forall s sp m bg src o,
+ speed_initial s sp m bg src o ->
+ safe_termination FiveGhSpeed.Execution.ge(FiveGhSpeed.Execution.entry[Vptr src o]m).
+Proof.
+ intros SQ s sp m bg src o INIT;split.
+ - intros t reached PATH[NOTFINAL STOP].
+   destruct(speed_no_error_given_software SQ s sp m bg src o INIT t reached PATH)as[[mf EQ]|[tr[next STEP]]].
+   + apply NOTFINAL;exists Vundef,mf;exact EQ.
+   + exact(STOP tr next STEP).
+ - apply FiveGuidanceSemantics.SpeedSource.all_successor_termination.
+Qed.
+Theorem accel_safe_termination_given_software:
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->forall s sp m bg src o,
+ accel_initial s sp m bg src o ->
+ safe_termination FiveGhAccel.Execution.ge(FiveGhAccel.Execution.entry[Vptr src o]m).
+Proof.
+ intros SQ s sp m bg src o INIT;split.
+ - intros t reached PATH[NOTFINAL STOP].
+   destruct(accel_no_error_given_software SQ s sp m bg src o INIT t reached PATH)as[[mf EQ]|[tr[next STEP]]].
+   + apply NOTFINAL;exists Vundef,mf;exact EQ.
+   + exact(STOP tr next STEP).
+ - apply FiveGuidanceSemantics.AccelSource.all_successor_termination.
+Qed.
+Theorem normal_completion_from_all_orders:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->NormalCompletion.
+Proof.
+ intros SQ AQ;unfold NormalCompletion;intros s sp a ma mb ba bb pa pb oa ob IA IB MATCH.
+ destruct MATCH as[si[INT BITS]];apply vector_bits_injective in BITS;subst a.
+ destruct(speed_entry_certificate SQ s sp ma ba pa oa IA)as(sf&fa&PS&US&CS&IS&RS&RESTS).
+ destruct(accel_entry_certificate AQ s(raw_speed_accel si sp)mb bb pb ob IB)as(sg&fb&PA&UA&CA&INA&RA&RESTA).
+ pose proof(matching_accel_after_integration fixed_maximum s si sp INT)as MATCHUPDATE.
+ rewrite <-MATCHUPDATE,US in UA;injection UA as EQ;subst sg.
+ destruct(certificate_normal_path _ PS _ _ CS IS(FiveGuidanceSemantics.SpeedSource.all_successor_termination _ _))as[ts PATHS].
+ destruct(certificate_normal_path _ PA _ _ CA INA(FiveGuidanceSemantics.AccelSource.all_successor_termination _ _))as[ta PATHA].
+ exists fa,fb,sf;split.
+ - exists ts,Vundef;exact PATHS.
+ - split;[exists ta,Vundef;exact PATHA|auto].
+Qed.
+Print Assumptions speed_safe_termination_given_software.
+Print Assumptions accel_safe_termination_given_software.
+Print Assumptions normal_completion_from_all_orders.

@@ -1,0 +1,110 @@
+compcert_libc
+pure_semantics
+verification
+BitsAdapter.v
+Entry.v
+FieldSupport.v
+Invariant.v
+LayoutFacts.v
+NormalCorrespondence.v
+Public.v
+PureProgress.v
+SourceInvariant.v
+Termination.v
+UintEq.v
+WholeExecution.v
+76:Inductive eval_simple_lvalue: expr -> block -> ptrofs -> bitfield -> Prop :=
+130:Inductive eval_simple_list: exprlist -> list type -> list val -> Prop :=
+876:Inductive eval_simple_list': exprlist -> list val -> Prop :=
+1648:Inductive eval_expression: env -> mem -> expr -> trace -> mem -> val -> Prop :=
+1759:      eval_funcall m2 fd vargs t3 m3 vres ->
+1769:(** [exec_stmt ge e m1 s t m2 out] describes the execution of
+1775:with exec_stmt: env -> mem -> statement -> trace -> mem -> outcome -> Prop :=
+1777:      exec_stmt e m Sskip
+1781:      exec_stmt e m (Sdo a)
+1784:      exec_stmt e m s1 t1 m1 Out_normal ->
+1785:      exec_stmt e m1 s2 t2 m2 out ->
+1786:      exec_stmt e m (Ssequence s1 s2)
+1789:      exec_stmt e m s1 t1 m1 out ->
+1791:      exec_stmt e m (Ssequence s1 s2)
+1796:      exec_stmt e m1 (if b then s1 else s2) t2 m2 out ->
+1797:      exec_stmt e m (Sifthenelse a s1 s2)
+1800:      exec_stmt e m (Sreturn None)
+1804:      exec_stmt e m (Sreturn (Some a))
+1807:      exec_stmt e m Sbreak
+1810:      exec_stmt e m Scontinue
+1815:      exec_stmt e m (Swhile a s)
+1820:      exec_stmt e m1 s t2 m2 out' ->
+1822:      exec_stmt e m (Swhile a s)
+1827:      exec_stmt e m1 s t2 m2 out1 ->
+1829:      exec_stmt e m2 (Swhile a s) t3 m3 out ->
+1830:      exec_stmt e m (Swhile a s)
+1833:      exec_stmt e m s t1 m1 out1 ->
+1837:      exec_stmt e m (Sdowhile a s)
+1840:      exec_stmt e m s t m1 out1 ->
+1842:      exec_stmt e m (Sdowhile a s)
+1845:      exec_stmt e m s t1 m1 out1 ->
+1849:      exec_stmt e m2 (Sdowhile a s) t3 m3 out ->
+1850:      exec_stmt e m (Sdowhile a s)
+1853:      exec_stmt e m a1 t1 m1 Out_normal ->
+1854:      exec_stmt e m1 (Sfor Sskip a2 a3 s) t2 m2 out ->
+1855:      exec_stmt e m (Sfor a1 a2 a3 s)
+1860:      exec_stmt e m (Sfor Sskip a2 a3 s)
+1865:      exec_stmt e m1 s t2 m2 out1 ->
+1867:      exec_stmt e m (Sfor Sskip a2 a3 s)
+1872:      exec_stmt e m1 s t2 m2 out1 ->
+From Stdlib Require Import List.
+From compcert Require Import Values Memory Floats Globalenvs Csem Smallstep.
+From FivePaparazziState Require Import State Layout FieldLayout.
+From FiveParameterOrder Require Import Spec.
+Require FiveGhSetOmegaProof.Entry FiveGhSetZetaProof.Entry.
+Import ListNotations.
+
+Theorem normal_completion : NormalCompletion.
+Proof.
+ unfold NormalCompletion;intros s o z ma mb ba bb IA IB.
+ destruct IA as [RA[WA[OA ZA]]];destruct IB as [RB[WB[OB ZB]]].
+ destruct(FiveGhSetOmegaProof.Entry.entry_normal s o ma ba OA RA WA)as[ta[mi[PA[RI WI]]]].
+ destruct(FiveGhSetZetaProof.Entry.entry_normal (State.set_omega s o) z mi ba ZA RI WI)as[tb[fa[PB[RF WF]]]].
+ destruct(FiveGhSetZetaProof.Entry.entry_normal s z mb bb ZB RB WB)as[tc[mj[PC[RJ WJ]]]].
+ destruct(FiveGhSetOmegaProof.Entry.entry_normal (State.set_zeta s z) o mj bb OB RJ WJ)as[td[fb[PD[RG WG]]]].
+ exists fa,fb;split.
+ - exists mi,(Vsingle(State.clamp_omega o)),(Vsingle(State.clamp_zeta z));split;[exists ta|exists tb];assumption.
+ - split.
+   + exists mj,(Vsingle(State.clamp_zeta z)),(Vsingle(State.clamp_omega o));split;[exists tc|exists td];assumption.
+   + split;[exact RF|]. unfold final_state;rewrite State.setters_commute;exact RG.
+Qed.
+
+Theorem all_final_state_formula : AllFinalStateFormula.
+Proof.
+ unfold AllFinalStateFormula;intros s o z ma mb ba bb fa fb IA IB A B.
+ destruct IA as [RA[WA[OA ZA]]];destruct IB as [RB[WB[OB ZB]]].
+ destruct A as[mi[vo[vz[[ta PA][tb PB]]]]].
+ destruct B as[mj[vz1[vo1[[tc PC][td PD]]]]].
+ destruct(FiveGhSetOmegaProof.Entry.entry_return_spec s o ma ba ta vo mi OA RA WA PA)as[_[RI WI]].
+ destruct(FiveGhSetZetaProof.Entry.entry_return_spec (State.set_omega s o) z mi ba tb vz fa ZA RI WI PB)as[_[RF WF]].
+ destruct(FiveGhSetZetaProof.Entry.entry_return_spec s z mb bb tc vz1 mj ZB RB WB PC)as[_[RJ WJ]].
+ destruct(FiveGhSetOmegaProof.Entry.entry_return_spec (State.set_zeta s z) o mj bb td vo1 fb OB RJ WJ PD)as[_[RG WG]].
+ split;[exact RF|]. unfold final_state;rewrite State.setters_commute;exact RG.
+Qed.
+
+Theorem all_final_named_bits : AllFinalNamedBits.
+Proof.
+ unfold AllFinalNamedBits;intros s o z ma mb ba bb fa fb sa sb IA IB A B SA SB.
+ destruct(all_final_state_formula s o z ma mb ba bb fa fb IA IB A B)as[RA RB].
+ assert(EA:sa=final_state s o z)by(eapply State.repr_unique;eauto).
+ assert(EB:sb=final_state s o z)by(eapply State.repr_unique;eauto).
+ rewrite EA,EB;reflexivity.
+Qed.
+Theorem satisfiable_initial : SatisfiableInitial.
+Proof.
+ destruct Layout.concrete_initialized_state as[m[R W]].
+ assert(INIT:initial Layout.zero_state m Layout.shared_block).
+ { unfold initial. split;[exact R|]. split;[exact W|]. split;[exact Layout.omega_symbol|exact Layout.zeta_symbol]. }
+ exists Layout.zero_state,m,m,Layout.shared_block,Layout.shared_block.
+ split;exact INIT.
+Qed.
+Print Assumptions normal_completion.
+Print Assumptions all_final_state_formula.
+Print Assumptions all_final_named_bits.
+Print Assumptions satisfiable_initial.

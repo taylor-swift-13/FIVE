@@ -1,0 +1,226 @@
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v:138:Definition callee_invariant(ge:genv)(base:cont)(v:val)(mf:mem)(s:Csem.state):Prop :=
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-139- exists raw,s=plug_state base raw /\ execution_invariant ge raw /\
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-140- state_eval ge raw=Some(v,mf).
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-141-Lemma callee_invariant_entry: forall ge base initial tw v mf,
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-142- normal_state initial=true -> call_names initial ->
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-143- star Csem.step ge initial tw(Returnstate v Kstop mf) ->
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-144- callee_invariant ge base v mf(plug_state base initial).
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-145-Proof.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-146- intros ge base initial tw v mf NORMAL NAMES WIT.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-147- pose proof(all_order_normal_correspondence ge initial tw v mf NORMAL WIT)as DEN.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-148- exists initial;split;auto;split;auto;split;auto;split;auto;exists(v,mf);exact DEN.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-149-Qed.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-150-Theorem callee_invariant_progress: forall ge base v mf s,
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-151- is_call_cont base -> callee_invariant ge base v mf s ->
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-152- s=Returnstate v base mf \/
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-153- exists t next,Csem.step ge s t next /\ callee_invariant ge base v mf next.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-154-Proof.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-155- intros ge base v mf s BASE[raw[EQ[INV DEN]]];subst s.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-156- destruct(invariant_progress ge raw INV)as [[vr[mr RETURN]]|[t[next STEP]]].
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-157- - subst raw;cbn[state_eval] in DEN;inversion DEN;subst;left;reflexivity.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-158- - right;exists t,(plug_state base next);split.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-159-   + apply plug_normal_step;auto;exact(proj1 INV).
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-160-   + exists next;split;auto;split.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-161-     * eapply invariant_preserved;eauto.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-162-     * exact(proj2(normal_step_forward _ _ _ _ _ (proj1 INV) DEN STEP)).
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-163-Qed.
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-164-Theorem callee_invariant_all_successors: forall ge base v mf s t next,
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-165- is_call_cont base -> callee_invariant ge base v mf s ->
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v-166- s<>Returnstate v base mf -> Csem.step ge s t next ->
+--
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v:92:Definition normal_state (S:Csem.state): bool :=
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-93-  match S with
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-94-  | State _ s k _ _ => normal_stmt s && normal_cont k
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-95-  | ExprState _ a (Kdo k) _ _ => atomic_expr a && normal_cont k
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-96-  | ExprState _ a (Kreturn k) _ _ => simple a && normal_cont k
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-97-  | ExprState _ a (Kifthenelse s1 s2 k) _ _ => simple a && normal_stmt s1 && normal_stmt s2 && normal_cont k
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-98-  | ExprState _ _ _ _ _ => false
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-99-  | Callstate (Internal f) _ Kstop _ => normal_stmt (fn_body f)
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-100-  | Returnstate _ Kstop _ | Stuckstate => true
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-101-  | _ => false end.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-102-
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-103-Lemma normal_cont_call:
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-104-  forall k, normal_cont k = true -> call_cont k = Kstop.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-105-Proof. induction k; simpl; intros H; core_unpack; try discriminate; auto. Qed.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-106-Lemma normal_cont_is_call:
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-107-  forall k, normal_cont k = true -> is_call_cont k -> k = Kstop.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-108-Proof. destruct k; simpl; intros; try discriminate; tauto. Qed.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-109-
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-110-
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-111-Lemma normal_estep_forward: forall ge f a k e m t next result,
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-112- normal_state(ExprState f a k e m)=true ->
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-113- state_eval ge(ExprState f a k e m)=Some result ->
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-114- Csem.estep ge(ExprState f a k e m)t next ->
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-115- normal_state next=true /\ state_eval ge next=Some result.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-116-Proof.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-117- intros ge f a k e m t next result NORMAL EV STEP.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-118- destruct k;simpl in NORMAL;try discriminate;core_unpack.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-119- - cbn[state_eval] in EV.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v-120-   destruct(atomic_eval ge e m a) as [[v mf]|]eqn:AE;try discriminate.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import Entry SoftwareSqrt BigstepSupport SymbolicPrefix SaturationBody StackCleanup FunctionAllocation.
+Require FiveGhSpeed.Source FiveGhSpeed.Execution.
+From FiveGuidanceAllOrder Require Import PhaseComposition ConcretePhases PhaseWiring SaturationPhases.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module S:=FiveGhSpeed.Source.
+Lemma freeable_at_zero:forall m ch b,
+ Mem.range_perm m b 0(size_chunk ch)Cur Freeable ->Mem.valid_access m ch b 0 Freeable.
+Proof. intros;split;[exact H|exists 0;lia]. Qed.
+Lemma environment_distinct:forall e id1 id2 b1 b2 t1 t2,
+ env_separated e ->id1<>id2 ->e!id1=Some(b1,t1) ->e!id2=Some(b2,t2) ->b1<>b2.
+Proof. intros e id1 id2 b1 b2 t1 t2 SEP D L1 L2 EQ;subst b2;apply D;eapply SEP;eauto. Qed.
+Theorem saturation_funcall_certificate:forall m ba bc a maximum k,
+ is_call_cont k ->
+ sqrt_call_contract ->Genv.find_symbol ge S._gh_max_accel=Some bc ->
+ Mem.load Mfloat32 m bc 0=Some(Vsingle maximum) ->
+ Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a)) ->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a)) ->
+ Mem.valid_access m Mfloat32 ba 0 Writable ->Mem.valid_access m Mfloat32 ba 4 Writable ->
+ exists mf P,certificate ge P(Returnstate Vundef k mf) /\
+ P(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m) /\
+ Mem.load Mfloat32 mf ba 0=Some(Vsingle(vx(saturate maximum a))) /\
+ Mem.load Mfloat32 mf ba 4=Some(Vsingle(vy(saturate maximum a))) /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>ba ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs nbytes,Mem.valid_block m b ->b<>ba ->Mem.loadbytes mf b ofs nbytes=Mem.loadbytes m b ofs nbytes).
+Proof.
+ intros m ba bc a maximum k CALLCONT CONTRACT SYM LC LX LY A0 A4.
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(FRESH:forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+   destruct(ALL id ty IN)as(bx&LOOKX&FX&PERM);rewrite LOOK in LOOKX;injection LOOKX as EQ;subst bx;exact FX. }
+ assert(FREEA:forall id b ty,e!id=Some(b,ty)->Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+   destruct(ALL id ty IN)as(bx&LOOKX&FX&PERM);rewrite LOOK in LOOKX;injection LOOKX as EQ;subst bx;exact PERM. }
+ assert(ENV_S:e!S._five_sqrtf=None).
+ { pose proof(allocation_keeps_binding ge decl empty_env m S._five_sqrtf ltac:(unfold decl;simpl;intuition discriminate))as H;rewrite ALLOC in H;exact H. }
+ assert(ENV_M:e!S._gh_max_accel=None).
+ { pose proof(allocation_keeps_binding ge decl empty_env m S._gh_max_accel ltac:(unfold decl;simpl;intuition discriminate))as H;rewrite ALLOC in H;exact H. }
+ assert(VA:Mem.valid_block m ba)by(eapply loaded_valid_block;exact LX).
+ assert(VC:Mem.valid_block m bc)by(eapply loaded_valid_block;exact LC).
+ assert(DAP:ba<>bp)by(intro EQ;subst bp;apply FP;exact VA).
+ assert(DNA:bn<>ba)by(intro EQ;subst bn;apply FN;exact VA).
+ assert(DNC:bn<>bc)by(intro EQ;subst bn;apply FN;exact VC).
+ assert(DFA:bf<>ba)by(intro EQ;subst bf;apply FF;exact VA).
+ assert(DNP:bn<>bp)by(eapply environment_distinct;[exact SEP| |exact LN|exact LP];discriminate).
+ assert(DFP:bf<>bp)by(eapply environment_distinct;[exact SEP| |exact LF|exact LP];discriminate).
+ assert(PACCESS:Mem.valid_access ma Mint64 bp 0 Writable).
+ { apply Mem.valid_access_freeable_any;apply freeable_at_zero;exact PP. }
+ destruct(Mem.valid_access_store ma Mint64 bp 0(Vptr ba Ptrofs.zero)PACCESS)as[mb SP].
+ assert(COPYKEEP:access_preserved ma mb).
+ { unfold access_preserved;intros;eapply Mem.store_valid_access_1;eauto. }
+ normal_state(ExprState f a k e m)=true ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ normal_state next=true /\
+ forall result,state_eval ge next=Some result ->
+ state_eval ge(ExprState f a k e m)=Some result.
+Proof.
+ intros ge f a k e m t next NORMAL STEP.
+ destruct k;simpl in NORMAL;try discriminate;core_unpack.
+ - match goal with AT:atomic_expr a=true |- _=>
+   destruct(atomic_estep ge f a (Kdo k)e m t next AT STEP)
+    as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]] end.
+   + subst;split;[reflexivity|simpl;discriminate].
+   + subst;split;[simpl;core_build;auto|].
+     cbn[state_eval];rewrite DEN;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a (Kifthenelse s s0 k)e m t next SI STEP)
+    as [BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + subst;split;[reflexivity|simpl;discriminate].
+   + subst;split;[simpl;core_build;auto|].
+     cbn[state_eval];rewrite DEN,<-TY;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a (Kreturn k)e m t next SI STEP)
+    as [BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + subst;split;[reflexivity|simpl;discriminate].
+   + subst;split;[simpl;core_build;auto|].
+     cbn[state_eval];rewrite DEN,<-TY;auto.
+Qed.
+Theorem normal_step_backward: forall ge S t next,
+ normal_state S=true -> Csem.step ge S t next ->
+ normal_state next=true /\
+ forall result,state_eval ge next=Some result -> state_eval ge S=Some result.
+Proof.
+ intros ge S t next NORMAL [ES|SS].
+ - destruct S;inversion ES;subst;eapply normal_estep_backward;eauto.
+ - split;[eapply normal_sstep_preserved;eauto|].
+   rewrite(normal_sstep_denotation _ _ _ _ NORMAL SS);auto.
+Qed.
+Theorem all_order_normal_correspondence: forall ge S t v mf,
+ normal_state S=true ->
+ star Csem.step ge S t(Returnstate v Kstop mf) ->
+ state_eval ge S=Some(v,mf).
+Proof.
+ intros ge S t v mf NORMAL PATH.
+ remember(Returnstate v Kstop mf)as FINAL.
+ revert NORMAL;induction PATH;intros NORMAL;subst.
+ - reflexivity.
+ - destruct(normal_step_backward _ _ _ _ NORMAL H)as [NN BACK].
+   apply BACK;apply IHPATH;auto.
+Qed.
+Print Assumptions all_order_normal_correspondence.
+
+Definition call_names(s:Csem.state):Prop :=
+ match s with
+ | Callstate(Internal f)_ _ _=>list_norepet(var_names(fn_params f)++var_names(fn_vars f))
+ | _=>True end.
+Lemma normal_no_callred: forall ge f a k e m from C sub fd args ty,
+ normal_state(ExprState f a k e m)=true ->
+ context from RV C -> a=C sub -> callred ge sub m fd args ty -> False.
+Proof.
+ intros ge f a k e m from C sub fd args ty NORMAL CT EQ CR;subst a.
+ destruct k;simpl in NORMAL;try discriminate;core_unpack.
+ - pose proof(atomic_context_hole _ _ _ CT sub ltac:(assumption))as BAD.
+   inversion CR;subst;discriminate.
+ - pose proof(simple_context_hole _ _ _ CT sub ltac:(assumption))as BAD.
+   inversion CR;subst;discriminate.
+ - pose proof(simple_context_hole _ _ _ CT sub ltac:(assumption))as BAD.
+   inversion CR;subst;discriminate.
+Qed.
+Lemma normal_step_names: forall ge S t next,
+ normal_state S=true -> call_names S -> Csem.step ge S t next -> call_names next.
+Proof.
+ intros ge S t next NORMAL NAMES [ES|SS].
+ - inversion ES;subst;simpl;auto.
+   exfalso;eapply normal_no_callred;eauto.
+ - inversion SS;subst;simpl;auto.
+Qed.
+Lemma normal_step_forward: forall ge S t next result,
+ normal_state S=true -> state_eval ge S=Some result -> Csem.step ge S t next ->
+ normal_state next=true /\ state_eval ge next=Some result.
+Proof.
+ intros ge S t next result NORMAL EV [ES|SS].
+   + exists next;split;auto;split.
+     * eapply invariant_preserved;eauto.
+     * exact(proj2(normal_step_forward _ _ _ _ _ (proj1 INV) DEN STEP)).
+Qed.
+Theorem callee_invariant_all_successors: forall ge base v mf s t next,
+ is_call_cont base -> callee_invariant ge base v mf s ->
+ s<>Returnstate v base mf -> Csem.step ge s t next ->
+ callee_invariant ge base v mf next.
+Proof.
+ intros ge base v mf s t next BASE[raw[EQ[INV DEN]]] NF STEP;subst s.
+ assert(NR:~normal_return raw).
+ { intros[vr[mr RETURN]];subst raw;cbn[state_eval] in DEN;inversion DEN;subst.
+   apply NF;reflexivity. }
+ destruct(plug_step_inverse ge base raw t next BASE(proj1 INV)NR STEP)
+  as [raw'[EQ STEP']].
+ exists raw';split;auto;split.
+ - eapply invariant_preserved;eauto.
+ - exact(proj2(normal_step_forward _ _ _ _ _ (proj1 INV) DEN STEP')).
+Qed.
+Print Assumptions callee_invariant_all_successors.
+Print Assumptions callee_invariant_progress.

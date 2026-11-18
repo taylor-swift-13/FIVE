@@ -1,0 +1,34 @@
+122:Definition f_five_sqrtf := {|
+123-  fn_return := tfloat;
+124-  fn_callconv := cc_default;
+125-  fn_params := ((_x, tfloat) :: nil);
+126-  fn_vars := ((_view, (Tunion _FiveSqrtBits noattr)) ::
+127-              (_magnitude, tuint) :: (_exponent_bits, tuint) ::
+128-              (_mantissa, tuint) :: (_exponent, tint) ::
+129-              (_result_exponent, tint) :: (_radicand, tulong) ::
+130-              (_pair, tuint) :: (_remainder, tuint) :: (_trial, tuint) ::
+131-              (_root, tuint) :: nil);
+132-  fn_body :=
+133-(Ssequence
+134-  (Sdo (Eassign
+135-         (Efield
+136-           (Evalof (Evar _view (Tunion _FiveSqrtBits noattr))
+137-             (Tunion _FiveSqrtBits noattr)) _f tfloat)
+138-         (Evalof (Evar _x tfloat) tfloat) tfloat))
+139-  (Ssequence
+140-    (Sdo (Eassign (Evar _magnitude tuint)
+141-           (Ebinop Oand
+142-             (Evalof
+143-               (Efield
+144-                 (Evalof (Evar _view (Tunion _FiveSqrtBits noattr))
+145-                   (Tunion _FiveSqrtBits noattr)) _u tuint) tuint)
+146-             (Eval (Vint (Int.repr 2147483647)) tuint) tuint) tuint))
+147-    (Ssequence
+148-      (Sifthenelse (Ebinop Ogt (Evalof (Evar _magnitude tuint) tuint)
+149-                     (Eval (Vint (Int.repr 2139095040)) tuint) tint)
+150-        (Ssequence
+--
+3594: (_five_sqrtf, Gfun(Internal f_five_sqrtf)) :: (_gh_ref, Gvar v_gh_ref) ::
+3595- (_gh_max_accel, Gvar v_gh_max_accel) ::
+3596- (_gh_update_ref_from_speed_sp, Gfun(Internal f_gh_update_ref_from_speed_sp)) ::
+3597- (_gh_saturate_accel, Gfun(Internal f_gh_saturate_accel)) :: nil).

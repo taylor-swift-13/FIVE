@@ -1,0 +1,56 @@
+Require Import FiveLowpassResetRecheck.Spec.
+Require Import FiveLowpassResetRecheck.Proof.
+Definition goal_0 : FiveLowpassResetRecheck.Spec.P_memcpy_pointer_1 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_1.
+Print Assumptions goal_0.
+Definition goal_1 : FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_1 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_1.
+Print Assumptions goal_1.
+Definition goal_2 : FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_2 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_2.
+Print Assumptions goal_2.
+Definition goal_3 : FiveLowpassResetRecheck.Spec.P_memcpy_pointer_2 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_2.
+Print Assumptions goal_3.
+Definition goal_4 : FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_3 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_3.
+Print Assumptions goal_4.
+Definition goal_5 : FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_4 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_4.
+Print Assumptions goal_5.
+Definition goal_6 : FiveLowpassResetRecheck.Spec.P_bits_precondition_instance_1 := FiveLowpassResetRecheck.Proof.prove_P_bits_precondition_instance_1.
+Print Assumptions goal_6.
+Definition goal_7 : FiveLowpassResetRecheck.Spec.P_bits_precondition_instance_2 := FiveLowpassResetRecheck.Proof.prove_P_bits_precondition_instance_2.
+Print Assumptions goal_7.
+Definition goal_8 : FiveLowpassResetRecheck.Spec.P_bits_precondition_instance_3 := FiveLowpassResetRecheck.Proof.prove_P_bits_precondition_instance_3.
+Print Assumptions goal_8.
+Definition goal_9 : FiveLowpassResetRecheck.Spec.P_main_assertion_1 := FiveLowpassResetRecheck.Proof.prove_P_main_assertion_1.
+Print Assumptions goal_9.
+Definition goal_10 : FiveLowpassResetRecheck.Spec.P_main_assertion_2 := FiveLowpassResetRecheck.Proof.prove_P_main_assertion_2.
+Print Assumptions goal_10.
+Definition goal_11 : FiveLowpassResetRecheck.Spec.P_main_assertion_3 := FiveLowpassResetRecheck.Proof.prove_P_main_assertion_3.
+Print Assumptions goal_11.
+Definition goal_12 : FiveLowpassResetRecheck.Spec.P_main_assertion_4 := FiveLowpassResetRecheck.Proof.prove_P_main_assertion_4.
+Print Assumptions goal_12.
+Definition goal_13 : FiveLowpassResetRecheck.Spec.P_memcpy_overflow_1 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_overflow_1.
+Print Assumptions goal_13.
+Definition goal_14 : FiveLowpassResetRecheck.Spec.P_memcpy_overflow_2 := FiveLowpassResetRecheck.Proof.prove_P_memcpy_overflow_2.
+Print Assumptions goal_14.
+Definition goal_15 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_1 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_1.
+Print Assumptions goal_15.
+Definition goal_16 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_2 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_2.
+Print Assumptions goal_16.
+Definition goal_17 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_3 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_3.
+Print Assumptions goal_17.
+Definition goal_18 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_4 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_4.
+Print Assumptions goal_18.
+Definition goal_19 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_5 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_5.
+Print Assumptions goal_19.
+Definition goal_20 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_6 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_6.
+Print Assumptions goal_20.
+Definition goal_21 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_7 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_7.
+Print Assumptions goal_21.
+Definition goal_22 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_8 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_8.
+Print Assumptions goal_22.
+Definition goal_23 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_9 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_9.
+Print Assumptions goal_23.
+Definition goal_24 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_10 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_10.
+Print Assumptions goal_24.
+Definition goal_25 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_11 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_11.
+Print Assumptions goal_25.
+Definition goal_26 : FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_12 := FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_12.
+Print Assumptions goal_26.

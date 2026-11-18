@@ -1,0 +1,30 @@
+ exists mf,P;split;[exact CP|]. split;[exact IP|].
+ split;[rewrite FRAMEFREE by(apply OUT;exact VA);exact AX|].
+   split;[rewrite FRAMEFREE by(apply OUT;exact VA);exact AY|]. split.
+   + unfold access_preserved;intros ch b ofs p ACCESS.
+     assert(VB:Mem.valid_block m b).
+     { eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact ACCESS|constructor]. }
+     apply ACCESSFREE;[apply OUT;exact VB|]. apply KEEP;apply COPYKEEP.
+     pose proof(allocation_access ge decl empty_env m ch b ofs p ACCESS)as H;rewrite ALLOC in H;exact H.
+   + split.
+     { intros ch b ofs VB DBA;rewrite FRAMEFREE by(apply OUT;exact VB).
+     rewrite FRAME.
+     * erewrite Mem.load_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VB)).
+       pose proof(allocation_load_frame ge decl empty_env m ch b ofs VB)as H;rewrite ALLOC in H;exact H.
+     * eapply Mem.store_valid_block_1;[exact SP|].
+       pose proof(allocation_valid_block ge decl empty_env m b VB)as H;rewrite ALLOC in H;exact H.
+     * intro EQ;subst bn;apply FN;exact VB.
+     * intro EQ;subst bf;apply FF;exact VB.
+     * exact DBA. }
+     intros b ofs nbytes VB DBA.
+     rewrite(free_environment_bytes_frame ge e bodym mf FREE b ofs nbytes)by(apply OUT;exact VB).
+     rewrite BFRAME.
+     * erewrite Mem.loadbytes_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VB)).
+       pose proof(allocation_bytes_frame ge decl empty_env m b ofs nbytes VB)as H;rewrite ALLOC in H;exact H.
+     * eapply Mem.store_valid_block_1;[exact SP|].
+       pose proof(allocation_valid_block ge decl empty_env m b VB)as H;rewrite ALLOC in H;exact H.
+     * intro EQ;subst bn;apply FN;exact VB.
+     * intro EQ;subst bf;apply FF;exact VB.
+     * exact DBA.
+Qed.
+Print Assumptions saturation_funcall_certificate.

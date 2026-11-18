@@ -1,0 +1,18 @@
+Require Import FiveGhAccelExecutionCorrespondence.Spec.
+Require Import FiveGhAccelExecutionCorrespondence.Proof.
+Definition goal_0 : FiveGhAccelExecutionCorrespondence.Spec.domain_preservation_goal := FiveGhAccelExecutionCorrespondence.Proof.domain_preservation.
+Print Assumptions goal_0.
+Definition goal_1 : FiveGhAccelExecutionCorrespondence.Spec.floating_point_correspondence_goal := FiveGhAccelExecutionCorrespondence.Proof.floating_point_correspondence.
+Print Assumptions goal_1.
+Definition goal_2 : FiveGhAccelExecutionCorrespondence.Spec.machine_integer_correspondence_goal := FiveGhAccelExecutionCorrespondence.Proof.machine_integer_correspondence.
+Print Assumptions goal_2.
+Definition goal_3 : FiveGhAccelExecutionCorrespondence.Spec.memory_access_correspondence_goal := FiveGhAccelExecutionCorrespondence.Proof.memory_access_correspondence.
+Print Assumptions goal_3.
+Definition goal_4 : FiveGhAccelExecutionCorrespondence.Spec.control_and_exhaustion_correspondence_goal := FiveGhAccelExecutionCorrespondence.Proof.control_and_exhaustion_correspondence.
+Print Assumptions goal_4.
+Definition goal_5 : FiveGhAccelExecutionCorrespondence.Spec.normal_result_and_memory_correspondence_goal := FiveGhAccelExecutionCorrespondence.Proof.normal_result_and_memory_correspondence.
+Print Assumptions goal_5.
+Definition goal_6 : FiveGhAccelExecutionCorrespondence.Spec.invalid_operation_correspondence_goal := FiveGhAccelExecutionCorrespondence.Proof.invalid_operation_correspondence.
+Print Assumptions goal_6.
+Definition goal_7 : FiveGhAccelExecutionCorrespondence.Spec.whole_execution_correspondence_goal := FiveGhAccelExecutionCorrespondence.Proof.whole_execution_correspondence.
+Print Assumptions goal_7.

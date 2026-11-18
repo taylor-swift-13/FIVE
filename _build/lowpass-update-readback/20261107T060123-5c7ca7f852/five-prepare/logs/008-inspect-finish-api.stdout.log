@@ -1,0 +1,68 @@
+    def finish(self, verdict, summary, required_roles, missing=None):
+        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+            raise ValueError('Invalid verification verdict')
+        metadata = self.read('run.json')
+        boundary=metadata.get('codex_usage_boundary')
+        if boundary and not boundary.get('after'):
+            try:
+                from codex_usage import snapshot, receipt
+                import tempfile
+                boundary['after']=snapshot(boundary['session_file'])
+                metadata['codex_usage_boundary']=boundary
+                dump(self.folder/'run.json',metadata)
+                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+                    usage_file=Path(temporary)/'usage.json'
+                    dump(usage_file,usage)
+                    self.import_tokens(usage_file)
+                metadata=self.read('run.json')
+            except Exception as usage_error:
+                metadata=self.read('run.json')
+                metadata['tokens']={'status':'unavailable','source':{'kind':'codex-session-event','reference':boundary['session_file']},'events':[],'reason':str(usage_error)}
+                metadata['usage_capture_error']=str(usage_error)
+                dump(self.folder/'run.json',metadata)
+        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+        dump(self.folder/'run.json',metadata)
+        roles = {}
+        for role, path in required_roles.items():
+            try:
+                roles[role] = {'status':'present',**self.capture(path,role)}
+            except FileNotFoundError:
+                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+        # Child runs are linked (normally nested under stages/), never copied twice.
+        metrics = self.refresh_metrics()
+        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+             'note':'A passed verifier result does not imply all requested measurements are available.'})
+        from cost_audit import audit_run
+        cost_audit = audit_run(self.folder)
+        metadata = self.read('run.json')
+        metadata['cost_audit'] = cost_audit
+        if cost_audit['status'] != 'complete':
+            metadata['completeness']['measurements'] = 'partial'
+            metrics['measurement_status'] = 'partial'
+            dump(self.folder/'metrics.json',metrics)
+        dump(self.folder/'run.json',metadata)
+        self.render()
+        print(f'ARTIFACTS: {self.folder}',flush=True)
+
+    def render(self):
+        metrics = self.read('metrics.json')
+        meta = self.read('run.json')
+        result = meta.get('result',{'verdict':'running','summary':''})
+        peak = metrics['memory']['peak_process_tree_rss_sampled_bytes']
+        text = f"# {meta['skill']} / {meta['run_id']}\n\nVerification: {result['verdict']}\n\n{result['summary']}\n\n"
+        text += f"Wall time: {metrics['time']['wall_seconds']:.6f} s\n\nCPU tool time: {metrics['time']['cpu_tool_seconds']} s\n\nObserved tool-tree RSS peak: {peak if peak is not None else 'unavailable'} bytes\n\nModel tokens: {metrics['tokens']['status']}; total={metrics['tokens']['total_tokens']}\n\nMeasurement completeness: {metrics['measurement_status']}\n\n"
+        text += 'run.json contains scope, input/output hashes, commands, token evidence and remaining obligations. metrics.json contains resource measurements and their limits.\n'
+        if meta.get('cost_audit'):
+            text += '\nCost evidence audit: '+meta['cost_audit']['status']+'\n'
+            for issue in meta['cost_audit'].get('issues',[]):
+                text += '\n- '+issue+'\n'
+        (self.folder/'report.md').write_text(text)
+        inventory = []
+        for path in sorted(self.folder.rglob('*')):
+            if path.is_file() and path != self.folder/'run.json' and not path.name.endswith('.tmp'):
+                inventory.append({'path':str(path.relative_to(self.folder)),'bytes':path.stat().st_size,'sha256':sha(path)})

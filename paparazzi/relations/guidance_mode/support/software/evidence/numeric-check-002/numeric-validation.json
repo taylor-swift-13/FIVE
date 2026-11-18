@@ -1,0 +1,55 @@
+{
+  "schema": "five-proof-support-validation/1",
+  "scope": "Strict numeric scalar checker totality, type preservation, literal guards and all-env/memory independence; no global C goal assumed",
+  "inputs": [
+    {
+      "path": "paparazzi/relations/guidance_mode/support/software/NumericOps.v",
+      "sha256": "104b8c654385bfdc64282715eb1d3b8dac32328e62d682600b8ffdd18eaedc86",
+      "snapshot": "paparazzi/relations/guidance_mode/support/software/evidence/numeric-check-002/NumericOps.v"
+    }
+  ],
+  "goal_bindings": [
+    {
+      "requested_goal": "safe_binop_total",
+      "theorem": "FiveGuidanceSoftwareProof.NumericOps.safe_binop_total",
+      "type": "forall op ty1 ty2 tr lit v1 v2,\n safe_binop op ty1 ty2 tr lit=true ->typed_value ty1 v1 ->typed_value ty2 v2 ->literal_constraint lit v2 ->\n exists result,typed_value tr result /\\forall cenv m,sem_binary_operation cenv op v1 ty1 v2 ty2 m=Some result"
+    },
+    {
+      "requested_goal": "safe_unop_total",
+      "theorem": "FiveGuidanceSoftwareProof.NumericOps.safe_unop_total",
+      "type": "forall op ty tr v,safe_unop op ty tr=true ->typed_value ty v ->\n exists result,typed_value tr result /\\forall m,sem_unary_operation op v ty m=Some result"
+    },
+    {
+      "requested_goal": "safe_cast_total",
+      "theorem": "FiveGuidanceSoftwareProof.NumericOps.safe_cast_total",
+      "type": "forall fromty toty v,\n safe_cast fromty toty=true ->typed_value fromty v ->\n exists result,typed_value toty result /\\forall m,sem_cast v fromty toty m=Some result"
+    },
+    {
+      "requested_goal": "bool_val_total",
+      "theorem": "FiveGuidanceSoftwareProof.NumericOps.bool_val_total",
+      "type": "forall ty v,typed_value ty v ->exists b,forall m,bool_val v ty m=Some b"
+    },
+    {
+      "requested_goal": "numeric_binop_independent",
+      "theorem": "FiveGuidanceSoftwareProof.NumericOps.numeric_binop_independent",
+      "type": "forall ty1 ty2 v1 v2,\n typed_value ty1 v1 ->typed_value ty2 v2 ->forall op ce1 ce2 m1 m2,\n sem_binary_operation ce1 op v1 ty1 v2 ty2 m1=sem_binary_operation ce2 op v1 ty1 v2 ty2 m2"
+    },
+    {
+      "requested_goal": "numeric_unop_independent",
+      "theorem": "FiveGuidanceSoftwareProof.NumericOps.numeric_unop_independent",
+      "type": "forall ty v,typed_value ty v ->forall op m1 m2,\n sem_unary_operation op v ty m1=sem_unary_operation op v ty m2"
+    },
+    {
+      "requested_goal": "numeric_kind_cases",
+      "theorem": "FiveGuidanceSoftwareProof.NumericOps.numeric_kind_cases",
+      "type": "forall ty k,numeric_kind ty=Some k ->\n (k=K32 /\\(ty=tint \\/ty=tuint)) \\/(k=K64 /\\ty=tulong) \\/(k=KF32 /\\ty=tfloat)"
+    }
+  ],
+  "certificate": {
+    "path": "paparazzi/relations/guidance_mode/support/software/evidence/numeric-check-002/GoalBinding.v",
+    "sha256": "556f84fd1f77a9292e36202e87573d57c0ad56cd7ad0eae28224e2a264559dae",
+    "compile_command_id": "030-numeric-goalbinding-full-compile",
+    "kernel_command_id": "031-numeric-goalbinding-independent-kernel"
+  },
+  "run": "runs/20261106T131406-37a522857a/five-rocq"
+}

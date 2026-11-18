@@ -1,0 +1,43 @@
+     1	From Stdlib Require Import List ZArith Lia.
+     2	From compcert Require Import Integers Floats AST Values Memory Memdata Csem Smallstep.
+     3	From FiveLowpassUpdateReadback Require Import Spec.
+     4	From FiveLowpassSupport Require Import LowpassMemory.
+     5	Require FiveLowpassUpdateFunctional.Proof FiveLowpassGetFunctional.Proof FiveLowpassGetCase.Contract FiveLowpassUpdateCase.Contract.
+     6	Module Spec:=FiveLowpassUpdateReadback.Spec.
+     7	Module U:=FiveLowpassUpdateCase.Contract.
+     8	Module G:=FiveLowpassGetCase.Contract.
+     9	Import ListNotations.
+    10	Local Open Scope Z_scope.
+    11	Lemma update_establishes_readable:forall m b p tc li lo,
+    12	 U.Initialized m b p tc li lo->G.ReadableOut m b p lo.
+    13	Proof. intros m b p tc li lo [[AL[NW W]][TC[LI LO]]];repeat split;auto. Qed.
+    14	Lemma observations:forall m mu mf b p tc li lo input,
+    15	 U.Initialized m b p tc li lo->U.Post m mu b p tc li lo input->G.Frame mu mf->
+    16	 Spec.Observations m mu mf b p input(Vsingle(U.output tc li lo input)).
+    17	Proof.
+    18	 intros m mu mf b p tc li lo input INIT [POST[BIN[BOUT UF]]] GF.
+    19	 pose proof(U.initialized_valid m b p tc li lo INIT)as VM.
+    20	 pose proof(U.initialized_valid mu b p tc input(U.output tc li lo input)POST)as VU.
+    21	 assert(TC:Mem.loadbytes mu b(Ptrofs.unsigned p)4=Mem.loadbytes m b(Ptrofs.unsigned p)4)by(apply UF;[exact VM|right;left;lia]).
+    22	 unfold Spec.Observations;split;[exact TC|].split;[rewrite GF by exact VU;exact TC|].
+    23	 split;[exact BIN|].split;[rewrite GF by exact VU;exact BIN|].
+    24	 split;[exact BOUT|].split;[rewrite GF by exact VU;exact BOUT|].split;assumption.
+    25	Qed.
+    26	Theorem normal_completion:Spec.NormalCompletion.
+    27	Proof.
+    28	 unfold Spec.NormalCompletion;intros m b p tc li lo input P.
+    29	 destruct(FiveLowpassUpdateFunctional.Proof.normal_completion m b p tc li lo input P)as[tu[mu[UPDATE POST]]].
+    30	 pose proof(update_establishes_readable mu b p tc input(U.output tc li lo input)(proj1 POST))as R.
+    31	 destruct(FiveLowpassGetFunctional.Proof.normal_completion mu b p(U.output tc li lo input)R)as[tg[mf[GET[READ GF]]]].
+    32	 exists tu,mu,tg,mf;split;[exact UPDATE|].split;[exact GET|].eapply observations;eauto.
+    33	Qed.
+    34	Theorem all_returns:Spec.AllReturns.
+    35	Proof.
+    36	 unfold Spec.AllReturns;intros m b p tc li lo input P tu r mu tg y mf UPDATE GET.
+    37	 destruct(FiveLowpassUpdateFunctional.Proof.all_returns m b p tc li lo input P tu r mu UPDATE)as[RR POST].
+    38	 pose proof(update_establishes_readable mu b p tc input(U.output tc li lo input)(proj1 POST))as R.
+    39	 destruct(FiveLowpassGetFunctional.Proof.all_returns mu b p(U.output tc li lo input)R tg y mf GET)as[YY[READ GF]].
+    40	 subst r y;split;[reflexivity|].split;[reflexivity|].split;[reflexivity|].eapply observations;eauto.
+    41	Qed.
+    42	Print Assumptions normal_completion.
+    43	Print Assumptions all_returns.

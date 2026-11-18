@@ -1,0 +1,108 @@
+pre_or_call
+     : env ->
+       Csyntax.function ->
+       Csyntax.function ->
+       cont ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Memory.Mem.mem -> Floats.float32 -> Floats.float32 -> state -> Prop
+pre_all_successors
+     : forall (ge : genv) (e : env) (caller leaf : Csyntax.function)
+         (k : cont) (ifactor imax isqrt inorm : AST.ident)
+         (bfactor bmax bsqrt bnorm : Values.block) 
+         (m : Memory.Mem.mem) (maximum norm : Floats.float32),
+       Maps.PTree.get ifactor e = Some (bfactor, Ctypesdefs.tfloat) ->
+       Maps.PTree.get imax e = None ->
+       Globalenvs.Genv.find_symbol ge imax = Some bmax ->
+       Maps.PTree.get isqrt e = None ->
+       Globalenvs.Genv.find_symbol ge isqrt = Some bsqrt ->
+       Maps.PTree.get inorm e = Some (bnorm, Ctypesdefs.tfloat) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat m
+         bmax Integers.Ptrofs.zero Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vsingle maximum) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat m
+         bnorm Integers.Ptrofs.zero Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vsingle norm) ->
+       Globalenvs.Genv.find_funct ge (Values.Vptr bsqrt Integers.Ptrofs.zero) =
+       Some (Ctypes.Internal leaf) ->
+       Csyntax.type_of_fundef (Ctypes.Internal leaf) = leaf_type ->
+       forall (lr : bool) (ms rs ns : read_stage) 
+         (t : Events.trace) (next : state),
+       Csem.step ge
+         (pre_state e caller k ifactor imax isqrt inorm bfactor bmax bsqrt
+            bnorm m maximum norm lr ms rs ns)
+         t next ->
+       t = Events.E0 /\
+       pre_or_call e caller leaf k ifactor imax isqrt inorm bfactor bmax
+         bsqrt bnorm m maximum norm next
+factor_invariant
+     : genv ->
+       env ->
+       Csyntax.function ->
+       cont ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Memory.Mem.mem ->
+       Floats.float32 ->
+       Floats.float32 ->
+       Floats.float32 -> Memory.Mem.mem -> Memory.Mem.mem -> state -> Prop
+factor_all_successors
+     : forall (ge : genv) (e : env) (caller leaf : Csyntax.function)
+         (k : cont) (ifactor imax isqrt inorm : AST.ident)
+         (bfactor bmax bsqrt bnorm : Values.block) 
+         (m : Memory.Mem.mem) (maximum norm : Floats.float32),
+       Maps.PTree.get ifactor e = Some (bfactor, Ctypesdefs.tfloat) ->
+       Maps.PTree.get imax e = None ->
+       Globalenvs.Genv.find_symbol ge imax = Some bmax ->
+       Maps.PTree.get isqrt e = None ->
+       Globalenvs.Genv.find_symbol ge isqrt = Some bsqrt ->
+       Maps.PTree.get inorm e = Some (bnorm, Ctypesdefs.tfloat) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat m
+         bmax Integers.Ptrofs.zero Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vsingle maximum) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat m
+         bnorm Integers.Ptrofs.zero Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vsingle norm) ->
+       Globalenvs.Genv.find_funct ge (Values.Vptr bsqrt Integers.Ptrofs.zero) =
+       Some (Ctypes.Internal leaf) ->
+       Csyntax.type_of_fundef (Ctypes.Internal leaf) = leaf_type ->
+       forall (root : Floats.float32) (leaf_mem final_mem : Memory.Mem.mem),
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat
+         leaf_mem bmax Integers.Ptrofs.zero Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vsingle maximum) ->
+       Cexec.do_assign_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat
+         leaf_mem bfactor Integers.Ptrofs.zero Ctypes.Full
+         (Values.Vsingle (Floats.Float32.div maximum root)) =
+       Some
+         (PureDenotation.quiet_world, Events.E0, final_mem,
+          Values.Vsingle (Floats.Float32.div maximum root)) ->
+       CallfreeExecution.normal_state
+         (Callstate (Ctypes.Internal leaf) (Values.Vsingle norm :: nil) Kstop
+            m) =
+       true ->
+       CallfreeExecution.call_names
+         (Callstate (Ctypes.Internal leaf) (Values.Vsingle norm :: nil) Kstop
+            m) ->
+       Smallstep.star Csem.step ge
+         (Callstate (Ctypes.Internal leaf) (Values.Vsingle norm :: nil) Kstop
+            m)
+         Events.E0 (Returnstate (Values.Vsingle root) Kstop leaf_mem) ->
+       forall (s : state) (t : Events.trace) (next : state),
+       factor_invariant ge e caller k ifactor imax isqrt inorm bfactor bmax
+         bsqrt bnorm m maximum norm root leaf_mem final_mem s ->
+       s <> State caller Csyntax.Sskip k e final_mem ->
+       Csem.step ge s t next ->
+       factor_invariant ge e caller k ifactor imax isqrt inorm bfactor bmax
+         bsqrt bnorm m maximum norm root leaf_mem final_mem next

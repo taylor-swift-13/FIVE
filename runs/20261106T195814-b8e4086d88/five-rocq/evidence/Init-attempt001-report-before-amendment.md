@@ -1,0 +1,13 @@
+# init_first_order_low_pass final CBMC recheck
+
+Proved all 31 actual final-harness property IDs, each bound to its exact [question](../../problem/Spec.v), [proof](Proof.v), [goal certificate](evidence/goal-validation.json) and [per-property source scope](../../../../align/model/spec-map.json). All3 old fields and all input floats admit every binary32 representation, including infinities, signed zero and NaN payloads; there is no numeric assumption.
+
+Source guards retain the original generated Csyntax assignment, actual parameter allocation/binding, source operand loads and original Csem reachable write prefix. Manual assertions establish an actual normal return and cover every normal return, decode the exact real output/frame field bytes, use the official memcpy/uint32 observation in both operand orders, and preserve the source field when the expected operand executes first. The final CBMC harness has no arithmetic coefficient assertion; unrestricted coefficient arithmetic is proved independently by the functional/relation questions. Historical arithmetic CBMC timeouts remain retained in cbmc/history.
+
+Target: CompCert3.17 x86-64 Linux standard ABI, little endian, binary32 round-to-nearest ties-to-even and the recorded CompCert NaN policy. The checked source/spec/proof/dependency hashes and full cold compile receipts are [provenance](provenance.json), [kernel evidence](evidence/kernel-evidence.json) and [checker](check.py). No project .vo cache is loaded: default checking builds every project dependency in an empty temporary directory. Installed Rocq/CompCert/Flocq libraries remain the semantic toolchain boundary.
+
+Inherited assumptions: ClassicalDedekindReals.sig_not_dec, sig_forall_dec; FunctionalExtensionality.functional_extensionality_dep; Classical_Prop.classic; CompCert Events.external_functions_sem and inline_assembly_sem. No new axiom or admitted obligation is introduced. Actual runtime is gpt-6.1-sol with medium effort, recorded in [runtime receipt](evidence/runtime-metadata.json). Tool CPU/RSS refer to measured proof command processes, exclude model-serving/desktop memory, and sampled RSS may miss peaks or count shared pages twice.
+
+The mapping file retains generation-stage proof_status=pending; the independent proved results are [spec-recheck](../../../spec-recheck.json).
+
+All authoring, failed attempts and accepted cold checks share one actual [cost record](../../../../../../../runs/20261106T192259-cfb771d380/five-rocq/evidence/shared-recheck-costs.json); [per-attempt costs](costs.json) intentionally use null per-case allocation instead of inventing a token split.

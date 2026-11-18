@@ -1,0 +1,525 @@
+{
+  "schema": "five-run/1.0",
+  "run_id": "20261107T065613-5ef20b7961",
+  "skill": "five-verify",
+  "parent": "_build/lowpass-update-readback-parent/20261107T055822-213c1c3ee8/five-verify",
+  "started_at": "2026-11-07T06:56:13.792374+00:00",
+  "start_epoch": 1794034573.7924097,
+  "invocation_kind": "skill-session",
+  "status": "passed",
+  "timing_scope": "From start to finish of this invocation; not retroactive authoring time",
+  "children": [],
+  "environment": {
+    "os": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "python": "3.10.12",
+    "cwd": "/home/yangfp/five",
+    "measurement": "GNU time + /proc RSS sampling",
+    "tools": {
+      "python3": {
+        "path": "/usr/bin/python3",
+        "binary_sha256": "a2f33a6e006989270f4340528eb61f8f97366e00a5d1b602ac8672ea44fc56ae"
+      }
+    },
+    "environment_policy": "No full environment dump; secrets excluded"
+  },
+  "scope": {
+    "task": "strict local delivery gate after actual CBMC input correction, finalcost/publication handoff"
+  },
+  "tokens": {
+    "status": "available",
+    "source": {
+      "kind": "codex-session-event",
+      "reference": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88"
+    },
+    "complete": true,
+    "scope": "explicit event-boundary interval",
+    "boundaries": {
+      "after_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:d0cc7a332a4d06ac71cc6492",
+      "before_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:0aae92a6f13d79b08c2ecc50"
+    },
+    "events": [
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:245fb5c18146588900c2f12e",
+        "timestamp": "2026-11-07T06:56:14.741Z",
+        "source_line": 1238,
+        "input_tokens": 213764,
+        "output_tokens": 2039,
+        "cached_input_tokens": 212992,
+        "reasoning_output_tokens": 516
+      },
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:43d081c74f135b5d04272110",
+        "timestamp": "2026-11-07T06:56:55.670Z",
+        "source_line": 1244,
+        "input_tokens": 216072,
+        "output_tokens": 882,
+        "cached_input_tokens": 215680,
+        "reasoning_output_tokens": 432
+      },
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:abe368999ff3003c6c0233ea",
+        "timestamp": "2026-11-07T06:57:00.410Z",
+        "source_line": 1251,
+        "input_tokens": 217012,
+        "output_tokens": 69,
+        "cached_input_tokens": 216832,
+        "reasoning_output_tokens": 28
+      },
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:99c881f7100dfc1dc4393b8e",
+        "timestamp": "2026-11-07T06:57:19.793Z",
+        "source_line": 1258,
+        "input_tokens": 218068,
+        "output_tokens": 703,
+        "cached_input_tokens": 216960,
+        "reasoning_output_tokens": 516
+      },
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:78392a9ba74d3da514a3a22d",
+        "timestamp": "2026-11-07T06:58:20.747Z",
+        "source_line": 1265,
+        "input_tokens": 218783,
+        "output_tokens": 2110,
+        "cached_input_tokens": 218624,
+        "reasoning_output_tokens": 516
+      },
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:a62391f2275cb6a87555fef0",
+        "timestamp": "2026-11-07T06:58:30.181Z",
+        "source_line": 1269,
+        "input_tokens": 220998,
+        "output_tokens": 305,
+        "cached_input_tokens": 220672,
+        "reasoning_output_tokens": 288
+      },
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:0aae92a6f13d79b08c2ecc50",
+        "timestamp": "2026-11-07T06:58:57.609Z",
+        "source_line": 1276,
+        "input_tokens": 221414,
+        "output_tokens": 649,
+        "cached_input_tokens": 220800,
+        "reasoning_output_tokens": 0
+      }
+    ],
+    "notes": [],
+    "totals": {
+      "input_tokens": 1526111,
+      "output_tokens": 6757,
+      "cached_input_tokens": 1522560,
+      "reasoning_output_tokens": 2296
+    },
+    "total_tokens": 1532868
+  },
+  "commands": [
+    {
+      "id": "001-refresh-current-transitive-cbmc-handoff-reference",
+      "argv": [
+        "python3",
+        "-c",
+        "\nfrom pathlib import Path\nimport json,hashlib\nc=Path('paparazzi/models/update_first_order_low_pass');b=json.loads((c/'cbmc/handoff.json').read_text())['cbmc_evidence']\nfor stage in ['align','rocq']:\n p=c/stage/'handoff.json';h=json.loads(p.read_text());h.setdefault('historical_cbmc_evidence',[]).append(h['cbmc_evidence']);h['cbmc_evidence']=b\n if stage=='rocq':h['input_handoff']='align/handoff.json';h['input_handoff_sha256']=hashlib.sha256((c/'align/handoff.json').read_bytes()).hexdigest()\n p.write_text(json.dumps(h,indent=2)+chr(10))\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:56:46.376856+00:00",
+      "finished_at": "2026-11-07T06:56:46.443312+00:00",
+      "wall_seconds": 0.0660049649886787,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 14076,
+        "user_seconds": 0.03,
+        "system_seconds": 0.0,
+        "elapsed_seconds": 0.04,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 12161024,
+      "rss_sample_count": 3,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.022174569981871173,
+      "rss_sampling_errors": [],
+      "stdout": "logs/001-refresh-current-transitive-cbmc-handoff-reference.stdout.log",
+      "stderr": "logs/001-refresh-current-transitive-cbmc-handoff-reference.stderr.log",
+      "time_log": "logs/001-refresh-current-transitive-cbmc-handoff-reference.time.log"
+    },
+    {
+      "id": "002-refresh-all-actual-stage-costs-after-real-bmc-rerun",
+      "argv": [
+        "python3",
+        "paparazzi/report/lowpass_update_readback/support/update-costs.py"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:56:46.458706+00:00",
+      "finished_at": "2026-11-07T06:56:46.633368+00:00",
+      "wall_seconds": 0.174242259003222,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 17296,
+        "user_seconds": 0.1,
+        "system_seconds": 0.03,
+        "elapsed_seconds": 0.14,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 19456000,
+      "rss_sample_count": 9,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.023942742991494015,
+      "rss_sampling_errors": [],
+      "stdout": "logs/002-refresh-all-actual-stage-costs-after-real-bmc-rerun.stdout.log",
+      "stderr": "logs/002-refresh-all-actual-stage-costs-after-real-bmc-rerun.stderr.log",
+      "time_log": "logs/002-refresh-all-actual-stage-costs-after-real-bmc-rerun.time.log"
+    },
+    {
+      "id": "003-strict-local-all-eleven-delivery-gate",
+      "argv": [
+        "python3",
+        "paparazzi/report/lowpass_update_readback/check_all.py"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:56:46.636039+00:00",
+      "finished_at": "2026-11-07T06:56:59.814518+00:00",
+      "wall_seconds": 13.17821990000084,
+      "timeout_seconds": 300,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 30908,
+        "user_seconds": 8.95,
+        "system_seconds": 4.21,
+        "elapsed_seconds": 13.16,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 33849344,
+      "rss_sample_count": 631,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.028157365013612434,
+      "rss_sampling_errors": [],
+      "stdout": "logs/003-strict-local-all-eleven-delivery-gate.stdout.log",
+      "stderr": "logs/003-strict-local-all-eleven-delivery-gate.stderr.log",
+      "time_log": "logs/003-strict-local-all-eleven-delivery-gate.time.log"
+    },
+    {
+      "id": "004-bind-localgate-and-limit-tiny-mapping-authoring-allocation",
+      "argv": [
+        "python3",
+        "-c",
+        "\nfrom pathlib import Path\nimport json\nroot=Path.cwd();report=root/'paparazzi/report/lowpass_update_readback';run=Path('_build/lowpass-update-readback/current-run.txt').read_text();meta=json.loads((Path(run)/'run.json').read_text());cmd=next(x for x in meta['commands']if x['id'].endswith('strict-local-all-eleven-delivery-gate'));out=(Path(run)/cmd['stdout']).read_text();pos=out.rfind('{'+chr(10)+'  \"status\": \"passed\"');result=json.loads(out[pos:]);assert result['active_problems']==11 and cmd['exit_code']==0\np=report/'evidence/local-delivery-gate.json';p.write_text(json.dumps({'run':str(Path(run).relative_to(root)),'command_id':cmd['id'],'stdout':cmd['stdout'],'result':result},indent=2)+chr(10))\np=report/'support/update-costs.py';s=p.read_text();needle=\"rows=[row(r,report)for r in runs]\";patch=chr(10).join([\"for costpath in [case/'align/report/costs.json',report/'costs.json']:\",\" data=json.loads(costpath.read_text())\",\" for record in data['records']:\",\"  if '20261107T065613-c368bec83c' in record['run']:\",\"   record['exclusive_authoring_token']=None\",\"   record['exclusive_authoring_wall_seconds']=None\",\"   record['authoring_boundary_limitation']='Tool-only binding update: 0 session events observed between start/finish within one tool call. Script authoring occurred in preceding actual CBMC interval; task union includes it, exclusive mapping authoring allocation unknown.'\",\" dump(costpath,data)\"])+chr(10);assert needle in s;s=s.replace(needle,patch+needle);p.write_text(s)\nprint('Actual localgate receipt retained; exclusive mapping authoring unknowns documented.')\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:58:56.461462+00:00",
+      "finished_at": "2026-11-07T06:58:56.540619+00:00",
+      "wall_seconds": 0.07882910300395451,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 10552,
+        "user_seconds": 0.02,
+        "system_seconds": 0.01,
+        "elapsed_seconds": 0.04,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 11714560,
+      "rss_sample_count": 4,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.02307124697836116,
+      "rss_sampling_errors": [],
+      "stdout": "logs/004-bind-localgate-and-limit-tiny-mapping-authoring-allocation.stdout.log",
+      "stderr": "logs/004-bind-localgate-and-limit-tiny-mapping-authoring-allocation.stderr.log",
+      "time_log": "logs/004-bind-localgate-and-limit-tiny-mapping-authoring-allocation.time.log"
+    },
+    {
+      "id": "005-refresh-final-closed-stage-costs",
+      "argv": [
+        "python3",
+        "paparazzi/report/lowpass_update_readback/support/update-costs.py"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:58:56.543303+00:00",
+      "finished_at": "2026-11-07T06:58:56.714883+00:00",
+      "wall_seconds": 0.17118397800368257,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 17196,
+        "user_seconds": 0.09,
+        "system_seconds": 0.03,
+        "elapsed_seconds": 0.13,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 19312640,
+      "rss_sample_count": 9,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.02221905000624247,
+      "rss_sampling_errors": [],
+      "stdout": "logs/005-refresh-final-closed-stage-costs.stdout.log",
+      "stderr": "logs/005-refresh-final-closed-stage-costs.stderr.log",
+      "time_log": "logs/005-refresh-final-closed-stage-costs.time.log"
+    },
+    {
+      "id": "006-freeze-final-candidate002-and-record-both-passed-strict-gates",
+      "argv": [
+        "python3",
+        "-c",
+        "\nfrom pathlib import Path\nimport json,hashlib\nroot=Path.cwd();report=root/'paparazzi/report/lowpass_update_readback'\ndef sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()\np=report/'evidence/core-candidate-001.json';old=json.loads(p.read_text());rows=[{'path':x['path'],'sha256':sha(root/x['path'])}for x in old['files']];changed=[x['path']for x,y in zip(old['files'],rows)if x['sha256']!=y['sha256']];assert all(Path(x).suffix not in ['.c','.v']for x in changed)\nnew={**old,'status':'proof-complete-local-and-parent-strict-gates-passed','supersedes':{'path':str(p.relative_to(root)),'sha256':sha(p)},'metadata_only_changes':changed,'files':rows,'local_gate':'paparazzi/report/lowpass_update_readback/evidence/local-delivery-gate.json'}\np=report/'evidence/core-candidate-002.json';p.write_text(json.dumps(new,indent=2)+chr(10));(report/'evidence/core-candidate.json').write_text(json.dumps(new,indent=2)+chr(10))\np=report/'review-report.zh-CN.md';s=p.read_text();a=s.index('| 实际阶段调用 |');z=s.index(chr(10)+'成本口径：',a);s=s[:a]+(report/'phase-costs.zh-CN.txt').read_text()+s[z:];s=s.replace('综合11问题交付门禁正由主 agent 复核，其最终回执将补入本报告。','综合11问题严格交付门禁已在 worker 侧通过，完整检查两套 CompCert 门禁和512项物理输入拷贝；[实际回执](evidence/local-delivery-gate.json) 已绑定真实命令。主 agent 又以独立命令020复核通过。').replace('核心候选102项物理文件及哈希已冻结在 [core-candidate.json](evidence/core-candidate.json)。','核心候选102项文件及哈希已冻结在 [core-candidate-002.json](evidence/core-candidate-002.json)，初版候选和旧绑定元数据作为真实历史保留。')\ns+=chr(10)+'严格门禁首次还拒绝了两项产物问题：逐尝试运行元数据字段未按验证器格式挂接，以及初始 CBMC 只捕获 prepare handoff，未单独捕获原 C/harness。前者已按真实 Sol medium session 回执补全；后者没有修改闭合 raw run，而是新建065513真实直接 CBMC，先物理捕获原 C/harness 再运行，同一36项记录全部一致并通过。当前映射和重验账本绑定新运行，所有旧回执、费用和候选001保留。再次严格交付检查和主 agent 独立命令020均通过。'+chr(10)\ns+=chr(10)+'附加绑定修正 align065613 的真实 start/finish 位于同一工具调用内，边界内观测0个模型事件；这仅是工具绑定操作观测。脚本作者事件在前一个真实 CBMC 边界中，任务事件并集包含它；无法独立精确分摊的完整 mapping authoring token/墙钟记 null，不把0事件伪称0全部思考成本。'+chr(10);p.write_text(s)\np=report/'README.md';p.write_text(p.read_text().replace('The current final task-wide acceptance receipt is reported by the parent review.','The strict11-question delivery gate passed locally and independently in the parent review, with both complete CompCert gates and512 retained physical input copies; [local receipt](evidence/local-delivery-gate.json).'))\nprint('Candidate002 frozen, metadata-only changes',changed)\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T07:00:04.768199+00:00",
+      "finished_at": "2026-11-07T07:00:04.835559+00:00",
+      "wall_seconds": 0.06699646101333201,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 14336,
+        "user_seconds": 0.04,
+        "system_seconds": 0.01,
+        "elapsed_seconds": 0.06,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 12017664,
+      "rss_sample_count": 3,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.025645312998676673,
+      "rss_sampling_errors": [],
+      "stdout": "logs/006-freeze-final-candidate002-and-record-both-passed-strict-gates.stdout.log",
+      "stderr": "logs/006-freeze-final-candidate002-and-record-both-passed-strict-gates.stderr.log",
+      "time_log": "logs/006-freeze-final-candidate002-and-record-both-passed-strict-gates.time.log"
+    }
+  ],
+  "inputs": [],
+  "codex_usage_boundary": {
+    "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+    "before": {
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "last_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:d0cc7a332a4d06ac71cc6492",
+      "last_event_timestamp": "2026-11-07T06:55:14.591Z",
+      "observed_event_count": 189,
+      "counters": {
+        "input_tokens": 26362401,
+        "output_tokens": 72485,
+        "cached_input_tokens": 26042624,
+        "reasoning_output_tokens": 21229
+      },
+      "notes": []
+    },
+    "after": {
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "last_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:0aae92a6f13d79b08c2ecc50",
+      "last_event_timestamp": "2026-11-07T06:58:57.609Z",
+      "observed_event_count": 196,
+      "counters": {
+        "input_tokens": 27888512,
+        "output_tokens": 79242,
+        "cached_input_tokens": 27565184,
+        "reasoning_output_tokens": 23525
+      },
+      "notes": []
+    }
+  },
+  "finished_at": "2026-11-07T07:00:05.176883+00:00",
+  "finish_epoch": 1794034805.1769133,
+  "result": {
+    "verdict": "passed",
+    "summary": "Local strict all11 delivery gate passed: both full CompCert gates and512 physical input copies; parent independent strict command020 also passed. Candidate002 freezes unchanged proof/C/model core plus corrected evidence bindings.",
+    "outputs": {
+      "candidate": {
+        "status": "present",
+        "role": "candidate",
+        "source": "/home/yangfp/five/paparazzi/report/lowpass_update_readback/evidence/core-candidate-002.json",
+        "path": "evidence/candidate--core-candidate-002.json",
+        "sha256": "ad75ba7b70ff42f50c94a2429e0dcf6ac7743e6a6c085a6ac32d883d59f8dd76",
+        "bytes": 20667
+      },
+      "local-gate": {
+        "status": "present",
+        "role": "local-gate",
+        "source": "/home/yangfp/five/paparazzi/report/lowpass_update_readback/evidence/local-delivery-gate.json",
+        "path": "evidence/local-gate--local-delivery-gate.json",
+        "sha256": "35d2c5df271600ba568cf744cbb81101d1944e68354fd010d2da906106d40605",
+        "bytes": 1638
+      },
+      "review": {
+        "status": "present",
+        "role": "review",
+        "source": "/home/yangfp/five/paparazzi/report/lowpass_update_readback/review-report.zh-CN.md",
+        "path": "evidence/review--review-report.zh-CN.md",
+        "sha256": "d99d0671ee9c9cd8aa23d00fbb41cac24bf79c0127c8e0262676bf6ec97eecee",
+        "bytes": 7768
+      },
+      "costs": {
+        "status": "present",
+        "role": "costs",
+        "source": "/home/yangfp/five/paparazzi/report/lowpass_update_readback/costs.json",
+        "path": "evidence/costs--costs.json",
+        "sha256": "99cca8c25dccc925ea60485d145929d875d56818c1c980c532679ed3cb66662b",
+        "bytes": 10767
+      }
+    },
+    "verification_scope": {
+      "task": "strict local delivery gate after actual CBMC input correction, finalcost/publication handoff"
+    },
+    "remaining_obligations": []
+  },
+  "completeness": {
+    "artifacts": "complete",
+    "measurements": "complete",
+    "missing_roles": [],
+    "note": "A passed verifier result does not imply all requested measurements are available."
+  },
+  "cost_audit": {
+    "status": "complete",
+    "run": "/home/yangfp/five/_build/lowpass-update-readback/20261107T065613-5ef20b7961/five-verify",
+    "skill": "five-verify",
+    "issues": [],
+    "own_model_tokens_excluding_children": 1532868,
+    "inclusive_unique_model_tokens": 1532868,
+    "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+  },
+  "artifacts": [
+    {
+      "path": "evidence/candidate--core-candidate-002.json",
+      "bytes": 20667,
+      "sha256": "ad75ba7b70ff42f50c94a2429e0dcf6ac7743e6a6c085a6ac32d883d59f8dd76"
+    },
+    {
+      "path": "evidence/costs--costs.json",
+      "bytes": 10767,
+      "sha256": "99cca8c25dccc925ea60485d145929d875d56818c1c980c532679ed3cb66662b"
+    },
+    {
+      "path": "evidence/local-gate--local-delivery-gate.json",
+      "bytes": 1638,
+      "sha256": "35d2c5df271600ba568cf744cbb81101d1944e68354fd010d2da906106d40605"
+    },
+    {
+      "path": "evidence/model-usage-receipt--usage.json",
+      "bytes": 2833,
+      "sha256": "69d9603b06ee090f6ee0a5be2ef7d93c6490f3c0b2cada13a7e9d5d097d4ae6d"
+    },
+    {
+      "path": "evidence/review--review-report.zh-CN.md",
+      "bytes": 7768,
+      "sha256": "d99d0671ee9c9cd8aa23d00fbb41cac24bf79c0127c8e0262676bf6ec97eecee"
+    },
+    {
+      "path": "logs/001-refresh-current-transitive-cbmc-handoff-reference.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/001-refresh-current-transitive-cbmc-handoff-reference.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/001-refresh-current-transitive-cbmc-handoff-reference.time.log",
+      "bytes": 109,
+      "sha256": "999d9837150781e7c7f10a8ff1db051fb9473ccc2846a9067516ae71971c46c4"
+    },
+    {
+      "path": "logs/002-refresh-all-actual-stage-costs-after-real-bmc-rerun.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/002-refresh-all-actual-stage-costs-after-real-bmc-rerun.stdout.log",
+      "bytes": 895,
+      "sha256": "017431417e18278cdba72f3ce07882a777ab9d27c0af6abb111beae6402f5790"
+    },
+    {
+      "path": "logs/002-refresh-all-actual-stage-costs-after-real-bmc-rerun.time.log",
+      "bytes": 109,
+      "sha256": "c336e0008a15a96d84755bf61c9efdc08888a09e6349650ebcb9aef688ea8195"
+    },
+    {
+      "path": "logs/003-strict-local-all-eleven-delivery-gate.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/003-strict-local-all-eleven-delivery-gate.stdout.log",
+      "bytes": 1498,
+      "sha256": "9edba9c01e2360d863e26a9de46a27766e04f63e4cb041872658c99d94b97b27"
+    },
+    {
+      "path": "logs/003-strict-local-all-eleven-delivery-gate.time.log",
+      "bytes": 110,
+      "sha256": "d8fed62a808c9e948176c2f21d57d22437da864ea921f751aab700aff0861dc2"
+    },
+    {
+      "path": "logs/004-bind-localgate-and-limit-tiny-mapping-authoring-allocation.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/004-bind-localgate-and-limit-tiny-mapping-authoring-allocation.stdout.log",
+      "bytes": 84,
+      "sha256": "3320fd0f2720fae61c93b7f2b3aafce09f0b70f12546fa03395d2d1d391ef0a4"
+    },
+    {
+      "path": "logs/004-bind-localgate-and-limit-tiny-mapping-authoring-allocation.time.log",
+      "bytes": 109,
+      "sha256": "c70bae44906d85bcc37578e2c095acd369db54cedf98b4d3ca6aa827c8fc670a"
+    },
+    {
+      "path": "logs/005-refresh-final-closed-stage-costs.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/005-refresh-final-closed-stage-costs.stdout.log",
+      "bytes": 895,
+      "sha256": "017431417e18278cdba72f3ce07882a777ab9d27c0af6abb111beae6402f5790"
+    },
+    {
+      "path": "logs/005-refresh-final-closed-stage-costs.time.log",
+      "bytes": 109,
+      "sha256": "22e686cb36318bc620ba0f2e916303dd0e89cde49be461aa415f7248a1181df1"
+    },
+    {
+      "path": "logs/006-freeze-final-candidate002-and-record-both-passed-strict-gates.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/006-freeze-final-candidate002-and-record-both-passed-strict-gates.stdout.log",
+      "bytes": 394,
+      "sha256": "27e951db09a514c018135f070cad1cc344e2ef6566dd321a512039677865a8ac"
+    },
+    {
+      "path": "logs/006-freeze-final-candidate002-and-record-both-passed-strict-gates.time.log",
+      "bytes": 109,
+      "sha256": "383092d57601cbc11255ada0bf763c2ecdd3a9ce5450f5f61c1e39b9eed80b86"
+    },
+    {
+      "path": "metrics.json",
+      "bytes": 4293,
+      "sha256": "8b7023d7a40c4d523f31052c60cc1441124ef32e008d5b861c602eb4077805cc"
+    },
+    {
+      "path": "report.md",
+      "bytes": 658,
+      "sha256": "4f61818476bfed4428001af749e5b381f96982b0b4ac686eb8291cad5c45a45e"
+    }
+  ]
+}

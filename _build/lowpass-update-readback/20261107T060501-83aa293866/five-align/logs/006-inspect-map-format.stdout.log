@@ -1,0 +1,231 @@
+{
+  "schema": "five-cbmc-rocq-map/1",
+  "verification_method": "traditional-bounded-model-checking",
+  "status": "mapped",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "79432512eb985dccf300a3bd6cc6382b305f55728f8803a7b2182fead78ffa27",
+  "cbmc_run": "_build/lowpass-readback/20261107T031944-e95257d59b/five-cbmc",
+  "cbmc_command_id": "001-getter-direct-traditional-cbmc",
+  "cbmc_json": "_build/lowpass-readback/20261107T031944-e95257d59b/five-cbmc/logs/001-getter-direct-traditional-cbmc.stdout.log",
+  "cbmc_input_sha256": {
+    "paparazzi/models/get_first_order_low_pass/prepare/source/get_first_order_low_pass.c": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4",
+    "paparazzi/models/get_first_order_low_pass/cbmc/harness.c": "47b360e59964086e51a0bf9c8aea0e179f3c9439e8d64cf225653e28b5af3d00"
+  },
+  "properties": [
+    {
+      "property_id": "memcpy.pointer_arithmetic.1",
+      "cbmc_status": "SUCCESS",
+      "scope": {
+        "description": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+        "location": {
+          "comment": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:pointer-overflow-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 field bitpatterns; aligned writable initialized12 caller object; no numerical restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/get_first_order_low_pass/prepare/source/get_first_order_low_pass.c": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4",
+          "paparazzi/models/get_first_order_low_pass/cbmc/harness.c": "47b360e59964086e51a0bf9c8aea0e179f3c9439e8d64cf225653e28b5af3d00"
+        },
+        "observation": "Return exact Float32.to_bits and field bytes through official memcpy BitsRun adapters; source pointer read site guard witness.",
+        "mapped_statement": "FiveLowpassGetRecheck.Spec.P_memcpy_pointer_arithmetic_1",
+        "original_property_id": "memcpy.pointer_arithmetic.1",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false
+        },
+        "command_scope": {
+          "run": "_build/lowpass-readback/20261107T031944-e95257d59b/five-cbmc",
+          "command_id": "001-getter-direct-traditional-cbmc",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--pointer-overflow-check",
+            "--signed-overflow-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui"
+          ]
+        }
+      },
+      "rocq_goal": {
+        "module": "FiveLowpassGetRecheck.Spec",
+        "symbol": "P_memcpy_pointer_arithmetic_1",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case",
+        "declaration_sha256": "b7ef916f9cc9c0f7fc1a12f54e672aced056ed3c88889a7da16b85fdd6d28307"
+      },
+      "theorem": "FiveLowpassGetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_1",
+      "mapping_status": "mapped",
+      "proof_status": "pending",
+      "correspondence": {
+        "inputs": "Exact same unchanged initialized12 harness struct and all typed binary32 field bitpatterns; source callable getter proven under weaker readable initialized last_out.",
+        "state": "Actual source Csem entry/setup/read witness, plus all permitted normal-return Csem paths; memcpy uses actual allocation/store/official_memcpy/uint32 adapters.",
+        "observation": "All4 assertions use exactbits via official memcpy; each of6 source object read guards has actual entry/read-site witness;9 helper guards use same bits call allocations and typed copy execution."
+      }
+    },
+    {
+      "property_id": "memcpy.pointer.1",
+      "cbmc_status": "SUCCESS",
+      "scope": {
+        "description": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+        "location": {
+          "comment": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:pointer-overflow-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer",
+          "propertyId": "memcpy.pointer.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 field bitpatterns; aligned writable initialized12 caller object; no numerical restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/get_first_order_low_pass/prepare/source/get_first_order_low_pass.c": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4",
+          "paparazzi/models/get_first_order_low_pass/cbmc/harness.c": "47b360e59964086e51a0bf9c8aea0e179f3c9439e8d64cf225653e28b5af3d00"
+        },
+        "observation": "Return exact Float32.to_bits and field bytes through official memcpy BitsRun adapters; source pointer read site guard witness.",
+        "mapped_statement": "FiveLowpassGetRecheck.Spec.P_memcpy_pointer_1",
+        "original_property_id": "memcpy.pointer.1",
+        "cbmc_bounds": {
+          "entry": "main",
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "get_first_order_low_pass",
+  "stage": "align",
+  "status": "generated",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case",
+  "outputs": [
+    {
+      "role": "Source.v",
+      "path": "align/model/Source.v",
+      "sha256": "925064dc2aa6f43eaf2400c11474915559c3032da4bde281d46d06f49f1e7844"
+    },
+    {
+      "role": "Extraction.v",
+      "path": "align/model/Extraction.v",
+      "sha256": "4810c70cf48ca2b1c413482e70ee2100d3e45fe64d2a4c0aac44aff802d90e10"
+    },
+    {
+      "role": "compcert-manifest.json",
+      "path": "align/model/compcert-manifest.json",
+      "sha256": "79432512eb985dccf300a3bd6cc6382b305f55728f8803a7b2182fead78ffa27"
+    },
+    {
+      "role": "preprocessed.i",
+      "path": "align/model/preprocessed.i",
+      "sha256": "3fd5906d9d81b82520c75eba52eed2606c30feb669224f9abd25f2e09d1c37aa"
+    },
+    {
+      "role": "Execution.v",
+      "path": "align/model/Execution.v",
+      "sha256": "70e9676dfbe4cbc8f322ff95176393bfb514fe9e6cf66ed059d1df431685fae3"
+    },
+    {
+      "role": "Obligations.v",
+      "path": "align/model/proof/Obligations.v",
+      "sha256": "a957fd82ad8575af48ec9643fb52cc8373956e5f958a6c3c6b91a921a25e5ebe"
+    },
+    {
+      "role": "Precondition.v",
+      "path": "align/model/proof/Precondition.v",
+      "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933"
+    },
+    {
+      "role": "Proofs.v",
+      "path": "align/model/proof/Proofs.v",
+      "sha256": "210436801224983c95c2e9cc0939ac668ecce6a121d1ecd8117d313220446c31"
+    },
+    {
+      "role": "spec-map",
+      "path": "align/model/spec-map-final.json",
+      "sha256": "5288def6ef38a4215caffecff4276bc5e158040f6b24a87cb6760c85c92111b1"
+    }
+  ],
+  "limitations": [
+    "Generation and mapping complete; proof results remain pending here, independently maintained in rocq/spec-recheck.json."
+  ],
+  "next_stage": "rocq",
+  "input_handoff": "cbmc/handoff.json",
+  "input_handoff_sha256": "fcdbc466f027236fbfd145b88ab1da353ee8ae495ab338a2789cff9ffba2aaac"
+}
+{
+  "FiveLowpassGet": "/home/yangfp/five/paparazzi/models/get_first_order_low_pass/align/model",
+  "FiveLowpassGetCase": "/home/yangfp/five/paparazzi/models/get_first_order_low_pass/rocq/support",
+  "FiveLowpassReset": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/align/model",
+  "FiveLowpassSupport": "/home/yangfp/five/paparazzi/relations/lowpass_recovery/support",
+  "FiveShared": "/home/yangfp/five/shared",
+  "FiveGuidanceAllOrder": "/home/yangfp/five/paparazzi/relations/guidance_mode/support/allorder",
+  "FiveGuidanceAllocation": "/home/yangfp/five/paparazzi/relations/guidance_mode/support/allocation",
+  "FiveGuidanceEntry": "/home/yangfp/five/paparazzi/relations/guidance_mode/support/entry",
+  "FiveGuidanceSemantics": "/home/yangfp/five/paparazzi/relations/guidance_mode/support/semantics",
+  "FiveGuidanceCbmcAdapters": "/home/yangfp/five/paparazzi/relations/guidance_mode/support/cbmc_adapters",
+  "FiveLowpassGetNoError": "/home/yangfp/five/paparazzi/models/get_first_order_low_pass/rocq/no_error/problem",
+  "FiveLowpassGetTermination": "/home/yangfp/five/paparazzi/models/get_first_order_low_pass/rocq/termination/problem",
+  "FiveLowpassGetFunctional": "/home/yangfp/five/paparazzi/models/get_first_order_low_pass/rocq/functional/problem",
+  "FiveLowpassGetExecutionCorrespondence": "/home/yangfp/five/paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/problem",
+  "FiveLowpassGetRecheck": "/home/yangfp/five/paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/problem"
+}

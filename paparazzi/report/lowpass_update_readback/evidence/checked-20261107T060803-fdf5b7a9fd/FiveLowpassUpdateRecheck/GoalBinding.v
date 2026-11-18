@@ -1,0 +1,40 @@
+Require Import FiveLowpassUpdateRecheck.Spec.
+Require Import FiveLowpassUpdateRecheck.Proof.
+Definition goal_0 : FiveLowpassUpdateRecheck.Spec.P_memcpy_pointer_arithmetic_1 := FiveLowpassUpdateRecheck.Proof.prove_P_memcpy_pointer_arithmetic_1.
+Print Assumptions goal_0.
+Definition goal_1 : FiveLowpassUpdateRecheck.Spec.P_memcpy_pointer_1 := FiveLowpassUpdateRecheck.Proof.prove_P_memcpy_pointer_1.
+Print Assumptions goal_1.
+Definition goal_2 : FiveLowpassUpdateRecheck.Spec.P_memcpy_pointer_arithmetic_2 := FiveLowpassUpdateRecheck.Proof.prove_P_memcpy_pointer_arithmetic_2.
+Print Assumptions goal_2.
+Definition goal_3 : FiveLowpassUpdateRecheck.Spec.P_memcpy_pointer_arithmetic_3 := FiveLowpassUpdateRecheck.Proof.prove_P_memcpy_pointer_arithmetic_3.
+Print Assumptions goal_3.
+Definition goal_4 : FiveLowpassUpdateRecheck.Spec.P_memcpy_pointer_2 := FiveLowpassUpdateRecheck.Proof.prove_P_memcpy_pointer_2.
+Print Assumptions goal_4.
+Definition goal_5 : FiveLowpassUpdateRecheck.Spec.P_memcpy_pointer_arithmetic_4 := FiveLowpassUpdateRecheck.Proof.prove_P_memcpy_pointer_arithmetic_4.
+Print Assumptions goal_5.
+Definition goal_6 : FiveLowpassUpdateRecheck.Spec.P_bits_precondition_instance_1 := FiveLowpassUpdateRecheck.Proof.prove_P_bits_precondition_instance_1.
+Print Assumptions goal_6.
+Definition goal_7 : FiveLowpassUpdateRecheck.Spec.P_bits_precondition_instance_2 := FiveLowpassUpdateRecheck.Proof.prove_P_bits_precondition_instance_2.
+Print Assumptions goal_7.
+Definition goal_8 : FiveLowpassUpdateRecheck.Spec.P_bits_precondition_instance_3 := FiveLowpassUpdateRecheck.Proof.prove_P_bits_precondition_instance_3.
+Print Assumptions goal_8.
+Definition goal_9 : FiveLowpassUpdateRecheck.Spec.P_update_first_order_low_pass_pointer_dereference_1 := FiveLowpassUpdateRecheck.Proof.prove_P_update_first_order_low_pass_pointer_dereference_1.
+Print Assumptions goal_9.
+Definition goal_10 : FiveLowpassUpdateRecheck.Spec.P_update_first_order_low_pass_pointer_dereference_2 := FiveLowpassUpdateRecheck.Proof.prove_P_update_first_order_low_pass_pointer_dereference_2.
+Print Assumptions goal_10.
+Definition goal_11 : FiveLowpassUpdateRecheck.Spec.P_update_first_order_low_pass_pointer_dereference_3 := FiveLowpassUpdateRecheck.Proof.prove_P_update_first_order_low_pass_pointer_dereference_3.
+Print Assumptions goal_11.
+Definition goal_12 : FiveLowpassUpdateRecheck.Spec.P_update_first_order_low_pass_pointer_dereference_4 := FiveLowpassUpdateRecheck.Proof.prove_P_update_first_order_low_pass_pointer_dereference_4.
+Print Assumptions goal_12.
+Definition goal_13 : FiveLowpassUpdateRecheck.Spec.P_update_first_order_low_pass_pointer_dereference_5 := FiveLowpassUpdateRecheck.Proof.prove_P_update_first_order_low_pass_pointer_dereference_5.
+Print Assumptions goal_13.
+Definition goal_14 : FiveLowpassUpdateRecheck.Spec.P_update_first_order_low_pass_pointer_dereference_6 := FiveLowpassUpdateRecheck.Proof.prove_P_update_first_order_low_pass_pointer_dereference_6.
+Print Assumptions goal_14.
+Definition goal_15 : FiveLowpassUpdateRecheck.Spec.P_main_assertion_1 := FiveLowpassUpdateRecheck.Proof.prove_P_main_assertion_1.
+Print Assumptions goal_15.
+Definition goal_16 : FiveLowpassUpdateRecheck.Spec.P_main_assertion_2 := FiveLowpassUpdateRecheck.Proof.prove_P_main_assertion_2.
+Print Assumptions goal_16.
+Definition goal_17 : FiveLowpassUpdateRecheck.Spec.P_main_assertion_3 := FiveLowpassUpdateRecheck.Proof.prove_P_main_assertion_3.
+Print Assumptions goal_17.
+Definition goal_18 : FiveLowpassUpdateRecheck.Spec.P_main_assertion_4 := FiveLowpassUpdateRecheck.Proof.prove_P_main_assertion_4.
+Print Assumptions goal_18.

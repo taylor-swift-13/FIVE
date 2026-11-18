@@ -1,0 +1,40 @@
+Require Import FiveLowpassRetuneRecheck.Spec.
+Require Import FiveLowpassRetuneRecheck.Proof.
+Definition goal_0 : FiveLowpassRetuneRecheck.Spec.P_memcpy_pointer_1 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_pointer_1.
+Print Assumptions goal_0.
+Definition goal_1 : FiveLowpassRetuneRecheck.Spec.P_memcpy_pointer_arithmetic_1 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_pointer_arithmetic_1.
+Print Assumptions goal_1.
+Definition goal_2 : FiveLowpassRetuneRecheck.Spec.P_memcpy_pointer_arithmetic_2 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_pointer_arithmetic_2.
+Print Assumptions goal_2.
+Definition goal_3 : FiveLowpassRetuneRecheck.Spec.P_memcpy_pointer_2 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_pointer_2.
+Print Assumptions goal_3.
+Definition goal_4 : FiveLowpassRetuneRecheck.Spec.P_memcpy_pointer_arithmetic_3 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_pointer_arithmetic_3.
+Print Assumptions goal_4.
+Definition goal_5 : FiveLowpassRetuneRecheck.Spec.P_memcpy_pointer_arithmetic_4 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_pointer_arithmetic_4.
+Print Assumptions goal_5.
+Definition goal_6 : FiveLowpassRetuneRecheck.Spec.P_bits_precondition_instance_1 := FiveLowpassRetuneRecheck.Proof.prove_P_bits_precondition_instance_1.
+Print Assumptions goal_6.
+Definition goal_7 : FiveLowpassRetuneRecheck.Spec.P_bits_precondition_instance_2 := FiveLowpassRetuneRecheck.Proof.prove_P_bits_precondition_instance_2.
+Print Assumptions goal_7.
+Definition goal_8 : FiveLowpassRetuneRecheck.Spec.P_bits_precondition_instance_3 := FiveLowpassRetuneRecheck.Proof.prove_P_bits_precondition_instance_3.
+Print Assumptions goal_8.
+Definition goal_9 : FiveLowpassRetuneRecheck.Spec.P_main_assertion_1 := FiveLowpassRetuneRecheck.Proof.prove_P_main_assertion_1.
+Print Assumptions goal_9.
+Definition goal_10 : FiveLowpassRetuneRecheck.Spec.P_main_assertion_2 := FiveLowpassRetuneRecheck.Proof.prove_P_main_assertion_2.
+Print Assumptions goal_10.
+Definition goal_11 : FiveLowpassRetuneRecheck.Spec.P_memcpy_overflow_1 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_overflow_1.
+Print Assumptions goal_11.
+Definition goal_12 : FiveLowpassRetuneRecheck.Spec.P_memcpy_overflow_2 := FiveLowpassRetuneRecheck.Proof.prove_P_memcpy_overflow_2.
+Print Assumptions goal_12.
+Definition goal_13 : FiveLowpassRetuneRecheck.Spec.P_update_first_order_low_pass_tau_pointer_dereference_1 := FiveLowpassRetuneRecheck.Proof.prove_P_update_first_order_low_pass_tau_pointer_dereference_1.
+Print Assumptions goal_13.
+Definition goal_14 : FiveLowpassRetuneRecheck.Spec.P_update_first_order_low_pass_tau_pointer_dereference_2 := FiveLowpassRetuneRecheck.Proof.prove_P_update_first_order_low_pass_tau_pointer_dereference_2.
+Print Assumptions goal_14.
+Definition goal_15 : FiveLowpassRetuneRecheck.Spec.P_update_first_order_low_pass_tau_pointer_dereference_3 := FiveLowpassRetuneRecheck.Proof.prove_P_update_first_order_low_pass_tau_pointer_dereference_3.
+Print Assumptions goal_15.
+Definition goal_16 : FiveLowpassRetuneRecheck.Spec.P_update_first_order_low_pass_tau_pointer_dereference_4 := FiveLowpassRetuneRecheck.Proof.prove_P_update_first_order_low_pass_tau_pointer_dereference_4.
+Print Assumptions goal_16.
+Definition goal_17 : FiveLowpassRetuneRecheck.Spec.P_update_first_order_low_pass_tau_pointer_dereference_5 := FiveLowpassRetuneRecheck.Proof.prove_P_update_first_order_low_pass_tau_pointer_dereference_5.
+Print Assumptions goal_17.
+Definition goal_18 : FiveLowpassRetuneRecheck.Spec.P_update_first_order_low_pass_tau_pointer_dereference_6 := FiveLowpassRetuneRecheck.Proof.prove_P_update_first_order_low_pass_tau_pointer_dereference_6.
+Print Assumptions goal_18.

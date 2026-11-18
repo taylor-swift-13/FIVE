@@ -1,0 +1,48 @@
+Theorem find_def_inversion:
+  forall p b g,
+  find_def (globalenv p) b = Some g ->
+  exists id, In (id, g) (prog_defs p).
+Proof.
+  intros until g. unfold globalenv. apply add_globals_preserves.
+(* preserves *)
+  unfold find_def; simpl; intros.
+  rewrite PTree.gsspec in H1. destruct (peq b (genv_next ge)).
+  inv H1. exists id; auto.
+  auto.
+(* base *)
+  unfold find_def; simpl; intros. rewrite PTree.gempty in H. discriminate.
+Qed.
+
+Corollary find_funct_ptr_inversion:
+  forall p b f,
+  find_funct_ptr (globalenv p) b = Some f ->
+  exists id, In (id, Gfun f) (prog_defs p).
+Proof.
+  intros. apply find_def_inversion with b. apply find_funct_ptr_iff; auto.
+Qed.
+
+Corollary find_funct_inversion:
+  forall p v f,
+  find_funct (globalenv p) v = Some f ->
+  exists id, In (id, Gfun f) (prog_defs p).
+Proof.
+  intros. exploit find_funct_inv; eauto. intros [b EQ]. subst v.
+  rewrite find_funct_find_funct_ptr in H.
+  eapply find_funct_ptr_inversion; eauto.
+Qed.
+
+3004:   Gfun(External (EF_builtin "__builtin_unreachable"
+3008:   Gfun(External (EF_builtin "__builtin_expect"
+3012:   Gfun(External (EF_builtin "__builtin_fmax"
+3017:   Gfun(External (EF_builtin "__builtin_fmin"
+3022:   Gfun(External (EF_builtin "__builtin_fmadd"
+3028:   Gfun(External (EF_builtin "__builtin_fmsub"
+3034:   Gfun(External (EF_builtin "__builtin_fnmadd"
+3040:   Gfun(External (EF_builtin "__builtin_fnmsub"
+3046:   Gfun(External (EF_builtin "__builtin_read16_reversed"
+3051:   Gfun(External (EF_builtin "__builtin_read32_reversed"
+3055:   Gfun(External (EF_builtin "__builtin_write16_reversed"
+3060:   Gfun(External (EF_builtin "__builtin_write32_reversed"
+3065:   Gfun(External (EF_external "__builtin_debug"
+3070: (_five_sqrtf, Gfun(Internal f_five_sqrtf)) :: (_gh_ref, Gvar v_gh_ref) ::
+3073: (_gh_saturate_accel, Gfun(Internal f_gh_saturate_accel)) :: nil).

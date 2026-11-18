@@ -1,0 +1,37 @@
+File "./paparazzi/relations/lowpass_recovery/support/SourceGuards.v", line 575, characters 206-207:
+Error:
+In environment
+original : mem
+b : block
+p : ptrofs
+value, tau, h : float32
+P : writable12 original b p
+e : env
+m0 : mem
+READY : InitSites.ready original b p value tau h e m0
+m1, m2, m3 : mem
+PREF : InitPackets.prefixes e m0 m1 m2 m3 b p value tau h
+R0 :
+  reachable_site InitReach.Execution.ge
+    InitReach.Source.f_init_first_order_low_pass e m0 m0 0
+R1 :
+  reachable_site InitReach.Execution.ge
+    InitReach.Source.f_init_first_order_low_pass e m0 m1 1
+R2 :
+  reachable_site InitReach.Execution.ge
+    InitReach.Source.f_init_first_order_low_pass e m0 m2 2
+P0 :
+  site_packet InitPackets.Execution.ge
+    InitPackets.Source.f_init_first_order_low_pass e m0 m1 b p 0 4 value
+P1 :
+  site_packet InitPackets.Execution.ge
+    InitPackets.Source.f_init_first_order_low_pass e m1 m2 b p 1 8 value
+P2 :
+  site_packet InitPackets.Execution.ge
+    InitPackets.Source.f_init_first_order_low_pass e m2 m3 b p 2 0
+    (InitBody.coefficient tau h)
+G0 : forall k : nat, (k < 6)%nat -> mapped_guard k m0 b p 4
+G1 : forall k : nat, (k < 6)%nat -> mapped_guard k m1 b p 8
+G2 : forall k : nat, (k < 6)%nat -> mapped_guard k m2 b p 0
+The term "0" has type "Z" while it is expected to have type "nat".
+

@@ -1,0 +1,45 @@
+File "./paparazzi/relations/guidance_mode/support/relation/Initialization.v", line 225, characters 12-28:
+Error:
+In environment
+s : state
+m : mem
+bg, bc : block
+x, y : float32
+REP : repr s m bg
+W : writable m bg
+C : Mem.load Mfloat32 m bc 0 = Some (Vsingle fixed_maximum)
+ma : Mem.mem'
+bp : block
+A : Mem.alloc m 0 8 = (ma, bp)
+VG : Mem.valid_block m bg
+VC : Mem.valid_block m bc
+DG : bg <> bp
+DC : bc <> bp
+A0 : Mem.valid_access ma Mfloat32 bp 0 Freeable
+A4 : Mem.valid_access ma Mfloat32 bp 4 Freeable
+mx : mem
+SX : Mem.store Mfloat32 ma bp 0 (Vsingle x) = Some mx
+mf : mem
+SY : Mem.store Mfloat32 mx bp 4 (Vsingle y) = Some mf
+RA : repr s ma bg
+RX : repr s mx bg
+RF : repr s mf bg
+WA : writable ma bg
+WX : writable mx bg
+WF : writable mf bg
+CA : Mem.load Mfloat32 ma bc 0 = Some (Vsingle fixed_maximum)
+CX : Mem.load Mfloat32 mx bc 0 = Some (Vsingle fixed_maximum)
+CF : Mem.load Mfloat32 mf bc 0 = Some (Vsingle fixed_maximum)
+ofs : Z
+RNG : 0 <= ofs < 0 + 8
+Unable to unify
+ "match Maps.PMap.get ?b (Mem.mem_access ?m2) ?ofs ?k with
+  | Some p' => perm_order p' Freeable
+  | None => False
+  end"
+with
+ "match Maps.PMap.get bp (Mem.mem_access ma) ofs Cur with
+  | Some p' => perm_order p' Readable
+  | None => False
+  end".
+

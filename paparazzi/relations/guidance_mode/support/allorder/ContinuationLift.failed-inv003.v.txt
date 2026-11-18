@@ -1,0 +1,106 @@
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress CallfreeExecution.
+Import ListNotations.
+
+Fixpoint plug_cont(base k:cont):cont :=
+ match k with
+ | Kstop=>base
+ | Kseq s k=>Kseq s(plug_cont base k)
+ | Kdo k=>Kdo(plug_cont base k)
+ | Kifthenelse s1 s2 k=>Kifthenelse s1 s2(plug_cont base k)
+ | Kreturn k=>Kreturn(plug_cont base k)
+ | _=>k end.
+Definition plug_state(base:cont)(s:Csem.state):Csem.state :=
+ match s with
+ | State f s k e m=>State f s(plug_cont base k)e m
+ | ExprState f a k e m=>ExprState f a(plug_cont base k)e m
+ | Callstate fd args k m=>Callstate fd args(plug_cont base k)m
+ | Returnstate v k m=>Returnstate v(plug_cont base k)m
+ | Stuckstate=>Stuckstate end.
+Lemma plug_cont_call: forall base k,
+ is_call_cont base -> normal_cont k=true -> call_cont(plug_cont base k)=base.
+Proof.
+ intros base k BASE;induction k;simpl;intros;core_unpack;try discriminate;auto.
+ destruct base;simpl in BASE;try contradiction;reflexivity.
+Qed.
+Lemma plug_cont_is_call: forall base k,
+ normal_cont k=true -> is_call_cont(plug_cont base k) ->
+ k=Kstop /\ is_call_cont base.
+Proof. destruct k;simpl;intros;core_unpack;try discriminate;tauto. Qed.
+Lemma plug_normal_sstep: forall ge base s t next,
+ is_call_cont base -> normal_state s=true -> Csem.sstep ge s t next ->
+ Csem.sstep ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next BASE NORMAL STEP.
+ inversion STEP;subst;simpl in NORMAL;core_unpack;try discriminate;
+ cbn[plug_state plug_cont];try solve[constructor;auto].
+ - replace(plug_cont base(call_cont k))with(call_cont(plug_cont base k)).
+   + eapply step_return_0;eauto.
+   + rewrite(normal_cont_call _ NORMAL);cbn[plug_cont];apply plug_cont_call;auto.
+ - replace(plug_cont base(call_cont k))with(call_cont(plug_cont base k)).
+   + eapply step_return_2;eauto.
+   + rewrite(normal_cont_call _ NORMAL);cbn[plug_cont];apply plug_cont_call;auto.
+ - assert(HK:k=Kstop) by(eapply normal_cont_is_call;eauto);subst;cbn[plug_cont].
+   eapply step_skip_call;eauto.
+ - destruct k;simpl in NORMAL;try discriminate;cbn[plug_cont].
+   eapply step_internal_function;eauto.
+Qed.
+Lemma plug_normal_estep: forall ge base s t next,
+ normal_state s=true -> Csem.estep ge s t next ->
+ Csem.estep ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next NORMAL STEP;inversion STEP;subst;cbn[plug_state].
+ - eapply step_lred;eauto.
+ - eapply step_rred;eauto.
+ - exfalso;eapply normal_no_callred;eauto.
+ - eapply step_stuck;eauto.
+Qed.
+Theorem plug_normal_step: forall ge base s t next,
+ is_call_cont base -> normal_state s=true -> Csem.step ge s t next ->
+ Csem.step ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next BASE NORMAL[ES|SS].
+ - left;eapply plug_normal_estep;eauto.
+ - right;eapply plug_normal_sstep;eauto.
+Qed.
+Theorem plug_normal_path: forall ge base s t next,
+ is_call_cont base -> normal_state s=true -> star Csem.step ge s t next ->
+ star Csem.step ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next BASE NORMAL PATH;revert NORMAL.
+ induction PATH;intros NORMAL;[constructor|].
+ eapply star_step;[eapply plug_normal_step;eauto| |eauto].
+ apply IHPATH;exact(proj1(normal_step_backward _ _ _ _ NORMAL H)).
+Qed.
+Print Assumptions plug_normal_path.
+
+Lemma call_cont_plug_normal: forall base k,
+ is_call_cont base -> normal_cont k=true ->
+ plug_cont base(call_cont k)=call_cont(plug_cont base k).
+Proof.
+ intros;rewrite(normal_cont_call _ H0);cbn[plug_cont];symmetry;apply plug_cont_call;auto.
+Qed.
+Lemma plug_sstep_inverse: forall ge base s t next,
+ is_call_cont base -> normal_state s=true -> ~normal_return s ->
+ Csem.sstep ge(plug_state base s)t next ->
+ exists raw,next=plug_state base raw /\ Csem.sstep ge s t raw.
+Proof.
+ intros ge base s t next BASE NORMAL NF STEP.
+ destruct s as [f st k e m|f a k e m|fd args k m|v k m|];
+ cbn[normal_state plug_state] in NORMAL,STEP;try discriminate.
+ - destruct st;cbn[normal_stmt] in NORMAL;core_unpack;try discriminate;
+   destruct k;cbn[normal_cont plug_cont] in *;core_unpack;try discriminate;
+   try solve[inversion STEP;subst;eexists;split;[|econstructor;eauto];reflexivity].
+   all: destruct base;cbn[is_call_cont] in BASE;try contradiction;
+   cbn[plug_cont] in STEP;inversion STEP;subst;
+   try solve[eexists;split;[|econstructor;eauto];reflexivity].
+ Show.
+ - destruct k;cbn[normal_state] in NORMAL;try discriminate;core_unpack;
+   cbn[plug_cont] in STEP;inversion STEP;subst;
+   try solve[eexists;split;[|econstructor;eauto];reflexivity].
+ - destruct fd;try discriminate;destruct k;try discriminate;cbn[plug_cont] in STEP.
+   inversion STEP;subst;eexists;split;[reflexivity|eapply step_internal_function;eauto].
+ - destruct k;try discriminate;exfalso;apply NF;unfold normal_return;eauto.
+ - inversion STEP.
+Qed.

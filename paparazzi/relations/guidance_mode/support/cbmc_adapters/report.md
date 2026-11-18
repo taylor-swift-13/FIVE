@@ -1,0 +1,13 @@
+# CBMC non-sqrt adapter support
+
+All83 explicit instances are proved, exactly typed, freshly compiled with every dependency in the bound run, and independently kernel checked. See `evidence/checked-001/validation.json`. These comprise55 shared automatic guards (4entry,16reference-main,24saturationpointer,8memcpy,3bits) and28 strengthened manual assertions (14per model). Each canonical CBC case uses69 of these plus the53 helper guards proved separately. Canonical122-goal packaging is parent-owned.
+
+`NumericGuards.v` proves the actual source-order cast products and signed addition guards over the unchanged natural entry domain. Selected harness casts also carry strict binary32 comparisons above -2^63 and below +2^63, linked to actual canonical controls. Signed margin subtractions are proved only under the executed ternary condition; unsigned/ISO guards are not inferred from Csem no-error.
+
+`ActualPointerSites.v`, `NormReadSites.v` and `SaturationAccess.v` connect pointer conditions to real entry-to-helper prefixes, actual allocation/parameter binding, the norm-read statement and actual factor/sqrt plus scale stores. Every relevant memory point retains typed write access, current liveness, offset bounds, non-null block addresses and permission frames. The generic Writable8 implication is accompanied by derived actual source-site packets.
+
+`BitsAdapter.v` preserves the original goldstandard files and reuses its model-independent four-byte memory proof with attribution. It constructs fresh float/uint32 caller objects, a real float store, the official CompCert memcpy4 semantics, exact destination/source bytes and Mint32 reads. `ByteAssertions.v` wraps actual entry completion/all-return logical results with those physical observations and real Csem integer Oeq-to-one traces. Either operand call order is supported. All eight parameter comparisons thread memory sequentially with old-block typed/byte frames and valid-block preservation. This is an explicit library/observation adapter, not a claim of executing a separately generated whole harness AST or proving ideal IEEE square-root accuracy.
+
+No generated model, frozen C source, existing canonical core Spec or old goldstandard proof was edited. No goal is admitted or added as a new axiom. The helper result remains the exact source-derived evaluator of the frozen Csyntax.
+
+Run `_build/guidance-mode-adapters/20261106T145948-f48f22f7d8/five-rocq` recorded wall 3328.797s, tool CPU 541.280s, aggregate CPU 541.28, sampled tree RSS 1795919872bytes, and 20150689 actual actor model tokens. Failed/interrupted attempts are retained. Any null denotes unavailable data, never zero; raw metrics/status remain unchanged. Audit issues: none.

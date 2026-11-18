@@ -1,0 +1,36 @@
+File "/home/yangfp/five/_build/guidance-mode-work/call-bridge-checked-001/FiveGuidanceCbmcAdapters/CanonicalCalls.v", line 30, characters 27-38:
+Error:
+In environment
+s : state
+SX : speed_x s = bits32 1065353216
+SY : speed_y s = bits32 0
+AX : accel_x s = bits32 1073741824
+AY : accel_y s = bits32 0
+INV : inv_tau s = bits32 1073741824
+DT : dt s = bits32 989855744
+Unable to unify
+ "{|
+    vx :=
+      Binary.B754_finite 24 128 false 10477568 (-20)
+        (Bits.binary_float_of_bits_aux_correct 23 8 eq_refl eq_refl eq_refl
+           1092608000);
+    vy := Binary.B754_zero 24 128 true
+  |}"
+with
+ "{|
+    vx :=
+      Binary.B754_finite 24 128 false 10477568 (-20)
+        (proj1
+           (BinarySingleNaN.Bmult_correct_aux 24 128 eq_refl eq_refl
+              BinarySingleNaN.mode_NE true 10477568 
+              (-21)
+              (proj1
+                 (BinarySingleNaN.binary_round_correct 24 128 eq_refl eq_refl
+                    BinarySingleNaN.mode_NE true 41910272 
+                    (-23)))
+              true 8388608 (-22)
+              (Bits.binary_float_of_bits_aux_correct 23 8 eq_refl eq_refl
+                 eq_refl 1073741824)));
+    vy := Binary.B754_zero 24 128 true
+  |}".
+

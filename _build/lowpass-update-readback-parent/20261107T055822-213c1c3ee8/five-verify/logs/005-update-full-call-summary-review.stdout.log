@@ -1,0 +1,87 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation CallfreeExecution.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import StackCleanup FunctionAllocation.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassSupport Require Import Expressions Straightline LowpassMemory.
+From FiveLowpassUpdateCase Require Import Contract UpdateBody.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition update_parameters:=fn_params Source.f_update_first_order_low_pass.
+Definition update_declarations:=fn_params Source.f_update_first_order_low_pass++fn_vars Source.f_update_first_order_low_pass.
+Lemma update_alloc_nodup:NoDup(map fst update_declarations).
+Proof. vm_compute;repeat constructor;simpl;intuition discriminate. Qed.
+Theorem update_call_summary:forall m b p tc li lo value,
+ Initialized m b p tc li lo ->
+ exists mf,state_eval Execution.ge(Execution.entry(Args b p value)m)=Some(Vsingle(output tc li lo value),mf) /\Post m mf b p tc li lo value.
+Proof.
+ intros m b p tc li lo value INIT;pose proof(proj1 INIT)as P.
+ pose proof(field_access m b p 4 P ltac:(simpl;auto))as W4.
+ pose proof(field_access m b p 8 P ltac:(simpl;auto))as W8.
+ assert(OBJ:Mem.valid_block m b).
+ { eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact W4|constructor]. }
+ destruct(Cexec.do_alloc_variables Execution.ge empty_env m update_declarations)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables Execution.ge empty_env m update_declarations e ma).
+ { pose proof(Cexec.do_alloc_variables_sound Execution.ge update_declarations empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)update_declarations->exists bx,e!id=Some(bx,ty) /\~Mem.valid_block m bx /\Mem.range_perm ma bx 0(sizeof Execution.ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable Execution.ge update_declarations empty_env m id ty update_alloc_nodup IN)as H;rewrite ALLOC in H;destruct H as(bx&L&F&V&PR);exists bx;auto. }
+ destruct(ALL Source._filter filter_type ltac:(left;reflexivity))as(bp&LP&FP&RP).
+ destruct(ALL Source._value tfloat ltac:(right;left;reflexivity))as(bv&LV&FV&RV).
+ destruct(ALL Source._out tfloat ltac:(right;right;left;reflexivity))as(bo&LO&FO&RO).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated Execution.ge update_declarations empty_env m ltac:(intros id bx ty H;discriminate H)ltac:(intros id1 id2 bx t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(PB:bp<>b).
+ { intro EQ;subst bp;apply FP;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact W4|constructor]. }
+ assert(VB:bv<>b).
+ { intro EQ;subst bv;apply FV;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact W4|constructor]. }
+ assert(PV:bp<>bv).
+ { intro EQ;subst bp;pose proof(SEP _ _ _ _ _ LP LV);discriminate. }
+ assert(OB:bo<>b)by(intro EQ;subst bo;exact(FO OBJ)).
+ assert(PO:bp<>bo)by(intro EQ;subst bp;pose proof(SEP _ _ _ _ _ LP LO);discriminate).
+ assert(VO:bv<>bo)by(intro EQ;subst bv;pose proof(SEP _ _ _ _ _ LV LO);discriminate).
+ assert(WP:Mem.valid_access ma Mptr bp 0 Writable).
+ { apply Mem.valid_access_freeable_any;split.
+ - intros ofs R;apply RP;change(0<=ofs<8);change(0<=ofs<8)in R;exact R.
+ - exists 0;lia. }
+ destruct(Mem.valid_access_s
+riables Execution.ge empty_env m update_declarations=(e,ma))in ALLOC.
+ rewrite ALLOC.
+ rewrite(Cexec.sem_bind_parameters_complete Execution.ge PureDenotation.quiet_world e ma update_parameters[Vptr b p;Vsingle value]mc BIND).
+ rewrite BODY;cbn[cont_eval];rewrite FREE;reflexivity.
+ -
+ assert(W0:writable12 mc0 b p)by(eapply store_preserves_writable12;[exact PMC|exact S0]).
+ assert(WD:writable12 md b p)by(eapply store_preserves_writable12;[exact W0|exact S4]).
+ assert(WE:writable12 me b p)by(eapply store_preserves_writable12;[exact WD|exact S8]).
+ assert(WF:writable12 mf b p).
+ { destruct WE as[AL[NW Q]];split;[exact AL|];split;[exact NW|].
+ eapply range_perm_access_preserved_block;[|exact Q].
+ intros ch ofs perm VA;apply(ACCESS ch b ofs perm(OUTENV b OBJ));exact VA. }
+ assert(FRAME:Frame m mf b p).
+ { intros q z n VB0 OUT.
+ erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV q VB0)).
+ erewrite Mem.loadbytes_store_other by(exact S8||(cbn[size_chunk];intuition lia)).
+ erewrite Mem.loadbytes_store_other by(exact S4||(cbn[size_chunk];intuition lia)).
+ erewrite Mem.loadbytes_store_other by(exact S0||(left;intro EQ;subst q;exact(FO VB0))).
+ erewrite Mem.loadbytes_store_other by(exact SV||(left;intro EQ;subst q;exact(FV VB0))).
+ erewrite Mem.loadbytes_store_other by(exact SP||(left;intro EQ;subst q;exact(FP VB0))).
+ pose proof(allocation_bytes_frame Execution.ge update_declarations empty_env m q z n VB0)as H;rewrite ALLOC in H;exact H. }
+ assert(LTC:Mem.load Mfloat32 mf b(Ptrofs.unsigned p+0)=Some(Vsingle tc)).
+ { rewrite(KEEP Mfloat32 b(Ptrofs.unsigned p+0)(OUTENV b OBJ)).
+ erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];intuition lia)).
+ erewrite Mem.load_store_other by(exact S4||(cbn[size_chunk];intuition lia)).
+ erewrite Mem.load_store_other by(exact S0||(left;congruence));exact(proj1(proj2 INITC)). }
+ assert(LIN:Mem.load Mfloat32 mf b(Ptrofs.unsigned p+4)=Some(Vsingle value)).
+ { rewrite(KEEP Mfloat32 b(Ptrofs.unsigned p+4)(OUTENV b OBJ)).
+ erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];intuition lia));erewrite Mem.load_store_same by exact S4;reflexivity. }
+ assert(LOUT:Mem.load Mfloat32 mf b(Ptrofs.unsigned p+8)=Some(Vsingle(output tc li lo value))).
+ { rewrite(KEEP Mfloat32 b(Ptrofs.unsigned p+8)(OUTENV b OBJ));erewrite Mem.load_store_same by exact S8;reflexivity. }
+ assert(BIN:Mem.loadbytes mf b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle value))).
+ { erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV b OBJ)).
+ erewrite Mem.loadbytes_store_other by(exact S8||(cbn[size_chunk];lia));exact(Mem.loadbytes_store_same _ _ _ _ _ _ S4). }
+ assert(BOUT:Mem.loadbytes mf b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle(output tc li lo value)))).
+ { erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV b OBJ));exact(Mem.loadbytes_store_same _ _ _ _ _ _ S8). }
+ split;[split;[exact WF|repeat split;assumption]|repeat split;assumption].
+Qed.
+Print Assumptions update_call_summary.
+

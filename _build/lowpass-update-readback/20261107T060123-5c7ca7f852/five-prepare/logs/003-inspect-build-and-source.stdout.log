@@ -1,0 +1,139 @@
+from pathlib import Path
+import sys,json
+root=Path(__file__).resolve().parents[4];sys.path.insert(0,str(root/'scripts'))
+from five_telemetry import Run
+r=Run(root/'_build/lowpass-readback/20261107T030051-ab4ee8aef9/five-rocq')
+maps=json.loads((Path(__file__).with_name('dev-mappings.json')).read_text());flags=[]
+for ns,d in maps.items():flags+=['-Q',d,ns]
+for p in sys.argv[1:]:
+ r.command(['/home/yangfp/.opam/five/bin/rocq','compile',*flags,str(root/p)],'dev-'+Path(p).stem,timeout=600,cwd=str(root))
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "get_first_order_low_pass",
+  "stage": "prepare",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case",
+  "outputs": [
+    {
+      "role": "source",
+      "path": "prepare/source/get_first_order_low_pass.c",
+      "sha256": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "46a91804a04d7c2dcd3eb8f010b46363278d5509e8e8395eaf1d22273f9e7d79"
+    },
+    {
+      "role": "verification-request",
+      "path": "prepare/verification-request.json",
+      "sha256": "ccb81abe7b4fdbe826282726d81101ac7d6175c0d2a508fd9d90882b5f4b1d4e"
+    }
+  ],
+  "limitations": [],
+  "next_stage": "cbmc"
+}
+#include "../prepare/source/get_first_order_low_pass.c"
+#include <stdint.h>
+#include <string.h>
+extern float nondet_float(void);
+static uint32_t bits(float x) { uint32_t u; memcpy(&u,&x,4); return u; }
+void main(void) {
+ struct FirstOrderLowPass f={nondet_float(),nondet_float(),nondet_float()};
+ struct FirstOrderLowPass old=f;
+ float result=get_first_order_low_pass(&f);
+ __CPROVER_assert(bits(result)==bits(old.last_out),"getter returns last_out exact bits");
+ __CPROVER_assert(bits(f.time_const)==bits(old.time_const),"time_const readonly");
+ __CPROVER_assert(bits(f.last_in)==bits(old.last_in),"last_in readonly");
+ __CPROVER_assert(bits(f.last_out)==bits(old.last_out),"last_out readonly");
+}
+
+#define INT32_FILT_FRAC  8
+
+/** First order low pass filter structure.
+ *
+ * using bilinear z transform
+ */
+struct FirstOrderLowPass {
+  float time_const;
+  float last_in;
+  float last_out;
+};
+
+/** Init first order low pass filter.
+ *
+ * Laplace transform in continious time:
+ *            1
+ * H(s) = ---------
+ *        1 + tau*s
+ *
+ * @param filter first order low pass filter structure
+ * @param tau time constant of the first order low pass filter
+ * @param sample_time sampling period of the signal
+ * @param value initial value of the filter
+ */
+static inline void init_first_order_low_pass(struct FirstOrderLowPass *filter, float tau, const float sample_time,
+    float value)
+{
+  filter->last_in = value;
+  filter->last_out = value;
+  filter->time_const = 2.0f * tau / sample_time;
+}
+
+/** Update first order low pass filter state with a new value.
+ *
+ * @param filter first order low pass filter structure
+ * @param value new input value of the filter
+ * @return new filtered value
+ */
+static inline float update_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)
+{
+  float out = (value + filter->last_in + (filter->time_const - 1.0f) * filter->last_out) / (1.0f + filter->time_const);
+  filter->last_in = value;
+  filter->last_out = out;
+  return out;
+}
+
+/**
+ * @brief Reset the first order low-pass filter to a specific value.
+ *
+ * @param filter first order low pass filter structure
+ * @param value Value to reset the filter to
+ * @return The reset value
+ */
+static inline float reset_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)
+{
+  filter->last_in = value;
+  filter->last_out = value;
+  return value;
+}
+
+/** Get current value of the first order low pass filter.
+ *
+ * @param filter first order low pass filter structure
+ * @return current value of the filter
+ */
+static inline float get_first_order_low_pass(const struct FirstOrderLowPass *filter)
+{
+  return filter->last_out;
+}
+
+/** Update time constant (tau parameter) for first order low pass filter
+ *
+ * @param filter first order low pass filter structure
+ * @param tau time constant of the first order low pass filter
+ * @param sample_time sampling period of the signal

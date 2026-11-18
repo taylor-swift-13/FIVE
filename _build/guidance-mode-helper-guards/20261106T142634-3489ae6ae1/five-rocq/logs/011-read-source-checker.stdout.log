@@ -1,0 +1,51 @@
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v:57:Fixpoint source_statement (s:statement):bool :=
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-58- match s with
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-59- | Sskip |Sreturn None=>true
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-60- | Sdo a=>source_flat a && core_expr a
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-61- | Sreturn(Some a)=>source_simple a && core_expr a
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-62- | Ssequence a b=>source_statement a && source_statement b
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-63- | Sifthenelse a yes no=>source_simple a && core_expr a && source_statement yes && source_statement no
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-64- | _=>false end.
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-65-Fixpoint statement_eval (ge:genv)(e:env)(s:statement)(m:mem):option(outcome*mem) :=
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-66- match s with
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-67- | Sskip=>Some(Out_normal,m)
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-68- | Sdo a=>match flat_eval ge e m a with Some(_,mf)=>Some(Out_normal,mf)|None=>None end
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-69- | Ssequence a b=>match statement_eval ge e a m with
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-70-   |Some(Out_normal,mf)=>statement_eval ge e b mf
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-71-   |Some(out,mf)=>Some(out,mf)|None=>None end
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-72- | Sifthenelse a yes no=>match pure_rval ge e m a with
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-73-   |Some v=>match bool_val v(typeof a)m with
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-74-     |Some b=>statement_eval ge e(if b then yes else no)m|None=>None end
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-75-   |None=>None end
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-76- | Sreturn None=>Some(Out_return None,m)
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v-77- | Sreturn(Some a)=>match pure_rval ge e m a with
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+From FiveGuidanceSoftwareProof Require Import ValueEvaluator ValueChecker NumericOps LocalMemory FlatStatements.
+Import ListNotations.
+Local Open Scope Z_scope.
+Section SIMULATION.
+Variables union_id float_field uint_field:ident.
+Variable gamma:PTree.t type.
+Local Notation place :=(place_of union_id float_field uint_field gamma).
+Definition env_matches(e:env):Prop:=forall id ty,gamma!id=Some ty->exists b,e!id=Some(b,ty).
+Definition union_layout(ge:Csem.genv):Prop:=exists co,
+ (genv_cenv ge)!union_id=Some co /\
+ union_field_offset ge float_field(co_members co)=OK(0,Full) /\
+ union_field_offset ge uint_field(co_members co)=OK(0,Full).
+Lemma place_shape:forall l p,place l=Some p ->
+ gamma!(place_id p)=Some(place_container p) /\typeof l=place_type p /\
+ ((place_union p=false /\l=Evar(place_id p)(place_container p) /\place_type p=place_container p)\/
+ (place_union p=true /\place_container p=Tunion union_id noattr /\
+ ((place_type p=tfloat /\l=Efield(Evalof(Evar(place_id p)(Tunion union_id noattr))(Tunion union_id noattr))float_field tfloat)\/
+  (place_type p=tuint /\l=Efield(Evalof(Evar(place_id p)(Tunion union_id noattr))(Tunion union_id noattr))uint_field tuint)))).
+Proof.
+ intros l p P;unfold place_of in P;option_cases P;inversion P;subst;cbn;repeat split;try assumption;eauto 10.
+Qed.
+Lemma place_location:forall(ge:Csem.genv)e m l p,
+ env_matches e ->union_layout ge ->place l=Some p ->
+ exists b,e!(place_id p)=Some(b,place_container p) /\
+ pure_lval ge e m l=Some(b,Ptrofs.zero,Full).
+Proof.
+ intros ge e m l p ENV[co[GET[FF UF]]]P.

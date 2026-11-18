@@ -1,0 +1,170 @@
+From Stdlib Require Import Bool List ZArith String Classical.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation FactorShell PhaseComposition.
+Import ListNotations.
+Definition address_res(id:ident)(ty:type)(b:block)(stage:read_stage):expr :=
+ match stage with
+ | Rvar=>Eaddrof(Evar id ty)(tptr ty)
+ | Rloc=>Eaddrof(Eloc b Ptrofs.zero Full ty)(tptr ty)
+ | Rval=>Eval(Vptr b Ptrofs.zero)(tptr ty)end.
+Section CALL.
+Variable ge:genv.
+Variable e:env.
+Variable caller:function.
+Variable callee:Csyntax.fundef.
+Variable k:cont.
+Variable ifunction ivector:ident.
+Variable bfunction bvector:block.
+Variable vectype:type.
+Variable m:mem.
+Hypothesis vector_nonvolatile:type_is_volatile vectype=false.
+Definition call_type:=Tfunction[tptr vectype]tvoid cc_default.
+Hypothesis function_global:e!ifunction=None.
+Hypothesis function_symbol:Genv.find_symbol ge ifunction=Some bfunction.
+Hypothesis vector_local:e!ivector=Some(bvector,vectype).
+Hypothesis callee_find:Genv.find_funct ge(Vptr bfunction Ptrofs.zero)=Some callee.
+Hypothesis callee_signature:type_of_fundef callee=call_type.
+Definition call_expr(rs ns:read_stage):expr :=
+ Ecall(read_res ifunction call_type bfunction(Vptr bfunction Ptrofs.zero)rs)
+ (Econs(address_res ivector vectype bvector ns)Enil)tvoid.
+Definition pre_state(rs ns:read_stage):Csem.state :=
+ ExprState caller(call_expr rs ns)(Kdo k)e m.
+Definition call_frame:cont:=Kcall caller e(fun x=>x)tvoid(Kdo k).
+Definition pre_or_call(s:Csem.state):Prop :=
+ (exists rs ns,s=pre_state rs ns) \/
+ s=Callstate callee[Vptr bvector Ptrofs.zero]call_frame m.
+Ltac close_state :=
+ split;[reflexivity|unfold pre_or_call;first[
+ left;first[
+ solve[exists Rvar,Rvar;reflexivity]|solve[exists Rvar,Rloc;reflexivity]|solve[exists Rvar,Rval;reflexivity]|
+ solve[exists Rloc,Rvar;reflexivity]|solve[exists Rloc,Rloc;reflexivity]|solve[exists Rloc,Rval;reflexivity]|
+ solve[exists Rval,Rvar;reflexivity]|solve[exists Rval,Rloc;reflexivity]|solve[exists Rval,Rval;reflexivity]]
+ |right;reflexivity]].
+Lemma pre_animator_step:forall rs ns rule t next,
+ In(TR rule t next)(Cexec.do_step ge null_external null_external quiet_world(pre_state rs ns)) ->
+ t=E0 /\ pre_or_call next.
+Proof.
+ intros rs ns rule t next;destruct rs,ns;
+ cbn[pre_state call_expr read_res address_res Cexec.do_step
+ Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc Cexec.is_val_list
+ Cexec.incontext Cexec.topred Cexec.stuck];
+ rewrite ?function_global,?function_symbol,?vector_local;rewrite ?dec_eq_true;
+ cbn[Cexec.do_deref_loc access_mode type_is_volatile].
+ all: cbn[call_type classify_fun sem_cast_arguments sem_cast];
+ rewrite ?callee_find,?callee_signature;
+ cbv[call_type tptr tvoid access_mode type_is_volatile sem_cast classify_cast];rewrite ?dec_eq_true;
+ cbn[Cexec.incontext2 Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd].
+ all: intros IN;simpl in IN;repeat destruct IN as[EQ|IN];try contradiction;
+ inversion EQ;subst;close_state.
+Qed.
+Lemma pre_callback_free:forall rs ns,callback_free_state(pre_state rs ns).
+Proof. intros;destruct rs,ns;reflexivity. Qed.
+Lemma pre_or_call_not_stuck:forall s,pre_or_call s ->s<>Stuckstate.
+Proof. intros s[[rs[ns EQ]]|EQ];subst;discriminate. Qed.
+Lemma pre_core:forall rs ns,
+ SourceClosure.core_expr ge(fun _=>True)(fun _ _=>True)(call_expr rs ns).
+Proof.
+ intros;destruct rs,ns;
+ cbn[call_expr read_res address_res call_type SourceClosure.core_expr SourceClosure.core_exprlist SourceClosure.nv];
+ repeat split;try reflexivity;try exact vector_nonvolatile;
+ unfold SourceClosure.valid_call;intros;split;exact I.
+Qed.
+Lemma pre_silent:forall rs ns,silent_state ge(pre_state rs ns).
+Proof.
+ intros rs ns t next STEP;pose proof(pre_core rs ns)as CORE.
+ destruct STEP as[ES|SS];[|inversion SS].
+ inversion ES;subst;auto.
+ match goal with EQ:?C ?A=call_expr _ _ |- _=>rewrite <-EQ in CORE end.
+ match goal with HC:Csem.context RV RV ?C,RR:rred ge ?a m t ?a' ?m' |- _=>
+ pose proof(SourceClosure.core_context_hole ge(fun _=>True)(fun _ _=>True)
+ _ _ _ HC a CORE)as CA;
+ exact(proj1(SourceClosure.core_rred ge(fun _=>True)(fun _ _=>True)
+ a m t a' m' CA RR))end.
+Qed.
+Theorem pre_all_successors:forall rs ns t next,
+ Csem.step ge(pre_state rs ns)t next ->t=E0 /\ pre_or_call next.
+Proof.
+ intros rs ns t next STEP;pose proof(pre_silent rs ns t next STEP)as TT;subst t.
+ destruct(pure_do_step_complete ge null_external null_external quiet_world
+ (pre_state rs ns)E0 next quiet_world(pre_callback_free rs ns)
+ (possible_trace_nil quiet_world)STEP)as[rule IN].
+ eapply pre_animator_step;exact IN.
+Qed.
+Lemma pre_animator_nonempty:forall rs ns,
+ exists rule t next,In(TR rule t next)
+ (Cexec.do_step ge null_external null_external quiet_world(pre_state rs ns)).
+Proof.
+ intros rs ns;destruct rs,ns;
+ cbn[pre_state call_expr read_res address_res Cexec.do_step
+ Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc Cexec.is_val_list
+ Cexec.incontext Cexec.topred Cexec.stuck];
+ rewrite ?function_global,?function_symbol,?vector_local;rewrite ?dec_eq_true;
+ cbn[Cexec.do_deref_loc access_mode type_is_volatile].
+ all: cbn[call_type classify_fun sem_cast_arguments sem_cast];
+ rewrite ?callee_find,?callee_signature;
+ cbv[call_type tptr tvoid access_mode type_is_volatile sem_cast classify_cast];rewrite ?dec_eq_true;
+ cbn[Cexec.incontext2 Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd].
+ all: repeat eexists;apply in_eq.
+Qed.
+Theorem pre_progress:forall rs ns,
+ exists t next,Csem.step ge(pre_state rs ns)t next /\ pre_or_call next.
+Proof.
+ intros rs ns;destruct(pre_animator_nonempty rs ns)as[rule[t[next IN]]].
+ pose proof(proj2(pre_animator_step rs ns rule t next IN))as CLASS.
+ exists t,next;split;auto.
+ eapply supported_nonstuck_transition;[apply pre_callback_free|exact IN|].
+ apply pre_or_call_not_stuck;exact CLASS.
+Qed.
+Variable result:val.
+Variable final_mem:mem.
+Variable callee_invariant:Csem.state->Prop.
+Hypothesis callee_certificate:certificate ge callee_invariant(Returnstate result call_frame final_mem).
+Hypothesis callee_entry:callee_invariant(Callstate callee[Vptr bvector Ptrofs.zero]call_frame m).
+Definition post_state:=ExprState caller(Eval result tvoid)(Kdo k)e final_mem.
+Definition target:=State caller Sskip k e final_mem.
+Definition invariant(s:Csem.state):Prop :=
+ s=State caller(Sdo(call_expr Rvar Rvar))k e m \/
+ (exists rs ns,s=pre_state rs ns) \/ callee_invariant s \/ s=post_state \/ s=target.
+Lemma post_unique:unique_transition ge post_state target.
+Proof.
+ split;[right;apply step_do_2|].
+ intros t next[ES|SS];[inversion ES|inversion SS;subst;auto].
+Qed.
+Theorem call_certificate:certificate ge invariant target.
+Proof.
+ split.
+ - intros s[START|[PRE|[CALLEE|[POST|DONE]]]].
+   + subst s;right;exists E0,(pre_state Rvar Rvar);split.
+     * right;apply step_do_1.
+     * right;left;exists Rvar,Rvar;reflexivity.
+   + destruct PRE as[rs[ns EQ]];subst s;destruct(pre_progress rs ns)as[t[next[STEP CLASS]]].
+     right;exists t,next;split;auto.
+     destruct CLASS as[PRE|CALL].
+     * right;left;exact PRE.
+     * subst next;right;right;left;exact callee_entry.
+   + destruct(proj1 callee_certificate s CALLEE)as[RET|[t[next[STEP CN]]]].
+     * subst s;right;exists E0,post_state;split.
+       -- right;apply step_returnstate.
+       -- right;right;right;left;reflexivity.
+     * right;exists t,next;split;auto;right;right;left;exact CN.
+   + subst s;right;exists E0,target;split;[exact(proj1 post_unique)|right;right;right;right;reflexivity].
+   + auto.
+ - intros s t next[START|[PRE|[CALLEE|[POST|DONE]]]]NF STEP.
+   + subst s;destruct(FactorShell.do_step_unique _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next.
+     right;left;exists Rvar,Rvar;reflexivity.
+   + destruct PRE as[rs[ns EQ]];subst s;destruct(pre_all_successors rs ns t next STEP)as[TT[PRE|CALL]].
+     * right;left;exact PRE.
+     * subst next;right;right;left;exact callee_entry.
+   + destruct(classic(s=Returnstate result call_frame final_mem))as[RET|NR].
+     * subst s;destruct(FactorShell.return_call_step_unique _ _ _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next.
+       right;right;right;left;reflexivity.
+     * right;right;left;eapply(proj2 callee_certificate);eauto.
+   + subst s;destruct(proj2 post_unique t next STEP)as[TT EQ];subst next.
+     right;right;right;right;reflexivity.
+   + contradiction.
+Qed.
+Lemma initial_certificate:invariant(State caller(Sdo(call_expr Rvar Rvar))k e m).
+Proof. left;reflexivity. Qed.
+Print Assumptions call_certificate.
+End CALL.

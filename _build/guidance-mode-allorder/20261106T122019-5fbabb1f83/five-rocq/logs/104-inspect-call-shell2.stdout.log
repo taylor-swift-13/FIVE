@@ -1,0 +1,309 @@
+9 goals
+  
+  ge : genv
+  e : env
+  caller : function
+  callee : fundef
+  k : cont
+  ifunction, ivector : ident
+  bfunction, bvector : block
+  vectype : type
+  m : mem
+  vector_nonvolatile : type_is_volatile vectype = false
+  function_global : e ! ifunction = None
+  function_symbol : Genv.find_symbol ge ifunction = Some bfunction
+  vector_local : e ! ivector = Some (bvector, vectype)
+  callee_find : Genv.find_funct ge (Vptr bfunction Ptrofs.zero) = Some callee
+  callee_signature : type_of_fundef callee = call_type
+  rule : string
+  t : trace
+  next : Csem.state
+  ============================
+  In (TR rule t next)
+    [TR "red_var_global" E0
+       (ExprState caller
+          (Ecall
+             (Evalof
+                (Eloc bfunction Ptrofs.zero Full
+                   (Tfunction [tptr vectype] tvoid cc_default))
+                (Tfunction [tptr vectype] tvoid cc_default))
+             (Econs (Eaddrof (Evar ivector vectype) (tptr vectype)) Enil)
+             tvoid)
+          (Kdo k) e m);
+     TR "red_var_local" E0
+       (ExprState caller
+          (Ecall
+             (Evalof
+                (Evar ifunction (Tfunction [tptr vectype] tvoid cc_default))
+                (Tfunction [tptr vectype] tvoid cc_default))
+             (Econs
+                (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                   (tptr vectype))
+                Enil)
+             tvoid)
+          (Kdo k) e m)] ->
+  t = E0 /\ pre_or_call next
+
+goal 2 is:
+ In (TR rule t next)
+   [TR "red_var_global" E0
+      (ExprState caller
+         (Ecall
+            (Evalof
+               (Eloc bfunction Ptrofs.zero Full
+                  (Tfunction [tptr vectype] tvoid cc_default))
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs
+               (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                  (tptr vectype))
+               Enil)
+            tvoid)
+         (Kdo k) e m);
+    TR "red_addrof" E0
+      (ExprState caller
+         (Ecall
+            (Evalof
+               (Evar ifunction (Tfunction [tptr vectype] tvoid cc_default))
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 3 is:
+ In (TR rule t next)
+   [TR "red_var_global" E0
+      (ExprState caller
+         (Ecall
+            (Evalof
+               (Eloc bfunction Ptrofs.zero Full
+                  (Tfunction [tptr vectype] tvoid cc_default))
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 4 is:
+ In (TR rule t next)
+   [TR "red_rvalof" E0
+      (ExprState caller
+         (Ecall
+            (Eval (Vptr bfunction Ptrofs.zero)
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs (Eaddrof (Evar ivector vectype) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m);
+    TR "red_var_local" E0
+      (ExprState caller
+         (Ecall
+            (Evalof
+               (Eloc bfunction Ptrofs.zero Full
+                  (Tfunction [tptr vectype] tvoid cc_default))
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs
+               (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                  (tptr vectype))
+               Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 5 is:
+ In (TR rule t next)
+   [TR "red_rvalof" E0
+      (ExprState caller
+         (Ecall
+            (Eval (Vptr bfunction Ptrofs.zero)
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs
+               (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                  (tptr vectype))
+               Enil)
+            tvoid)
+         (Kdo k) e m);
+    TR "red_addrof" E0
+      (ExprState caller
+         (Ecall
+            (Evalof
+               (Eloc bfunction Ptrofs.zero Full
+                  (Tfunction [tptr vectype] tvoid cc_default))
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 6 is:
+ In (TR rule t next)
+   [TR "red_rvalof" E0
+      (ExprState caller
+         (Ecall
+            (Eval (Vptr bfunction Ptrofs.zero)
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 7 is:
+ In (TR rule t next)
+   [TR "red_var_local" E0
+      (ExprState caller
+         (Ecall
+            (Eval (Vptr bfunction Ptrofs.zero)
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs
+               (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                  (tptr vectype))
+               Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 8 is:
+ In (TR rule t next)
+   [TR "red_addrof" E0
+      (ExprState caller
+         (Ecall
+            (Eval (Vptr bfunction Ptrofs.zero)
+               (Tfunction [tptr vectype] tvoid cc_default))
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 9 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      match
+        match
+          match
+            match tptr vectype with
+            | Tvoid => cast_case_void
+            | Tint sz2 si2 _ =>
+                match tptr vectype with
+                | Tint _ _ _ =>
+                    match sz2 with
+                    | I32 =>
+                        if Archi.ptr64
+                        then cast_case_i2i sz2 si2
+                        else cast_case_pointer
+                    | IBool => cast_case_i2bool
+                    | _ => cast_case_i2i sz2 si2
+                    end
+                | Tlong _ _ =>
+                    if intsize_eq sz2 IBool
+                    then cast_case_l2bool
+                    else cast_case_l2i sz2 si2
+                | Tfloat F32 _ =>
+                    if intsize_eq sz2 IBool
+                    then cast_case_s2bool
+                    else cast_case_s2i sz2 si2
+                | Tfloat F64 _ =>
+                    if intsize_eq sz2 IBool
+                    then cast_case_f2bool
+                    else cast_case_f2i sz2 si2
+                | Tpointer _ _ | Tarray _ _ _ | Tfunction _ _ _ =>
+                    if Archi.ptr64
+                    then
+                     if intsize_eq sz2 IBool
+                     then cast_case_l2bool
+                     else cast_case_l2i sz2 si2
+                    else
+                     match sz2 with
+                     | I32 => cast_case_pointer
+                     | IBool => cast_case_i2bool
+                     | _ => cast_case_i2i sz2 si2
+                     end
+                | _ => cast_case_default
+                end
+            | Tlong si2 _ =>
+                match tptr vectype with
+                | Tint _ si1 _ => cast_case_i2l si1
+                | Tlong _ _ =>
+                    if Archi.ptr64 then cast_case_pointer else cast_case_l2l
+                | Tfloat F32 _ => cast_case_s2l si2
+                | Tfloat F64 _ => cast_case_f2l si2
+                | Tpointer _ _ | Tarray _ _ _ | Tfunction _ _ _ =>
+                    if Archi.ptr64
+                    then cast_case_pointer
+                    else cast_case_i2l si2
+                | _ => cast_case_default
+                end
+            | Tfloat F32 _ =>
+                match tptr vectype with
+                | Tint _ si1 _ => cast_case_i2s si1
+                | Tlong si1 _ => cast_case_l2s si1
+                | Tfloat F32 _ => cast_case_s2s
+                | Tfloat F64 _ => cast_case_f2s
+                | _ => cast_case_default
+                end
+            | Tfloat F64 _ =>
+                match tptr vectype with
+                | Tint _ si1 _ => cast_case_i2f si1
+                | Tlong si1 _ => cast_case_l2f si1
+                | Tfloat F32 _ => cast_case_s2f
+                | Tfloat F64 _ => cast_case_f2f
+                | _ => cast_case_default
+                end
+            | Tpointer _ _ =>
+                match tptr vectype with
+                | Tint _ si _ =>
+                    if Archi.ptr64
+                    then cast_case_i2l si
+                    else cast_case_pointer
+                | Tlong _ _ =>
+                    if Archi.ptr64
+                    then cast_case_pointer
+                    else cast_case_l2i I32 Unsigned
+                | Tpointer _ _ | Tarray _ _ _ | Tfunction _ _ _ =>
+                    cast_case_pointer
+                | _ => cast_case_default
+                end
+            | Tstruct id2 _ =>
+                match tptr vectype with
+                | Tstruct id1 _ => cast_case_struct id1 id2
+                | _ => cast_case_default
+                end
+            | Tunion id2 _ =>
+                match tptr vectype with
+                | Tunion id1 _ => cast_case_union id1 id2
+                | _ => cast_case_default
+                end
+            | _ => cast_case_default
+            end
+          with
+          | cast_case_i2bool =>
+              if Archi.ptr64
+              then None
+              else
+               if
+                Mem.weak_valid_pointer m bvector
+                  (Ptrofs.unsigned Ptrofs.zero)
+               then Some Vone
+               else None
+          | cast_case_l2bool =>
+              if negb Archi.ptr64
+              then None
+              else
+               if
+                Mem.weak_valid_pointer m bvector
+                  (Ptrofs.unsigned Ptrofs.zero)
+               then Some Vone
+               else None
+          | cast_case_struct id1 id2 | cast_case_union id1 id2 =>
+              if ident_eq id1 id2
+              then Some (Vptr bvector Ptrofs.zero)
+              else None
+          | cast_case_pointer | cast_case_void =>
+              Some (Vptr bvector Ptrofs.zero)
+          | _ => None
+          end
+        with
+        | Some v => Some [v]
+        | None => None
+        end
+      with
+      | Some vargs =>
+          if
+           type_eq (Tfunction [tptr vectype] tvoid cc_default)
+             (Tfunction [tptr vectype] tvoid cc_default)
+          then topred (Callred "red_call" callee vargs tvoid m)
+          else stuck
+      | None => stuck
+      end) ->
+ t = E0 /\ pre_or_call next

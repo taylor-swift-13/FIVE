@@ -1,0 +1,2717 @@
+54 goals
+  
+  ge : genv
+  e : env
+  caller, leaf : function
+  k : cont
+  ifactor, imax, isqrt, inorm : ident
+  bfactor, bmax, bsqrt, bnorm : block
+  m : mem
+  maximum, norm : float32
+  factor_local : e ! ifactor = Some (bfactor, tfloat)
+  max_global : e ! imax = None
+  max_symbol : Genv.find_symbol ge imax = Some bmax
+  sqrt_global : e ! isqrt = None
+  sqrt_symbol : Genv.find_symbol ge isqrt = Some bsqrt
+  norm_local : e ! inorm = Some (bnorm, tfloat)
+  max_deref :
+    do_deref_loc ge quiet_world tfloat m bmax Ptrofs.zero Full =
+    Some (quiet_world, E0, Vsingle maximum)
+  norm_deref :
+    do_deref_loc ge quiet_world tfloat m bnorm Ptrofs.zero Full =
+    Some (quiet_world, E0, Vsingle norm)
+  leaf_find :
+    Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) = Some (Internal leaf)
+  leaf_signature : type_of_fundef (Internal leaf) = leaf_type
+  rule : string
+  t : trace
+  next : Csem.state
+  ============================
+  In (TR rule t next)
+    (map (expr_final_state caller (Kdo k) e)
+       (incontext2
+          (fun x : expr =>
+           Eassign x
+             (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+                (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                   (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+                tfloat)
+             tfloat)
+          []
+          (fun x : expr =>
+           Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+          (incontext2
+             (fun x : expr =>
+              Ebinop Odiv x
+                (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                   (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+                tfloat)
+             (incontext (fun x : expr => Evalof x tfloat)
+                (topred
+                   (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                      m)))
+             (fun x : expr =>
+              Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+             (incontext2
+                (fun x : expr =>
+                 Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                   tfloat)
+                (incontext (fun x : expr => Evalof x leaf_type)
+                   (topred
+                      (Lred "red_var_global"
+                         (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+                (fun x : exprlist =>
+                 Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+                (incontext2 (fun x : expr => Econs x Enil)
+                   (incontext (fun x : expr => Evalof x tfloat)
+                      (topred
+                         (Lred "red_var_local"
+                            (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                   (fun x : exprlist =>
+                    Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                   []))))) ->
+  t = E0 /\ pre_or_call next
+
+goal 2 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 3 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 4 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 5 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 6 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 7 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 8 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 9 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            match classify_fun leaf_type with
+            | fun_case_f tyargs tyres cconv =>
+                match Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) with
+                | Some fd =>
+                    match
+                      sem_cast_arguments [(Vsingle norm, tfloat)] tyargs m
+                    with
+                    | Some vargs =>
+                        if
+                         type_eq (type_of_fundef fd)
+                           (Tfunction tyargs tyres cconv)
+                        then topred (Callred "red_call" fd vargs tfloat m)
+                        else stuck
+                    | None => stuck
+                    end
+                | None => stuck
+                end
+            | fun_default => stuck
+            end))) ->
+ t = E0 /\ pre_or_call next
+goal 10 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 11 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 12 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 13 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 14 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 15 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 16 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 17 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 18 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            match classify_fun leaf_type with
+            | fun_case_f tyargs tyres cconv =>
+                match Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) with
+                | Some fd =>
+                    match
+                      sem_cast_arguments [(Vsingle norm, tfloat)] tyargs m
+                    with
+                    | Some vargs =>
+                        if
+                         type_eq (type_of_fundef fd)
+                           (Tfunction tyargs tyres cconv)
+                        then topred (Callred "red_call" fd vargs tfloat m)
+                        else stuck
+                    | None => stuck
+                    end
+                | None => stuck
+                end
+            | fun_default => stuck
+            end))) ->
+ t = E0 /\ pre_or_call next
+goal 19 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 20 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 21 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 22 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 23 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 24 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 25 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 26 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 27 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         []
+         (fun x : expr =>
+          Eassign (Eloc bfactor Ptrofs.zero Full tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            match classify_fun leaf_type with
+            | fun_case_f tyargs tyres cconv =>
+                match Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) with
+                | Some fd =>
+                    match
+                      sem_cast_arguments [(Vsingle norm, tfloat)] tyargs m
+                    with
+                    | Some vargs =>
+                        if
+                         type_eq (type_of_fundef fd)
+                           (Tfunction tyargs tyres cconv)
+                        then topred (Callred "red_call" fd vargs tfloat m)
+                        else stuck
+                    | None => stuck
+                    end
+                | None => stuck
+                end
+            | fun_default => stuck
+            end))) ->
+ t = E0 /\ pre_or_call next
+goal 28 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 29 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 30 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 31 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 32 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 33 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 34 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 35 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 36 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Evar imax tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (incontext (fun x : expr => Evalof x tfloat)
+               (topred
+                  (Lred "red_var_global" (Eloc bmax Ptrofs.zero Full tfloat)
+                     m)))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Evar imax tfloat) tfloat) x tfloat)
+            match classify_fun leaf_type with
+            | fun_case_f tyargs tyres cconv =>
+                match Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) with
+                | Some fd =>
+                    match
+                      sem_cast_arguments [(Vsingle norm, tfloat)] tyargs m
+                    with
+                    | Some vargs =>
+                        if
+                         type_eq (type_of_fundef fd)
+                           (Tfunction tyargs tyres cconv)
+                        then topred (Callred "red_call" fd vargs tfloat m)
+                        else stuck
+                    | None => stuck
+                    end
+                | None => stuck
+                end
+            | fun_default => stuck
+            end))) ->
+ t = E0 /\ pre_or_call next
+goal 37 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 38 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 39 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 40 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 41 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 42 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 43 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 44 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 45 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            (topred (Rred "red_rvalof" (Eval (Vsingle maximum) tfloat) m E0))
+            (fun x : expr =>
+             Ebinop Odiv (Evalof (Eloc bmax Ptrofs.zero Full tfloat) tfloat)
+               x tfloat)
+            match classify_fun leaf_type with
+            | fun_case_f tyargs tyres cconv =>
+                match Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) with
+                | Some fd =>
+                    match
+                      sem_cast_arguments [(Vsingle norm, tfloat)] tyargs m
+                    with
+                    | Some vargs =>
+                        if
+                         type_eq (type_of_fundef fd)
+                           (Tfunction tyargs tyres cconv)
+                        then topred (Callred "red_call" fd vargs tfloat m)
+                        else stuck
+                    | None => stuck
+                    end
+                | None => stuck
+                end
+            | fun_default => stuck
+            end))) ->
+ t = E0 /\ pre_or_call next
+goal 46 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 47 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 48 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Evalof (Evar isqrt leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               (incontext (fun x : expr => Evalof x leaf_type)
+                  (topred
+                     (Lred "red_var_global"
+                        (Eloc bsqrt Ptrofs.zero Full leaf_type) m)))
+               (fun x : exprlist =>
+                Ecall (Evalof (Evar isqrt leaf_type) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 49 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 50 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 51 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               match
+                 match access_mode leaf_type with
+                 | By_value chunk =>
+                     if type_is_volatile leaf_type
+                     then
+                      do_volatile_load ge quiet_world chunk m bsqrt
+                        Ptrofs.zero
+                     else
+                      match Mem.loadv chunk m (Vptr bsqrt Ptrofs.zero) with
+                      | Some v => Some (quiet_world, E0, v)
+                      | None => None
+                      end
+                 | By_nothing => None
+                 | _ => Some (quiet_world, E0, Vptr bsqrt Ptrofs.zero)
+                 end
+               with
+               | Some (_, t0, v) =>
+                   topred (Rred "red_rvalof" (Eval v leaf_type) m t0)
+               | None => stuck
+               end
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof (Eloc bsqrt Ptrofs.zero Full leaf_type) leaf_type)
+                  x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil) []
+                  (fun x : exprlist => Econs (Eval (Vsingle norm) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 52 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Evar inorm tfloat) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x (Econs (Evalof (Evar inorm tfloat) tfloat) Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (incontext (fun x : expr => Evalof x tfloat)
+                     (topred
+                        (Lred "red_var_local"
+                           (Eloc bnorm Ptrofs.zero Full tfloat) m)))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Evar inorm tfloat) tfloat) x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 53 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            (incontext2
+               (fun x : expr =>
+                Ecall x
+                  (Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     Enil)
+                  tfloat)
+               []
+               (fun x : exprlist =>
+                Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type) x tfloat)
+               (incontext2 (fun x : expr => Econs x Enil)
+                  (topred
+                     (Rred "red_rvalof" (Eval (Vsingle norm) tfloat) m E0))
+                  (fun x : exprlist =>
+                   Econs (Evalof (Eloc bnorm Ptrofs.zero Full tfloat) tfloat)
+                     x)
+                  []))))) ->
+ t = E0 /\ pre_or_call next
+goal 54 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Eassign x
+            (Ebinop Odiv (Eval (Vsingle maximum) tfloat)
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            tfloat)
+         (topred
+            (Lred "red_var_local" (Eloc bfactor Ptrofs.zero Full tfloat) m))
+         (fun x : expr => Eassign (Evar ifactor tfloat) x tfloat)
+         (incontext2
+            (fun x : expr =>
+             Ebinop Odiv x
+               (Ecall (Eval (Vptr bsqrt Ptrofs.zero) leaf_type)
+                  (Econs (Eval (Vsingle norm) tfloat) Enil) tfloat)
+               tfloat)
+            []
+            (fun x : expr =>
+             Ebinop Odiv (Eval (Vsingle maximum) tfloat) x tfloat)
+            match classify_fun leaf_type with
+            | fun_case_f tyargs tyres cconv =>
+                match Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) with
+                | Some fd =>
+                    match
+                      sem_cast_arguments [(Vsingle norm, tfloat)] tyargs m
+                    with
+                    | Some vargs =>
+                        if
+                         type_eq (type_of_fundef fd)
+                           (Tfunction tyargs tyres cconv)
+                        then topred (Callred "red_call" fd vargs tfloat m)
+                        else stuck
+                    | None => stuck
+                    end
+                | None => stuck
+                end
+            | fun_default => stuck
+            end))) ->
+ t = E0 /\ pre_or_call next

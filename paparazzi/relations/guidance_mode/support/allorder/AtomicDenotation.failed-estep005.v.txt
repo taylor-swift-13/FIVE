@@ -1,0 +1,149 @@
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+Import ListNotations.
+
+Definition commit (ge:genv) (m:mem) (ty:type) (loc:block*ptrofs*bitfield) (v:val) (vty:type) : option(val*mem) :=
+ let '(b,ofs,bf):=loc in
+ match sem_cast v vty ty m with
+ | Some vc => match Cexec.do_assign_loc ge quiet_world ty m b ofs bf vc with
+   | Some (_,_,mf,vf)=>Some(vf,mf) | None=>None end
+ | None=>None end.
+Definition atomic_expr (a:expr):bool :=
+ match a with
+ | Eassign l r _ | Eassignop _ l r _ _ => simple l && simple r && nv(typeof l)
+ | _=>simple a end.
+Definition atomic_eval (ge:genv) (e:env) (m:mem) (a:expr):option(val*mem) :=
+ match a with
+ | Eassign l r ty =>
+   if type_eq (typeof l) ty then
+   match pure_lval ge e m l,pure_rval ge e m r with
+   | Some loc,Some v=>commit ge m (typeof l) loc v (typeof r)
+   | _,_=>None end else None
+ | Eassignop op l r tyres ty =>
+   if type_eq (typeof l) ty then
+   match pure_lval ge e m l,pure_rval ge e m r with
+   | Some(b,ofs,bf),Some vr=>
+     match Cexec.do_deref_loc ge quiet_world (typeof l) m b ofs bf with
+     | Some(_,_,vl)=>match sem_binary_operation ge op vl (typeof l) vr (typeof r) m with
+       | Some vo=>commit ge m (typeof l) (b,ofs,bf) vo tyres
+       | None=>None end
+     | None=>None end
+   | _,_=>None end else None
+ | _=>option_map (fun v=>(v,m)) (pure_rval ge e m a)
+ end.
+Lemma atomic_simple: forall a,simple a=true -> atomic_expr a=true.
+Proof. destruct a;simpl;auto;discriminate. Qed.
+Lemma atomic_eval_simple: forall ge e m a,simple a=true ->
+ atomic_eval ge e m a=option_map(fun v=>(v,m))(pure_rval ge e m a).
+Proof. destruct a;simpl;auto;discriminate. Qed.
+Lemma atomic_context_hole: forall from to C,context from to C -> forall a,
+ atomic_expr(C a)=true -> atomic_expr a=true.
+Proof. induction 1;simpl;intros a HA;core_unpack;try discriminate;eauto using atomic_simple,simple_context_hole. Qed.
+Lemma atomic_context_replace: forall from to C,context from to C -> forall a b,
+ typeof a=typeof b -> atomic_expr(C a)=true -> simple b=true -> atomic_expr(C b)=true.
+Proof.
+ induction 1;simpl;intros a b HT HA HB;core_unpack;try discriminate;core_build;
+ eauto using simple_context_replace,atomic_simple.
+ all: try (rewrite <-(context_type_eq _ _ _ H a b HT);assumption).
+Qed.
+Lemma atomic_effect_root: forall C,context RV RV C -> forall a,
+ atomic_expr(C a)=true -> simple a=false -> forall z,C z=z.
+Proof.
+ intros C HC a HA SA;inversion HC;subst;simpl in HA;core_unpack;try discriminate;auto;
+ exfalso;match goal with
+ | CT:Csem.context _ _ ?C,SI:simple(?C a)=true |- _=>
+ pose proof(simple_context_hole _ _ _ CT a SI);congruence end.
+Qed.
+Lemma atomic_context_congr: forall ge e m from C,
+ context from RV C -> forall a b,
+ typeof a=typeof b -> simple a=true -> simple b=true ->
+ pure_eq ge e m from a b ->
+ atomic_eval ge e m (C a)=atomic_eval ge e m (C b).
+Proof.
+ intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+ try (repeat rewrite atomic_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+ all: try (match goal with
+ | |- atomic_eval ?ge ?e ?m ?A = atomic_eval ?ge ?e ?m ?B =>
+ change (option_map (fun v=>(v,m)) (pure_rval ge e m A) =
+         option_map (fun v=>(v,m)) (pure_rval ge e m B))
+ end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+ all: simpl;rewrite ?(context_type_eq _ _ _ H a b HT),
+ (pure_context_congr ge e m _ _ _ H a b HT HE);reflexivity.
+Qed.
+Lemma atomic_assign_head: forall ge e m l r ty t a' mf,
+ atomic_expr(Eassign l r ty)=true -> rred ge(Eassign l r ty)m t a' mf ->
+ t=E0 /\ atomic_eval ge e m(Eassign l r ty)=atomic_eval ge e mf a'.
+Proof.
+ intros ge e m l r ty t a' mf AT HR;inversion HR;subst;simpl in AT;core_unpack.
+ assert(TT:t=E0) by(eapply assign_loc_silent;eauto). subst t;split;auto.
+ cbn[atomic_eval pure_lval pure_rval commit typeof];rewrite dec_eq_true.
+ match goal with H:sem_cast _ _ _ _=Some _ |- _=>rewrite H end.
+ match goal with H:assign_loc _ _ _ _ _ _ _ E0 _ _ |- _=>
+ rewrite(do_assign_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ _ H (possible_trace_nil _)) end.
+ reflexivity.
+Qed.
+Lemma atomic_assignop_head: forall ge e m op l r tyres ty t a' mf,
+ atomic_expr(Eassignop op l r tyres ty)=true -> rred ge(Eassignop op l r tyres ty)m t a' mf ->
+ t=E0 /\ mf=m /\ atomic_expr a'=true /\
+ atomic_eval ge e m(Eassignop op l r tyres ty)=atomic_eval ge e mf a'.
+Proof.
+ intros ge e m op l r tyres ty t a' mf AT HR;inversion HR;subst;simpl in AT;core_unpack.
+ assert(TT:t=E0) by(eapply deref_loc_silent;eauto). subst t;repeat split;auto.
+ cbn[atomic_eval pure_lval pure_rval typeof];rewrite !dec_eq_true.
+ match goal with H:deref_loc _ _ _ _ _ _ E0 _ |- _=>
+ rewrite(do_deref_loc_complete ge quiet_world _ _ _ _ _ quiet_world E0 _ H (possible_trace_nil _)) end.
+ reflexivity.
+Qed.
+
+Lemma atomic_lred_context: forall ge e m a a' mf C,
+ context LV RV C -> atomic_expr(C a)=true -> lred ge e a m a' mf ->
+ mf=m /\ atomic_expr(C a')=true /\
+ atomic_eval ge e m(C a)=atomic_eval ge e mf(C a').
+Proof.
+ intros ge e m a a' mf C HC AT HR.
+ destruct(pure_lred _ _ _ _ _ _ HR) as [HM[HT[SI EQ]]];subst mf.
+ split;auto;split.
+ - exact(atomic_context_replace _ _ _ HC a a' (eq_sym HT) AT SI).
+ - assert(SA:simple a=true) by(inversion HR;subst;simpl;auto).
+   exact(atomic_context_congr ge e m LV C HC a a' (eq_sym HT) SA SI EQ).
+Qed.
+Lemma atomic_rred_context: forall ge e m a a' t mf C,
+ context RV RV C -> atomic_expr(C a)=true -> rred ge a m t a' mf ->
+ t=E0 /\ atomic_expr(C a')=true /\
+ atomic_eval ge e m(C a)=atomic_eval ge e mf(C a').
+Proof.
+ intros ge e m a a' t mf C HC AT HR.
+ destruct(simple a) eqn:SA.
+ - destruct(pure_rred ge e a m t a' mf SA HR) as [HM[TT[HT[SI EQ]]]];subst mf.
+   split;auto;split.
+   + exact(atomic_context_replace _ _ _ HC a a' (eq_sym HT) AT SI).
+   + exact(atomic_context_congr ge e m RV C HC a a' (eq_sym HT) SA SI EQ).
+ - pose proof(atomic_context_hole _ _ _ HC a AT) as AA.
+   pose proof(atomic_effect_root C HC a AT SA) as ROOT.
+   repeat rewrite ROOT in AT |- *.
+   destruct a; simpl in SA,AA;try congruence.
+   + destruct(atomic_assign_head ge e m a1 a2 ty t a' mf AT HR) as [TT EQ].
+     inversion HR;subst;repeat rewrite ROOT;repeat split;auto.
+   + destruct(atomic_assignop_head ge e m b a1 a2 ty ty0 t a' mf AT HR) as [TT[HM[SI EQ]]].
+     repeat split;auto.
+Qed.
+Lemma atomic_estep: forall ge f a k e m t next,
+ atomic_expr a=true -> Csem.estep ge(ExprState f a k e m)t next ->
+ next=Stuckstate \/
+ exists a' mf,next=ExprState f a' k e mf /\ t=E0 /\
+ atomic_expr a'=true /\ atomic_eval ge e m a=atomic_eval ge e mf a'.
+Proof.
+ intros ge f a k e m t next AT STEP;inversion STEP;subst.
+ - match goal with LR:lred ge e ?A m ?A' ?MF,HC:Csem.context LV RV ?C |- _=>
+   destruct(atomic_lred_context ge e m A A' MF C HC AT LR) as [HM[SI EQ]];
+   right;exists(C A'),MF;repeat split;auto end.
+ - match goal with RR:rred ge ?A m t ?A' ?MF,HC:Csem.context RV RV ?C |- _=>
+   destruct(atomic_rred_context ge e m A A' t MF C HC AT RR) as [TT[SI EQ]];
+   right;exists(C A'),MF;repeat split;auto end.
+ - match goal with CR:callred ge ?A _ _ _ _,HC:Csem.context RV RV ?C |- _=>
+   pose proof(atomic_context_hole _ _ _ HC A AT) as BAD;
+   inversion CR;subst;discriminate end.
+ - left;reflexivity.
+Qed.
+Print Assumptions atomic_estep.

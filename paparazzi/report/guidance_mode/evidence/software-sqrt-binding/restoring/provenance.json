@@ -1,0 +1,22 @@
+{
+  "origin": "Original FIVE C implementation of integer restoring square root, authored as a common concrete math binding",
+  "source_sha256": "ba19f7684dc74b1e279c00e57cb9afe974d3e904f849397c990e7b7f49b6918b",
+  "target": {
+    "float": "IEEE754 binary32",
+    "uint32_t_bits": 32,
+    "uint64_t_bits": 64,
+    "result_rounding": "nearest ties to even via exact integer remainder threshold"
+  },
+  "method": "23 finite normalization blocks for subnormal input; 24 restoring blocks on a 48-bit radicand; nearest significand selected from integer root/remainder; explicit exceptional-value bit policy",
+  "checks": {
+    "native_patterns": 1069632,
+    "native_mismatches": 0,
+    "cbmc_concrete_properties": 80,
+    "cbmc_all_success": true,
+    "compcert_export": true,
+    "rocq_model_typecheck": true
+  },
+  "formal_status": "Empirical and frontend probes only. Requested Csem safety, termination and correspondence proofs remain separate. No formal IEEE sqrt accuracy theorem asserted.",
+  "resource_run": "_build/guidance-mode-parent-review/20261106T110341-587c1b50da/five-verify",
+  "resource_scope": "Shared parent C binding implementation/probes, not retroactively split or duplicated per case"
+}

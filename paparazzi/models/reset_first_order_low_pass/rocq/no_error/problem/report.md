@@ -1,0 +1,1 @@
+No source error at ALL states reachable by original nondeterministic Csem, under exactly typed arguments and writable12bytes. Covers all expression evaluation orders and all successors. No old-value initialization or finite/nonNaN numerical restriction.

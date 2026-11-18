@@ -1,0 +1,70 @@
+From Stdlib Require Import Bool List ZArith String.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress CallfreeExecution ContinuationLift BlockExecution.
+Import ListNotations.
+Inductive read_stage:=Rvar|Rloc|Rval.
+Definition read_res(id:ident)(ty:type)(b:block)(v:val)(stage:read_stage):expr :=
+ match stage with
+ | Rvar=>Evalof(Evar id ty)ty
+ | Rloc=>Evalof(Eloc b Ptrofs.zero Full ty)ty
+ | Rval=>Eval v ty end.
+Definition lhs_res(id:ident)(b:block)(ready:bool):expr :=
+ if ready then Eloc b Ptrofs.zero Full tfloat else Evar id tfloat.
+Definition leaf_type:=Tfunction[tfloat]tfloat cc_default.
+Definition factor_context(l mx:expr):expr->expr :=
+ fun hole=>Eassign l(Ebinop Odiv mx hole tfloat)tfloat.
+Definition factor_expression(l mx rf arg:expr):expr :=
+ factor_context l mx(Ecall rf(Econs arg Enil)tfloat).
+Definition null_external(_ : string)(_ : signature)(_ : Senv.t)(_ : world)(_ : list val)(_ : mem)
+ :option(world*trace*val*mem):=None.
+Section FACTOR.
+Variable ge:genv.
+Variable e:env.
+Variable caller leaf:function.
+Variable k:cont.
+Variable ifactor imax isqrt inorm:ident.
+Variable bfactor bmax bsqrt bnorm:block.
+Variable m:mem.
+Variable maximum norm:float32.
+Hypothesis factor_local:e!ifactor=Some(bfactor,tfloat).
+Hypothesis max_global:e!imax=None.
+Hypothesis max_symbol:Genv.find_symbol ge imax=Some bmax.
+Hypothesis sqrt_global:e!isqrt=None.
+Hypothesis sqrt_symbol:Genv.find_symbol ge isqrt=Some bsqrt.
+Hypothesis norm_local:e!inorm=Some(bnorm,tfloat).
+Hypothesis max_deref:Cexec.do_deref_loc ge quiet_world tfloat m bmax Ptrofs.zero Full=Some(quiet_world,E0,Vsingle maximum).
+Hypothesis norm_deref:Cexec.do_deref_loc ge quiet_world tfloat m bnorm Ptrofs.zero Full=Some(quiet_world,E0,Vsingle norm).
+Hypothesis leaf_find:Genv.find_funct ge(Vptr bsqrt Ptrofs.zero)=Some(Internal leaf).
+Hypothesis leaf_signature:type_of_fundef(Internal leaf)=leaf_type.
+Definition pre_expr(lready:bool)(ms rs ns:read_stage):expr :=
+ factor_expression(lhs_res ifactor bfactor lready)
+ (read_res imax tfloat bmax(Vsingle maximum)ms)
+ (read_res isqrt leaf_type bsqrt(Vptr bsqrt Ptrofs.zero)rs)
+ (read_res inorm tfloat bnorm(Vsingle norm)ns).
+Definition pre_state(lready:bool)(ms rs ns:read_stage):Csem.state :=
+ ExprState caller(pre_expr lready ms rs ns)(Kdo k)e m.
+Definition leaf_frame(lready:bool)(ms:read_stage):cont :=
+ Kcall caller e(factor_context(lhs_res ifactor bfactor lready)
+ (read_res imax tfloat bmax(Vsingle maximum)ms))tfloat(Kdo k).
+Definition pre_or_call(s:Csem.state):Prop :=
+ (exists lready ms rs ns,s=pre_state lready ms rs ns) \/
+ (exists lready ms,s=Callstate(Internal leaf)[Vsingle norm](leaf_frame lready ms)m).
+
+Lemma pre_animator_step:forall lr ms rs ns rule t next,
+ In(TR rule t next)(Cexec.do_step ge null_external null_external quiet_world(pre_state lr ms rs ns)) ->
+ t=E0 /\ pre_or_call next.
+Proof.
+ intros lr ms rs ns rule t next.
+ destruct lr,ms,rs,ns;
+ cbn[pre_state pre_expr factor_expression factor_context lhs_res read_res Cexec.do_step
+ Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc Cexec.is_val_list
+ Cexec.incontext Cexec.topred Cexec.stuck Cexec.wrong_kind] ;
+ rewrite ?factor_local,?max_global,?max_symbol,?sqrt_global,?sqrt_symbol,?norm_local;
+ rewrite ?dec_eq_true;
+ rewrite ?max_deref,?norm_deref;
+ cbn[Cexec.do_deref_loc access_mode type_is_volatile];
+ rewrite ?dec_eq_true.
+ Show.
+Abort.
+End FACTOR.

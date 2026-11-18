@@ -1,0 +1,80 @@
+File "./paparazzi/relations/guidance_mode/support/software/GuardMemorySound.v", line 14, characters 6-14:
+Warning: Use of "Notation" keyword for abbreviations is deprecated, use
+"Abbreviation" instead.
+[notation-for-abbreviation,deprecated-since-9.2,deprecated,default]
+File "./paparazzi/relations/guidance_mode/support/software/GuardMemorySound.v", line 158, characters 39-42:
+Error:
+In environment
+uid, ff, uf : ident
+gamma : PTree.t type
+s1, s2 : statement
+IHs1 :
+  forall (ret : type) (ids : list ident) (expected : static_outcome)
+    (off : nat) (rho : PTree.t val) (ge : genv) (le : env) 
+    (m : mem),
+  source_statement s1 = true ->
+  check_statement uid ff uf gamma ret ids s1 = Some expected ->
+  env_matches gamma le ->
+  union_layout uid ff uf ge ->
+  env_separated le ->
+  locals_repr rho le m ->
+  locals_writable le m ->
+  initialized_values uid gamma ids rho ->
+  exists (o : value_outcome) (mf : mem) (t : list guard_event),
+    value_statement uid ff uf gamma rho s1 = Some o /\
+    statement_trace uid ff uf gamma off rho s1 = Some (o, t) /\
+    statement_eval ge le s1 m = Some (runtime_outcome o, mf) /\
+    good_value_outcome uid gamma ret expected o /\
+    heap_result le m mf o /\ instrumented_execution ge le off rho m s1 o mf t
+IHs2 :
+  forall (ret : type) (ids : list ident) (expected : static_outcome)
+    (off : nat) (rho : PTree.t val) (ge : genv) (le : env) 
+    (m : mem),
+  source_statement s2 = true ->
+  check_statement uid ff uf gamma ret ids s2 = Some expected ->
+  env_matches gamma le ->
+  union_layout uid ff uf ge ->
+  env_separated le ->
+  locals_repr rho le m ->
+  locals_writable le m ->
+  initialized_values uid gamma ids rho ->
+  exists (o : value_outcome) (mf : mem) (t : list guard_event),
+    value_statement uid ff uf gamma rho s2 = Some o /\
+    statement_trace uid ff uf gamma off rho s2 = Some (o, t) /\
+    statement_eval ge le s2 m = Some (runtime_outcome o, mf) /\
+    good_value_outcome uid gamma ret expected o /\
+    heap_result le m mf o /\ instrumented_execution ge le off rho m s2 o mf t
+ret : type
+ids : list ident
+expected : static_outcome
+off : nat
+rho : PTree.t val
+ge : genv
+le : env
+m : mem
+S1 : source_statement s1 = true
+S2 : source_statement s2 = true
+ids1 : list ident
+C1 : check_statement uid ff uf gamma ret ids s1 = Some (StaticNormal ids1)
+CHECK : check_statement uid ff uf gamma ret ids1 s2 = Some expected
+ENV : env_matches gamma le
+LAYOUT : union_layout uid ff uf ge
+SEP : env_separated le
+REP : locals_repr rho le m
+W : locals_writable le m
+INIT : initialized_values uid gamma ids rho
+rho1 : PTree.t val
+mi : mem
+t1 : list guard_event
+V1 : value_statement uid ff uf gamma rho s1 = Some (ValueNormal rho1)
+T1 : statement_trace uid ff uf gamma off rho s1 = Some (ValueNormal rho1, t1)
+E1 :
+  statement_eval ge le s1 m = Some (runtime_outcome (ValueNormal rho1), mi)
+G1 : good_value_outcome uid gamma ret (StaticNormal ids1) (ValueNormal rho1)
+R1 : locals_repr (outcome_rho (ValueNormal rho1)) le mi
+W1 : locals_writable le mi
+A1 : access_preserved m mi
+HST1 : stores_to (local_blocks le) m mi
+TREE1 : instrumented_execution ge le off rho m s1 (ValueNormal rho1) mi t1
+The term "off" has type "nat" while it is expected to have type "Z".
+

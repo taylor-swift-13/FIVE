@@ -1,0 +1,206 @@
+{
+  "execution-contract.json": {
+    "schema": null,
+    "keys": [
+      "purpose",
+      "status",
+      "execution_backend",
+      "request_sha256",
+      "backend_manifest_sha256",
+      "execution_domain",
+      "domain_restrictions",
+      "execution_entry",
+      "source_semantics",
+      "obligations",
+      "alignment_issues",
+      "external_library_bindings",
+      "external_environment",
+      "trusted_boundary"
+    ],
+    "obligations": [
+      {
+        "id": "domain-preservation",
+        "status": "proof-backed",
+        "coverage": "The actual entry is the unchanged Internal function call for every list val and every memory; the syntax invariant is automatic.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      },
+      {
+        "id": "floating-point-correspondence",
+        "status": "proof-backed",
+        "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves every float operation, value, NaN/error behavior and trace.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      },
+      {
+        "id": "machine-integer-correspondence",
+        "status": "proof-backed",
+        "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves all machine-integer, shift, cast and pointer operations.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      },
+      {
+        "id": "memory-access-correspondence",
+        "status": "proof-backed",
+        "coverage": "At every reachable original state, exact raw successor equivalence preserves loads, stores, allocation, free, invalid access and unknown-byte behavior.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      },
+      {
+        "id": "control-and-exhaustion-correspondence",
+        "status": "proof-backed",
+        "coverage": "Unbounded bidirectional star equivalence from arbitrary entry arguments and memory; no fuel limit or selected order.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      },
+      {
+        "id": "normal-result-and-memory-correspondence",
+        "status": "proof-backed",
+        "coverage": "Every returned value and memory has equivalent raw source/model executions, and byte observations are literally the same Mem.loadbytes.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      },
+      {
+        "id": "invalid-operation-correspondence",
+        "status": "proof-backed",
+        "coverage": "At every reachable original state, source non-normal-return/nostep is equivalent to model non-normal-return/nostep.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      },
+      {
+        "id": "whole-execution-correspondence",
+        "status": "proof-backed",
+        "coverage": "Bidirectional unbounded whole-execution equivalence retains every Csem evaluation order, trace, final state and error.",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      }
+    ],
+    "properties_first": []
+  },
+  "spec-recheck.json": {
+    "schema": "five-cbmc-rocq-recheck/1",
+    "keys": [
+      "verification_method",
+      "request_sha256",
+      "backend_manifest_sha256",
+      "cbmc_run",
+      "cbmc_command_id",
+      "cbmc_json",
+      "cbmc_input_sha256",
+      "schema",
+      "status",
+      "properties"
+    ],
+    "obligations": null,
+    "properties_first": [
+      {
+        "property_id": "memcpy.pointer_arithmetic.1",
+        "cbmc_status": "SUCCESS",
+        "status": "proved",
+        "scope": {
+          "description": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "location": {
+            "comment": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+            "file": "<builtin-library-memcpy>",
+            "function": "memcpy",
+            "line": "33",
+            "pragma": [
+              "checked:bounds-check",
+              "checked:pointer-check",
+              "checked:div-by-zero-check",
+              "checked:signed-overflow-check",
+              "checked:pointer-overflow-check",
+              "checked:undefined-shift-check",
+              "checked:pointer-primitive-check",
+              "checked:memory-leak-check",
+              "checked:memory-cleanup-check",
+              "checked:float-div-by-zero-check",
+              "checked:enum-range-check",
+              "checked:unsigned-overflow-check",
+              "checked:conversion-check",
+              "checked:float-overflow-check",
+              "checked:nan-check"
+            ],
+            "propertyClass": "pointer arithmetic",
+            "propertyFatal": true,
+            "propertyId": "memcpy.pointer_arithmetic.1",
+            "workingDirectory": "/home/yangfp/five"
+          },
+          "input_preconditions": "All typed binary32 field bitpatterns; aligned writable initialized12 caller object; no numerical restriction.",
+          "source_harness_sha256": {
+            "paparazzi/models/get_first_order_low_pass/prepare/source/get_first_order_low_pass.c": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4",
+            "paparazzi/models/get_first_order_low_pass/cbmc/harness.c": "47b360e59964086e51a0bf9c8aea0e179f3c9439e8d64cf225653e28b5af3d00"
+          },
+          "observation": "Return exact Float32.to_bits and field bytes through official memcpy BitsRun adapters; source pointer read site guard witness.",
+          "mapped_statement": "FiveLowpassGetRecheck.Spec.P_memcpy_pointer_arithmetic_1",
+          "original_property_id": "memcpy.pointer_arithmetic.1",
+          "cbmc_bounds": {
+            "entry": "main",
+            "unwind": 1,
+            "unwinding_assertions": true,
+            "source_loops": false,
+            "source_recursion": false
+          },
+          "command_scope": {
+            "run": "_build/lowpass-readback/20261107T031944-e95257d59b/five-cbmc",
+            "command_id": "001-getter-direct-traditional-cbmc",
+            "argv": [
+              "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+              "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+              "--function",
+              "main",
+              "--64",
+              "--little-endian",
+              "--bounds-check",
+              "--pointer-check",
+              "--pointer-overflow-check",
+              "--signed-overflow-check",
+              "--undefined-shift-check",
+              "--unwinding-assertions",
+              "--unwind",
+              "1",
+              "--json-ui"
+            ]
+          }
+        },
+        "theorem": "FiveLowpassGetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_1",
+        "evidence": [
+          "paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+        ]
+      }
+    ]
+  }
+}
+{
+  "validation_path": "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/goal-validation.json",
+  "keys": [
+    "schema",
+    "index",
+    "inputs",
+    "kernel_evidence",
+    "goal_bindings",
+    "certificate"
+  ],
+  "kernel_evidence": "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json",
+  "certificate": {
+    "path": "paparazzi/report/lowpass_readback/evidence/checked-20261107T032054-5f16295536/FiveLowpassGetExecutionCorrespondence/GoalBinding.v",
+    "sha256": "a3c28e447a3f1511f61bc5137c3edc6281dd2d759abedede089e9d4ef1f1369e",
+    "module": "FiveLowpassGetExecutionCorrespondence.GoalBinding",
+    "imports": [
+      "FiveLowpassGetExecutionCorrespondence.Spec",
+      "FiveLowpassGetExecutionCorrespondence.Proof"
+    ],
+    "run": "_build/lowpass-readback/20261107T032054-5f16295536/five-rocq",
+    "compile_command_id": "036-get_first_order_low_pass-goal-certificate",
+    "kernel_command_id": "037-get_first_order_low_pass-certificate-kernel",
+    "kernel_evidence": "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/certificate-kernel-evidence.json"
+  }
+}

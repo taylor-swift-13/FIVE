@@ -1,0 +1,86 @@
+struct FirstOrderLowPass {
+  float time_const;
+  float last_in;
+  float last_out;
+};
+
+float update_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)
+{
+  float out = (value + filter->last_in + (filter->time_const - 1.0f) * filter->last_out) / (1.0f + filter->time_const);
+  filter->last_in = value;
+  filter->last_out = out;
+  return out;
+}
+
+{
+  "schema": "five-verification-request/1",
+  "authorization": "User accepted full update then getter verification.",
+  "entry": "update_first_order_low_pass",
+  "implementation": "prepare/source/update_first_order_low_pass.c",
+  "assumptions": [],
+  "domain": "Model: all machine arguments/memory. Proof: aligned nonwrapping writable 12-byte filter with initialized typed binary32 tc/last_in/last_out, all input binary32 bits. No finite or nonzero denominator restriction.",
+  "properties": [
+    "actual CBMC guards and assertions",
+    "precise object and frame behavior",
+    "all reachable no_error",
+    "all successor termination",
+    "normal completion and nonvacuity"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "Exact returned and stored binary32 bits, last_in input bytes, time_const original bytes, frame outside [4,12)."
+}
+
+{
+  "entry": "update_first_order_low_pass",
+  "signature": "float update_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a",
+  "prepared_source": {
+    "path": "update_first_order_low_pass.c",
+    "sha256": "19ab80bc756f2e4e73fe959b87e5fea29de39c184cf9349919bcdec1652ef010"
+  },
+  "external_calls": [],
+  "dependencies": [],
+  "compilation_options": [],
+  "limitations": [],
+  "source_correspondence": "Original struct and function body are exact upstream textual slices. Only static inline declaration qualifiers are removed to retain the selected standalone entry in CompCert; no wrapper, body rewrite or numerical input restriction. Selected-function extraction, not a whole-firmware linking equivalence theorem.",
+  "entry_linkage_normalization": "Removed static inline declaration qualifiers so standalone selected function is retained by CompCert; original signature, parameter qualifiers, body and exact expressions preserved. No wrapper or extra global.",
+  "original_signature": "static inline float update_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)",
+  "original_source": {
+    "path": "low_pass_filter.h.upstream",
+    "sha256": "f2a29f114f47202858d37b9a010c7147d63e95fcce157fcef0888a491830bbcc"
+  }
+}
+

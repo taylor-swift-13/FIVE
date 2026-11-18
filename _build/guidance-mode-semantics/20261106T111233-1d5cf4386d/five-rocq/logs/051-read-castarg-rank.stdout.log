@@ -1,0 +1,40 @@
+194:Inductive cast_arguments (m: mem): exprlist -> list type -> list val -> Prop :=
+195-  | cast_args_nil:
+196-      cast_arguments m Enil nil nil
+197-  | cast_args_cons: forall v ty el targ1 targs v1 vl,
+198-      sem_cast v ty targ1 m = Some v1 -> cast_arguments m el targs vl ->
+199-      cast_arguments m (Econs (Eval v ty) el) (targ1 :: targs) (v1 :: vl).
+200-
+201-(** ** Reduction semantics for expressions *)
+202-
+203-Section EXPR.
+204-
+205-Variable e: env.
+206-
+207-(** The semantics of expressions follows the popular Wright-Felleisen style.
+208-  It is a small-step semantics that reduces one redex at a time.
+209-  We first define head reductions (at the top of an expression, then
+210-  use reduction contexts to define reduction within an expression. *)
+211-
+212-(** Head reduction for l-values. *)
+213-
+214-Inductive lred: expr -> mem -> expr -> mem -> Prop :=
+655:  | step_call: forall C f a k e m fd vargs ty,
+656-      callred a m fd vargs ty ->
+657-      context RV RV C ->
+658-      estep (ExprState f (C a) k e m)
+659-         E0 (Callstate fd vargs (Kcall f e C ty k) m)
+660-
+661-  | step_stuck: forall C f a k e m K,
+662-      context K RV C -> ~(imm_safe e K a m) ->
+663-      estep (ExprState f (C a) k e m)
+664-         E0 Stuckstate.
+665-
+666-Inductive sstep: state -> trace -> state -> Prop :=
+667-
+668-  | step_do_1: forall f x k e m,
+669-      sstep (State f (Sdo x) k e m)
+670-         E0 (ExprState f x (Kdo k) e m)
+671-  | step_do_2: forall f v ty k e m,
+672-      sstep (ExprState f (Eval v ty) (Kdo k) e m)
+673-         E0 (State f Sskip k e m)

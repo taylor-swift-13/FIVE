@@ -1,0 +1,5 @@
+# Exact core proof: captured-input repair
+
+The mathematical proposition and frozen Spec are unchanged; Proof.v is byte-identical to attempt001. Attempt001's mathematical kernel checks and immutable compiled checked002 snapshots remain valid. Ten convenience input copies in its shared raw run were overwritten by reused capture role names, so attempt001 did not pass complete artifact acceptance. This is a receipt defect, not a refuted proof; no old raw run or hash was repaired in place.
+
+Attempt002 uses unique fully qualified capture roles, one shared immutable physical dependency build directly compiled once in its new bound run, exact typed GoalBindings and independent kernel checking. Activation waits until after the new run finishes and every captured input.path has been independently hashed. See [goal-validation.json](evidence/goal-validation.json), [shared build](evidence/shared-build.json), [costs/runtime](costs.json), and the [retained finding](../../../../../../../_build/guidance-mode-core-input-repair/20261106T163945-82b2f0839c/five-rocq/inputs/input-0--input-copy-audit.json).

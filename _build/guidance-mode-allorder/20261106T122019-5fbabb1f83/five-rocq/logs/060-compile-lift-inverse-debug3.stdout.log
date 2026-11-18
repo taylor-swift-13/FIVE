@@ -1,0 +1,37 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+2 goals
+  
+  ge : genv
+  f : function
+  s : statement
+  k : cont
+  e : env
+  m : mem
+  BASE : True
+  CORE : true = true
+  CORE1 : normal_stmt s = true
+  CORE2 : normal_cont k = true
+  m' : mem
+  STEP :
+    sstep ge (State f (Sreturn None) (Kseq s (plug_cont Kstop k)) e m) E0
+      (Returnstate Vundef (call_cont (Kseq s (plug_cont Kstop k))) m')
+  NF : ~ normal_return (State f (Sreturn None) (Kseq s k) e m)
+  H6 : Mem.free_list m (blocks_of_env ge e) = Some m'
+  ============================
+  Returnstate Vundef (call_cont (plug_cont Kstop k)) m' =
+  Returnstate Vundef (plug_cont Kstop (call_cont k)) m'
+
+goal 2 is:
+ Returnstate Vundef (call_cont (plug_cont (Kcall f0 e0 e1 t0 base) k)) m' =
+ Returnstate Vundef (plug_cont (Kcall f0 e0 e1 t0 base) (call_cont k)) m'

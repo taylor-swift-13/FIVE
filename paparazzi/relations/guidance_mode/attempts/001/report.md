@@ -1,0 +1,1 @@
+Canonical exact-type proof over the unchanged natural input domain. The proof uses the actual frozen Csyntax source-derived helper result. GoalBinding and independent kernel receipts are in evidence/goal-validation.json.

@@ -1,0 +1,76 @@
+speed_target =
+speed_helper_funcall
+     : forall (m : mem) (x : Floats.float32),
+       exists mf : mem,
+         eval_funcall FiveGhSpeed.Execution.ge m
+           (Internal FiveGhSpeed.Source.f_five_sqrtf) [
+           Vsingle x] E0 mf (Vsingle (source_derived_sqrt x)) /\
+         access_preserved m mf /\
+         (forall (ch : AST.memory_chunk) (b : block) (ofs : BinNums.Z),
+          Mem.valid_block m b -> Mem.load ch mf b ofs = Mem.load ch m b ofs) /\
+         (forall (b : block) (ofs n : BinNums.Z),
+          Mem.valid_block m b ->
+          Mem.loadbytes mf b ofs n = Mem.loadbytes m b ofs n)
+
+Arguments speed_target m x
+accel_target =
+accel_helper_funcall
+     : forall (m : mem) (x : Floats.float32),
+       exists mf : mem,
+         eval_funcall Execution.ge m (Internal Source.f_five_sqrtf)
+           [Vsingle x] E0 mf (Vsingle (source_derived_sqrt x)) /\
+         access_preserved m mf /\
+         (forall (ch : AST.memory_chunk) (b : block) (ofs : BinNums.Z),
+          Mem.valid_block m b -> Mem.load ch mf b ofs = Mem.load ch m b ofs) /\
+         (forall (b : block) (ofs n : BinNums.Z),
+          Mem.valid_block m b ->
+          Mem.loadbytes mf b ofs n = Mem.loadbytes m b ofs n)
+
+Arguments accel_target m x
+total_target =
+source_derived_sqrt_total
+     : forall x : Floats.float32,
+       exists rho : PTree.t val,
+         value_statement FiveGhSpeed.Source._FiveSqrtBits
+           FiveGhSpeed.Source._f FiveGhSpeed.Source._u helper_types
+           (PTree.set FiveGhSpeed.Source._x (Vsingle x) (PTree.empty val))
+           (fn_body FiveGhSpeed.Source.f_five_sqrtf) =
+         Some (ValueReturn (Vsingle (source_derived_sqrt x)) tfloat rho)
+
+Arguments total_target x
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

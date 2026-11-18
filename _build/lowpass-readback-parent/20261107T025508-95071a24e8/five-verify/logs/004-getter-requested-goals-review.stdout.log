@@ -1,0 +1,63 @@
+paparazzi/models/get_first_order_low_pass/rocq/functional/problem/Spec.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassGetCase Require Import Contract GetCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NormalCompletion:Prop:=forall m b p value,ReadableOut m b p value->exists t mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate(Vsingle value)Kstop mf) /\Post m mf b p value.
+Definition AllReturns:Prop:=forall m b p value,ReadableOut m b p value->forall t result mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate result Kstop mf)->result=Vsingle value /\Post m mf b p value.
+
+paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/problem/Spec.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Values Memory Events Ctypes Csyntax Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveLowpassGetExecutionCorrespondence Require Import Closure.
+Import ListNotations.
+Definition source_state := Closure.SS.
+Definition closed_step := Closure.closed_step.
+Definition domain_preservation_goal:Prop := forall args m,
+ Execution.entry args m=Callstate(Internal Source.f_get_first_order_low_pass)args Kstop m /\ source_state(Execution.entry args m).
+Definition reachable_step_goal:Prop := forall args m t reached tr next,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (closed_step tt reached tr next <-> Csem.step Execution.ge reached tr next).
+Definition floating_point_correspondence_goal := reachable_step_goal.
+Definition machine_integer_correspondence_goal := reachable_step_goal.
+Definition memory_access_correspondence_goal := reachable_step_goal.
+Definition control_and_exhaustion_correspondence_goal:Prop := forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step Execution.ge(Execution.entry args m)t final.
+Definition normal_result_and_memory_correspondence_goal:Prop := forall args m t v mf b ofs n,
+ (star closed_step tt(Execution.entry args m)t(Returnstate v Kstop mf) <->
+ star Csem.step Execution.ge(Execution.entry args m)t(Returnstate v Kstop mf)) /\
+ Execution.observe_bytes mf b ofs n=Mem.loadbytes mf b ofs n.
+Definition invalid_operation_correspondence_goal:Prop := forall args m t reached,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <-> ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Definition whole_execution_correspondence_goal := control_and_exhaustion_correspondence_goal.
+
+paparazzi/models/get_first_order_low_pass/rocq/no_error/problem/Spec.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassGetCase Require Import Contract GetCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NoError:Prop:=forall args m,Precondition args m->no_error Execution.ge(Execution.entry args m).
+
+paparazzi/models/get_first_order_low_pass/rocq/termination/problem/Spec.v
+From compcert Require Import Values Memory.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Execution.
+Definition AllSuccessorsTerminate : Prop := forall args m,Acc(successor Execution.ge)(Execution.entry args m).
+

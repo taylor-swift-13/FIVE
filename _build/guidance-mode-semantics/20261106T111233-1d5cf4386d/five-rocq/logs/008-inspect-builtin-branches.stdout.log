@@ -1,0 +1,179 @@
+  eapply sem_cast_arguments_sound; eauto.
+  apply not_invert_ok; simpl; intros; myinv. specialize (H ALLVAL). myinv. congruence.
+  apply not_invert_ok; simpl; intros; myinv. specialize (H ALLVAL). myinv.
+  exploit sem_cast_arguments_complete; eauto. intros [vtl' [P Q]]. congruence.
+  apply not_invert_ok; simpl; intros; myinv. specialize (H ALLVAL). myinv. congruence.
+  apply not_invert_ok; simpl; intros; myinv. specialize (H ALLVAL). myinv. congruence.
+  (* depth *)
+  eapply incontext2_list_ok; eauto.
+  eapply incontext2_list_ok; eauto.
+(* builtin *)
+  destruct (is_val_list rargs) as [vtl | ] eqn:?.
+  exploit is_val_list_all_values; eauto. intros ALLVAL.
+  (* top *)
+  destruct (sem_cast_arguments vtl tyargs m) as [vargs|] eqn:?...
+  destruct (do_external ef w vargs m) as [[[[? ?] v] m'] | ] eqn:?...
+  exploit do_ef_external_sound; eauto. intros [EC PT].
+  apply topred_ok; auto. red. split; auto. eapply red_builtin; eauto.
+  eapply sem_cast_arguments_sound; eauto.
+  exists w0; auto.
+  apply not_invert_ok; simpl; intros; myinv. specialize (H ALLVAL). myinv.
+  assert (x = vargs).
+    exploit sem_cast_arguments_complete; eauto. intros [vtl' [A B]]. congruence.
+  subst x. exploit do_ef_external_complete; eauto. congruence.
+  apply not_invert_ok; simpl; intros; myinv. specialize (H ALLVAL). myinv.
+  exploit sem_cast_arguments_complete; eauto. intros [vtl' [A B]]. congruence.
+  (* depth *)
+  eapply incontext_list_ok; eauto.
+
+(* loc *)
+  split; intros. tauto. simpl; congruence.
+(* paren *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct (sem_cast v ty' tycast m) as [v'|] eqn:?...
+  apply topred_ok; auto. split. apply red_paren; auto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+
+  induction al; simpl; intros.
+(* nil *)
+  split; intros. tauto. simpl; congruence.
+  inv H0. rewrite H; econstructor; eauto.
+(* cast *)
+  inv H0. rewrite H; econstructor; eauto.
+(* seqand *)
+  inv H0. rewrite H; econstructor; eauto.
+  inv H0. rewrite H; econstructor; eauto.
+(* seqor *)
+  inv H0. rewrite H; econstructor; eauto.
+  inv H0. rewrite H; econstructor; eauto.
+(* condition *)
+  inv H0. rewrite H; econstructor; eauto.
+(* sizeof *)
+  inv H. econstructor; eauto.
+(* alignof *)
+  inv H. econstructor; eauto.
+(* assign *)
+  rewrite dec_eq_true. rewrite H. rewrite (do_assign_loc_complete _ _ _ _ _ _ _ _ _ _ _ H0 H1).
+  econstructor; eauto.
+(* assignop *)
+  rewrite dec_eq_true. rewrite (do_deref_loc_complete _ _ _ _ _ _ _ _ _ H H0).
+  econstructor; eauto.
+(* postincr *)
+  rewrite dec_eq_true. subst. rewrite (do_deref_loc_complete _ _ _ _ _ _ _ _ _ H H1).
+  econstructor; eauto.
+(* comma *)
+  inv H0. rewrite dec_eq_true. econstructor; eauto.
+(* paren *)
+  inv H0. rewrite H; econstructor; eauto.
+(* builtin *)
+  exploit sem_cast_arguments_complete; eauto. intros [vtl [A B]].
+  exploit do_ef_external_complete; eauto. intros C.
+  rewrite A. rewrite B. rewrite C. econstructor; eauto.
+Qed.
+
+Lemma callred_topred:
+  forall a fd args ty m,
+  callred ge a m fd args ty ->
+  exists rule, step_expr RV a m = topred (Callred rule fd args ty m).
+Proof.
+  induction 1; simpl.
+  rewrite H2. exploit sem_cast_arguments_complete; eauto. intros [vtl [A B]].
+  rewrite A; rewrite H; rewrite B; rewrite H1; rewrite dec_eq_true. econstructor; eauto.
+Qed.
+
+Definition reducts_incl {A B: Type} (C: A -> B) (res1: reducts A) (res2: reducts B) : Prop :=
+  forall C1 rd, In (C1, rd) res1 -> In ((fun x => C(C1 x)), rd) res2.
+
+(** Head reduction for function calls.
+    (More exactly, identification of function calls that can reduce.) *)
+
+Inductive callred: expr -> mem -> fundef -> list val -> type -> Prop :=
+  | red_call: forall vf tyf m tyargs tyres cconv el ty fd vargs,
+      Genv.find_funct ge vf = Some fd ->
+      cast_arguments m el tyargs vargs ->
+      type_of_fundef fd = Tfunction tyargs tyres cconv ->
+      classify_fun tyf = fun_case_f tyargs tyres cconv ->
+      callred (Ecall (Eval vf tyf) el ty) m
+              fd vargs ty.
+
+(** Reduction contexts.  In accordance with C's nondeterministic semantics,
+  we allow reduction both to the left and to the right of a binary operator.
+  To enforce C's notion of sequence point, reductions within a conditional
+  [a ? b : c] can only take place in [a], not in [b] nor [c];
+  reductions within a sequential "or" / "and" [a && b] or [a || b] can
+  only take place in [a], not in [b];
+  and reductions within a sequence [a, b] can only take place in [a],
+  not in [b].
+1497:Definition builtin_or_external_sem name sg :=
+1498-  match lookup_builtin_function name sg with
+1499-  | Some bf => known_builtin_sem bf
+1500-  | None => external_functions_sem name sg
+1501-  end.
+1502-
+1503:Lemma builtin_or_external_sem_ok: forall name sg,
+1504:  extcall_properties (builtin_or_external_sem name sg) sg.
+1505-Proof.
+1506:  unfold builtin_or_external_sem; intros. 
+1507-  destruct (lookup_builtin_function name sg) as [bf|] eqn:L.
+1508-- exploit lookup_builtin_function_sig; eauto. intros EQ; subst sg.
+1509-  apply known_builtin_ok.
+1510-- apply external_functions_properties.
+1511-Qed.
+1512-
+1513-(** Combining the semantics given above for the various kinds of external calls,
+1514-  we define the predicate [external_call] that relates:
+1515-- the external function being invoked
+1516-- the values of the arguments passed to this function
+1517-- the memory state before the call
+1518-- the result value of the call
+--
+1527:  | EF_builtin name sg   => builtin_or_external_sem name sg
+1528:  | EF_runtime name sg   => builtin_or_external_sem name sg
+1529-  | EF_vload chunk       => volatile_load_sem chunk
+1530-  | EF_vstore chunk      => volatile_store_sem chunk
+1531-  | EF_malloc            => extcall_malloc_sem
+1532-  | EF_free              => extcall_free_sem
+1533-  | EF_memcpy sz al      => extcall_memcpy_sem sz al
+1534-  | EF_annot kind txt targs   => extcall_annot_sem txt targs
+1535-  | EF_annot_val kind txt targ => extcall_annot_val_sem txt targ
+1536-  | EF_inline_asm txt sg clb => inline_assembly_sem txt sg
+1537-  | EF_debug kind txt targs => extcall_debug_sem
+1538-  end.
+Definition do_builtin_or_external (name: string) (sg: signature)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  match lookup_builtin_function name sg with
+  | Some bf => match builtin_function_sem bf vargs with Some v => Some(w, E0, v, m) | None => None end
+  | None    => do_external_function name sg ge w vargs m
+  end.
+
+Definition do_external (ef: external_function):
+       world -> list val -> mem -> option (world * trace * val * mem) :=
+  match ef with
+  | EF_external name sg => do_external_function name sg ge
+  | EF_builtin name sg => do_builtin_or_external name sg
+  | EF_runtime name sg => do_builtin_or_external name sg
+  | EF_vload chunk => do_ef_volatile_load chunk
+  | EF_vstore chunk => do_ef_volatile_store chunk
+  | EF_malloc => do_ef_malloc
+  | EF_free => do_ef_free
+  | EF_memcpy sz al => do_ef_memcpy sz al
+  | EF_annot kind text targs => do_ef_annot text targs
+  | EF_annot_val kind text targ => do_ef_annot_val text targ
+  | EF_inline_asm text sg clob => do_inline_assembly text sg ge
+  | EF_debug kind text targs => do_ef_debug kind text targs
+  end.
+
+Lemma do_ef_external_sound:
+  forall ef w vargs m w' t vres m',
+  do_external ef w vargs m = Some(w', t, vres, m') ->
+  external_call ef ge vargs m t vres m' /\ possible_trace w t w'.
+Proof with try congruence.
+  intros until m'.
+  assert (SIZE: forall v sz, do_alloc_size v = Some sz -> v = Vptrofs sz).
+  { intros until sz; unfold Vptrofs; destruct v; simpl; destruct Archi.ptr64 eqn:SF; 
+    intros EQ; inv EQ; f_equal; symmetry; eauto with ptrofs. }
+  assert (BF_EX: forall name sg,
+    do_builtin_or_external name sg w vargs m = Some (w', t, vres, m') ->
+    builtin_or_external_sem name sg ge vargs m t vres m' /\ possible_trace w t w').

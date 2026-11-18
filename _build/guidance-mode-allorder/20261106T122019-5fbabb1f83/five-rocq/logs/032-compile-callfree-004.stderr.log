@@ -1,0 +1,30 @@
+File "./paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v", line 166, characters 48-59:
+Error:
+In environment
+ge : genv
+f : function
+x : expr
+k : cont
+e : env
+m : mem
+STEP : sstep ge (State f (Sdo x) k e m) E0 (ExprState f x (Kdo k) e m)
+CORE : atomic_expr x = true
+CORE0 : normal_cont k = true
+v : val
+mx : mem
+Unable to unify
+ "match atomic_eval ge e m x with
+  | Some (_, m') => cont_eval ge e (fn_return f) k Nnormal m'
+  | None => None
+  end"
+with
+ "match
+    match atomic_eval ge e m x with
+    | Some (_, m') => Some (Nnormal, m')
+    | None => None
+    end
+  with
+  | Some (out, m') => cont_eval ge e (fn_return f) k out m'
+  | None => None
+  end".
+

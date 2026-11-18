@@ -1,0 +1,151 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+26 goals
+  
+  ge : genv
+  f : function
+  e : env
+  m : mem
+  BASE : True
+  CORE, CORE0 : true = true
+  NF : ~ normal_return (State f Sskip Kstop e m)
+  m' : mem
+  STEP : sstep ge (State f Sskip Kstop e m) E0 (Returnstate Vundef Kstop m')
+  H5 : is_call_cont Kstop
+  H6 : Mem.free_list m (blocks_of_env ge e) = Some m'
+  ============================
+  exists raw : Csem.state,
+    Returnstate Vundef Kstop m' = plug_state Kstop raw /\
+    sstep ge (State f Sskip Kstop e m) E0 raw
+
+goal 2 is:
+ exists raw : Csem.state,
+   Returnstate Vundef (Kcall f0 e0 e1 t0 base) m' =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f Sskip Kstop e m) E0 raw
+goal 3 is:
+ exists raw : Csem.state,
+   State f s (plug_cont Kstop k) e m = plug_state Kstop raw /\
+   sstep ge (State f Sskip (Kseq s k) e m) E0 raw
+goal 4 is:
+ exists raw : Csem.state,
+   Returnstate Vundef (Kseq s (plug_cont Kstop k)) m' = plug_state Kstop raw /\
+   sstep ge (State f Sskip (Kseq s k) e m) E0 raw
+goal 5 is:
+ exists raw : Csem.state,
+   State f s (plug_cont (Kcall f0 e0 e1 t0 base) k) e m =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f Sskip (Kseq s k) e m) E0 raw
+goal 6 is:
+ exists raw : Csem.state,
+   Returnstate Vundef (Kseq s (plug_cont (Kcall f0 e0 e1 t0 base) k)) m' =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f Sskip (Kseq s k) e m) E0 raw
+goal 7 is:
+ exists raw : Csem.state,
+   ExprState f e0 (Kdo Kstop) e m = plug_state Kstop raw /\
+   sstep ge (State f (Sdo e0) Kstop e m) E0 raw
+goal 8 is:
+ exists raw : Csem.state,
+   ExprState f e0 (Kdo (Kcall f0 e1 e2 t0 base)) e m =
+   plug_state (Kcall f0 e1 e2 t0 base) raw /\
+   sstep ge (State f (Sdo e0) Kstop e m) E0 raw
+goal 9 is:
+ exists raw : Csem.state,
+   ExprState f e0 (Kdo (Kseq s (plug_cont Kstop k))) e m =
+   plug_state Kstop raw /\ sstep ge (State f (Sdo e0) (Kseq s k) e m) E0 raw
+goal 10 is:
+ exists raw : Csem.state,
+   ExprState f e0 (Kdo (Kseq s (plug_cont (Kcall f0 e1 e2 t0 base) k))) e m =
+   plug_state (Kcall f0 e1 e2 t0 base) raw /\
+   sstep ge (State f (Sdo e0) (Kseq s k) e m) E0 raw
+goal 11 is:
+ exists raw : Csem.state,
+   State f st1 (Kseq st2 Kstop) e m = plug_state Kstop raw /\
+   sstep ge (State f (Ssequence st1 st2) Kstop e m) E0 raw
+goal 12 is:
+ exists raw : Csem.state,
+   State f st1 (Kseq st2 (Kcall f0 e0 e1 t0 base)) e m =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f (Ssequence st1 st2) Kstop e m) E0 raw
+goal 13 is:
+ exists raw : Csem.state,
+   State f st1 (Kseq st2 (Kseq s (plug_cont Kstop k))) e m =
+   plug_state Kstop raw /\
+   sstep ge (State f (Ssequence st1 st2) (Kseq s k) e m) E0 raw
+goal 14 is:
+ exists raw : Csem.state,
+   State f st1 (Kseq st2 (Kseq s (plug_cont (Kcall f0 e0 e1 t0 base) k))) e m =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f (Ssequence st1 st2) (Kseq s k) e m) E0 raw
+goal 15 is:
+ exists raw : Csem.state,
+   ExprState f e0 (Kifthenelse st1 st2 Kstop) e m = plug_state Kstop raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) Kstop e m) E0 raw
+goal 16 is:
+ exists raw : Csem.state,
+   ExprState f e0 (Kifthenelse st1 st2 (Kcall f0 e1 e2 t0 base)) e m =
+   plug_state (Kcall f0 e1 e2 t0 base) raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) Kstop e m) E0 raw
+goal 17 is:
+ exists raw : Csem.state,
+   ExprState f e0 (Kifthenelse st1 st2 (Kseq s (plug_cont Kstop k))) e m =
+   plug_state Kstop raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) (Kseq s k) e m) E0 raw
+goal 18 is:
+ exists raw : Csem.state,
+   ExprState f e0
+     (Kifthenelse st1 st2 (Kseq s (plug_cont (Kcall f0 e1 e2 t0 base) k))) e
+     m =
+   plug_state (Kcall f0 e1 e2 t0 base) raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) (Kseq s k) e m) E0 raw
+goal 19 is:
+ exists raw : Csem.state,
+   Returnstate Vundef (call_cont Kstop) m' = plug_state Kstop raw /\
+   sstep ge (State f (Sreturn None) Kstop e m) E0 raw
+goal 20 is:
+ exists raw : Csem.state,
+   ExprState f x (Kreturn Kstop) e m = plug_state Kstop raw /\
+   sstep ge (State f (Sreturn (Some x)) Kstop e m) E0 raw
+goal 21 is:
+ exists raw : Csem.state,
+   Returnstate Vundef (call_cont (Kcall f0 e0 e1 t0 base)) m' =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f (Sreturn None) Kstop e m) E0 raw
+goal 22 is:
+ exists raw : Csem.state,
+   ExprState f x (Kreturn (Kcall f0 e0 e1 t0 base)) e m =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f (Sreturn (Some x)) Kstop e m) E0 raw
+goal 23 is:
+ exists raw : Csem.state,
+   Returnstate Vundef (call_cont (Kseq s (plug_cont Kstop k))) m' =
+   plug_state Kstop raw /\
+   sstep ge (State f (Sreturn None) (Kseq s k) e m) E0 raw
+goal 24 is:
+ exists raw : Csem.state,
+   ExprState f x (Kreturn (Kseq s (plug_cont Kstop k))) e m =
+   plug_state Kstop raw /\
+   sstep ge (State f (Sreturn (Some x)) (Kseq s k) e m) E0 raw
+goal 25 is:
+ exists raw : Csem.state,
+   Returnstate Vundef
+     (call_cont (Kseq s (plug_cont (Kcall f0 e0 e1 t0 base) k))) m' =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f (Sreturn None) (Kseq s k) e m) E0 raw
+goal 26 is:
+ exists raw : Csem.state,
+   ExprState f x (Kreturn (Kseq s (plug_cont (Kcall f0 e0 e1 t0 base) k))) e
+     m =
+   plug_state (Kcall f0 e0 e1 t0 base) raw /\
+   sstep ge (State f (Sreturn (Some x)) (Kseq s k) e m) E0 raw

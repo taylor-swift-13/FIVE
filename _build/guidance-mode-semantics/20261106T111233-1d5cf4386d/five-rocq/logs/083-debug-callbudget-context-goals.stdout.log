@@ -1,0 +1,32 @@
+2 goals
+  
+  ge : genv
+  allowed : fundef -> Prop
+  call_budget : type -> fundef -> Prop
+  k : kind
+  C : expr -> expr
+  el : exprlist
+  ty : type
+  c : context k RV C
+  a, b : expr
+  HO : core_expr a
+  HR : typeof a = typeof b -> core_expr b -> core_expr (C b)
+  H0 : nv ty
+  H1 : core_expr (C a)
+  H2 : core_exprlist el
+  H3 : valid_call (typeof (C a)) ty
+  H : typeof a = typeof b
+  H4 : core_expr b
+  vf : val
+  fd : fundef
+  tyargs : list type
+  tyres : type
+  cc : calling_convention
+  H5 : Genv.find_funct ge vf = Some fd
+  H6 : classify_fun (typeof (C b)) = fun_case_f tyargs tyres cc
+  H7 : type_of_fundef fd = Tfunction tyargs tyres cc
+  ============================
+  allowed fd
+
+goal 2 is:
+ call_budget ty fd

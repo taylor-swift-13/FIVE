@@ -1,0 +1,53 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+1 goal
+  
+  ge : genv
+  e : env
+  a, b : statement
+  m, mf : mem
+  H : exec_stmt ge e m (Ssequence a b) E0 mf Out_normal
+  t1 : trace
+  m1 : mem
+  t2 : trace
+  H5 : exec_stmt ge e m a t1 m1 Out_normal
+  H8 : exec_stmt ge e m1 b t2 mf Out_normal
+  H4 : t1 ** t2 = E0
+  ============================
+  exists ma : mem,
+    exec_stmt ge e m a (t1 ** t2) ma Out_normal /\
+    exec_stmt ge e ma b (t1 ** t2) mf Out_normal

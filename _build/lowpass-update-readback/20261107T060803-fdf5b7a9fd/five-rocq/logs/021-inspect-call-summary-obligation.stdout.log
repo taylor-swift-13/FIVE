@@ -1,0 +1,19 @@
+   110	 assert(FRAME:Frame m mf b p).
+   111	 { intros q z n VB0 OUT.
+   112	 erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV q VB0)).
+   113	 erewrite Mem.loadbytes_store_other by(exact S8||(cbn[size_chunk];intuition lia)).
+   114	 erewrite Mem.loadbytes_store_other by(exact S4||(cbn[size_chunk];intuition lia)).
+   115	 erewrite Mem.loadbytes_store_other by(exact S0||(left;intro EQ;subst q;exact(FO VB0))).
+   116	 erewrite Mem.loadbytes_store_other by(exact SV||(left;intro EQ;subst q;exact(FV VB0))).
+   117	 erewrite Mem.loadbytes_store_other by(exact SP||(left;intro EQ;subst q;exact(FP VB0))).
+   118	 pose proof(allocation_bytes_frame Execution.ge update_declarations empty_env m q z n VB0)as H;rewrite ALLOC in H;exact H. }
+   119	 assert(LTC:Mem.load Mfloat32 mf b(Ptrofs.unsigned p+0)=Some(Vsingle tc)).
+   120	 { rewrite(KEEP Mfloat32 b(Ptrofs.unsigned p+0)(OUTENV b OBJ)).
+   121	 erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];right;right;lia)).
+   122	 erewrite Mem.load_store_other by(exact S4||(cbn[size_chunk];right;right;lia)).
+   123	 erewrite Mem.load_store_other by(exact S0||(left;congruence));exact(proj1(proj2 INITC)). }
+   124	 assert(LIN:Mem.load Mfloat32 mf b(Ptrofs.unsigned p+4)=Some(Vsingle value)).
+   125	 { rewrite(KEEP Mfloat32 b(Ptrofs.unsigned p+4)(OUTENV b OBJ)).
+   126	 erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];right;right;lia));erewrite Mem.load_store_same by exact S4;reflexivity. }
+   127	 assert(LOUT:Mem.load Mfloat32 mf b(Ptrofs.unsigned p+8)=Some(Vsingle(output tc li lo value))).
+   128	 { rewrite(KEEP Mfloat32 b(Ptrofs.unsigned p+8)(OUTENV b OBJ));erewrite Mem.load_store_same by exact S8;reflexivity. }

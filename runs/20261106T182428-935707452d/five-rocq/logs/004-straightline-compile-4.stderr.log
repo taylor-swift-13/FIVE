@@ -1,0 +1,29 @@
+File "./paparazzi/relations/lowpass_recovery/support/Straightline.v", line 77, characters 48-89:
+Error:
+In environment
+ge : genv
+v : val
+mf : mem
+s : Csem.state
+CN : call_names s
+AC : forall y : Csem.state, successor ge y s -> Acc (successor ge) y
+IH :
+  forall y : Csem.state,
+  successor ge y s ->
+  call_names y ->
+  execution_invariant ge y ->
+  normal_state y = true ->
+  state_eval ge y = Some (v, mf) ->
+  exists t : trace, star Csem.step ge y t (Returnstate v Kstop mf)
+INV : execution_invariant ge s
+N : normal_state s = true
+EV : state_eval ge s = Some (v, mf)
+tr : trace
+next : Csem.state
+STEP : Csem.step ge s tr next
+NN : normal_state next = true
+EN : state_eval ge next = Some (v, mf)
+The term "invariant_preserved ge s tr next INV STEP" has type
+ "execution_invariant ge next"
+while it is expected to have type "call_names next".
+

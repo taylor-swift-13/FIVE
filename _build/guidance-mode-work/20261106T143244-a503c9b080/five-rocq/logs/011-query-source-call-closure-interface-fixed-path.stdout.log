@@ -1,0 +1,77 @@
+pre_or_call
+     : Csem.env ->
+       Csyntax.function ->
+       Csyntax.function ->
+       Csem.cont ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Memory.Mem.mem ->
+       Floats.float32 -> Floats.float32 -> Csem.state -> Prop
+pre_all_successors
+     : forall (ge : Csem.genv) (e : Csem.env)
+         (caller leaf : Csyntax.function) (k : Csem.cont)
+         (ifactor imax isqrt inorm : AST.ident)
+         (bfactor bmax bsqrt bnorm : Values.block) 
+         (m : Memory.Mem.mem) (maximum norm : Floats.float32),
+       Maps.PTree.get ifactor e = Some (bfactor, Ctypesdefs.tfloat) ->
+       Maps.PTree.get imax e = None ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv ge) imax = Some bmax ->
+       Maps.PTree.get isqrt e = None ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv ge) isqrt = Some bsqrt ->
+       Maps.PTree.get inorm e = Some (bnorm, Ctypesdefs.tfloat) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat m
+         bmax Integers.Ptrofs.zero Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vsingle maximum) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tfloat m
+         bnorm Integers.Ptrofs.zero Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vsingle norm) ->
+       Globalenvs.Genv.find_funct (Csem.genv_genv ge)
+         (Values.Vptr bsqrt Integers.Ptrofs.zero) =
+       Some (Ctypes.Internal leaf) ->
+       Csyntax.type_of_fundef (Ctypes.Internal leaf) = leaf_type ->
+       forall (lr : bool) (ms rs ns : read_stage) 
+         (t : Events.trace) (next : Csem.state),
+       Csem.step ge
+         (pre_state e caller k ifactor imax isqrt inorm bfactor bmax bsqrt
+            bnorm m maximum norm lr ms rs ns)
+         t next ->
+       t = Events.E0 /\
+       pre_or_call e caller leaf k ifactor imax isqrt inorm bfactor bmax
+         bsqrt bnorm m maximum norm next
+pre_or_call =
+fun (e : Csem.env) (caller leaf : Csyntax.function) 
+  (k : Csem.cont) (ifactor imax isqrt inorm : AST.ident)
+  (bfactor bmax bsqrt bnorm : Values.block) (m : Memory.Mem.mem)
+  (maximum norm : Floats.float32) (s : Csem.state) =>
+(exists (lready : bool) (ms rs ns : read_stage),
+   s =
+   pre_state e caller k ifactor imax isqrt inorm bfactor bmax bsqrt bnorm m
+     maximum norm lready ms rs ns) \/
+(exists (lready : bool) (ms : read_stage),
+   s =
+   Csem.Callstate (Ctypes.Internal leaf) (Values.Vsingle norm :: nil)
+     (leaf_frame e caller k ifactor imax bfactor bmax maximum lready ms) m)
+     : Csem.env ->
+       Csyntax.function ->
+       Csyntax.function ->
+       Csem.cont ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Memory.Mem.mem ->
+       Floats.float32 -> Floats.float32 -> Csem.state -> Prop
+
+Arguments pre_or_call e caller leaf k ifactor imax 
+  isqrt inorm bfactor bmax bsqrt bnorm m maximum norm 
+  s

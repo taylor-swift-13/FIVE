@@ -1,0 +1,17 @@
+No more goals.
+1 goal
+  
+  ge : genv
+  m' : Memory.Mem.mem
+  v1 : Values.val
+  ty1 : Ctypes.type
+  r1, r2 : expr
+  ty : Ctypes.type
+  b : bool
+  H :
+    rred ge (Econdition (Eval v1 ty1) r1 r2 ty) m' Events.E0
+      (Eparen (if b then r1 else r2) ty ty) m'
+  H0 : Cop.bool_val v1 ty1 m' = Some b
+  ============================
+  S (expression_rank (if b then r1 else r2)) <
+  S (S (expression_rank r1 + expression_rank r2))

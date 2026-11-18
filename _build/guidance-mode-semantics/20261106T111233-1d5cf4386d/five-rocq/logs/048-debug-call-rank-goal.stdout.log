@@ -1,0 +1,45 @@
+Section Variables:
+call_weight
+: type -> nat
+Section Variables:
+call_weight
+: type -> nat
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Section Variables:
+call_weight
+: type -> nat
+1 goal
+  
+  call_weight : type -> nat
+  ge : genv
+  C : expr -> expr
+  f : function
+  a : expr
+  k : cont
+  e : env
+  m : Memory.Mem.mem
+  fd : Csyntax.fundef
+  vargs : list val
+  ty : type
+  STEP :
+    estep ge (ExprState f (C a) k e m) E0
+      (Callstate fd vargs (Kcall f e C ty k) m)
+  BUD : activation_rank fd + 2 < expression_rank a
+  H : callred ge a m fd vargs ty
+  H0 : context RV RV C
+  ============================
+  activation_rank fd +
+  (expression_rank (Eval Vundef Tvoid) +
+   expression_rank (C (Eval Vundef Tvoid)) + continuation_rank k + 2) <
+  expression_rank (C a) + continuation_rank k + 1

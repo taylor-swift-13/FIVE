@@ -1,0 +1,137 @@
+530:Fixpoint call_cont (k: cont) : cont :=
+534:  | Kseq s k => call_cont k
+535:  | Kifthenelse s1 s2 k => call_cont k
+536:  | Kwhile1 e s k => call_cont k
+537:  | Kwhile2 e s k => call_cont k
+538:  | Kdowhile1 e s k => call_cont k
+539:  | Kdowhile2 e s k => call_cont k
+540:  | Kfor2 e2 e3 s k => call_cont k
+541:  | Kfor3 e2 e3 s k => call_cont k
+542:  | Kfor4 e2 e3 s k => call_cont k
+543:  | Kswitch1 ls k => call_cont k
+544:  | Kswitch2 k => call_cont k
+545:  | Kreturn k => call_cont k
+549:Definition is_call_cont (k: cont) : Prop :=
+760:  | step_return_0: forall f k e m m',
+763:         E0 (Returnstate Vundef (call_cont k) m')
+764:  | step_return_1: forall f x k e m,
+767:  | step_return_2:  forall f v1 ty k e m v2 m',
+771:         E0 (Returnstate v2 (call_cont k) m')
+773:      is_call_cont k ->
+798:      find_label lbl f.(fn_body) (call_cont k) = Some (s', k') ->
+814:  | step_returnstate: forall v f e C ty k m,
+351:Inductive context: kind -> kind -> (expr -> expr) -> Prop :=
+352-  | ctx_top: forall k,
+353-      context k k (fun x => x)
+354-  | ctx_deref: forall k C ty,
+355-      context k RV C -> context k LV (fun x => Ederef (C x) ty)
+356-  | ctx_field: forall k C f ty,
+357-      context k RV C -> context k LV (fun x => Efield (C x) f ty)
+358-  | ctx_rvalof: forall k C ty,
+359-      context k LV C -> context k RV (fun x => Evalof (C x) ty)
+360-  | ctx_addrof: forall k C ty,
+361-      context k LV C -> context k RV (fun x => Eaddrof (C x) ty)
+362-  | ctx_unop: forall k C op ty,
+363-      context k RV C -> context k RV (fun x => Eunop op (C x) ty)
+364-  | ctx_binop_left: forall k C op e2 ty,
+365-      context k RV C -> context k RV (fun x => Ebinop op (C x) e2 ty)
+366-  | ctx_binop_right: forall k C op e1 ty,
+367-      context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+368-  | ctx_cast: forall k C ty,
+369-      context k RV C -> context k RV (fun x => Ecast (C x) ty)
+370-  | ctx_seqand: forall k C r2 ty,
+371-      context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+372-  | ctx_seqor: forall k C r2 ty,
+373-      context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+374-  | ctx_condition: forall k C r2 r3 ty,
+375-      context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+376-  | ctx_assign_left: forall k C e2 ty,
+377-      context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+378-  | ctx_assign_right: forall k C e1 ty,
+379-      context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+380-  | ctx_assignop_left: forall k C op e2 tyres ty,
+381-      context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+382-  | ctx_assignop_right: forall k C op e1 tyres ty,
+383-      context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+384-  | ctx_postincr: forall k C id ty,
+385-      context k LV C -> context k RV (fun x => Epostincr id (C x) ty)
+386-  | ctx_call_left: forall k C el ty,
+387-      context k RV C -> context k RV (fun x => Ecall (C x) el ty)
+388-  | ctx_call_right: forall k C e1 ty,
+389-      contextlist k C -> context k RV (fun x => Ecall e1 (C x) ty)
+390-  | ctx_builtin: forall k C ef tyargs ty,
+391-      contextlist k C -> context k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+392-  | ctx_comma: forall k C e2 ty,
+393-      context k RV C -> context k RV (fun x => Ecomma (C x) e2 ty)
+394-  | ctx_paren: forall k C tycast ty,
+395-      context k RV C -> context k RV (fun x => Eparen (C x) tycast ty)
+396-
+397-with contextlist: kind -> (expr -> exprlist) -> Prop :=
+398-  | ctx_list_head: forall k C el,
+399-      context k RV C -> contextlist k (fun x => Econs (C x) el)
+400-  | ctx_list_tail: forall k C e1,
+401-      contextlist k C -> contextlist k (fun x => Econs e1 (C x)).
+402-
+403-(** In a nondeterministic semantics, expressions can go wrong according
+404-  to one reduction order while being defined according to another.
+405-  Consider for instance [(x = 1) + (10 / x)] where [x] is initially [0].
+406-  This expression goes wrong if evaluated right-to-left, but is defined
+407-  if evaluated left-to-right.  Since our compiler is going to pick one
+408-  particular evaluation order, we must make sure that all orders are safe,
+409-  i.e. never evaluate a subexpression that goes wrong.
+410-
+411-  Being safe is a stronger requirement than just not getting stuck during
+412-  reductions.  Consider [f() + (10 / x)], where [f()] does not terminate.
+413-  This expression is never stuck because the evaluation of [f()] can make
+414-  infinitely many transitions.  Yet it contains a subexpression [10 / x]
+415-  that can go wrong if [x = 0], and the compiler may choose to evaluate
+416-  [10 / x] first, before calling [f()].
+417-
+418-  Therefore, we must make sure that not only an expression cannot get stuck,
+419-  but none of its subexpressions can either.  We say that a subexpression
+420-  is not immediately stuck if it is a value (of the appropriate kind)
+421-  or it can reduce (at head or within). *)
+422-
+423-Inductive imm_safe: kind -> expr -> mem -> Prop :=
+424-  | imm_safe_val: forall v ty m,
+425-      imm_safe RV (Eval v ty) m
+426-  | imm_safe_loc: forall b ofs bf ty m,
+427-      imm_safe LV (Eloc b ofs bf ty) m
+428-  | imm_safe_lred: forall to C e m e' m',
+429-      lred e m e' m' ->
+430-      context LV to C ->
+431-      imm_safe to (C e) m
+432-  | imm_safe_rred: forall to C e m t e' m',
+433-      rred e m t e' m' ->
+434-      context RV to C ->
+435-      imm_safe to (C e) m
+436-  | imm_safe_callred: forall to C e m fd args ty,
+437-      callred e m fd args ty ->
+438-      context RV to C ->
+439-      imm_safe to (C e) m.
+440-
+441-Definition not_stuck (e: expr) (m: mem) : Prop :=
+442-  forall k C e' ,
+443-  context k RV C -> e = C e' -> imm_safe k e' m.
+444-
+445-(** ** Derived forms. *)
+446-
+447-(** The following are admissible reduction rules for some derived forms
+448-  of the CompCert C language.  They help showing that the derived forms
+449-  make sense. *)
+450-
+451-Lemma red_selection:
+452-  forall v1 ty1 v2 ty2 v3 ty3 ty m b v2' v3',
+453-  ty <> Tvoid ->
+454-  bool_val v1 ty1 m = Some b ->
+455-  sem_cast v2 ty2 ty m = Some v2' ->
+456-  sem_cast v3 ty3 ty m = Some v3' ->
+457-  rred (Eselection (Eval v1 ty1) (Eval v2 ty2) (Eval v3 ty3) ty) m
+458-    E0 (Eval (if b then v2' else v3') ty) m.
+459-Proof.
+460-  intros. unfold Eselection.
+461-  set (t := typ_of_type ty).
+--
+507:Inductive cont: Type :=
+508-  | Kstop: cont
+509-  | Kdo: cont -> cont       (**r [Kdo k] = after [x] in [x;] *)

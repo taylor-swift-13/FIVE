@@ -1,0 +1,51 @@
+/home/yangfp/.opam/five/lib
+paparazzi/relations/guidance_mode/support/software/ValueSound.v:11:Definition env_matches(e:env):Prop:=forall id ty,gamma!id=Some ty->exists b,e!id=Some(b,ty).
+paparazzi/relations/guidance_mode/support/software/ValueSound.v:12:Definition union_layout(ge:Csem.genv):Prop:=exists co,
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-13- (genv_cenv ge)!union_id=Some co /\
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-14- union_field_offset ge float_field(co_members co)=OK(0,Full) /\
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-15- union_field_offset ge uint_field(co_members co)=OK(0,Full).
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-16-Lemma place_shape:forall l p,place l=Some p ->
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-17- gamma!(place_id p)=Some(place_container p) /\typeof l=place_type p /\
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-18- ((place_union p=false /\l=Evar(place_id p)(place_container p) /\place_type p=place_container p)\/
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-19- (place_union p=true /\place_container p=Tunion union_id noattr /\
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-20- ((place_type p=tfloat /\l=Efield(Evalof(Evar(place_id p)(Tunion union_id noattr))(Tunion union_id noattr))float_field tfloat)\/
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-21-  (place_type p=tuint /\l=Efield(Evalof(Evar(place_id p)(Tunion union_id noattr))(Tunion union_id noattr))uint_field tuint)))).
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-22-Proof.
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-23- intros l p P;unfold place_of in P;option_cases P;inversion P;subst;cbn;repeat split;try assumption;eauto 10.
+paparazzi/relations/guidance_mode/support/software/ValueSound.v-24-Qed.
+--
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v:9:Definition local_blocks(e:env)(b:block):Prop:=exists id ty,e!id=Some(b,ty).
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-10-Section ASSIGN.
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-11-Variables union_id float_field uint_field:ident.
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-12-Variable gamma:PTree.t type.
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-13-Local Notation place :=(place_of union_id float_field uint_field gamma).
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-14-Lemma typed_scalar_properties:forall ty v,typed_value ty v->
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-15- scalar_type ty=true /\ access_mode ty=By_value(slot_chunk ty) /\
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-16- type_is_volatile ty=false /\ Val.load_result(slot_chunk ty)v=v /\slot_typed union_id ty v.
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-17-Proof.
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-18- intros ty v TV;destruct(typed_value_cases ty v TV)as[(n&->&->)|[(n&->&->)|[(n&->&->)|(f&->&->)]]];
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-19- repeat split;try reflexivity;unfold slot_typed;rewrite dec_eq_false;try discriminate;exact I.
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-20-Qed.
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v-21-Lemma initialized_set:forall ids rho id ty v,
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FiveGhSpeed Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_gh_update_ref_from_speed_sp)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.

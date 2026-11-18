@@ -1,0 +1,54 @@
+File "./paparazzi/relations/guidance_mode/support/allorder/FactorShell.v", line 192, characters 15-37:
+Error:
+In environment
+ge : genv
+e : env
+caller, leaf : function
+k : cont
+ifactor, imax, isqrt, inorm : ident
+bfactor, bmax, bsqrt, bnorm : block
+m : mem
+maximum, norm : float32
+factor_local : e ! ifactor = Some (bfactor, tfloat)
+max_global : e ! imax = None
+max_symbol : Genv.find_symbol ge imax = Some bmax
+sqrt_global : e ! isqrt = None
+sqrt_symbol : Genv.find_symbol ge isqrt = Some bsqrt
+norm_local : e ! inorm = Some (bnorm, tfloat)
+max_deref :
+  do_deref_loc ge quiet_world tfloat m bmax Ptrofs.zero Full =
+  Some (quiet_world, E0, Vsingle maximum)
+norm_deref :
+  do_deref_loc ge quiet_world tfloat m bnorm Ptrofs.zero Full =
+  Some (quiet_world, E0, Vsingle norm)
+leaf_find :
+  Genv.find_funct ge (Vptr bsqrt Ptrofs.zero) = Some (Internal leaf)
+leaf_signature : type_of_fundef (Internal leaf) = leaf_type
+root : float32
+leaf_mem, final_mem : mem
+max_post_deref :
+  do_deref_loc ge quiet_world tfloat leaf_mem bmax Ptrofs.zero Full =
+  Some (quiet_world, E0, Vsingle maximum)
+factor_store :
+  do_assign_loc ge quiet_world tfloat leaf_mem bfactor Ptrofs.zero Full
+    (Vsingle (Float32.div maximum root)) =
+  Some (quiet_world, E0, final_mem, Vsingle (Float32.div maximum root))
+leaf_normal :
+  normal_state (Callstate (Internal leaf) [Vsingle norm] Kstop m) = true
+leaf_names : call_names (Callstate (Internal leaf) [Vsingle norm] Kstop m)
+leaf_witness :
+  star Csem.step ge (Callstate (Internal leaf) [Vsingle norm] Kstop m) E0
+    (Returnstate (Vsingle root) Kstop leaf_mem)
+lr : bool
+ms : read_stage
+Unable to unify
+ "exists raw : Csem.state,
+    plug_state ?base ?initial = plug_state ?base raw /\
+    execution_invariant ?ge raw /\ state_eval ?ge raw = Some (?v, ?mf)"
+with
+ "exists raw : Csem.state,
+    Callstate (Internal leaf) [Vsingle norm] (leaf_frame lr ms) m =
+    plug_state (leaf_frame lr ms) raw /\
+    execution_invariant ge raw /\
+    state_eval ge raw = Some (Vsingle root, leaf_mem)".
+

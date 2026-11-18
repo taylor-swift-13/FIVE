@@ -1,0 +1,310 @@
+From Stdlib Require Import List.
+From compcert Require Import Maps AST Values Ctypes Csyntax Csyntaxdefs.
+Require FiveGhSpeed.Source.
+From FiveGuidanceSoftwareProof Require Import ValueEvaluator ValueChecker.
+Import ListNotations.
+Module S:=FiveGhSpeed.Source.
+Fixpoint declaration_types(decls:list(ident*type)):PTree.t type:=
+ match decls with []=>PTree.empty type|(id,ty)::tail=>PTree.set id ty(declaration_types tail)end.
+Definition helper_declarations:=fn_params S.f_five_sqrtf++fn_vars S.f_five_sqrtf.
+Definition helper_types:=declaration_types helper_declarations.
+Definition helper_certificate:=
+ check_statement S._FiveSqrtBits S._f S._u helper_types tfloat[S._x](fn_body S.f_five_sqrtf).
+Lemma actual_helper_certificate:helper_certificate=Some StaticReturn.
+Proof. vm_compute;reflexivity. Qed.
+Definition source_derived_sqrt(x:Floats.float32):Floats.float32:=
+ match value_statement S._FiveSqrtBits S._f S._u helper_types
+ (PTree.set S._x(Vsingle x)(PTree.empty val))(fn_body S.f_five_sqrtf)with
+ |Some(ValueReturn(Vsingle y)_ _)=>y|_=>Floats.Float32.zero end.
+Print Assumptions actual_helper_certificate.
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceSoftwareProof Require Import ValueEvaluator ValueChecker NumericOps LocalMemory FlatStatements ValueSound AssignmentSound.
+Import ListNotations.
+Definition outcome_rho(o:value_outcome):PTree.t val:=
+ match o with ValueNormal r|ValueReturn _ _ r=>r end.
+Definition runtime_outcome(o:value_outcome):outcome:=
+ match o with ValueNormal _=>Out_normal|ValueReturn v ty _=>Out_return(Some(v,ty))end.
+Definition heap_result(le:env)(m mf:mem)(o:value_outcome):Prop:=
+ locals_repr(outcome_rho o)le mf /\locals_writable le mf /\
+ access_preserved m mf /\stores_to(local_blocks le)m mf.
+Lemma heap_result_refl:forall le rho m,locals_repr rho le m->locals_writable le m->
+ heap_result le m m(ValueNormal rho).
+Proof. intros;split;[assumption|];split;[assumption|];split;[intros ch b ofs p A;exact A|constructor]. Qed.
+Lemma heap_result_return:forall le rho m v ty,locals_repr rho le m->locals_writable le m->
+ heap_result le m m(ValueReturn v ty rho).
+Proof. intros;exact(heap_result_refl le rho m H H0). Qed.
+Lemma heap_result_trans:forall le m mi mf o r,
+ heap_result le m mi(ValueNormal r)->heap_result le mi mf o->heap_result le m mf o.
+Proof.
+ intros le m mi mf o r [R[W[A S]]][R'[W'[A' S']]];split;[exact R'|];split;[exact W'|];split.
+ - intros ch b ofs p VA;apply A';apply A;exact VA.
+ - eapply stores_to_trans;eauto.
+Qed.
+Section STATEMENTS.
+Variables union_id float_field uint_field:ident.
+Variable gamma:PTree.t type.
+Lemma good_join_left:forall ret a b o,
+ good_value_outcome union_id gamma ret a o->
+ good_value_outcome union_id gamma ret(join_outcome a b)o.
+Proof.
+ intros ret a b o G;destruct o;cbn in *;[|exact G].
+ destruct a,b;cbn in *;try contradiction;try exact G.
+ eapply initialized_values_weaken;[apply intersection_left|exact G].
+Qed.
+Lemma good_join_right:forall ret a b o,
+ good_value_outcome union_id gamma ret b o->
+ good_value_outcome union_id gamma ret(join_outcome a b)o.
+Proof.
+ intros ret a b o G;destruct o;cbn in *;[|exact G].
+ destruct a,b;cbn in *;try contradiction;try exact G.
+ eapply initialized_values_weaken;[apply intersection_right|exact G].
+Qed.
+Theorem checked_statement_sound:forall s ret ids expected rho ge le m,
+ check_statement union_id float_field uint_field gamma ret ids s=Some expected ->
+ env_matches gamma le->union_layout union_id float_field uint_field ge->
+ env_separated le->locals_repr rho le m->locals_writable le m->
+ initialized_values union_id gamma ids rho->
+ exists o mf,
+ value_statement union_id float_field uint_field gamma rho s=Some o /\
+ statement_eval ge le s m=Some(runtime_outcome o,mf) /\
+ good_value_outcome union_id gamma ret expected o /\heap_result le m mf o.
+Proof.
+ induction s;intros ret ids expected rho ge le m CHECK ENV LAYOUT SEP REP W INIT;
+ cbn[check_statement]in CHECK;try discriminate.
+ - injection CHECK as E;subst expected;exists(ValueNormal rho),m;split;[reflexivity|].
+   split;[reflexivity|];split;[exact INIT|apply heap_result_refl;assumption].
+ - destruct e;try discriminate.
+   destruct(check_assign union_id float_field uint_field gamma ids e1 e2 ty)as[ids'|]eqn:CA;try discriminate.
+   injection CHECK as E;subst expected.
+   destruct(checked_assign_sound union_id float_field uint_field gamma ids e1 e2 ty ids' rho ge le m CA ENV LAYOUT SEP REP W INIT)
+    as[rho'[mf[VA[EV[INIT'[REP'[W'[ACC HISTORY]]]]]]]].
+   exists(ValueNormal rho'),mf;split.
+   + cbn[value_statement];rewrite VA;reflexivity.
+   + split;[exact EV|]. split;[exact INIT'|]. split;[exact REP'|];split;[exact W'|];split;[exact ACC|exact HISTORY].
+ - destruct(check_statement union_id float_field uint_field gamma ret ids s1)as[first|]eqn:C1;try discriminate.
+   destruct(IHs1 ret ids first rho ge le m C1 ENV LAYOUT SEP REP W INIT)as[o1[mi[V1[E1[G1 H1]]]]].
+   destruct first as[ids1|].
+   + destruct o1 as[rho1|v ty rho1].
+     * destruct H1 as[R1[W1[A1 S1]]].
+       destruct(IHs2 ret ids1 expected rho1 ge le mi CHECK ENV LAYOUT SEP R1 W1 G1)as[o2[mf[V2[E2[G2 H2]]]]].
+       exists o2,mf;split.
+       -- cbn[value_statement];rewrite V1;exact V2.
+       -- split;[cbn[statement_eval];rewrite E1;exact E2|].
+          split;[exact G2|];eapply heap_result_trans;[split;[exact R1|];split;[exact W1|];split;[exact A1|exact S1]|exact H2].
+     * exists(ValueReturn v ty rho1),mi;split.
+       -- cbn[value_statement];rewrite V1;reflexivity.
+       -- split;[cbn[statement_eval];rewrite E1;reflexivity|];split;[exact G1|exact H1].
+   + injection CHECK as E;subst expected.
+     destruct o1 as[rho1|v ty rho1];[contradiction G1|].
+     exists(ValueReturn v ty rho1),mi;split.
+     * cbn[value_statement];rewrite V1;reflexivity.
+     * split;[cbn[statement_eval];rewrite E1;reflexivity|];split;assumption.
+ - destruct(check_expr union_id float_field uint_field gamma ids e)eqn:CE;try discriminate.
+   destruct(check_statement union_id float_field uint_field gamma ret ids s1)as[a|]eqn:C1;try discriminate.
+   destruct(check_statement union_id float_field uint_field gamma ret ids s2)as[b|]eqn:C2;try discriminate.
+   injection CHECK as E;subst expected.
+   destruct(checked_expr_sound union_id float_field uint_field gamma e ids rho ge le m CE ENV LAYOUT REP INIT)as[v[VE[TV PE]]].
+   destruct(bool_val_total(typeof e)v TV)as[choose B].
+   destruct choose.
+   + destruct(IHs1 ret ids a rho ge le m C1 ENV LAYOUT SEP REP W INIT)as[o[mf[VO[EO[GO HO]]]]].
+     exists o,mf;split.
+     * cbn[value_statement];rewrite VE,B;exact VO.
+     * split;[cbn[statement_eval];rewrite PE,B;exact EO|].
+       split;[eapply good_join_left;exact GO|exact HO].
+   + destruct(IHs2 ret ids b rho ge le m C2 ENV LAYOUT SEP REP W INIT)as[o[mf[VO[EO[GO HO]]]]].
+     exists o,mf;split.
+     * cbn[value_statement];rewrite VE,B;exact VO.
+     * split;[cbn[statement_eval];rewrite PE,B;exact EO|].
+       split;[eapply good_join_right;exact GO|exact HO].
+ - destruct o as[a|];try discriminate.
+   destruct(check_expr union_id float_field uint_field gamma ids a)eqn:CE;try discriminate.
+   destruct(type_eq(typeof a)ret)as[TY|NE];try discriminate.
+   injection CHECK as E;subst expected.
+   destruct(checked_expr_sound union_id float_field uint_field gamma a ids rho ge le m CE ENV LAYOUT REP INIT)as[v[VE[TV PE]]].
+   exists(ValueReturn v(typeof a)rho),m;split.
+   + cbn[value_statement];rewrite VE;reflexivity.
+   + split;[cbn[statement_eval];rewrite PE;reflexivity|].
+     split;[cbn;split;[exact TY|rewrite <- TY;exact TV]|apply heap_result_return;assumption].
+Qed.
+End STATEMENTS.
+Print Assumptions checked_statement_sound.
+
+Corollary checked_statement_exec:forall union_id float_field uint_field gamma s ret ids expected rho ge le m,
+ source_statement s=true ->
+ check_statement union_id float_field uint_field gamma ret ids s=Some expected ->
+ env_matches gamma le->union_layout union_id float_field uint_field ge->
+ env_separated le->locals_repr rho le m->locals_writable le m->
+ initialized_values union_id gamma ids rho->
+ exists o mf,
+ value_statement union_id float_field uint_field gamma rho s=Some o /\
+ Cstrategy.exec_stmt ge le m s E0 mf(runtime_outcome o) /\
+ good_value_outcome union_id gamma ret expected o /\heap_result le m mf o.
+Proof.
+ intros uid ff uf gamma s ret ids expected rho ge le m SOURCE CHECK ENV LAYOUT SEP REP W INIT.
+ destruct(checked_statement_sound uid ff uf gamma s ret ids expected rho ge le m CHECK ENV LAYOUT SEP REP W INIT)as[o[mf[V[E[G H]]]]].
+ exists o,mf;split;[exact V|];split;[eapply statement_eval_sound;eauto|];split;assumption.
+Qed.
+Print Assumptions checked_statement_exec.
+
+From Stdlib Require Import List.
+From compcert Require Import Coqlib Maps Values Memory Ctypes Csem Cexec.
+From FiveGuidanceAllocation Require Import StackAllocation.
+Import ListNotations.
+Lemma allocation_binding_origin:forall ge vars e m id b ty,
+ (fst(Cexec.do_alloc_variables ge e m vars))!id=Some(b,ty)->
+ e!id=Some(b,ty) \/In(id,ty)vars.
+Proof.
+ intros ge vars;induction vars as[|[head ht]vars IH];intros e m id b ty LOOK.
+ - left;exact LOOK.
+ - cbn[Cexec.do_alloc_variables]in LOOK.
+   destruct(Mem.alloc m 0(sizeof ge ht))as[ma fresh]eqn:A.
+   destruct(IH _ _ _ _ _ LOOK)as[OLD|IN];[|right;right;exact IN].
+   rewrite PTree.gsspec in OLD;destruct(peq id head).
+   + subst id;injection OLD as EQ T;subst b ht;right;left;reflexivity.
+   + left;exact OLD.
+Qed.
+Lemma allocated_environment_origin:forall ge vars m e ma,
+ Csem.alloc_variables ge empty_env m vars e ma->
+ forall id b ty,e!id=Some(b,ty)->In(id,ty)vars.
+Proof.
+ intros ge vars m e ma ALLOC id b ty LOOK.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ ALLOC)as DONE.
+ destruct(allocation_binding_origin ge vars empty_env m id b ty)as[OLD|IN].
+ - rewrite DONE;exact LOOK.
+ - discriminate OLD.
+ - exact IN.
+Qed.
+Print Assumptions allocated_environment_origin.
+Lemma allocation_access:forall ge vars e m ch b ofs p,
+ Mem.valid_access m ch b ofs p ->
+ Mem.valid_access(snd(Cexec.do_alloc_variables ge e m vars))ch b ofs p.
+Proof.
+ intros ge vars e m ch b ofs p[PERM ALIGN];split;[|exact ALIGN].
+ intros x R;eapply StackAllocation.allocation_perm;apply PERM;exact R.
+Qed.
+Lemma allocation_load_frame:forall ge vars e m ch b ofs,
+ Mem.valid_block m b ->Mem.load ch(snd(Cexec.do_alloc_variables ge e m vars))b ofs=Mem.load ch m b ofs.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m ch b ofs VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.load_alloc_unchanged;eauto.
+Qed.
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m b ofs n VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.loadbytes_alloc_unchanged;eauto.
+Qed.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Maps AST Values Memory Ctypes Csem.
+From FiveGuidanceAllocation Require Import StackAllocation.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition region_block(r:block*Z*Z):block:=let '(b,_,_):=r in b.
+Lemma map_norepet_inv:forall(A B:Type)(f:A->B)xs,list_norepet(map f xs)->list_norepet xs.
+Proof.
+ intros A B f xs;induction xs as[|x xs IH];intros ND;[constructor|].
+ inversion ND;subst;constructor.
+ - intro IN;match goal with H:~In(f x)(map f xs)|-_=>apply H;apply in_map;exact IN end.
+ - apply IH;assumption.
+Qed.
+Lemma env_blocks_norepet:forall(ge:Csem.genv)e,env_separated e ->list_norepet(map region_block(blocks_of_env ge e)).
+Proof.
+ intros ge e SEP;unfold blocks_of_env;rewrite map_map.
+ apply list_map_norepet.
+ - eapply map_norepet_inv;apply PTree.elements_keys_norepet.
+ - intros[id1[b1 ty1]][id2[b2 ty2]]IN1 IN2 NE;cbn.
+   intro EQ;subst b2;apply NE.
+   pose proof(PTree.elements_complete _ _ _ IN1)as L1.
+   pose proof(PTree.elements_complete _ _ _ IN2)as L2.
+   assert(ID:id1=id2)by(eapply SEP;eauto);subst id2.
+   rewrite L1 in L2;injection L2 as TY;subst ty2;reflexivity.
+Qed.
+Lemma free_regions:forall regions m,
+ list_norepet(map region_block regions) ->
+ (forall b lo hi,In(b,lo,hi)regions ->Mem.range_perm m b lo hi Cur Freeable) ->
+ exists mf,Mem.free_list m regions=Some mf /\
+ (forall ch b ofs,~In b(map region_block regions)->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall ch b ofs p,~In b(map region_block regions)->Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p).
+Proof.
+ intros regions;induction regions as[|[[b lo]hi]regions IH];intros m ND FREE.
+ - exists m;split;[reflexivity|split;auto].
+ - cbn in ND;inversion ND as[|? ? NOT NDREST];subst.
+   destruct(Mem.range_perm_free m b lo hi(FREE b lo hi(or_introl eq_refl)))as[ma F].
+   assert(REST:forall bx lox hix,In(bx,lox,hix)regions->Mem.range_perm ma bx lox hix Cur Freeable).
+   { intros bx lox hix IN ofs RANGE;eapply Mem.perm_free_1;[exact F| |].
+     - left;intro EQ;subst bx;apply NOT;apply in_map with(f:=region_block)in IN;exact IN.
+     - apply(FREE bx lox hix);[right;exact IN|exact RANGE]. }
+   destruct(IH ma NDREST REST)as[mf[FF[LOAD ACCESS]]].
+   exists mf;split;[cbn[Mem.free_list];rewrite F;exact FF|]. split.
+   + intros ch bx ofs NP;rewrite LOAD by(cbn in NP;tauto).
+     erewrite Mem.load_free by(exact F||(left;cbn in NP;intuition congruence));reflexivity.
+   + intros ch bx ofs p NP VA;apply ACCESS;[cbn in NP;tauto|].
+     eapply Mem.valid_access_free_1;[exact F|exact VA|left;cbn in NP;intuition congruence].
+Qed.
+Lemma free_environment:forall(ge:Csem.genv)e m,
+ env_separated e ->
+ (forall id b ty,e!id=Some(b,ty)->Mem.range_perm m b 0(sizeof ge ty)Cur Freeable) ->
+ exists mf,Mem.free_list m(blocks_of_env ge e)=Some mf /\
+ (forall ch b ofs,(forall id ty,e!id=Some(b,ty)->False)->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall ch b ofs p,(forall id ty,e!id=Some(b,ty)->False)->Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p).
+Proof.
+ intros ge e m SEP FREE.
+ destruct(free_regions(blocks_of_env ge e)m(env_blocks_norepet ge e SEP))as[mf[FF[LOAD ACCESS]]].
+ - intros b lo hi IN;unfold blocks_of_env in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+   cbn in EQ;injection EQ as EB EL EH;subst bx lo hi.
+   eapply FREE;eapply PTree.elements_complete;exact IN.
+ - exists mf;split;[exact FF|]. split.
+   + intros ch b ofs OUT;apply LOAD;intro IN.
+     unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+     cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+   + intros ch b ofs p OUT VA;apply ACCESS;[|exact VA];intro IN.
+     unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+     cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+Qed.
+Print Assumptions free_environment.
+Lemma range_perm_access_preserved:forall m mf,
+ (forall ch b ofs p,Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p)->
+ forall b lo hi p,Mem.range_perm m b lo hi Cur p->Mem.range_perm mf b lo hi Cur p.
+Proof.
+ intros m mf KEEP b lo hi p RANGE ofs BOUNDS.
+ assert(VA:Mem.valid_access m Mint8unsigned b ofs p).
+ { unfold Mem.valid_access;split.
+   - intros x X;apply RANGE;cbn in X;lia.
+   - change(1|ofs);exists ofs;lia. }
+ pose proof(KEEP _ _ _ _ VA)as VF;apply(proj1 VF);cbn;lia.
+Qed.
+Lemma free_list_bytes_frame:forall regions m mf,
+ Mem.free_list m regions=Some mf ->
+ forall b ofs n,~In b(map region_block regions)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros regions;induction regions as[|[[head lo]hi]regions IH];intros m mf FREE b ofs n OUT.
+ - cbn[Mem.free_list]in FREE;injection FREE as<-;reflexivity.
+ - cbn[Mem.free_list]in FREE;destruct(Mem.free m head lo hi)as[ma|]eqn:F;try discriminate.
+   rewrite(IH ma mf FREE b ofs n)by(cbn in OUT;tauto).
+   eapply Mem.loadbytes_free;[exact F|left;cbn in OUT;intuition congruence].
+Qed.
+Lemma free_environment_bytes_frame:forall ge e m mf,
+ Mem.free_list m(blocks_of_env ge e)=Some mf ->
+ forall b ofs n,(forall id ty,e!id=Some(b,ty)->False)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge e m mf FREE b ofs n OUT;apply(free_list_bytes_frame _ _ _ FREE);intro IN.
+ unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+ cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+Qed.
+Lemma range_perm_access_preserved_block:forall m mf b,
+ (forall ch ofs p,Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p)->
+ forall lo hi p,Mem.range_perm m b lo hi Cur p->Mem.range_perm mf b lo hi Cur p.
+Proof.
+ intros m mf b KEEP lo hi p RANGE ofs BOUNDS.
+ assert(VA:Mem.valid_access m Mint8unsigned b ofs p).
+ { unfold Mem.valid_access;split;[intros x X;apply RANGE;cbn in X;lia|change(1|ofs);exists ofs;lia]. }
+ pose proof(KEEP _ _ _ VA)as VF;apply(proj1 VF);cbn;lia.
+Qed.

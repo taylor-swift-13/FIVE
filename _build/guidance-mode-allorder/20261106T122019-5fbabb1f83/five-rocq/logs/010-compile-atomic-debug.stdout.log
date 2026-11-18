@@ -1,0 +1,32 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  ty : type
+  mf : mem
+  b : block
+  ofs : ptrofs
+  bf : bitfield
+  v2 : val
+  ty2 : type
+  v' : val
+  HR :
+    rred ge (Eassign (Eloc b ofs bf ty) (Eval v2 ty2) ty) m E0 
+      (Eval v' ty) mf
+  AT : nv ty = true
+  v : val
+  H6 : sem_cast v2 ty2 ty m = Some v
+  H7 : assign_loc ge ty m b ofs bf v E0 mf v'
+  ============================
+  match sem_cast v2 (typeof (Eval v2 ty2)) (typeof (Eloc b ofs bf ty)) m with
+  | Some vc =>
+      match
+        do_assign_loc ge quiet_world (typeof (Eloc b ofs bf ty)) m b ofs bf
+          vc
+      with
+      | Some (_, _, mf0, vf) => Some (vf, mf0)
+      | None => None
+      end
+  | None => None
+  end = option_map (fun v0 : val => (v0, mf)) (Some v')

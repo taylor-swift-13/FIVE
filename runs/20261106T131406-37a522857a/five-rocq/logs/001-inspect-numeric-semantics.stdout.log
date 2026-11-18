@@ -1,0 +1,503 @@
+  | _ => bool_default
+  end.
+
+(** Interpretation of values as truth values.
+  Non-zero integers, non-zero floats and non-null pointers are
+  considered as true.  The integer zero (which also represents
+  the null pointer) and the float 0.0 are false. *)
+
+Definition bool_val (v: val) (t: type) (m: mem) : option bool :=
+  match classify_bool t with
+  | bool_case_i =>
+      match v with
+      | Vint n => Some (negb (Int.eq n Int.zero))
+      | Vptr b ofs =>
+          if Archi.ptr64 then None else
+          if Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs) then Some true else None
+      | _ => None
+      end
+  | bool_case_l =>
+      match v with
+      | Vlong n => Some (negb (Int64.eq n Int64.zero))
+      | Vptr b ofs =>
+          if negb Archi.ptr64 then None else
+          if Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs) then Some true else None
+      | _ => None
+      end
+  | bool_case_f =>
+      match v with
+      | Vfloat f => Some (negb (Float.cmp Ceq f Float.zero))
+      | _ => None
+      end
+  | bool_case_s =>
+      match v with
+      | Vsingle f => Some (negb (Float32.cmp Ceq f Float32.zero))
+      | _ => None
+      end
+  | bool_default => None
+  end.
+
+(** ** Unary operators *)
+
+(** *** Boolean negation *)
+
+Definition sem_notbool (v: val) (ty: type) (m: mem): option val :=
+  option_map (fun b => Val.of_bool (negb b)) (bool_val v ty m).
+
+(** *** Opposite and absolute value *)
+
+Inductive classify_neg_cases : Type :=
+  | neg_case_i(s: signedness)              (**r int *)
+  | neg_case_f                             (**r double float *)
+  | neg_case_s                             (**r single float *)
+  | neg_case_l(s: signedness)              (**r long *)
+  | neg_default.
+
+Definition classify_neg (ty: type) : classify_neg_cases :=
+  match ty with
+  | Tint I32 Unsigned _ => neg_case_i Unsigned
+  | Tint _ _ _ => neg_case_i Signed
+  | Tfloat F64 _ => neg_case_f
+  | Tfloat F32 _ => neg_case_s
+  | Tlong si _ => neg_case_l si
+  | _ => neg_default
+  end.
+
+Definition sem_neg (v: val) (ty: type) : option val :=
+  match classify_neg ty with
+  | neg_case_i sg =>
+      match v with
+      | Vint n => Some (Vint (Int.neg n))
+      | _ => None
+      end
+  | neg_case_f =>
+      match v with
+      | Vfloat f => Some (Vfloat (Float.neg f))
+      | _ => None
+      end
+  | neg_case_s =>
+      match v with
+      | Vsingle f => Some (Vsingle (Float32.neg f))
+      | _ => None
+      end
+  | neg_case_l sg =>
+      match v with
+      | Vlong n => Some (Vlong (Int64.neg n))
+      | _ => None
+      end
+  | neg_default => None
+  end.
+
+Definition sem_absfloat (v: val) (ty: type) : option val :=
+  match classify_neg ty with
+  | neg_case_i sg =>
+      match v with
+      | Vint n => Some (Vfloat (Float.abs (cast_int_float sg n)))
+      | _ => None
+      end
+  | neg_case_f =>
+      match v with
+      | Vfloat f => Some (Vfloat (Float.abs f))
+      | _ => None
+      end
+  | neg_case_s =>
+      match v with
+      | Vsingle f => Some (Vfloat (Float.abs (Float.of_single f)))
+      | _ => None
+      end
+  | neg_case_l sg =>
+      match v with
+      | Vlong n => Some (Vfloat (Float.abs (cast_long_float sg n)))
+      | _ => None
+      end
+  | neg_default => None
+  end.
+
+(** *** Bitwise complement *)
+
+Inductive classify_notint_cases : Type :=
+  | notint_case_i(s: signedness)              (**r int *)
+  | notint_case_l(s: signedness)              (**r long *)
+  | notint_default.
+
+Definition classify_notint (ty: type) : classify_notint_cases :=
+  match ty with
+  | Tint I32 Unsigned _ => notint_case_i Unsigned
+  | Tint _ _ _ => notint_case_i Signed
+  | Tlong si _ => notint_case_l si
+  | _ => notint_default
+  end.
+
+Definition sem_notint (v: val) (ty: type): option val :=
+  match classify_notint ty with
+  | notint_case_i sg =>
+      match v with
+      | Vint n => Some (Vint (Int.not n))
+      | _ => None
+      end
+  | notint_case_l sg =>
+      match v with
+      | Vlong n => Some (Vlong (Int64.not n))
+      | _ => None
+      end
+  | notint_default => None
+  end.
+
+(** ** Binary operators *)
+
+(** For binary operations, the "usual binary conversions" consist in
+- determining the type at which the operation is to be performed
+  (a form of least upper bound of the types of the two arguments);
+- casting the two arguments to this common type;
+- performing the operation at that type.
+*)
+
+Inductive binarith_cases: Type :=
+  | bin_case_i (s: signedness)         (**r at int type *)
+  | bin_case_l (s: signedness)         (**r at long int type *)
+  | bin_case_f                         (**r at double float type *)
+  | bin_case_s                         (**r at single float type *)
+  | bin_default.                       (**r error *)
+
+  | Unsigned => Ptrofs.of_intu n
+  end.
+
+Definition sem_add_ptr_int (cenv: composite_env) (ty: type) (si: signedness) (v1 v2: val): option val :=
+  match v1, v2 with
+  | Vptr b1 ofs1, Vint n2 =>
+      let n2 := ptrofs_of_int si n2 in
+      Some (Vptr b1 (Ptrofs.add ofs1 (Ptrofs.mul (Ptrofs.repr (sizeof cenv ty)) n2)))
+  | Vint n1, Vint n2 =>
+      if Archi.ptr64 then None else Some (Vint (Int.add n1 (Int.mul (Int.repr (sizeof cenv ty)) n2)))
+  | Vlong n1, Vint n2 =>
+      let n2 := cast_int_long si n2 in
+      if Archi.ptr64 then Some (Vlong (Int64.add n1 (Int64.mul (Int64.repr (sizeof cenv ty)) n2))) else None
+  | _,  _ => None
+  end.
+
+Definition sem_add_ptr_long (cenv: composite_env) (ty: type) (v1 v2: val): option val :=
+  match v1, v2 with
+  | Vptr b1 ofs1, Vlong n2 =>
+      let n2 := Ptrofs.of_int64 n2 in
+      Some (Vptr b1 (Ptrofs.add ofs1 (Ptrofs.mul (Ptrofs.repr (sizeof cenv ty)) n2)))
+  | Vint n1, Vlong n2 =>
+      let n2 := Int.repr (Int64.unsigned n2) in
+      if Archi.ptr64 then None else Some (Vint (Int.add n1 (Int.mul (Int.repr (sizeof cenv ty)) n2)))
+  | Vlong n1, Vlong n2 =>
+      if Archi.ptr64 then Some (Vlong (Int64.add n1 (Int64.mul (Int64.repr (sizeof cenv ty)) n2))) else None
+  | _,  _ => None
+  end.
+
+Definition sem_add (cenv: composite_env) (v1:val) (t1:type) (v2: val) (t2:type) (m: mem): option val :=
+  match classify_add t1 t2 with
+  | add_case_pi ty si =>             (**r pointer plus integer *)
+      sem_add_ptr_int cenv ty si v1 v2
+  | add_case_pl ty =>                (**r pointer plus long *)
+      sem_add_ptr_long cenv ty v1 v2
+  | add_case_ip si ty =>             (**r integer plus pointer *)
+      sem_add_ptr_int cenv ty si v2 v1
+  | add_case_lp ty =>                (**r long plus pointer *)
+      sem_add_ptr_long cenv ty v2 v1
+  | add_default =>
+      sem_binarith
+        (fun sg n1 n2 => Some(Vint(Int.add n1 n2)))
+        (fun sg n1 n2 => Some(Vlong(Int64.add n1 n2)))
+        (fun n1 n2 => Some(Vfloat(Float.add n1 n2)))
+        (fun n1 n2 => Some(Vsingle(Float32.add n1 n2)))
+        v1 t1 v2 t2 m
+  end.
+
+(** *** Subtraction *)
+
+Inductive classify_sub_cases : Type :=
+  | sub_case_pi (ty: type) (si: signedness)  (**r pointer, int *)
+  | sub_case_pp (ty: type)               (**r pointer, pointer *)
+  | sub_case_pl (ty: type)               (**r pointer, long *)
+  | sub_default.                         (**r numerical type, numerical type *)
+
+Definition classify_sub (ty1: type) (ty2: type) :=
+  match typeconv ty1, typeconv ty2 with
+  | Tpointer ty _, Tint _ si _ => sub_case_pi ty si
+  | Tpointer ty _ , Tpointer _ _ => sub_case_pp ty
+  | Tpointer ty _, Tlong _ _ => sub_case_pl ty
+  | _, _ => sub_default
+  end.
+
+Definition sem_sub (cenv: composite_env) (v1:val) (t1:type) (v2: val) (t2:type) (m:mem): option val :=
+  match classify_sub t1 t2 with
+  | sub_case_pi ty si =>            (**r pointer minus integer *)
+      match v1, v2 with
+      | Vptr b1 ofs1, Vint n2 =>
+          let n2 := ptrofs_of_int si n2 in
+          Some (Vptr b1 (Ptrofs.sub ofs1 (Ptrofs.mul (Ptrofs.repr (sizeof cenv ty)) n2)))
+      | Vint n1, Vint n2 =>
+          if Archi.ptr64 then None else Some (Vint (Int.sub n1 (Int.mul (Int.repr (sizeof cenv ty)) n2)))
+      | Vlong n1, Vint n2 =>
+          let n2 := cast_int_long si n2 in
+          if Archi.ptr64 then Some (Vlong (Int64.sub n1 (Int64.mul (Int64.repr (sizeof cenv ty)) n2))) else None
+      | _,  _ => None
+      end
+  | sub_case_pl ty =>            (**r pointer minus long *)
+      match v1, v2 with
+      | Vptr b1 ofs1, Vlong n2 =>
+          let n2 := Ptrofs.of_int64 n2 in
+          Some (Vptr b1 (Ptrofs.sub ofs1 (Ptrofs.mul (Ptrofs.repr (sizeof cenv ty)) n2)))
+      | Vint n1, Vlong n2 =>
+          let n2 := Int.repr (Int64.unsigned n2) in
+          if Archi.ptr64 then None else Some (Vint (Int.sub n1 (Int.mul (Int.repr (sizeof cenv ty)) n2)))
+      | Vlong n1, Vlong n2 =>
+          if Archi.ptr64 then Some (Vlong (Int64.sub n1 (Int64.mul (Int64.repr (sizeof cenv ty)) n2))) else None
+      | _,  _ => None
+      end
+  | sub_case_pp ty =>          (**r pointer minus pointer *)
+      match v1,v2 with
+      | Vptr b1 ofs1, Vptr b2 ofs2 =>
+          if eq_block b1 b2 then
+            let sz := sizeof cenv ty in
+            if zlt 0 sz && zle sz Ptrofs.max_signed
+            then Some (Vptrofs (Ptrofs.divs (Ptrofs.sub ofs1 ofs2) (Ptrofs.repr sz)))
+            else None
+          else None
+      | _, _ => None
+      end
+  | sub_default =>
+      sem_binarith
+        (fun sg n1 n2 => Some(Vint(Int.sub n1 n2)))
+        (fun sg n1 n2 => Some(Vlong(Int64.sub n1 n2)))
+        (fun n1 n2 => Some(Vfloat(Float.sub n1 n2)))
+        (fun n1 n2 => Some(Vsingle(Float32.sub n1 n2)))
+        v1 t1 v2 t2 m
+  end.
+
+(** *** Multiplication, division, modulus *)
+
+Definition sem_mul (v1:val) (t1:type) (v2: val) (t2:type) (m:mem) : option val :=
+  sem_binarith
+    (fun sg n1 n2 => Some(Vint(Int.mul n1 n2)))
+    (fun sg n1 n2 => Some(Vlong(Int64.mul n1 n2)))
+    (fun n1 n2 => Some(Vfloat(Float.mul n1 n2)))
+    (fun n1 n2 => Some(Vsingle(Float32.mul n1 n2)))
+    v1 t1 v2 t2 m.
+
+Definition sem_div (v1:val) (t1:type) (v2: val) (t2:type) (m:mem) : option val :=
+  sem_binarith
+    (fun sg n1 n2 =>
+      match sg with
+      | Signed =>
+          if Int.eq n2 Int.zero
+          || Int.eq n1 (Int.repr Int.min_signed) && Int.eq n2 Int.mone
+          then None else Some(Vint(Int.divs n1 n2))
+      | Unsigned =>
+          if Int.eq n2 Int.zero
+          then None else Some(Vint(Int.divu n1 n2))
+      end)
+    (fun sg n1 n2 =>
+      match sg with
+      | Signed =>
+          if Int64.eq n2 Int64.zero
+          || Int64.eq n1 (Int64.repr Int64.min_signed) && Int64.eq n2 Int64.mone
+          then None else Some(Vlong(Int64.divs n1 n2))
+      | Unsigned =>
+          if Int64.eq n2 Int64.zero
+          then None else Some(Vlong(Int64.divu n1 n2))
+      end)
+    (fun n1 n2 => Some(Vfloat(Float.div n1 n2)))
+    (fun n1 n2 => Some(Vsingle(Float32.div n1 n2)))
+    v1 t1 v2 t2 m.
+
+Definition sem_mod (v1:val) (t1:type) (v2: val) (t2:type) (m:mem) : option val :=
+  sem_binarith
+    (fun sg n1 n2 =>
+      match sg with
+      | Signed =>
+          if Int.eq n2 Int.zero
+          || Int.eq n1 (Int.repr Int.min_signed) && Int.eq n2 Int.mone
+          then None else Some(Vint(Int.mods n1 n2))
+      | Unsigned =>
+          if Int.eq n2 Int.zero
+          then None else Some(Vint(Int.modu n1 n2))
+      end)
+    (fun sg n1 n2 =>
+      match sg with
+      | Signed =>
+          if Int64.eq n2 Int64.zero
+          || Int64.eq n1 (Int64.repr Int64.min_signed) && Int64.eq n2 Int64.mone
+          then None else Some(Vlong(Int64.mods n1 n2))
+      | Unsigned =>
+          if Int64.eq n2 Int64.zero
+          then None else Some(Vlong(Int64.modu n1 n2))
+      end)
+    (fun n1 n2 => None)
+    (fun n1 n2 => None)
+    v1 t1 v2 t2 m.
+
+Definition sem_and (v1:val) (t1:type) (v2: val) (t2:type) (m:mem) : option val :=
+  sem_binarith
+    (fun sg n1 n2 => Some(Vint(Int.and n1 n2)))
+    (fun sg n1 n2 => Some(Vlong(Int64.and n1 n2)))
+    (fun n1 n2 => None)
+    (fun n1 n2 => None)
+    v1 t1 v2 t2 m.
+
+Definition sem_or (v1:val) (t1:type) (v2: val) (t2:type) (m:mem) : option val :=
+  sem_binarith
+    (fun sg n1 n2 => Some(Vint(Int.or n1 n2)))
+    (fun sg n1 n2 => Some(Vlong(Int64.or n1 n2)))
+    (fun n1 n2 => None)
+    (fun n1 n2 => None)
+    v1 t1 v2 t2 m.
+
+Definition sem_xor (v1:val) (t1:type) (v2: val) (t2:type) (m:mem) : option val :=
+  sem_binarith
+    (fun sg n1 n2 => Some(Vint(Int.xor n1 n2)))
+    (fun sg n1 n2 => Some(Vlong(Int64.xor n1 n2)))
+    (fun n1 n2 => None)
+    (fun n1 n2 => None)
+    v1 t1 v2 t2 m.
+
+(** *** Shifts *)
+
+(** Shifts do not perform the usual binary conversions.  Instead,
+  each argument is converted independently, and the signedness
+  of the result is always that of the first argument. *)
+
+Inductive classify_shift_cases : Type:=
+  | shift_case_ii(s: signedness)         (**r int , int *)
+  | shift_case_ll(s: signedness)         (**r long, long *)
+  | shift_case_il(s: signedness)         (**r int, long *)
+  | shift_case_li(s: signedness)         (**r long, int *)
+  | shift_default.
+
+Definition classify_shift (ty1: type) (ty2: type) :=
+  match typeconv ty1, typeconv ty2 with
+  | Tint I32 Unsigned _, Tint _ _ _ => shift_case_ii Unsigned
+  | Tint _ _ _, Tint _ _ _ => shift_case_ii Signed
+  | Tint I32 Unsigned _, Tlong _ _ => shift_case_il Unsigned
+  | Tint _ _ _, Tlong _ _ => shift_case_il Signed
+  | Tlong s _, Tint _ _ _ => shift_case_li s
+  | Tlong s _, Tlong _ _ => shift_case_ll s
+  | _,_  => shift_default
+  end.
+
+Definition sem_shift
+    (sem_int: signedness -> int -> int -> int)
+    (sem_long: signedness -> int64 -> int64 -> int64)
+    (v1: val) (t1: type) (v2: val) (t2: type) : option val :=
+  match classify_shift t1 t2 with
+  | shift_case_ii sg =>
+      match v1, v2 with
+      | Vint n1, Vint n2 =>
+          if Int.ltu n2 Int.iwordsize
+          then Some(Vint(sem_int sg n1 n2)) else None
+      | _, _ => None
+      end
+  | shift_case_il sg =>
+      match v1, v2 with
+      | Vint n1, Vlong n2 =>
+          if Int64.ltu n2 (Int64.repr 32)
+          then Some(Vint(sem_int sg n1 (Int64.loword n2))) else None
+      | _, _ => None
+      end
+  | shift_case_li sg =>
+      match v1, v2 with
+      | Vlong n1, Vint n2 =>
+          if Int.ltu n2 Int64.iwordsize'
+          then Some(Vlong(sem_long sg n1 (Int64.repr (Int.unsigned n2)))) else None
+      | _, _ => None
+      end
+  | shift_case_ll sg =>
+      match v1, v2 with
+      | Vlong n1, Vlong n2 =>
+          if Int64.ltu n2 Int64.iwordsize
+          then Some(Vlong(sem_long sg n1 n2)) else None
+      | _, _ => None
+      end
+  | shift_default => None
+  end.
+
+Definition sem_shl (v1:val) (t1:type) (v2: val) (t2:type) : option val :=
+  sem_shift
+    (fun sg n1 n2 => Int.shl n1 n2)
+    (fun sg n1 n2 => Int64.shl n1 n2)
+    v1 t1 v2 t2.
+
+Definition sem_shr (v1:val) (t1:type) (v2: val) (t2:type) : option val :=
+  sem_shift
+    (fun sg n1 n2 => match sg with Signed => Int.shr n1 n2 | Unsigned => Int.shru n1 n2 end)
+    (fun sg n1 n2 => match sg with Signed => Int64.shr n1 n2 | Unsigned => Int64.shru n1 n2 end)
+    v1 t1 v2 t2.
+
+(** *** Comparisons *)
+
+Inductive classify_cmp_cases : Type :=
+  | cmp_case_pp                       (**r pointer, pointer *)
+  | cmp_case_pi (si: signedness)      (**r pointer, int *)
+  | cmp_case_ip (si: signedness)      (**r int, pointer *)
+  | cmp_case_pl                       (**r pointer, long *)
+  | cmp_case_lp                       (**r long, pointer *)
+  | cmp_default.                      (**r numerical, numerical *)
+
+Definition classify_cmp (ty1: type) (ty2: type) :=
+  match typeconv ty1, typeconv ty2 with
+  | Tpointer _ _ , Tpointer _ _ => cmp_case_pp
+  | Tpointer _ _ , Tint _ si _ => cmp_case_pi si
+  | Tint _ si _, Tpointer _ _ => cmp_case_ip si
+  | Tpointer _ _ , Tlong _ _ => cmp_case_pl
+  | Tlong _ _ , Tpointer _ _ => cmp_case_lp
+  | _, _ => cmp_default
+  end.
+
+Definition cmp_ptr (m: mem) (c: comparison) (v1 v2: val): option val :=
+  option_map Val.of_bool
+   (if Archi.ptr64
+    then Val.cmplu_bool (Mem.valid_pointer m) c v1 v2
+    else Val.cmpu_bool (Mem.valid_pointer m) c v1 v2).
+
+Definition sem_cmp (c:comparison)
+                  (v1: val) (t1: type) (v2: val) (t2: type)
+                  (m: mem): option val :=
+  match classify_cmp t1 t2 with
+  | cmp_case_pp =>
+      cmp_ptr m c v1 v2
+  | cmp_case_pi si =>
+1051:Definition sem_binary_operation
+1052-    (cenv: composite_env)
+1053-    (op: binary_operation)
+1054-    (v1: val) (t1: type) (v2: val) (t2:type)
+1055-    (m: mem): option val :=
+1056-  match op with
+1057-  | Oadd => sem_add cenv v1 t1 v2 t2 m
+1058-  | Osub => sem_sub cenv v1 t1 v2 t2 m
+1059-  | Omul => sem_mul v1 t1 v2 t2 m
+1060-  | Omod => sem_mod v1 t1 v2 t2 m
+1061-  | Odiv => sem_div v1 t1 v2 t2 m
+1062-  | Oand => sem_and v1 t1 v2 t2 m
+1063-  | Oor  => sem_or v1 t1 v2 t2 m
+1064-  | Oxor  => sem_xor v1 t1 v2 t2 m
+1065-  | Oshl => sem_shl v1 t1 v2 t2
+1066-  | Oshr  => sem_shr v1 t1 v2 t2
+1067-  | Oeq => sem_cmp Ceq v1 t1 v2 t2 m
+1068-  | One => sem_cmp Cne v1 t1 v2 t2 m
+1069-  | Olt => sem_cmp Clt v1 t1 v2 t2 m
+1070-  | Ogt => sem_cmp Cgt v1 t1 v2 t2 m
+1071-  | Ole => sem_cmp Cle v1 t1 v2 t2 m
+1072-  | Oge => sem_cmp Cge v1 t1 v2 t2 m
+1073-  end.
+1074-
+1075-Definition sem_incrdecr (cenv: composite_env) (id: incr_or_decr) (v: val) (ty: type) (m: mem) :=
+1076-  match id with
+1077-  | Incr => sem_add cenv v ty (Vint Int.one) type_int32s m
+1078-  | Decr => sem_sub cenv v ty (Vint Int.one) type_int32s m
+1079-  end.
+1080-
+1081-Definition incrdecr_type (ty: type) :=
+1082-  match typeconv ty with
+1083-  | Tpointer ty a => Tpointer ty a
+1084-  | Tint sz sg a => Tint sz sg noattr
+1085-  | Tlong sg a => Tlong sg noattr
+1086-  | Tfloat sz a => Tfloat sz noattr
+1087-  | _ => Tvoid
+1088-  end.
+1089-
+1090-(** ** Accessing bit fields *)
+1091-

@@ -1,0 +1,440 @@
+/* Pinned unchanged Paparazzi slices; explicit fixed sqrt binding below. */
+#include <stdint.h>
+/* Fixed executable binding: binary64 sqrt, then binary32 cast. */
+#define sqrtf(x) ((float)__builtin_sqrt((double)(x)))
+
+struct FloatVect2 {
+  float x;
+  float y;
+};
+
+struct Int64Vect2 {
+  int64_t x;
+  int64_t y;
+};
+
+#ifndef GUIDANCE_H_REF_MAX_ACCEL
+#define GUIDANCE_H_REF_MAX_ACCEL 5.66
+#endif
+
+#define GH_POS_REF_FRAC 37
+
+struct GuidanceHRef {
+  /** Reference model acceleration.
+   * in meters/sec2 (output)
+   */
+  struct FloatVect2 accel;
+
+  /** Reference model speed.
+   * in meters/sec
+   * accuracy 0.0000076 , range 16384m/s
+   */
+  struct FloatVect2 speed;
+
+  /** Reference model position.
+   * in meters
+   * with fixedpoint representation: Q37.26
+   */
+  struct Int64Vect2 pos;
+
+  float tau;    ///< first order time constant
+  float omega;  ///< second order model natural frequency
+  float zeta;   ///< second order model damping
+
+  /** Current maximum speed for waypoint navigation.
+   * Defaults to #GUIDANCE_H_REF_MAX_SPEED
+   */
+  float max_speed;
+
+  /*
+   * internal variables
+   */
+  float zeta_omega;
+  float omega_2;
+  float inv_tau;
+
+  /** Integration timestep
+   */
+  float dt;
+};
+
+#define VECT2_COPY(_a, _b) {      \
+    (_a).x = (_b).x;        \
+    (_a).y = (_b).y;        \
+  }
+
+
+#define VECT2_ADD(_a, _b) {     \
+    (_a).x += (_b).x;       \
+    (_a).y += (_b).y;       \
+  }
+
+
+#define VECT2_DIFF(_c, _a, _b) {                \
+    (_c).x = (_a).x - (_b).x;     \
+    (_c).y = (_a).y - (_b).y;     \
+  }
+
+
+#define VECT2_SMUL(_vo, _vi, _s) {    \
+    (_vo).x =  (_vi).x * (_s);      \
+    (_vo).y =  (_vi).y * (_s);      \
+  }
+
+
+#define VECT2_NORM2(_v) ((_v).x*(_v).x + (_v).y*(_v).y)
+
+#define LBFP_OF_REAL(_vr, _frac)   ((_vr)*(1LL<<(_frac)))
+
+struct GuidanceHRef gh_ref;
+
+static const float gh_max_accel = GUIDANCE_H_REF_MAX_ACCEL;
+
+static void gh_saturate_accel(struct FloatVect2 *accel_sp);
+
+void gh_update_ref_from_speed_sp(struct FloatVect2 speed_sp)
+{
+  struct FloatVect2 pos_step, speed_step;
+
+  VECT2_SMUL(pos_step, gh_ref.speed, gh_ref.dt);
+  VECT2_SMUL(speed_step, gh_ref.accel, gh_ref.dt);
+
+  struct Int64Vect2 pos_update;
+  pos_update.x = LBFP_OF_REAL(pos_step.x, GH_POS_REF_FRAC);
+  pos_update.y = LBFP_OF_REAL(pos_step.y, GH_POS_REF_FRAC);
+
+  VECT2_ADD(gh_ref.pos, pos_update);
+  VECT2_ADD(gh_ref.speed, speed_step);
+
+  // compute speed error
+  struct FloatVect2 speed_err;
+  VECT2_DIFF(speed_err, gh_ref.speed, speed_sp);
+  // compute accel from speed_sp
+  struct FloatVect2 accel_sp;
+  VECT2_SMUL(accel_sp, speed_err, -gh_ref.inv_tau);
+
+  gh_saturate_accel(&accel_sp);
+
+  // copy accel
+  VECT2_COPY(gh_ref.accel, accel_sp);
+}
+
+static void gh_saturate_accel(struct FloatVect2 *accel_sp)
+{
+  // Accel squared
+  float a_norm2 = VECT2_NORM2(*accel_sp);
+
+  // Apply saturation if above max speed
+  if (a_norm2 > (gh_max_accel * gh_max_accel)) {
+    // accel_sp/sqrt(a_norm2)*amax
+    float factor = gh_max_accel / sqrtf(a_norm2);
+    VECT2_SMUL(*accel_sp, *accel_sp, factor);
+  }
+}
+/* Pinned unchanged Paparazzi slices; explicit fixed sqrt binding below. */
+#include <stdint.h>
+/* Fixed executable binding: binary64 sqrt, then binary32 cast. */
+#define sqrtf(x) ((float)__builtin_sqrt((double)(x)))
+
+struct FloatVect2 {
+  float x;
+  float y;
+};
+
+struct Int64Vect2 {
+  int64_t x;
+  int64_t y;
+};
+
+#ifndef GUIDANCE_H_REF_MAX_ACCEL
+#define GUIDANCE_H_REF_MAX_ACCEL 5.66
+#endif
+
+#define GH_POS_REF_FRAC 37
+
+struct GuidanceHRef {
+  /** Reference model acceleration.
+   * in meters/sec2 (output)
+   */
+  struct FloatVect2 accel;
+
+  /** Reference model speed.
+   * in meters/sec
+   * accuracy 0.0000076 , range 16384m/s
+   */
+  struct FloatVect2 speed;
+
+  /** Reference model position.
+   * in meters
+   * with fixedpoint representation: Q37.26
+   */
+  struct Int64Vect2 pos;
+
+  float tau;    ///< first order time constant
+  float omega;  ///< second order model natural frequency
+  float zeta;   ///< second order model damping
+
+  /** Current maximum speed for waypoint navigation.
+   * Defaults to #GUIDANCE_H_REF_MAX_SPEED
+   */
+  float max_speed;
+
+  /*
+   * internal variables
+   */
+  float zeta_omega;
+  float omega_2;
+  float inv_tau;
+
+  /** Integration timestep
+   */
+  float dt;
+};
+
+#define VECT2_COPY(_a, _b) {      \
+    (_a).x = (_b).x;        \
+    (_a).y = (_b).y;        \
+  }
+
+
+#define VECT2_ADD(_a, _b) {     \
+    (_a).x += (_b).x;       \
+    (_a).y += (_b).y;       \
+  }
+
+
+#define VECT2_DIFF(_c, _a, _b) {                \
+    (_c).x = (_a).x - (_b).x;     \
+    (_c).y = (_a).y - (_b).y;     \
+  }
+
+
+#define VECT2_SMUL(_vo, _vi, _s) {    \
+    (_vo).x =  (_vi).x * (_s);      \
+    (_vo).y =  (_vi).y * (_s);      \
+  }
+
+
+#define VECT2_NORM2(_v) ((_v).x*(_v).x + (_v).y*(_v).y)
+
+#define LBFP_OF_REAL(_vr, _frac)   ((_vr)*(1LL<<(_frac)))
+
+struct GuidanceHRef gh_ref;
+
+static const float gh_max_accel = GUIDANCE_H_REF_MAX_ACCEL;
+
+static void gh_saturate_accel(struct FloatVect2 *accel_sp);
+
+void gh_update_ref_from_accel_sp(struct FloatVect2 accel_sp)
+{
+  struct FloatVect2 pos_step, speed_step;
+
+  VECT2_SMUL(pos_step, gh_ref.speed, gh_ref.dt);
+  VECT2_SMUL(speed_step, gh_ref.accel, gh_ref.dt);
+
+  struct Int64Vect2 pos_update;
+  pos_update.x = LBFP_OF_REAL(pos_step.x, GH_POS_REF_FRAC);
+  pos_update.y = LBFP_OF_REAL(pos_step.y, GH_POS_REF_FRAC);
+
+  VECT2_ADD(gh_ref.pos, pos_update);
+  VECT2_ADD(gh_ref.speed, speed_step);
+
+  gh_saturate_accel(&accel_sp);
+
+  // copy accel
+  VECT2_COPY(gh_ref.accel, accel_sp);
+}
+
+static void gh_saturate_accel(struct FloatVect2 *accel_sp)
+{
+  // Accel squared
+  float a_norm2 = VECT2_NORM2(*accel_sp);
+
+  // Apply saturation if above max speed
+  if (a_norm2 > (gh_max_accel * gh_max_accel)) {
+    // accel_sp/sqrt(a_norm2)*amax
+    float factor = gh_max_accel / sqrtf(a_norm2);
+    VECT2_SMUL(*accel_sp, *accel_sp, factor);
+  }
+}
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+(** Complete original GuidanceHRef named state, x86-64 Linux little endian.
+    No padding observation and no restriction on floating-point bit patterns. *)
+Record state : Type := mkstate {
+  accel_x : float32; accel_y : float32;
+  speed_x : float32; speed_y : float32;
+  pos_x : int64; pos_y : int64;
+  tau : float32; omega : float32; zeta : float32; max_speed : float32;
+  zeta_omega : float32; omega_2 : float32; inv_tau : float32; dt : float32
+}.
+Definition repr (s : state) (m : mem) (b : block) : Prop :=
+  Mem.load Mfloat32 m b 0 = Some (Vsingle (accel_x s)) /\
+  Mem.load Mfloat32 m b 4 = Some (Vsingle (accel_y s)) /\
+  Mem.load Mfloat32 m b 8 = Some (Vsingle (speed_x s)) /\
+  Mem.load Mfloat32 m b 12 = Some (Vsingle (speed_y s)) /\
+  Mem.load Mint64 m b 16 = Some (Vlong (pos_x s)) /\
+  Mem.load Mint64 m b 24 = Some (Vlong (pos_y s)) /\
+  Mem.load Mfloat32 m b 32 = Some (Vsingle (tau s)) /\
+  Mem.load Mfloat32 m b 36 = Some (Vsingle (omega s)) /\
+  Mem.load Mfloat32 m b 40 = Some (Vsingle (zeta s)) /\
+  Mem.load Mfloat32 m b 44 = Some (Vsingle (max_speed s)) /\
+  Mem.load Mfloat32 m b 48 = Some (Vsingle (zeta_omega s)) /\
+  Mem.load Mfloat32 m b 52 = Some (Vsingle (omega_2 s)) /\
+  Mem.load Mfloat32 m b 56 = Some (Vsingle (inv_tau s)) /\
+  Mem.load Mfloat32 m b 60 = Some (Vsingle (dt s)).
+Definition writable (m : mem) (b : block) : Prop :=
+  Mem.range_perm m b 0 64 Cur Writable.
+Definition omega_min : float32 := Float32.of_bits (Int.repr 1036831949).
+Definition omega_max : float32 := Float32.of_bits (Int.repr 1084227584).
+Definition zeta_min : float32 := Float32.of_bits (Int.repr 1060320051).
+Definition zeta_max : float32 := Float32.of_bits (Int.repr 1067030938).
+Definition bound (lo hi x : float32) : float32 :=
+  if Float32.cmp Cgt x lo then
+    if Float32.cmp Clt x hi then x else hi
+  else lo.
+Definition clamp_omega := bound omega_min omega_max.
+Definition clamp_zeta := bound zeta_min zeta_max.
+Definition set_omega (s : state) (o : float32) : state :=
+  let O := clamp_omega o in
+  mkstate (accel_x s) (accel_y s) (speed_x s) (speed_y s)
+    (pos_x s) (pos_y s) (tau s) O (zeta s) (max_speed s)
+    (Float32.mul (zeta s) O) (Float32.mul O O) (inv_tau s) (dt s).
+Definition set_zeta (s : state) (z : float32) : state :=
+  let Z := clamp_zeta z in
+  mkstate (accel_x s) (accel_y s) (speed_x s) (speed_y s)
+    (pos_x s) (pos_y s) (tau s) (omega s) Z (max_speed s)
+    (Float32.mul Z (omega s)) (omega_2 s) (inv_tau s) (dt s).
+Definition named_bits (s : state) : list val :=
+  [Vint (Float32.to_bits (accel_x s)); Vint (Float32.to_bits (accel_y s));
+   Vint (Float32.to_bits (speed_x s)); Vint (Float32.to_bits (speed_y s));
+   Vlong (pos_x s); Vlong (pos_y s); Vint (Float32.to_bits (tau s));
+   Vint (Float32.to_bits (omega s)); Vint (Float32.to_bits (zeta s));
+   Vint (Float32.to_bits (max_speed s)); Vint (Float32.to_bits (zeta_omega s));
+   Vint (Float32.to_bits (omega_2 s)); Vint (Float32.to_bits (inv_tau s));
+   Vint (Float32.to_bits (dt s))].
+Lemma setters_commute : forall s o z,
+  set_zeta (set_omega s o) z = set_omega (set_zeta s z) o.
+Proof. intros []; reflexivity. Qed.
+Lemma repr_unique : forall a c m b, repr a m b -> repr c m b -> a=c.
+Proof.
+ intros [] [] m b A C; unfold repr in *; simpl in *.
+ repeat match goal with H : _ /\ _ |- _ => destruct H end.
+ repeat match goal with H : ?x = Some _, H1 : ?x = Some _ |- _ =>
+   rewrite H in H1; injection H1 as H1; try subst; clear H1
+ end.
+ reflexivity.
+Qed.
+Print Assumptions setters_commute.
+Print Assumptions repr_unique.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory.
+From FivePaparazziState Require Import State.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition float_offsets : list Z := [0;4;8;12;32;36;40;44;48;52;56;60].
+Definition replace_float (s : state) (offset : Z) (x : float32) : state :=
+ mkstate
+ (if Z.eqb offset 0 then x else accel_x s)
+ (if Z.eqb offset 4 then x else accel_y s)
+ (if Z.eqb offset 8 then x else speed_x s)
+ (if Z.eqb offset 12 then x else speed_y s)
+ (pos_x s) (pos_y s)
+ (if Z.eqb offset 32 then x else tau s)
+ (if Z.eqb offset 36 then x else omega s)
+ (if Z.eqb offset 40 then x else zeta s)
+ (if Z.eqb offset 44 then x else max_speed s)
+ (if Z.eqb offset 48 then x else zeta_omega s)
+ (if Z.eqb offset 52 then x else omega_2 s)
+ (if Z.eqb offset 56 then x else inv_tau s)
+ (if Z.eqb offset 60 then x else dt s).
+Lemma writable_float_access : forall m b offset,
+ writable m b -> In offset float_offsets ->
+ Mem.valid_access m Mfloat32 b offset Writable.
+Proof.
+ intros m b offset W OFF. unfold float_offsets in OFF; simpl in OFF.
+ unfold Mem.valid_access; split.
+ - intros ofs RNG; apply W; repeat match goal with H : _ \/ _ |- _ => destruct H as [H|H] end; try contradiction; subst offset; cbn in *; lia.
+ - repeat match goal with H : _ \/ _ |- _ => destruct H as [H|H] end; try contradiction; subst offset; match goal with |- (?d | ?n) => exists (n/d); reflexivity end.
+Qed.
+Lemma writable_store : forall m b offset x mf,
+ writable m b -> Mem.store Mfloat32 m b offset (Vsingle x)=Some mf ->
+ writable mf b.
+Proof.
+ intros m b offset x mf W S ofs RNG.
+ eapply Mem.perm_store_1; eauto.
+Qed.
+Lemma repr_store_float : forall s m b offset x mf,
+ repr s m b -> In offset float_offsets ->
+ Mem.store Mfloat32 m b offset (Vsingle x)=Some mf ->
+ repr (replace_float s offset x) mf b.
+Proof.
+ intros s m b offset x mf R OFF S.
+ unfold repr in R; repeat match goal with H : _ /\ _ |- _ => destruct H end.
+ unfold float_offsets in OFF; simpl in OFF.
+ repeat match goal with H : _ \/ _ |- _ => destruct H as [H|H] end; try contradiction; subst offset;
+ unfold repr, replace_float; simpl; repeat split;
+ first [erewrite Mem.load_store_same by exact S; reflexivity |
+        erewrite Mem.load_store_other by (exact S || (right; cbn; lia)); assumption].
+Qed.
+Print Assumptions repr_store_float.
+
+Lemma repr_alloc : forall s m b lo hi ma fresh,
+ repr s m b -> Mem.alloc m lo hi=(ma,fresh) -> repr s ma b.
+Proof.
+ intros s m b lo hi ma fresh R A; unfold repr in *;
+ repeat match goal with H : _ /\ _ |- _ => destruct H end;
+ repeat split; eapply Mem.load_alloc_other; eauto.
+Qed.
+Lemma writable_alloc : forall m b lo hi ma fresh,
+ writable m b -> Mem.alloc m lo hi=(ma,fresh) -> writable ma b.
+Proof.
+ intros m b lo hi ma fresh W A ofs RNG; eapply Mem.perm_alloc_1; eauto.
+Qed.
+Lemma repr_store_other : forall s m b chunk other offset v mf,
+ repr s m b -> b<>other -> Mem.store chunk m other offset v=Some mf -> repr s mf b.
+Proof.
+ intros s m b chunk other offset v mf R D S; unfold repr in *;
+ repeat match goal with H : _ /\ _ |- _ => destruct H end;
+ repeat split; erewrite Mem.load_store_other by (exact S || (left; exact D)); assumption.
+Qed.
+Lemma writable_store_other : forall m b chunk other offset v mf,
+ writable m b -> Mem.store chunk m other offset v=Some mf -> writable mf b.
+Proof.
+ intros m b chunk other offset v mf W S ofs RNG; eapply Mem.perm_store_1; eauto.
+Qed.
+Lemma repr_free_other : forall s m b other lo hi mf,
+ repr s m b -> b<>other -> Mem.free m other lo hi=Some mf -> repr s mf b.
+Proof.
+ intros s m b other lo hi mf R D F; unfold repr in *;
+ repeat match goal with H : _ /\ _ |- _ => destruct H end;
+ repeat split; erewrite Mem.load_free by (exact F || (left; exact D)); assumption.
+Qed.
+Lemma writable_free_other : forall m b other lo hi mf,
+ writable m b -> b<>other -> Mem.free m other lo hi=Some mf -> writable mf b.
+Proof.
+ intros m b other lo hi mf W D F ofs RNG; eapply Mem.perm_free_1; eauto.
+Qed.
+Print Assumptions repr_free_other.
+From Stdlib Require Import List.
+From compcert Require Import Values Memory Floats Csem Smallstep.
+Require FiveSum2.Execution FiveSum3.Execution.
+Import ListNotations.
+
+Definition Returns (ge : Csem.genv) (entry : list val -> mem -> Csem.state)
+    (args : list val) (before : mem) (value : val) (after : mem) : Prop :=
+  exists t, star Csem.step ge (entry args before) t
+    (Csem.Returnstate value Csem.Kstop after).
+
+Definition Sum2EqualsSum3 : Prop :=
+  forall (a b c ab lhs rhs : float32) m2 m2' m2'' m3 m3',
+    Returns FiveSum2.Execution.ge FiveSum2.Execution.entry
+      [Vsingle a; Vsingle b] m2 (Vsingle ab) m2' ->
+    Returns FiveSum2.Execution.ge FiveSum2.Execution.entry
+      [Vsingle ab; Vsingle c] m2' (Vsingle lhs) m2'' ->
+    Returns FiveSum3.Execution.ge FiveSum3.Execution.entry
+      [Vsingle a; Vsingle b; Vsingle c] m3 (Vsingle rhs) m3' ->
+    Float32.to_bits lhs = Float32.to_bits rhs.

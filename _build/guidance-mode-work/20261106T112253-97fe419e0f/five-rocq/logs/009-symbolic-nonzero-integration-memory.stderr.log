@@ -1,0 +1,26 @@
+File "./paparazzi/relations/guidance_mode/support/relation/Initialization.v", line 150, characters 1-99:
+Error: Cannot infer an existential variable of type
+"0 = 56 \/
+ 4 = 56 \/
+ 8 = 56 \/
+ 12 = 56 \/
+ 32 = 56 \/
+ 36 = 56 \/
+ 40 = 56 \/ 44 = 56 \/ 48 = 56 \/ 52 = 56 \/ 56 = 56 \/ 60 = 56 \/ False"
+in
+environment:
+m : mem
+b, bc : block
+R : repr zero_state m b
+W : writable m b
+D : b <> bc
+C : Mem.load Mfloat32 m bc 0 = Some (Vsingle fixed_maximum)
+m1 : mem
+R1 : repr (replace_float zero_state 0 ftwo) m1 b
+W1 : writable m1 b
+C1 : Mem.load Mfloat32 m1 bc 0 = Some (Vsingle fixed_maximum)
+m2 : mem
+R2 : repr (replace_float (replace_float zero_state 0 ftwo) 8 fone) m2 b
+W2 : writable m2 b
+C2 : Mem.load Mfloat32 m2 bc 0 = Some (Vsingle fixed_maximum)
+

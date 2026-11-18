@@ -1,0 +1,334 @@
+{
+  "schema": "five-run/1.0",
+  "run_id": "20261107T065513-a0cac485c1",
+  "skill": "five-cbmc",
+  "parent": "_build/lowpass-update-readback-parent/20261107T055822-213c1c3ee8/five-verify",
+  "started_at": "2026-11-07T06:55:13.635224+00:00",
+  "start_epoch": 1794034513.6352441,
+  "invocation_kind": "skill-session",
+  "status": "passed",
+  "timing_scope": "From start to finish of this invocation; not retroactive authoring time",
+  "children": [],
+  "environment": {
+    "os": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "python": "3.10.12",
+    "cwd": "/home/yangfp/five",
+    "measurement": "GNU time + /proc RSS sampling",
+    "tools": {
+      "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc": {
+        "path": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "binary_sha256": "01ae2ae74a9dc5673631e42256f780393081650f4a22d6f4220566c0deb1643a"
+      },
+      "python3": {
+        "path": "/usr/bin/python3",
+        "binary_sha256": "a2f33a6e006989270f4340528eb61f8f97366e00a5d1b602ac8672ea44fc56ae"
+      }
+    },
+    "environment_policy": "No full environment dump; secrets excluded"
+  },
+  "scope": {
+    "task": "genuine direct CBMC rerun with explicit original source and harness physical captures; primary C/harness and36 property scope unchanged"
+  },
+  "tokens": {
+    "status": "available",
+    "source": {
+      "kind": "codex-session-event",
+      "reference": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88"
+    },
+    "complete": true,
+    "scope": "explicit event-boundary interval",
+    "boundaries": {
+      "after_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:c4e45af50127f6a14699938d",
+      "before_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:d0cc7a332a4d06ac71cc6492"
+    },
+    "events": [
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:d0cc7a332a4d06ac71cc6492",
+        "timestamp": "2026-11-07T06:55:14.591Z",
+        "source_line": 1229,
+        "input_tokens": 212237,
+        "output_tokens": 889,
+        "cached_input_tokens": 212096,
+        "reasoning_output_tokens": 0
+      }
+    ],
+    "notes": [],
+    "totals": {
+      "input_tokens": 212237,
+      "output_tokens": 889,
+      "cached_input_tokens": 212096,
+      "reasoning_output_tokens": 0
+    },
+    "total_tokens": 213126
+  },
+  "commands": [
+    {
+      "id": "001-direct-original-input-bound-traditional-bmc",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/update_first_order_low_pass/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--pointer-check",
+        "--bounds-check",
+        "--unwind",
+        "1",
+        "--unwinding-assertions",
+        "--json-ui"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:55:13.777395+00:00",
+      "finished_at": "2026-11-07T06:55:13.943713+00:00",
+      "wall_seconds": 0.16605225400417112,
+      "timeout_seconds": 180,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 21084,
+        "user_seconds": 0.08,
+        "system_seconds": 0.04,
+        "elapsed_seconds": 0.15,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 23453696,
+      "rss_sample_count": 9,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.0217373940104153,
+      "rss_sampling_errors": [],
+      "stdout": "logs/001-direct-original-input-bound-traditional-bmc.stdout.log",
+      "stderr": "logs/001-direct-original-input-bound-traditional-bmc.stderr.log",
+      "time_log": "logs/001-direct-original-input-bound-traditional-bmc.time.log"
+    },
+    {
+      "id": "002-publish-genuine-input-bound-bmc-receipt",
+      "argv": [
+        "python3",
+        "-c",
+        "\nfrom pathlib import Path\nimport json,hashlib,shutil\nroot=Path.cwd();case=root/'paparazzi/models/update_first_order_low_pass';report=root/'paparazzi/report/lowpass_update_readback';run=Path('_build/lowpass-update-readback/current-run.txt').read_text();meta=json.loads((Path(run)/'run.json').read_text());cmd=meta['commands'][0]\nraw=Path(run)/cmd['stdout'];props=[p for row in json.loads(raw.read_text())for p in row.get('result',[])];old=json.loads((case/'cbmc/properties.json').read_text());assert props==old and len(props)==36 and all(p['status']=='SUCCESS'for p in props)\np=case/'cbmc/handoff.json';history=report/'evidence/history';history.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,history/'cbmc-handoff-initial.json');h=json.loads(p.read_text());h['historical_cbmc_evidence']=[h['cbmc_evidence']];h['cbmc_evidence']={'run':str(Path(run).relative_to(root)),'command_id':cmd['id'],'json':str(raw.relative_to(root))};p.write_text(json.dumps(h,indent=2)+chr(10));print('Exactsame36propertyrecords; canonical CBMC now original-source/harness input-bound',run)\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:56:12.748112+00:00",
+      "finished_at": "2026-11-07T06:56:12.815104+00:00",
+      "wall_seconds": 0.06664046001969837,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 14696,
+        "user_seconds": 0.03,
+        "system_seconds": 0.01,
+        "elapsed_seconds": 0.05,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 15110144,
+      "rss_sample_count": 3,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.02737776399590075,
+      "rss_sampling_errors": [],
+      "stdout": "logs/002-publish-genuine-input-bound-bmc-receipt.stdout.log",
+      "stderr": "logs/002-publish-genuine-input-bound-bmc-receipt.stderr.log",
+      "time_log": "logs/002-publish-genuine-input-bound-bmc-receipt.time.log"
+    }
+  ],
+  "inputs": [
+    {
+      "role": "original-source",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/prepare/source/update_first_order_low_pass.c",
+      "path": "inputs/original-source--update_first_order_low_pass.c",
+      "sha256": "19ab80bc756f2e4e73fe959b87e5fea29de39c184cf9349919bcdec1652ef010",
+      "bytes": 364
+    },
+    {
+      "role": "actual-harness",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/cbmc/harness.c",
+      "path": "inputs/actual-harness--harness.c",
+      "sha256": "31462c42301eb8c396b126874dc9f4488376677ddf20076d80dc91eac6ff0684",
+      "bytes": 657
+    },
+    {
+      "role": "bindings",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/prepare/source/bindings.json",
+      "path": "inputs/bindings--bindings.json",
+      "sha256": "7244399b207622a66837d1d3c1afb87110e25c836e8ccc4f9be1dbe2f4d4ae45",
+      "bytes": 1816
+    },
+    {
+      "role": "verification-request",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/prepare/verification-request.json",
+      "path": "inputs/verification-request--verification-request.json",
+      "sha256": "2885e027a6cce2fc020ab14cbd2f2848b2b077ecee35a15bddbc292081565576",
+      "bytes": 1418
+    },
+    {
+      "role": "prior-properties",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/cbmc/properties.json",
+      "path": "inputs/prior-properties--properties.json",
+      "sha256": "90ccc0bd13444f4d6042c18f0aba33ab6d2e28215c5abdba3fd373509455c7d4",
+      "bytes": 42070
+    }
+  ],
+  "codex_usage_boundary": {
+    "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+    "before": {
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "last_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:c4e45af50127f6a14699938d",
+      "last_event_timestamp": "2026-11-07T06:54:20.294Z",
+      "observed_event_count": 188,
+      "counters": {
+        "input_tokens": 26150164,
+        "output_tokens": 71596,
+        "cached_input_tokens": 25830528,
+        "reasoning_output_tokens": 21229
+      },
+      "notes": []
+    },
+    "after": {
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "last_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:d0cc7a332a4d06ac71cc6492",
+      "last_event_timestamp": "2026-11-07T06:55:14.591Z",
+      "observed_event_count": 189,
+      "counters": {
+        "input_tokens": 26362401,
+        "output_tokens": 72485,
+        "cached_input_tokens": 26042624,
+        "reasoning_output_tokens": 21229
+      },
+      "notes": []
+    }
+  },
+  "finished_at": "2026-11-07T06:56:13.148525+00:00",
+  "finish_epoch": 1794034573.148545,
+  "result": {
+    "verdict": "passed",
+    "summary": "Genuine direct CBMC rerun: same unchanged C/harness and all36 exact property records SUCCESS; explicit source/harness physical input captures present.",
+    "outputs": {
+      "handoff": {
+        "status": "present",
+        "role": "handoff",
+        "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/cbmc/handoff.json",
+        "path": "evidence/handoff--handoff.json",
+        "sha256": "a46ee25d195f90add376644dc29742be666cbe8690b20603018dd3e72629d4d8",
+        "bytes": 2702
+      },
+      "properties": {
+        "status": "present",
+        "role": "properties",
+        "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/cbmc/properties.json",
+        "path": "evidence/properties--properties.json",
+        "sha256": "90ccc0bd13444f4d6042c18f0aba33ab6d2e28215c5abdba3fd373509455c7d4",
+        "bytes": 42070
+      }
+    },
+    "verification_scope": {
+      "task": "genuine direct CBMC rerun with explicit original source and harness physical captures; primary C/harness and36 property scope unchanged"
+    },
+    "remaining_obligations": []
+  },
+  "completeness": {
+    "artifacts": "complete",
+    "measurements": "complete",
+    "missing_roles": [],
+    "note": "A passed verifier result does not imply all requested measurements are available."
+  },
+  "cost_audit": {
+    "status": "complete",
+    "run": "/home/yangfp/five/_build/lowpass-update-readback/20261107T065513-a0cac485c1/five-cbmc",
+    "skill": "five-cbmc",
+    "issues": [],
+    "own_model_tokens_excluding_children": 213126,
+    "inclusive_unique_model_tokens": 213126,
+    "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+  },
+  "artifacts": [
+    {
+      "path": "evidence/handoff--handoff.json",
+      "bytes": 2702,
+      "sha256": "a46ee25d195f90add376644dc29742be666cbe8690b20603018dd3e72629d4d8"
+    },
+    {
+      "path": "evidence/model-usage-receipt--usage.json",
+      "bytes": 1014,
+      "sha256": "72f494ffa57347fca55c77c4afc897b52733c622de17d2115a0660fc24c6674d"
+    },
+    {
+      "path": "evidence/properties--properties.json",
+      "bytes": 42070,
+      "sha256": "90ccc0bd13444f4d6042c18f0aba33ab6d2e28215c5abdba3fd373509455c7d4"
+    },
+    {
+      "path": "inputs/actual-harness--harness.c",
+      "bytes": 657,
+      "sha256": "31462c42301eb8c396b126874dc9f4488376677ddf20076d80dc91eac6ff0684"
+    },
+    {
+      "path": "inputs/bindings--bindings.json",
+      "bytes": 1816,
+      "sha256": "7244399b207622a66837d1d3c1afb87110e25c836e8ccc4f9be1dbe2f4d4ae45"
+    },
+    {
+      "path": "inputs/original-source--update_first_order_low_pass.c",
+      "bytes": 364,
+      "sha256": "19ab80bc756f2e4e73fe959b87e5fea29de39c184cf9349919bcdec1652ef010"
+    },
+    {
+      "path": "inputs/prior-properties--properties.json",
+      "bytes": 42070,
+      "sha256": "90ccc0bd13444f4d6042c18f0aba33ab6d2e28215c5abdba3fd373509455c7d4"
+    },
+    {
+      "path": "inputs/verification-request--verification-request.json",
+      "bytes": 1418,
+      "sha256": "2885e027a6cce2fc020ab14cbd2f2848b2b077ecee35a15bddbc292081565576"
+    },
+    {
+      "path": "logs/001-direct-original-input-bound-traditional-bmc.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/001-direct-original-input-bound-traditional-bmc.stdout.log",
+      "bytes": 41578,
+      "sha256": "2f8d4528b6c50c33f67c1a30adce14016d1146ea6b6dce62545f0fc236085caa"
+    },
+    {
+      "path": "logs/001-direct-original-input-bound-traditional-bmc.time.log",
+      "bytes": 109,
+      "sha256": "ce6040890b7cd1746d638a926d98018518a0f665572d8f8ce181265e4f7b4627"
+    },
+    {
+      "path": "logs/002-publish-genuine-input-bound-bmc-receipt.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/002-publish-genuine-input-bound-bmc-receipt.stdout.log",
+      "bytes": 169,
+      "sha256": "be8235b887e2b3dda99925f494094947b1dee7d0ab474152cc1ec46e2be233ae"
+    },
+    {
+      "path": "logs/002-publish-genuine-input-bound-bmc-receipt.time.log",
+      "bytes": 109,
+      "sha256": "f5252f01665f5df24939ddb2bf117a4574727c9d5d63066a08e5c6796400f0de"
+    },
+    {
+      "path": "metrics.json",
+      "bytes": 2363,
+      "sha256": "ff41b693ea6bcb3daff6720bc730e07bf96dd21825b061aa93334c2acfca7495"
+    },
+    {
+      "path": "report.md",
+      "bytes": 574,
+      "sha256": "d946d1fa1d0108666ffccf61e7c96ef99fe1cfa3cd0cd8ef00d880f24ff3031f"
+    }
+  ]
+}

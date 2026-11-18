@@ -1,0 +1,64 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassUpdateCase Require Import Contract UpdateSites.
+From FiveLowpassSupport Require Import LowpassMemory FieldBytes CbmcBits.
+From FiveGuidanceCbmcAdapters Require Import BitsAdapter.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module Source:=FiveLowpassUpdate.Source.
+Module Execution:=FiveLowpassUpdate.Execution.
+Definition Initial(m:mem)(b:block)(p:ptrofs)(tc vi vo:float32):Prop:=
+ writable12 m b p /\
+ Mem.loadbytes m b(Ptrofs.unsigned p)4=Some(encode_val Mfloat32(Vsingle tc)) /\
+ Mem.loadbytes m b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle vi)) /\
+ Mem.loadbytes m b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle vo)).
+Definition FieldCheck(mf:mem)(b:block)(p:ptrofs)(delta:Z)(v:float32):Prop:=
+ Mem.loadbytes mf b(Ptrofs.unsigned p+delta)4=Some(encode_val Mfloat32(Vsingle v)) /\
+ Mem.load Mfloat32 mf b(Ptrofs.unsigned p+delta)=Some(Vsingle v) /\
+ CopiedBitsEqualBothOrders Execution.ge v v mf.
+Definition Assertion(n:nat):Prop:=forall m b p tc li lo input,Initial m b p tc li lo->
+ (exists t mf,star Csem.step Execution.ge(Execution.entry(Args b p input)m)t(Returnstate(Vsingle(output tc li lo input))Kstop mf)) /\
+ (forall t result mf,star Csem.step Execution.ge(Execution.entry(Args b p input)m)t(Returnstate result Kstop mf)->
+ result=Vsingle(output tc li lo input) /\
+ match n with
+ |1%nat=>FieldCheck mf b p 8(output tc li lo input)
+ |2%nat=>FieldCheck mf b p 4 input
+ |3%nat=>FieldCheck mf b p 0 tc /\Mem.loadbytes mf b(Ptrofs.unsigned p)4=Mem.loadbytes m b(Ptrofs.unsigned p)4
+ |_=>False end).
+Definition P_memcpy_pointer_1:Prop:=CbmcBits.memcpy_guard_id 1%nat.
+Definition P_memcpy_pointer_arithmetic_1:Prop:=CbmcBits.memcpy_guard_id 2%nat.
+Definition P_memcpy_pointer_arithmetic_2:Prop:=CbmcBits.memcpy_guard_id 3%nat.
+Definition P_memcpy_pointer_2:Prop:=CbmcBits.memcpy_guard_id 4%nat.
+Definition P_memcpy_pointer_arithmetic_3:Prop:=CbmcBits.memcpy_guard_id 5%nat.
+Definition P_memcpy_pointer_arithmetic_4:Prop:=CbmcBits.memcpy_guard_id 6%nat.
+Definition P_bits_precondition_instance_1:Prop:=CbmcBits.bits_guard_id 1%nat.
+Definition P_bits_precondition_instance_2:Prop:=CbmcBits.bits_guard_id 2%nat.
+Definition P_bits_precondition_instance_3:Prop:=CbmcBits.bits_guard_id 3%nat.
+Definition P_main_assertion_1:Prop:=Assertion 1%nat.
+Definition P_main_assertion_2:Prop:=Assertion 2%nat.
+Definition P_main_assertion_3:Prop:=Assertion 3%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_1:Prop:=UpdateSites.SiteProperty 0%nat 0%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_2:Prop:=UpdateSites.SiteProperty 0%nat 1%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_3:Prop:=UpdateSites.SiteProperty 0%nat 2%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_4:Prop:=UpdateSites.SiteProperty 0%nat 3%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_5:Prop:=UpdateSites.SiteProperty 0%nat 4%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_6:Prop:=UpdateSites.SiteProperty 0%nat 5%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_7:Prop:=UpdateSites.SiteProperty 1%nat 0%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_8:Prop:=UpdateSites.SiteProperty 1%nat 1%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_9:Prop:=UpdateSites.SiteProperty 1%nat 2%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_10:Prop:=UpdateSites.SiteProperty 1%nat 3%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_11:Prop:=UpdateSites.SiteProperty 1%nat 4%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_12:Prop:=UpdateSites.SiteProperty 1%nat 5%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_13:Prop:=UpdateSites.SiteProperty 2%nat 0%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_14:Prop:=UpdateSites.SiteProperty 2%nat 1%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_15:Prop:=UpdateSites.SiteProperty 2%nat 2%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_16:Prop:=UpdateSites.SiteProperty 2%nat 3%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_17:Prop:=UpdateSites.SiteProperty 2%nat 4%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_18:Prop:=UpdateSites.SiteProperty 2%nat 5%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_19:Prop:=UpdateSites.SiteProperty 3%nat 0%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_20:Prop:=UpdateSites.SiteProperty 3%nat 1%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_21:Prop:=UpdateSites.SiteProperty 3%nat 2%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_22:Prop:=UpdateSites.SiteProperty 3%nat 3%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_23:Prop:=UpdateSites.SiteProperty 3%nat 4%nat.
+Definition P_update_first_order_low_pass_pointer_dereference_24:Prop:=UpdateSites.SiteProperty 3%nat 5%nat.

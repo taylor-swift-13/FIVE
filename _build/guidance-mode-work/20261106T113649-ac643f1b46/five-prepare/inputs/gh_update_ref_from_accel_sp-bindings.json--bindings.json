@@ -1,0 +1,46 @@
+{
+  "entry": "gh_update_ref_from_accel_sp",
+  "signature": "void (struct FloatVect2)",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a",
+  "prepared_source": {
+    "path": "gh_update_ref_from_accel_sp.c",
+    "sha256": "c972b0bba4e938e8102aa369d1f228de89e0f8663960316b64a4e8a367456d4e"
+  },
+  "external_calls": [
+    {
+      "original": "sqrtf",
+      "actual": "five_sqrtf",
+      "kind": "explicit fixed internal C implementation",
+      "source": "five_sqrtf.c",
+      "sha256": "7e96cb8bda497c725002dbe5bed9df3243e85761217247d1ffce835fc616320a",
+      "scope": "Exact execution of the included common integer-binary-search software C algorithm; native libm/IEEE accuracy transfer not claimed without a separate proof."
+    }
+  ],
+  "compilation_options": [
+    "-fstruct-passing"
+  ],
+  "limitations": [
+    "Native system libm equivalence and software IEEE accuracy theorem outside requested fixed-binding execution relation."
+  ],
+  "dependencies": [
+    {
+      "path": "five_sqrtf.c",
+      "sha256": "7e96cb8bda497c725002dbe5bed9df3243e85761217247d1ffce835fc616320a",
+      "origin": "paparazzi/report/guidance_mode/evidence/software-sqrt-binding/five_sqrtf.c"
+    }
+  ]
+}

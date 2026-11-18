@@ -1,0 +1,217 @@
+usage: compcert-align.py audit [-h] --manifest MANIFEST
+
+options:
+  -h, --help           show this help message and exit
+  --manifest MANIFEST
+Definition f_update_first_order_low_pass := {|
+  fn_return := tfloat;
+  fn_callconv := cc_default;
+  fn_params := ((_filter, (tptr (Tstruct _FirstOrderLowPass noattr))) ::
+                (_value, tfloat) :: nil);
+  fn_vars := ((_out, tfloat) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign (Evar _out tfloat)
+         (Ebinop Odiv
+           (Ebinop Oadd
+             (Ebinop Oadd (Evalof (Evar _value tfloat) tfloat)
+               (Evalof
+                 (Efield
+                   (Evalof
+                     (Ederef
+                       (Evalof
+                         (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                         (tptr (Tstruct _FirstOrderLowPass noattr)))
+                       (Tstruct _FirstOrderLowPass noattr))
+                     (Tstruct _FirstOrderLowPass noattr)) _last_in tfloat)
+                 tfloat) tfloat)
+             (Ebinop Omul
+               (Ebinop Osub
+                 (Evalof
+                   (Efield
+                     (Evalof
+                       (Ederef
+                         (Evalof
+                           (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                           (tptr (Tstruct _FirstOrderLowPass noattr)))
+                         (Tstruct _FirstOrderLowPass noattr))
+                       (Tstruct _FirstOrderLowPass noattr)) _time_const
+                     tfloat) tfloat)
+                 (Eval (Vsingle (Float32.of_bits (Int.repr 1065353216))) tfloat)
+                 tfloat)
+               (Evalof
+                 (Efield
+                   (Evalof
+                     (Ederef
+                       (Evalof
+                         (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                         (tptr (Tstruct _FirstOrderLowPass noattr)))
+                       (Tstruct _FirstOrderLowPass noattr))
+                     (Tstruct _FirstOrderLowPass noattr)) _last_out tfloat)
+                 tfloat) tfloat) tfloat)
+           (Ebinop Oadd
+             (Eval (Vsingle (Float32.of_bits (Int.repr 1065353216))) tfloat)
+             (Evalof
+               (Efield
+                 (Evalof
+                   (Ederef
+                     (Evalof
+                       (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                       (tptr (Tstruct _FirstOrderLowPass noattr)))
+                     (Tstruct _FirstOrderLowPass noattr))
+                   (Tstruct _FirstOrderLowPass noattr)) _time_const tfloat)
+               tfloat) tfloat) tfloat) tfloat))
+  (Ssequence
+    (Sdo (Eassign
+           (Efield
+             (Evalof
+               (Ederef
+                 (Evalof
+                   (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                   (tptr (Tstruct _FirstOrderLowPass noattr)))
+                 (Tstruct _FirstOrderLowPass noattr))
+               (Tstruct _FirstOrderLowPass noattr)) _last_in tfloat)
+           (Evalof (Evar _value tfloat) tfloat) tfloat))
+    (Ssequence
+      (Sdo (Eassign
+             (Efield
+               (Evalof
+                 (Ederef
+                   (Evalof
+                     (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                     (tptr (Tstruct _FirstOrderLowPass noattr)))
+                   (Tstruct _FirstOrderLowPass noattr))
+                 (Tstruct _FirstOrderLowPass noattr)) _last_out tfloat)
+             (Evalof (Evar _out tfloat) tfloat) tfloat))
+      (Sreturn (Some (Evalof (Evar _out tfloat) tfloat))))))
+|}.
+
+Definition composites : list composite_definition :=
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.
+From FiveLowpassReset Require Import Source Execution.
+From FiveLowpassSupport Require Import Expressions LowpassMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition filter_type:=tptr(Tstruct Source._FirstOrderLowPass noattr).
+Definition reset_input:=Evalof(Evar Source._value tfloat)tfloat.
+Definition reset_filter:=Evalof(Evar Source._filter filter_type)filter_type.
+Definition reset_field(id:ident):expr:=Efield(Evalof(Ederef reset_filter(Tstruct Source._FirstOrderLowPass noattr))(Tstruct Source._FirstOrderLowPass noattr))id tfloat.
+Lemma reset_location:forall e m bp b p id delta,
+ e!Source._filter=Some(bp,filter_type)->Mem.load Mptr m bp 0=Some(Vptr b p)->
+ (id=Source._last_in /\ delta=4) \/ (id=Source._last_out /\ delta=8)->
+ pure_lval Execution.ge e m(reset_field id)=Some(b,Ptrofs.add p(Ptrofs.repr delta),Full).
+Proof.
+ intros e m bp b p id delta LP LD ID;unfold reset_field;eapply struct_field.
+ - unfold reset_filter,filter_type;eapply pointer_variable;eauto.
+ - reflexivity.
+ - destruct ID as[[-> ->]|[-> ->]];reflexivity.
+Qed.
+Lemma reset_body_eval:forall e m bp bv b p value m1 m2,
+ writable12 m b p ->
+ e!Source._filter=Some(bp,filter_type)->e!Source._value=Some(bv,tfloat)->
+ Mem.load Mptr m bp 0=Some(Vptr b p)->Mem.load Mfloat32 m bv 0=Some(Vsingle value)->
+ bp<>b->bv<>b->
+ Mem.store Mfloat32 m b(Ptrofs.unsigned p+4)(Vsingle value)=Some m1->
+ Mem.store Mfloat32 m1 b(Ptrofs.unsigned p+8)(Vsingle value)=Some m2->
+ stmt_eval Execution.ge e tfloat(fn_body Source.f_reset_first_order_low_pass)m=Some(Nreturn(Vsingle value),m2).
+Proof.
+ intros e m bp bv b p value m1 m2 W LP LV PF VF PB VB S1 S2.
+ assert(PF1:Mem.load Mptr m1 bp 0=Some(Vptr b p))by(erewrite Mem.load_store_other by(exact S1||(left;exact PB));exact PF).
+ assert(VF1:Mem.load Mfloat32 m1 bv 0=Some(Vsingle value))by(erewrite Mem.load_store_other by(exact S1||(left;exact VB));exact VF).
+ assert(VF2:Mem.load Mfloat32 m2 bv 0=Some(Vsingle value))by(erewrite Mem.load_store_other by(exact S2||(left;exact VB));exact VF1).
+ assert(E1:atomic_eval Execution.ge e m(Eassign(reset_field Source._last_in)reset_input tfloat)=Some(Vsingle value,m1)).
+ { eapply assign_float;try reflexivity.
+ - eapply reset_location;[exact LP|exact PF|left;auto].
+ - unfold reset_input;eapply float_variable;eauto.
+ - rewrite(field_pointer m b p 4 W ltac:(simpl;auto));destruct W as[_[NW _]];change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(Ptrofs.unsigned p+4+4<=18446744073709551616);lia.
+ - rewrite(field_pointer m b p 4 W ltac:(simpl;auto));exact S1. }
+ assert(E2:atomic_eval Execution.ge e m1(Eassign(reset_field Source._last_out)reset_input tfloat)=Some(Vsingle value,m2)).
+ { eapply assign_float;try reflexivity.
+ - eapply reset_location;[exact LP|exact PF1|right;auto].
+ - unfold reset_input;eapply float_variable;eauto.
+ - rewrite(field_pointer m b p 8 W ltac:(simpl;auto));destruct W as[_[NW _]];change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(Ptrofs.unsigned p+8+4<=18446744073709551616);lia.
+ - rewrite(field_pointer m b p 8 W ltac:(simpl;auto));exact S2. }
+ change (stmt_eval Execution.ge e tfloat (Ssequence (Sdo (Eassign (reset_field Source._last_in) reset_input tfloat)) (Ssequence (Sdo (Eassign (reset_field Source._last_out) reset_input tfloat)) (Sreturn (Some reset_input)))) m = Some(Nreturn(Vsingle value),m2)).
+ cbn[stmt_eval];rewrite E1,E2;unfold reset_input;rewrite(float_variable _ _ _ _ _ _ LV VF2);reflexivity.
+Qed.
+Print Assumptions reset_body_eval.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation.
+Local Open Scope Z_scope.
+Lemma float_variable:forall ge e m id bx x,
+ e!id=Some(bx,tfloat)->Mem.load Mfloat32 m bx 0=Some(Vsingle x)->
+ pure_rval ge e m(Evalof(Evar id tfloat)tfloat)=Some(Vsingle x).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(4<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma pointer_variable:forall ge e m id bx b p ty,
+ e!id=Some(bx,tptr ty)->Mem.load Mptr m bx 0=Some(Vptr b p)->
+ pure_rval ge e m(Evalof(Evar id(tptr ty))(tptr ty))=Some(Vptr b p).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tptr noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(8<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma struct_field:forall ge e m ptr sid fid b p delta co,
+ pure_rval ge e m ptr=Some(Vptr b p)->
+ (genv_cenv ge)!sid=Some co->field_offset ge fid(co_members co)=OK(delta,Full)->
+ pure_lval ge e m(Efield(Evalof(Ederef ptr(Tstruct sid noattr))(Tstruct sid noattr))fid tfloat)=Some(b,Ptrofs.add p(Ptrofs.repr delta),Full).
+Proof.
+ intros;cbn[pure_lval pure_rval];rewrite ?dec_eq_true;cbn;fold(pure_rval ge e m ptr);rewrite H.
+ cbv[Cexec.do_deref_loc access_mode];cbn;rewrite H0,H1;reflexivity.
+Qed.
+Lemma assign_float:forall ge e m l r b p x mf,
+ typeof l=tfloat->typeof r=tfloat->
+ pure_lval ge e m l=Some(b,p,Full)->pure_rval ge e m r=Some(Vsingle x)->
+ Ptrofs.unsigned p+4<=Ptrofs.modulus->
+ Mem.store Mfloat32 m b(Ptrofs.unsigned p)(Vsingle x)=Some mf->
+ atomic_eval ge e m(Eassign l r tfloat)=Some(Vsingle x,mf).
+Proof.
+ intros ge e m l r b p x mf TL TR LL RR B ST.
+ cbn[atomic_eval];rewrite TL,dec_eq_true,LL,RR.
+ unfold commit;rewrite TR;cbv[sem_cast classify_cast Cexec.do_assign_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.storev].
+ rewrite zle_true by exact B;rewrite ST;reflexivity.
+Qed.
+Print Assumptions assign_float.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassGetCase Require Import Contract GetCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NormalCompletion:Prop:=forall m b p value,ReadableOut m b p value->exists t mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate(Vsingle value)Kstop mf) /\Post m mf b p value.
+Definition AllReturns:Prop:=forall m b p value,ReadableOut m b p value->forall t result mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate result Kstop mf)->result=Vsingle value /\Post m mf b p value.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassGetCase Require Import Contract GetCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+From FiveLowpassGetFunctional Require Import Spec.
+Theorem normal_completion:Spec.NormalCompletion.
+Proof. unfold Spec.NormalCompletion;intros m b p value P.
+ destruct(get_call_summary m b p value P)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args b p)m)=true)by(vm_compute;reflexivity).
+ assert(CN:call_names(Execution.entry(Args b p)m))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ destruct(defined_evaluator_return_exists Execution.ge _ _ _ N CN EV)as[t PATH];exists t,mf;auto. Qed.
+Theorem all_returns:Spec.AllReturns.
+Proof. unfold Spec.AllReturns;intros m b p value P t result after PATH.
+ destruct(get_call_summary m b p value P)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args b p)m)=true)by(vm_compute;reflexivity).
+ assert(CN:call_names(Execution.entry(Args b p)m))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ destruct(defined_evaluator_exact_return Execution.ge _ _ _ _ _ _ N EV PATH)as[VR MR];subst result after;auto. Qed.
+Print Assumptions normal_completion.
+Print Assumptions all_returns.

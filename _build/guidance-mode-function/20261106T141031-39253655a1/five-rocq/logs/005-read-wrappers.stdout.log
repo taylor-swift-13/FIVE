@@ -1,0 +1,210 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import Entry SoftwareSqrt BigstepSupport SymbolicPrefix SaturationBody StackCleanup FunctionAllocation.
+Require FiveGhSpeed.Source FiveGhSpeed.Execution.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module S:=FiveGhSpeed.Source.
+Lemma freeable_at_zero:forall m ch b,
+ Mem.range_perm m b 0(size_chunk ch)Cur Freeable ->Mem.valid_access m ch b 0 Freeable.
+Proof. intros;split;[exact H|exists 0;lia]. Qed.
+Lemma environment_distinct:forall e id1 id2 b1 b2 t1 t2,
+ env_separated e ->id1<>id2 ->e!id1=Some(b1,t1) ->e!id2=Some(b2,t2) ->b1<>b2.
+Proof. intros e id1 id2 b1 b2 t1 t2 SEP D L1 L2 EQ;subst b2;apply D;eapply SEP;eauto. Qed.
+Theorem saturation_funcall_normal:forall m ba bc a maximum,
+ sqrt_call_contract ->Genv.find_symbol ge S._gh_max_accel=Some bc ->
+ Mem.load Mfloat32 m bc 0=Some(Vsingle maximum) ->
+ Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a)) ->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a)) ->
+ Mem.valid_access m Mfloat32 ba 0 Writable ->Mem.valid_access m Mfloat32 ba 4 Writable ->
+ exists mf,Cstrategy.eval_funcall ge m(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]E0 mf Vundef /\
+ Mem.load Mfloat32 mf ba 0=Some(Vsingle(vx(saturate maximum a))) /\
+ Mem.load Mfloat32 mf ba 4=Some(Vsingle(vy(saturate maximum a))) /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>ba ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs nbytes,Mem.valid_block m b ->b<>ba ->Mem.loadbytes mf b ofs nbytes=Mem.loadbytes m b ofs nbytes).
+Proof.
+ intros m ba bc a maximum CONTRACT SYM LC LX LY A0 A4.
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(FRESH:forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+   destruct(ALL id ty IN)as(bx&LOOKX&FX&PERM);rewrite LOOK in LOOKX;injection LOOKX as EQ;subst bx;exact FX. }
+ assert(FREEA:forall id b ty,e!id=Some(b,ty)->Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+   destruct(ALL id ty IN)as(bx&LOOKX&FX&PERM);rewrite LOOK in LOOKX;injection LOOKX as EQ;subst bx;exact PERM. }
+ assert(ENV_S:e!S._five_sqrtf=None).
+ { pose proof(allocation_keeps_binding ge decl empty_env m S._five_sqrtf ltac:(unfold decl;simpl;intuition discriminate))as H;rewrite ALLOC in H;exact H. }
+ assert(ENV_M:e!S._gh_max_accel=None).
+ { pose proof(allocation_keeps_binding ge decl empty_env m S._gh_max_accel ltac:(unfold decl;simpl;intuition discriminate))as H;rewrite ALLOC in H;exact H. }
+ assert(VA:Mem.valid_block m ba)by(eapply loaded_valid_block;exact LX).
+ assert(VC:Mem.valid_block m bc)by(eapply loaded_valid_block;exact LC).
+ assert(DAP:ba<>bp)by(intro EQ;subst bp;apply FP;exact VA).
+ assert(DNA:bn<>ba)by(intro EQ;subst bn;apply FN;exact VA).
+ assert(DNC:bn<>bc)by(intro EQ;subst bn;apply FN;exact VC).
+ assert(DFA:bf<>ba)by(intro EQ;subst bf;apply FF;exact VA).
+ assert(DNP:bn<>bp)by(eapply environment_distinct;[exact SEP| |exact LN|exact LP];discriminate).
+ assert(DFP:bf<>bp)by(eapply environment_distinct;[exact SEP| |exact LF|exact LP];discriminate).
+ assert(PACCESS:Mem.valid_access ma Mint64 bp 0 Writable).
+ { apply Mem.valid_access_freeable_any;apply freeable_at_zero;exact PP. }
+ destruct(Mem.valid_access_store ma Mint64 bp 0(Vptr ba Ptrofs.zero)PACCESS)as[mb SP].
+ assert(COPYKEEP:access_preserved ma mb).
+ { unfold access_preserved;intros;eapply Mem.store_valid_access_1;eauto. }
+ assert(FREEB:forall id b ty,e!id=Some(b,ty)->Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact COPYKEEP|eapply FREEA;exact LOOK]. }
+ assert(BIND:bind_parameters ge e ma(fn_params S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]mb).
+ { eapply bind_parameters_cons;[exact LP| |constructor].
+   eapply assign_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact SP|change(0+8<=18446744073709551616);lia]. }
+ assert(PTR:Mem.load Mint64 mb bp 0=Some(Vptr ba Ptrofs.zero)).
+ { erewrite Mem.load_store_same by exact SP;reflexivity. }
+ assert(LXB:Mem.load Mfloat32 mb ba 0=Some(Vsingle(vx a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 0(Vsingle(vx a))LX)as H;rewrite ALLOC in H;exact H. }
+ assert(LYB:Mem.load Mfloat32 mb ba 4=Some(Vsingle(vy a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 4(Vsingle(vy a))LY)as H;rewrite ALLOC in H;exact H. }
+ assert(LCB:Mem.load Mfloat32 mb bc 0=Some(Vsingle maximum)).
+ { erewrite Mem.load_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VC)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 bc 0(Vsingle maximum)LC)as H;rewrite ALLOC in H;exact H. }
+ assert(AA0:Mem.valid_access mb Mfloat32 ba 0 Writable).
+ { apply COPYKEEP;pose proof(allocation_access ge decl empty_env m Mfloat32 ba 0 Writable A0)as H;rewrite ALLOC in H;exact H. }
+ assert(AA4:Mem.valid_access mb Mfloat32 ba 4 Writable).
+ { apply COPYKEEP;pose proof(allocation_access ge decl empty_env m Mfloat32 ba 4 Writable A4)as H;rewrite ALLOC in H;exact H. }
+ assert(AN:Mem.valid_access mb Mfloat32 bn 0 Writable).
+ { apply Mem.valid_access_freeable_any;apply freeable_at_zero;exact(FREEB _ _ _ LN). }
+ assert(AF:Mem.valid_access mb Mfloat32 bf 0 Writable).
+ { apply Mem.valid_access_freeable_any;apply freeable_at_zero;exact(FREEB _ _ _ LF). }
+ destruct(saturation_body_exec e mb bp bn bf ba bc a maximum CONTRACT ENV_S ENV_M SYM LP LN LF
+ DAP DNP DNA DNC DFP DFA PTR LXB LYB LCB AN AF AA0 AA4)as[bodym[BODY[AX[AY[KEEP[FRAME BFRAME]]]]]].
+ assert(FREEBODY:forall id b ty,e!id=Some(b,ty)->Mem.range_perm bodym b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact KEEP|eapply FREEB;exact LOOK]. }
+ destruct(free_environment ge e bodym SEP FREEBODY)as[mf[FREE[FRAMEFREE ACCESSFREE]]].
+ assert(OUT:forall b,Mem.valid_block m b->forall id ty,e!id=Some(b,ty)->False).
+ { intros b VB id ty LOOK;exact(FRESH id b ty LOOK VB). }
+ exists mf;split.
+ - eapply Cstrategy.eval_funcall_internal with(e:=e)(m1:=ma)(m2:=mb)(m3:=bodym)(out:=Out_normal).
+   + repeat constructor;simpl;intuition discriminate.
+   + exact AV.
+   + exact BIND.
+   + exact BODY.
+   + reflexivity.
+   + exact FREE.
+ - split;[rewrite FRAMEFREE by(apply OUT;exact VA);exact AX|].
+   split;[rewrite FRAMEFREE by(apply OUT;exact VA);exact AY|]. split.
+   + unfold access_preserved;intros ch b ofs p ACCESS.
+     assert(VB:Mem.valid_block m b).
+     { eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact ACCESS|constructor]. }
+     apply ACCESSFREE;[apply OUT;exact VB|]. apply KEEP;apply COPYKEEP.
+     pose proof(allocation_access ge decl empty_env m ch b ofs p ACCESS)as H;rewrite ALLOC in H;exact H.
+   + split.
+     { intros ch b ofs VB DBA;rewrite FRAMEFREE by(apply OUT;exact VB).
+     rewrite FRAME.
+     * erewrite Mem.load_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VB)).
+       pose proof(allocation_load_frame ge decl empty_env m ch b ofs VB)as H;rewrite ALLOC in H;exact H.
+     * eapply Mem.store_valid_block_1;[exact SP|].
+       pose proof(allocation_valid_block ge decl empty_env m b VB)as H;rewrite ALLOC in H;exact H.
+     * intro EQ;subst bn;apply FN;exact VB.
+     * intro EQ;subst bf;apply FF;exact VB.
+     * exact DBA. }
+     intros b ofs nbytes VB DBA.
+     rewrite(free_environment_bytes_frame ge e bodym mf FREE b ofs nbytes)by(apply OUT;exact VB).
+     rewrite BFRAME.
+     * erewrite Mem.loadbytes_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VB)).
+       pose proof(allocation_bytes_frame ge decl empty_env m b ofs nbytes VB)as H;rewrite ALLOC in H;exact H.
+     * eapply Mem.store_valid_block_1;[exact SP|].
+       pose proof(allocation_valid_block ge decl empty_env m b VB)as H;rewrite ALLOC in H;exact H.
+     * intro EQ;subst bn;apply FN;exact VB.
+     * intro EQ;subst bf;apply FF;exact VB.
+     * exact DBA.
+Qed.
+Print Assumptions saturation_funcall_normal.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Csem Cexec.
+From FivePaparazziState Require Import State.
+From FiveGuidanceEntry Require Import Entry BigstepSupport.
+From FiveGuidanceAllocation Require Import Allocation StackAllocation.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma prepare_vector_entry : forall (ge:Csem.genv) vars pid vt m s bg bc src o x y,
+ sizeof ge vt=8 -> alignof_blockcopy ge vt=4 -> access_mode vt=By_copy ->
+ NoDup(map fst((pid,vt)::vars)) -> repr s m bg -> writable m bg ->
+ Mem.load Mfloat32 m bc 0=Some(Vsingle fixed_maximum) ->
+ Mem.load Mfloat32 m src(Ptrofs.unsigned o)=Some(Vsingle x) ->
+ Mem.load Mfloat32 m src(Ptrofs.unsigned o+4)=Some(Vsingle y) ->
+ exists e ma mb param,
+ alloc_variables ge empty_env m ((pid,vt)::vars)e ma /\
+ bind_parameters ge e ma[(pid,vt)][Vptr src o]mb /\
+ e!pid=Some(param,vt) /\
+ Mem.load Mfloat32 mb param 0=Some(Vsingle x) /\
+ Mem.load Mfloat32 mb param 4=Some(Vsingle y) /\
+ repr s mb bg /\ writable mb bg /\
+ Mem.load Mfloat32 mb bc 0=Some(Vsingle fixed_maximum) /\
+ env_separated e /\
+ (forall id,~In id(map fst((pid,vt)::vars))->e!id=None) /\
+ (forall id ty,In(id,ty)((pid,vt)::vars)->
+ exists b,e!id=Some(b,ty) /\ ~Mem.valid_block m b /\
+ Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+Proof.
+ intros ge vars pid vt m s bg bc src o x y SIZE ALIGN MODE ND REP WR CONST LX LY.
+ set(decl:=(pid,vt)::vars).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as A;rewrite ALLOC in A;exact A. }
+ destruct(allocated_variable ge decl empty_env m pid vt ND ltac:(left;reflexivity))as[param[LOOK[FRESH[VB FREE]]]].
+ rewrite ALLOC in LOOK,VB,FREE;simpl in LOOK,VB,FREE.
+ assert(VALIDSRC:Mem.valid_block m src).
+ { eapply Mem.valid_access_valid_block with(chunk:=Mfloat32)(ofs:=Ptrofs.unsigned o).
+   eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact LX|constructor]. }
+ assert(VALIDG:Mem.valid_block m bg).
+ { eapply Mem.perm_valid_block with(ofs:=0)(k:=Cur)(p:=Writable);apply WR;lia. }
+ assert(VALIDC:Mem.valid_block m bc).
+ { eapply Mem.valid_access_valid_block with(chunk:=Mfloat32)(ofs:=0).
+   eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact CONST|constructor]. }
+ assert(DS:param<>src)by(intro EQ;subst;contradiction).
+ assert(DG:bg<>param)by(intro EQ;subst;contradiction).
+ assert(DC:bc<>param)by(intro EQ;subst;contradiction).
+ assert(WRP:Mem.range_perm ma param 0 8 Cur Writable).
+ { rewrite <- SIZE;intros ofs RNG;eapply Mem.perm_implies;[apply FREE;exact RNG|constructor]. }
+ assert(LXA:Mem.load Mfloat32 ma src(Ptrofs.unsigned o)=Some(Vsingle x)).
+ { pose proof(allocation_load ge decl empty_env m _ _ _ _ LX)as H;rewrite ALLOC in H;exact H. }
+ assert(LYA:Mem.load Mfloat32 ma src(Ptrofs.unsigned o+4)=Some(Vsingle y)).
+ { pose proof(allocation_load ge decl empty_env m _ _ _ _ LY)as H;rewrite ALLOC in H;exact H. }
+ destruct(bind_vector_parameter ge e vt pid ma param src o x y SIZE ALIGN MODE LOOK DS WRP LXA LYA)
+ as[mb[bytes[BIND[PX[PY[BIN[BOUT[ACCESS[FRAME BYTEFRAME]]]]]]]]].
+ assert(PERM:forall b ofs k p,Mem.perm ma b ofs k p->Mem.perm mb b ofs k p).
+ { eapply single_copy_bind_preserves_perm;[exact MODE|exact BIND]. }
+ assert(RA:repr s ma bg).
+ { unfold repr in *;repeat match goal with H:_ /\ _ |- _=>destruct H end;repeat split;
+   match goal with |- Mem.load ?ch ma bg ?ofs=Some ?v=>
+    pose proof(allocation_load ge decl empty_env m ch bg ofs v ltac:(assumption))as POSTLOAD;rewrite ALLOC in POSTLOAD;exact POSTLOAD end. }
+ exists e,ma,mb,param;split;[exact AV|]. split;[exact BIND|]. split;[exact LOOK|].
+ split;[exact PX|]. split;[exact PY|]. split.
+ - unfold repr in *;repeat match goal with H:_ /\ _ |- _=>destruct H end;repeat split;rewrite FRAME by exact DG;assumption.
+ - split.
+   + intros ofs RNG;apply PERM.
+     pose proof(allocation_perm ge decl empty_env m bg ofs Cur Writable(WR ofs RNG))as H;rewrite ALLOC in H;exact H.
+   + split.
+     * rewrite FRAME by exact DC.
+       pose proof(allocation_load ge decl empty_env m _ _ _ _ CONST)as H;rewrite ALLOC in H;exact H.
+     * split.
+       -- pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b ty1 ty2 H;discriminate H))as H.
+          rewrite ALLOC in H;exact H.
+       -- split.
+          ++ intros id NOT;pose proof(allocation_keeps_binding ge decl empty_env m id NOT)as H;rewrite ALLOC in H;exact H.
+          ++ intros id ty IN.
+             destruct(allocated_variable ge decl empty_env m id ty ND IN)as[b[L[F[V P]]]].
+             rewrite ALLOC in L,V,P;simpl in L,V,P.
+             exists b;split;[exact L|]. split;[exact F|]. intros ofs RNG;apply PERM;apply P;exact RNG.
+Qed.
+Print Assumptions prepare_vector_entry.

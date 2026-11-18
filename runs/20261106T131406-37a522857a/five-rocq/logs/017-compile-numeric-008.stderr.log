@@ -1,0 +1,117 @@
+File "./paparazzi/relations/guidance_mode/support/software/NumericOps.v", line 159, characters 63-74:
+Error:
+In environment
+lit : option val
+x : int
+T1 : typed_value tint (Vint x)
+T2 : typed_value tint (Vint (Int.repr 2))
+SAFE : two_literal NInt lit = true
+LIT : literal_constraint lit (Vint (Int.repr 2))
+cenv : composite_env
+m : mem
+Unable to unify "Some ?result" with
+ "match
+    match
+      (if Archi.ptr64 then cast_case_i2i I32 Signed else cast_case_pointer)
+    with
+    | cast_case_pointer => if Archi.ptr64 then None else Some (Vint x)
+    | cast_case_i2i sz2 si2 =>
+        Some
+          (Vint
+             match sz2 with
+             | I8 =>
+                 match si2 with
+                 | Signed => Int.sign_ext 8 x
+                 | Unsigned => Int.zero_ext 8 x
+                 end
+             | I16 =>
+                 match si2 with
+                 | Signed => Int.sign_ext 16 x
+                 | Unsigned => Int.zero_ext 16 x
+                 end
+             | I32 => x
+             | IBool => if Int.eq x Int.zero then Int.zero else Int.one
+             end)
+    | cast_case_i2f si1 => Some (Vfloat (cast_int_float si1 x))
+    | cast_case_i2s si1 => Some (Vsingle (cast_int_single si1 x))
+    | cast_case_i2l si =>
+        Some
+          (Vlong
+             match si with
+             | Signed => Int64.repr (Int.signed x)
+             | Unsigned => Int64.repr (Int.unsigned x)
+             end)
+    | cast_case_i2bool =>
+        Some (Vint (if Int.eq x Int.zero then Int.zero else Int.one))
+    | cast_case_void => Some (Vint x)
+    | _ => None
+    end
+  with
+  | Some v1' =>
+      match
+        match
+          (if Archi.ptr64
+           then cast_case_i2i I32 Signed
+           else cast_case_pointer)
+        with
+        | cast_case_pointer =>
+            if Archi.ptr64 then None else Some (Vint (Int.repr 2))
+        | cast_case_i2i sz2 si2 =>
+            Some
+              (Vint
+                 match sz2 with
+                 | I8 =>
+                     match si2 with
+                     | Signed => Int.sign_ext 8 (Int.repr 2)
+                     | Unsigned => Int.zero_ext 8 (Int.repr 2)
+                     end
+                 | I16 =>
+                     match si2 with
+                     | Signed => Int.sign_ext 16 (Int.repr 2)
+                     | Unsigned => Int.zero_ext 16 (Int.repr 2)
+                     end
+                 | I32 => Int.repr 2
+                 | IBool =>
+                     if Int.eq (Int.repr 2) Int.zero
+                     then Int.zero
+                     else Int.one
+                 end)
+        | cast_case_i2f si1 =>
+            Some (Vfloat (cast_int_float si1 (Int.repr 2)))
+        | cast_case_i2s si1 =>
+            Some (Vsingle (cast_int_single si1 (Int.repr 2)))
+        | cast_case_i2l si =>
+            Some
+              (Vlong
+                 match si with
+                 | Signed => Int64.repr (Int.signed (Int.repr 2))
+                 | Unsigned => Int64.repr (Int.unsigned (Int.repr 2))
+                 end)
+        | cast_case_i2bool =>
+            Some
+              (Vint
+                 (if Int.eq (Int.repr 2) Int.zero then Int.zero else Int.one))
+        | cast_case_void => Some (Vint (Int.repr 2))
+        | _ => None
+        end
+      with
+      | Some v2' =>
+          match v1' with
+          | Vint n1 =>
+              match v2' with
+              | Vint n2 =>
+                  if
+                   Int.eq n2 Int.zero
+                   || Int.eq n1 (Int.repr Int.min_signed) &&
+                      Int.eq n2 Int.mone
+                  then None
+                  else Some (Vint (Int.divs n1 n2))
+              | _ => None
+              end
+          | _ => None
+          end
+      | None => None
+      end
+  | None => None
+  end".
+

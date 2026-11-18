@@ -1,0 +1,43 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+classic : forall P : Prop, P \/ ~ P
+1 goal
+  
+  ge : genv
+  f : function
+  e : env
+  mf0 : mem
+  f0 : function
+  k : cont
+  e0 : env
+  m, m' : mem
+  SS : sstep ge (State f0 Sskip k e0 m) E0 (Returnstate Vundef k m')
+  OWN : f0 = f /\ e0 = e
+  ND : ~ block_done (State f0 Sskip k e0 m)
+  DEN : block_denotation ge (State f0 Sskip k e0 m) = Some mf0
+  BL : block_cont k = true
+  H : is_call_cont k
+  H0 : Mem.free_list m (blocks_of_env ge e0) = Some m'
+  ============================
+  False

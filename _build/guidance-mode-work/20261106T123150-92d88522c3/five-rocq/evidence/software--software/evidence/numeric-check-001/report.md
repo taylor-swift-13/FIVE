@@ -1,0 +1,1 @@
+Original checker invocation failed with exit127 because scripts/env.sh had not been sourced. The attempted compile and GNU/stdout/stderr receipts remain in the numeric run. Fresh attempt002 uses the actual Rocq environment and passed every bound goal and independent kernel check.

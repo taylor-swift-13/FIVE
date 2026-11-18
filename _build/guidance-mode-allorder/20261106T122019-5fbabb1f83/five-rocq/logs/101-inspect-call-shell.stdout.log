@@ -1,0 +1,213 @@
+9 goals
+  
+  ge : genv
+  e : env
+  caller : function
+  callee : fundef
+  k : cont
+  ifunction, ivector : ident
+  bfunction, bvector : block
+  vectype : type
+  m : mem
+  vector_nonvolatile : type_is_volatile vectype = false
+  function_global : e ! ifunction = None
+  function_symbol : Genv.find_symbol ge ifunction = Some bfunction
+  vector_local : e ! ivector = Some (bvector, vectype)
+  callee_find : Genv.find_funct ge (Vptr bfunction Ptrofs.zero) = Some callee
+  callee_signature : type_of_fundef callee = call_type
+  rule : string
+  t : trace
+  next : Csem.state
+  ============================
+  In (TR rule t next)
+    [TR "red_var_global" E0
+       (ExprState caller
+          (Ecall
+             (Evalof (Eloc bfunction Ptrofs.zero Full call_type) call_type)
+             (Econs (Eaddrof (Evar ivector vectype) (tptr vectype)) Enil)
+             tvoid)
+          (Kdo k) e m);
+     TR "red_var_local" E0
+       (ExprState caller
+          (Ecall (Evalof (Evar ifunction call_type) call_type)
+             (Econs
+                (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                   (tptr vectype))
+                Enil)
+             tvoid)
+          (Kdo k) e m)] ->
+  t = E0 /\ pre_or_call next
+
+goal 2 is:
+ In (TR rule t next)
+   [TR "red_var_global" E0
+      (ExprState caller
+         (Ecall
+            (Evalof (Eloc bfunction Ptrofs.zero Full call_type) call_type)
+            (Econs
+               (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                  (tptr vectype))
+               Enil)
+            tvoid)
+         (Kdo k) e m);
+    TR "red_addrof" E0
+      (ExprState caller
+         (Ecall (Evalof (Evar ifunction call_type) call_type)
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 3 is:
+ In (TR rule t next)
+   [TR "red_var_global" E0
+      (ExprState caller
+         (Ecall
+            (Evalof (Eloc bfunction Ptrofs.zero Full call_type) call_type)
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 4 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Ecall x
+            (Econs (Eaddrof (Evar ivector vectype) (tptr vectype)) Enil)
+            tvoid)
+         match
+           match access_mode call_type with
+           | By_value chunk =>
+               if type_is_volatile call_type
+               then
+                do_volatile_load ge quiet_world chunk m bfunction Ptrofs.zero
+               else
+                match Mem.loadv chunk m (Vptr bfunction Ptrofs.zero) with
+                | Some v => Some (quiet_world, E0, v)
+                | None => None
+                end
+           | By_nothing => None
+           | _ => Some (quiet_world, E0, Vptr bfunction Ptrofs.zero)
+           end
+         with
+         | Some (_, t0, v) =>
+             topred (Rred "red_rvalof" (Eval v call_type) m t0)
+         | None => stuck
+         end
+         (fun x : exprlist =>
+          Ecall
+            (Evalof (Eloc bfunction Ptrofs.zero Full call_type) call_type) x
+            tvoid)
+         [(fun x : expr => Econs (Eaddrof x (tptr vectype)) Enil,
+           Lred "red_var_local" (Eloc bvector Ptrofs.zero Full vectype) m)])) ->
+ t = E0 /\ pre_or_call next
+goal 5 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Ecall x
+            (Econs
+               (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                  (tptr vectype))
+               Enil)
+            tvoid)
+         match
+           match access_mode call_type with
+           | By_value chunk =>
+               if type_is_volatile call_type
+               then
+                do_volatile_load ge quiet_world chunk m bfunction Ptrofs.zero
+               else
+                match Mem.loadv chunk m (Vptr bfunction Ptrofs.zero) with
+                | Some v => Some (quiet_world, E0, v)
+                | None => None
+                end
+           | By_nothing => None
+           | _ => Some (quiet_world, E0, Vptr bfunction Ptrofs.zero)
+           end
+         with
+         | Some (_, t0, v) =>
+             topred (Rred "red_rvalof" (Eval v call_type) m t0)
+         | None => stuck
+         end
+         (fun x : exprlist =>
+          Ecall
+            (Evalof (Eloc bfunction Ptrofs.zero Full call_type) call_type) x
+            tvoid)
+         [(fun x : expr => Econs x Enil,
+           Rred "red_addrof" (Eval (Vptr bvector Ptrofs.zero) (tptr vectype))
+             m E0)])) ->
+ t = E0 /\ pre_or_call next
+goal 6 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      (incontext2
+         (fun x : expr =>
+          Ecall x
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         match
+           match access_mode call_type with
+           | By_value chunk =>
+               if type_is_volatile call_type
+               then
+                do_volatile_load ge quiet_world chunk m bfunction Ptrofs.zero
+               else
+                match Mem.loadv chunk m (Vptr bfunction Ptrofs.zero) with
+                | Some v => Some (quiet_world, E0, v)
+                | None => None
+                end
+           | By_nothing => None
+           | _ => Some (quiet_world, E0, Vptr bfunction Ptrofs.zero)
+           end
+         with
+         | Some (_, t0, v) =>
+             topred (Rred "red_rvalof" (Eval v call_type) m t0)
+         | None => stuck
+         end
+         (fun x : exprlist =>
+          Ecall
+            (Evalof (Eloc bfunction Ptrofs.zero Full call_type) call_type) x
+            tvoid)
+         [])) ->
+ t = E0 /\ pre_or_call next
+goal 7 is:
+ In (TR rule t next)
+   [TR "red_var_local" E0
+      (ExprState caller
+         (Ecall (Eval (Vptr bfunction Ptrofs.zero) call_type)
+            (Econs
+               (Eaddrof (Eloc bvector Ptrofs.zero Full vectype)
+                  (tptr vectype))
+               Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 8 is:
+ In (TR rule t next)
+   [TR "red_addrof" E0
+      (ExprState caller
+         (Ecall (Eval (Vptr bfunction Ptrofs.zero) call_type)
+            (Econs (Eval (Vptr bvector Ptrofs.zero) (tptr vectype)) Enil)
+            tvoid)
+         (Kdo k) e m)] ->
+ t = E0 /\ pre_or_call next
+goal 9 is:
+ In (TR rule t next)
+   (map (expr_final_state caller (Kdo k) e)
+      match
+        match
+          sem_cast (Vptr bvector Ptrofs.zero) (tptr vectype) (tptr vectype) m
+        with
+        | Some v => Some [v]
+        | None => None
+        end
+      with
+      | Some vargs =>
+          if type_eq call_type (Tfunction [tptr vectype] tvoid cc_default)
+          then topred (Callred "red_call" callee vargs tvoid m)
+          else stuck
+      | None => stuck
+      end) ->
+ t = E0 /\ pre_or_call next

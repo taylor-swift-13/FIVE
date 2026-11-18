@@ -1,0 +1,34 @@
+Definition block_done(s:Csem.state):Prop :=
+ exists f e m,s=State f Sskip Kstop e m.
+Lemma block_stmt_normal:forall s,block_stmt s=true -> CallfreeExecution.normal_stmt s=true.
+Proof. induction s;simpl;intros;core_unpack;try discriminate;core_build;eauto. Qed.
+Lemma block_cont_normal:forall k,block_cont k=true -> CallfreeExecution.normal_cont k=true.
+Proof. induction k;simpl;intros;core_unpack;try discriminate;core_build;eauto using block_stmt_normal. Qed.
+Lemma block_state_normal:forall s,block_state s=true -> CallfreeExecution.normal_state s=true.
+Proof.
+ destruct s;simpl;intros;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+ destruct k;simpl in *;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+Qed.
+Lemma block_estep:forall ge f a k e m t next,
+ block_state(ExprState f a k e m)=true ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ (next=Stuckstate \/
+ block_state next=true /\
+ block_denotation ge(ExprState f a k e m)=block_denotation ge next).
+Proof.
+ intros ge f a k e m t next BL STEP.
+ destruct k;simpl in BL;try discriminate;core_unpack.
+ - match goal with AT:atomic_expr a=true |- _=>
+   destruct(atomic_estep ge f a(Kdo k)e m t next AT STEP)
+    as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a(Kifthenelse s s0 k)e m t next SI STEP)
+    as[BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN,<-TY;auto.

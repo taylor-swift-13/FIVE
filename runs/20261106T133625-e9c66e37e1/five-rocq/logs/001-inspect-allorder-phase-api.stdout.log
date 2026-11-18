@@ -1,0 +1,425 @@
+Qed.
+Theorem block_normal_correspondence:forall ge initial t f e mf,
+ block_state initial=true ->
+ star Csem.step ge initial t(State f Sskip Kstop e mf) ->
+ block_denotation ge initial=Some mf.
+Proof.
+ intros ge initial t f e mf BL PATH.
+ remember(State f Sskip Kstop e mf)as FINAL.
+ revert BL;induction PATH;intros BL;subst.
+ - reflexivity.
+ - destruct(classic(block_done s1))as[DONE|ND].
+   + destruct DONE as[ff[ee[mm EQ]]];subst s1.
+     assert(PP:exists tr,star Csem.step ge(State ff Sskip Kstop ee mm)tr(State f Sskip Kstop e mf)).
+     { eexists;eapply star_step;[exact H|exact PATH|reflexivity]. }
+     destruct PP as[tr PP];pose proof(block_done_path_eq _ _ _ _ _ _ _ _ PP)as EQ.
+     inversion EQ;subst;reflexivity.
+   + destruct H as[ES|SS].
+     * destruct s1;try solve[inversion ES].
+       destruct(block_estep _ _ _ _ _ _ _ _ BL ES)as[BAD|[BN DEN]].
+       -- inversion BAD;subst;destruct(nostep_path_eq _ _ _ _ (stuck_nostep ge) PATH)as[EQ TT];discriminate EQ.
+       -- rewrite DEN;apply IHPATH;auto.
+     * destruct(block_sstep _ _ _ _ BL ND SS)as[BN DEN].
+       rewrite DEN;apply IHPATH;auto.
+Qed.
+Print Assumptions block_normal_correspondence.
+
+Lemma block_plug_sstep:forall ge base s t next,
+ block_state s=true -> ~block_done s -> Csem.sstep ge s t next ->
+ Csem.sstep ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next BL ND STEP;inversion STEP;subst;simpl in BL;core_unpack;try discriminate;
+ cbn[plug_state plug_cont];try solve[constructor;auto].
+ destruct k;simpl in BL;core_unpack;try discriminate.
+ - exfalso;apply ND;unfold block_done;eauto.
+ - contradiction.
+Qed.
+Lemma block_plug_sstep_inverse:forall ge base s t next,
+ block_state s=true -> ~block_done s ->
+ Csem.sstep ge(plug_state base s)t next ->
+ exists raw,next=plug_state base raw /\ Csem.sstep ge s t raw.
+Proof.
+ intros ge base s t next BL ND STEP.
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];
+ cbn[block_state plug_state] in BL,STEP;try discriminate.
+ - destruct st;cbn[block_stmt] in BL;core_unpack;try discriminate;
+   destruct k;cbn[block_cont plug_cont] in *;core_unpack;try discriminate;
+   try solve[exfalso;apply ND;unfold block_done;eauto];
+   inversion STEP;subst;cbn[is_call_cont] in *;try contradiction;
+   repeat match goal with H:_ \/ _ |- _=>destruct H end;try discriminate;
+   try solve[eexists;split;[|eauto 8 using step_skip_seq,step_do_1,step_seq,step_ifthenelse_1,step_do_2,step_ifthenelse_2];reflexivity].
+ - destruct k;cbn[block_state] in BL;try discriminate;core_unpack;
+   cbn[plug_cont] in STEP;inversion STEP;subst;cbn[is_call_cont] in *;try contradiction;
+   repeat match goal with H:_ \/ _ |- _=>destruct H end;try discriminate;
+   try solve[eexists;split;[|eauto 8 using step_skip_seq,step_do_1,step_seq,step_ifthenelse_1,step_do_2,step_ifthenelse_2];reflexivity].
+Qed.
+Lemma block_plug_step:forall ge base s t next,
+ block_state s=true -> ~block_done s -> Csem.step ge s t next ->
+ Csem.step ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next BL ND[ES|SS].
+ - left;eapply plug_normal_estep;[apply block_state_normal;exact BL|exact ES].
+ - right;eapply block_plug_sstep;eauto.
+Qed.
+Lemma block_plug_step_inverse:forall ge base s t next,
+ block_state s=true -> ~block_done s ->
+ Csem.step ge(plug_state base s)t next ->
+ exists raw,next=plug_state base raw /\ Csem.step ge s t raw.
+Proof.
+ intros ge base s t next BL ND[ES|SS].
+ - destruct(plug_estep_inverse ge base s t next(block_state_normal _ BL)ES)as[raw[EQ STEP]].
+   exists raw;split;auto;left;exact STEP.
+ - destruct(block_plug_sstep_inverse ge base s t next BL ND SS)as[raw[EQ STEP]].
+   exists raw;split;auto;right;exact STEP.
+Qed.
+Definition block_owner(f:function)(e:env)(s:Csem.state):Prop :=
+ match s with State f' _ _ e' _ |ExprState f' _ _ e' _=>f'=f /\ e'=e|_=>False end.
+Lemma block_owner_preserved:forall ge f e s t next mf0,
+ block_state s=true -> block_denotation ge s=Some mf0 -> ~block_done s -> block_owner f e s ->
+ Csem.step ge s t next -> block_owner f e next.
+Proof.
+ intros ge f e s t next mf0 BL DEN ND OWN[ES|SS].
+ - destruct s;try solve[inversion ES];simpl in OWN;destruct OWN;subst.
+   pose proof(proj1(block_estep_defined _ _ _ _ _ _ _ _ _ BL DEN ES))as BN.
+   inversion ES;subst;simpl in BN;try discriminate;simpl;auto.
+ - inversion SS;subst;simpl in BL,OWN;core_unpack;try discriminate;simpl;auto.
+ destruct k;simpl in BL,H;try discriminate;try contradiction.
+ apply ND;unfold block_done;eauto.
+Qed.
+Definition block_context_invariant(ge:genv)(base:cont)(f:function)(e:env)(mf:mem)(s:Csem.state):Prop :=
+ exists raw,s=plug_state base raw /\ block_invariant ge mf raw /\ block_owner f e raw.
+Lemma block_context_entry:forall ge base f e st m t mf,
+ block_stmt st=true ->
+ star Csem.step ge(State f st Kstop e m)t(State f Sskip Kstop e mf) ->
+ block_context_invariant ge base f e mf(State f st base e m).
+Proof.
+ intros ge base f e st m t mf BS PATH.
+ exists(State f st Kstop e m);split;[reflexivity|];split.
+ - split;[simpl;core_build;auto|eapply block_normal_correspondence;[simpl;core_build;auto|exact PATH]].
+ - split;reflexivity.
+Qed.
+Theorem block_context_progress:forall ge base f e mf s,
+ block_context_invariant ge base f e mf s ->
+ s=State f Sskip base e mf \/
+ exists t next,Csem.step ge s t next /\ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s[raw[EQ[INV OWN]]];subst s.
+ destruct(classic(block_done raw))as[DONE|ND].
+ - destruct DONE as[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;left;reflexivity.
+ - destruct(block_progress_raw ge mf raw INV)as[DONE|[t[next STEP]]];[contradiction|].
+   right;exists t,(plug_state base next);split.
+   + apply block_plug_step;auto;exact(proj1 INV).
+   + exists next;split;auto;split.
+     * eapply block_successors;eauto.
+     * eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Theorem block_context_all_successors:forall ge base f e mf s t next,
+ block_context_invariant ge base f e mf s ->
+ s<>State f Sskip base e mf -> Csem.step ge s t next ->
+ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s t next[raw[EQ[INV OWN]]]NF STEP;subst s.
+ assert(ND:~block_done raw).
+ { intros[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;apply NF;reflexivity. }
+ destruct(block_plug_step_inverse ge base raw t next(proj1 INV)ND STEP)as[raw'[EQ STEP']].
+ exists raw';split;auto;split.
+ - eapply block_successors;eauto.
+ - eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Print Assumptions block_context_all_successors.
+Print Assumptions block_context_entry.
+Print Assumptions block_context_progress.
+From Stdlib Require Import Bool List ZArith String Classical.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress CallfreeExecution ContinuationLift BlockExecution.
+Import ListNotations.
+Inductive read_stage:=Rvar|Rloc|Rval.
+Definition read_res(id:ident)(ty:type)(b:block)(v:val)(stage:read_stage):expr :=
+ match stage with
+ | Rvar=>Evalof(Evar id ty)ty
+ | Rloc=>Evalof(Eloc b Ptrofs.zero Full ty)ty
+ | Rval=>Eval v ty end.
+Definition lhs_res(id:ident)(b:block)(ready:bool):expr :=
+ if ready then Eloc b Ptrofs.zero Full tfloat else Evar id tfloat.
+Definition leaf_type:=Tfunction[tfloat]tfloat cc_default.
+Definition factor_context(l mx:expr):expr->expr :=
+ fun hole=>Eassign l(Ebinop Odiv mx hole tfloat)tfloat.
+Definition factor_expression(l mx rf arg:expr):expr :=
+ factor_context l mx(Ecall rf(Econs arg Enil)tfloat).
+Definition null_external(_ : string)(_ : signature)(_ : Senv.t)(_ : world)(_ : list val)(_ : mem)
+ :option(world*trace*val*mem):=None.
+Section FACTOR.
+Variable ge:genv.
+Variable e:env.
+Variable caller leaf:function.
+Variable k:cont.
+Variable ifactor imax isqrt inorm:ident.
+Variable bfactor bmax bsqrt bnorm:block.
+Variable m:mem.
+Variable maximum norm:float32.
+Hypothesis factor_local:e!ifactor=Some(bfactor,tfloat).
+Hypothesis max_global:e!imax=None.
+Hypothesis max_symbol:Genv.find_symbol ge imax=Some bmax.
+Hypothesis sqrt_global:e!isqrt=None.
+Hypothesis sqrt_symbol:Genv.find_symbol ge isqrt=Some bsqrt.
+Hypothesis norm_local:e!inorm=Some(bnorm,tfloat).
+Hypothesis max_deref:Cexec.do_deref_loc ge quiet_world tfloat m bmax Ptrofs.zero Full=Some(quiet_world,E0,Vsingle maximum).
+Hypothesis norm_deref:Cexec.do_deref_loc ge quiet_world tfloat m bnorm Ptrofs.zero Full=Some(quiet_world,E0,Vsingle norm).
+Hypothesis leaf_find:Genv.find_funct ge(Vptr bsqrt Ptrofs.zero)=Some(Internal leaf).
+Hypothesis leaf_signature:type_of_fundef(Internal leaf)=leaf_type.
+Definition pre_expr(lready:bool)(ms rs ns:read_stage):expr :=
+ factor_expression(lhs_res ifactor bfactor lready)
+ (read_res imax tfloat bmax(Vsingle maximum)ms)
+ (read_res isqrt leaf_type bsqrt(Vptr bsqrt Ptrofs.zero)rs)
+ (read_res inorm tfloat bnorm(Vsingle norm)ns).
+Definition pre_state(lready:bool)(ms rs ns:read_stage):Csem.state :=
+ ExprState caller(pre_expr lready ms rs ns)(Kdo k)e m.
+Definition leaf_frame(lready:bool)(ms:read_stage):cont :=
+ Kcall caller e(factor_context(lhs_res ifactor bfactor lready)
+ (read_res imax tfloat bmax(Vsingle maximum)ms))tfloat(Kdo k).
+Definition pre_or_call(s:Csem.state):Prop :=
+ (exists lready ms rs ns,s=pre_state lready ms rs ns) \/
+ (exists lready ms,s=Callstate(Internal leaf)[Vsingle norm](leaf_frame lready ms)m).
+
+Ltac factor_close :=
+ split;[reflexivity|unfold pre_or_call;first[
+ left;first[solve[exists true,Rvar,Rvar,Rvar;reflexivity]|solve[exists true,Rvar,Rvar,Rloc;reflexivity]|solve[exists true,Rvar,Rvar,Rval;reflexivity]|solve[exists true,Rvar,Rloc,Rvar;reflexivity]|solve[exists true,Rvar,Rloc,Rloc;reflexivity]|solve[exists true,Rvar,Rloc,Rval;reflexivity]|solve[exists true,Rvar,Rval,Rvar;reflexivity]|solve[exists true,Rvar,Rval,Rloc;reflexivity]|solve[exists true,Rvar,Rval,Rval;reflexivity]|solve[exists true,Rloc,Rvar,Rvar;reflexivity]|solve[exists true,Rloc,Rvar,Rloc;reflexivity]|solve[exists true,Rloc,Rvar,Rval;reflexivity]|solve[exists true,Rloc,Rloc,Rvar;reflexivity]|solve[exists true,Rloc,Rloc,Rloc;reflexivity]|solve[exists true,Rloc,Rloc,Rval;reflexivity]|solve[exists true,Rloc,Rval,Rvar;reflexivity]|solve[exists true,Rloc,Rval,Rloc;reflexivity]|solve[exists true,Rloc,Rval,Rval;reflexivity]|solve[exists true,Rval,Rvar,Rvar;reflexivity]|solve[exists true,Rval,Rvar,Rloc;reflexivity]|solve[exists true,Rval,Rvar,Rval;reflexivity]|solve[exists true,Rval,Rloc,Rvar;reflexivity]|solve[exists true,Rval,Rloc,Rloc;reflexivity]|solve[exists true,Rval,Rloc,Rval;reflexivity]|solve[exists true,Rval,Rval,Rvar;reflexivity]|solve[exists true,Rval,Rval,Rloc;reflexivity]|solve[exists true,Rval,Rval,Rval;reflexivity]|solve[exists false,Rvar,Rvar,Rvar;reflexivity]|solve[exists false,Rvar,Rvar,Rloc;reflexivity]|solve[exists false,Rvar,Rvar,Rval;reflexivity]|solve[exists false,Rvar,Rloc,Rvar;reflexivity]|solve[exists false,Rvar,Rloc,Rloc;reflexivity]|solve[exists false,Rvar,Rloc,Rval;reflexivity]|solve[exists false,Rvar,Rval,Rvar;reflexivity]|solve[exists false,Rvar,Rval,Rloc;reflexivity]|solve[exists false,Rvar,Rval,Rval;reflexivity]|solve[exists false,Rloc,Rvar,Rvar;reflexivity]|solve[exists false,Rloc,Rvar,Rloc;reflexivity]|solve[exists false,Rloc,Rvar,Rval;reflexivity]|solve[exists false,Rloc,Rloc,Rvar;reflexivity]|solve[exists false,Rloc,Rloc,Rloc;reflexivity]|solve[exists false,Rloc,Rloc,Rval;reflexivity]|solve[exists false,Rloc,Rval,Rvar;reflexivity]|solve[exists false,Rloc,Rval,Rloc;reflexivity]|solve[exists false,Rloc,Rval,Rval;reflexivity]|solve[exists false,Rval,Rvar,Rvar;reflexivity]|solve[exists false,Rval,Rvar,Rloc;reflexivity]|solve[exists false,Rval,Rvar,Rval;reflexivity]|solve[exists false,Rval,Rloc,Rvar;reflexivity]|solve[exists false,Rval,Rloc,Rloc;reflexivity]|solve[exists false,Rval,Rloc,Rval;reflexivity]|solve[exists false,Rval,Rval,Rvar;reflexivity]|solve[exists false,Rval,Rval,Rloc;reflexivity]|solve[exists false,Rval,Rval,Rval;reflexivity]]
+ |right;first[solve[exists true,Rvar;reflexivity]|solve[exists true,Rloc;reflexivity]|solve[exists true,Rval;reflexivity]|solve[exists false,Rvar;reflexivity]|solve[exists false,Rloc;reflexivity]|solve[exists false,Rval;reflexivity]]]].
+Lemma pre_animator_step:forall lr ms rs ns rule t next,
+ In(TR rule t next)(Cexec.do_step ge null_external null_external quiet_world(pre_state lr ms rs ns)) ->
+ t=E0 /\ pre_or_call next.
+Proof.
+ intros lr ms rs ns rule t next.
+ destruct lr,ms,rs,ns;
+ cbn[pre_state pre_expr factor_expression factor_context lhs_res read_res Cexec.do_step
+ Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc Cexec.is_val_list
+ Cexec.incontext Cexec.topred Cexec.stuck] ;
+ rewrite ?factor_local,?max_global,?max_symbol,?sqrt_global,?sqrt_symbol,?norm_local;
+ rewrite ?dec_eq_true;
+ rewrite ?max_deref,?norm_deref;
+ cbn[Cexec.do_deref_loc access_mode type_is_volatile];
+ rewrite ?dec_eq_true.
+ all: cbn[leaf_type classify_fun sem_cast_arguments sem_cast];
+ rewrite ?leaf_find,?leaf_signature;rewrite ?dec_eq_true;
+ cbn[Cexec.incontext2 Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd].
+ all: intros IN;simpl in IN;repeat destruct IN as[EQ|IN];try contradiction;
+ inversion EQ;subst;factor_close.
+Qed.
+
+Lemma pre_callback_free:forall lr ms rs ns,callback_free_state(pre_state lr ms rs ns).
+Proof. intros;destruct lr,ms,rs,ns;reflexivity. Qed.
+Lemma pre_or_call_not_stuck:forall s,pre_or_call s ->s<>Stuckstate.
+Proof. intros s[[lr[ms[rs[ns EQ]]]]|[lr[ms EQ]]];subst;discriminate. Qed.
+Lemma pre_core:forall lr ms rs ns,
+ SourceClosure.core_expr ge(fun _=>True)(fun _ _=>True)(pre_expr lr ms rs ns).
+Proof.
+ intros;destruct lr,ms,rs,ns;
+ cbn[pre_expr factor_expression factor_context lhs_res read_res leaf_type
+ SourceClosure.core_expr SourceClosure.core_exprlist SourceClosure.nv];
+ repeat split;try reflexivity;unfold SourceClosure.valid_call;intros;split;exact I.
+Qed.
+Lemma pre_silent:forall lr ms rs ns,
+ silent_state ge(pre_state lr ms rs ns).
+Proof.
+ intros lr ms rs ns t next STEP.
+ pose proof(pre_core lr ms rs ns)as CORE.
+ destruct STEP as[ES|SS];[|inversion SS].
+ inversion ES;subst;auto.
+ match goal with EQ:?C ?A=pre_expr _ _ _ _ |- _=>rewrite <-EQ in CORE end.
+ match goal with HC:Csem.context RV RV ?C,RR:rred ge ?a m t ?a' ?m' |- _=>
+ pose proof(SourceClosure.core_context_hole ge(fun _=>True)(fun _ _=>True)
+ _ _ _ HC a CORE)as CA;
+ exact(proj1(SourceClosure.core_rred ge(fun _=>True)(fun _ _=>True)
+ a m t a' m' CA RR))end.
+Qed.
+Theorem pre_all_successors:forall lr ms rs ns t next,
+ Csem.step ge(pre_state lr ms rs ns)t next ->t=E0 /\ pre_or_call next.
+Proof.
+ intros lr ms rs ns t next STEP.
+ pose proof(pre_silent lr ms rs ns t next STEP)as TT;subst t.
+ destruct(pure_do_step_complete ge null_external null_external quiet_world
+ (pre_state lr ms rs ns) E0 next quiet_world (pre_callback_free lr ms rs ns)
+ (possible_trace_nil quiet_world) STEP)as[rule IN].
+ eapply pre_animator_step;exact IN.
+Qed.
+Lemma pre_animator_nonempty:forall lr ms rs ns,
+ exists rule t next,In(TR rule t next)
+ (Cexec.do_step ge null_external null_external quiet_world(pre_state lr ms rs ns)).
+Proof.
+ intros lr ms rs ns.
+ destruct lr,ms,rs,ns;
+ cbn[pre_state pre_expr factor_expression factor_context lhs_res read_res Cexec.do_step
+ Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc Cexec.is_val_list
+ Cexec.incontext Cexec.topred Cexec.stuck] ;
+ rewrite ?factor_local,?max_global,?max_symbol,?sqrt_global,?sqrt_symbol,?norm_local;
+ rewrite ?dec_eq_true;
+ rewrite ?max_deref,?norm_deref;
+ cbn[Cexec.do_deref_loc access_mode type_is_volatile];
+ rewrite ?dec_eq_true.
+ all: cbn[leaf_type classify_fun sem_cast_arguments sem_cast];
+ rewrite ?leaf_find,?leaf_signature;rewrite ?dec_eq_true;
+ cbn[Cexec.incontext2 Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd].
+
+ all: repeat eexists;apply in_eq.
+Qed.
+Theorem pre_progress:forall lr ms rs ns,
+ exists t next,Csem.step ge(pre_state lr ms rs ns)t next /\ pre_or_call next.
+Proof.
+ intros lr ms rs ns.
+ destruct(pre_animator_nonempty lr ms rs ns)as[rule[t[next IN]]].
+ pose proof(proj2(pre_animator_step lr ms rs ns rule t next IN))as CLASS.
+ exists t,next;split;auto.
+ eapply supported_nonstuck_transition;[apply pre_callback_free|exact IN|].
+ apply pre_or_call_not_stuck;exact CLASS.
+Qed.
+Print Assumptions pre_all_successors.
+Print Assumptions pre_progress.
+
+Variable root:float32.
+Variable leaf_mem final_mem:mem.
+Hypothesis max_post_deref:Cexec.do_deref_loc ge quiet_world tfloat leaf_mem bmax Ptrofs.zero Full=
+ Some(quiet_world,E0,Vsingle maximum).
+Hypothesis factor_store:Cexec.do_assign_loc ge quiet_world tfloat leaf_mem bfactor Ptrofs.zero Full
+ (Vsingle(Float32.div maximum root))=
+ Some(quiet_world,E0,final_mem,Vsingle(Float32.div maximum root)).
+Hypothesis leaf_normal:normal_state(Callstate(Internal leaf)[Vsingle norm]Kstop m)=true.
+Hypothesis leaf_names:call_names(Callstate(Internal leaf)[Vsingle norm]Kstop m).
+Hypothesis leaf_witness:star Csem.step ge(Callstate(Internal leaf)[Vsingle norm]Kstop m)E0
+ (Returnstate(Vsingle root)Kstop leaf_mem).
+
+Definition post_expr(lr:bool)(ms:read_stage):expr :=
+ factor_context(lhs_res ifactor bfactor lr)
+ (read_res imax tfloat bmax(Vsingle maximum)ms)(Eval(Vsingle root)tfloat).
+Lemma post_atomic:forall lr ms,
+ atomic_expr(post_expr lr ms)=true /\
+ atomic_eval ge e leaf_mem(post_expr lr ms)=
+ Some(Vsingle(Float32.div maximum root),final_mem).
+Proof.
+ intros lr ms;destruct lr,ms;split;try reflexivity;
+ cbn[post_expr factor_context lhs_res read_res atomic_eval pure_lval pure_rval typeof];
+ rewrite ?factor_local,?max_global,?max_symbol;
+ t=E0 /\ next=ExprState f a(Kdo k)e m.
+Proof.
+ intros ge0 f a k0 e0 m0 t next[ES|SS];[inversion ES|].
+ inversion SS;subst;auto;
+ repeat match goal with H:_\/_ |- _=>destruct H end;discriminate.
+Qed.
+Lemma return_call_step_unique:forall ge v f e C ty k m t next,
+ Csem.step ge(Returnstate v(Kcall f e C ty k)m)t next ->
+ t=E0 /\ next=ExprState f(C(Eval v ty))k e m.
+Proof. intros ge0 v f e0 C ty k0 m0 t next[ES|SS];[inversion ES|inversion SS;subst;auto]. Qed.
+Definition factor_invariant(s:Csem.state):Prop :=
+ (s=State caller(Sdo(pre_expr false Rvar Rvar Rvar))k e m) \/
+ (exists lr ms rs ns,s=pre_state lr ms rs ns) \/
+ (exists lr ms,callee_invariant ge(leaf_frame lr ms)(Vsingle root)leaf_mem s) \/
+ block_context_invariant ge k caller e final_mem s.
+
+Theorem factor_all_successors:forall s t next,
+ factor_invariant s ->s<>State caller Sskip k e final_mem ->
+ Csem.step ge s t next ->factor_invariant next.
+Proof.
+ intros s t next[START|[PRE|[CALLEE|POST]]]NF STEP.
+ - subst s;destruct(do_step_unique _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next.
+   right;left;exists false,Rvar,Rvar,Rvar;reflexivity.
+ - destruct PRE as[lr[ms[rs[ns EQ]]]];subst s.
+   destruct(pre_all_successors lr ms rs ns t next STEP)as[TT[PRE|CALL]].
+   + right;left;exact PRE.
+   + destruct CALL as[lr'[ms' EQ]];subst next.
+     right;right;left;exists lr',ms';apply leaf_certificate.
+ - destruct CALLEE as[lr[ms CERT]].
+   destruct(classic(s=Returnstate(Vsingle root)(leaf_frame lr ms)leaf_mem))as[RET|NR].
+   + subst s;destruct(return_call_step_unique _ _ _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next.
+     right;right;right;apply post_certificate.
+   + right;right;left;exists lr,ms.
+     eapply callee_invariant_all_successors;[exact I|exact CERT|exact NR|exact STEP].
+ - right;right;right;eapply block_context_all_successors;eauto.
+Qed.
+Theorem factor_progress:forall s,
+ factor_invariant s ->
+ s=State caller Sskip k e final_mem \/
+ exists t next,Csem.step ge s t next /\ factor_invariant next.
+Proof.
+ intros s[START|[PRE|[CALLEE|POST]]].
+ - subst s;right;exists E0,(pre_state false Rvar Rvar Rvar);split.
+   + right;apply step_do_1.
+   + right;left;exists false,Rvar,Rvar,Rvar;reflexivity.
+ - destruct PRE as[lr[ms[rs[ns EQ]]]];subst s.
+   destruct(pre_progress lr ms rs ns)as[t[next[STEP CLASS]]].
+   right;exists t,next;split;auto.
+   destruct CLASS as[PRE|[lr'[ms' EQ]]].
+   + right;left;exact PRE.
+   + subst next;right;right;left;exists lr',ms';apply leaf_certificate.
+ - destruct CALLEE as[lr[ms CERT]].
+   destruct(callee_invariant_progress ge(leaf_frame lr ms)(Vsingle root)leaf_mem s I CERT)
+    as[RET|[t[next[STEP CERT']]]].
+   + subst s;right;exists E0,(ExprState caller(post_expr lr ms)(Kdo k)e leaf_mem);split.
+     * right;apply step_returnstate.
+     * right;right;right;apply post_certificate.
+   + right;exists t,next;split;auto;right;right;left;eauto.
+ - destruct(block_context_progress ge k caller e final_mem s POST)as[DONE|[t[next[STEP CERT]]]].
+   + auto.
+   + right;exists t,next;split;auto;right;right;right;exact CERT.
+Qed.
+Print Assumptions factor_all_successors.
+Print Assumptions factor_progress.
+End FACTOR.
+    (fn_params f) args)eqn:BIND;try discriminate.
+   right;eexists;eexists;right;eapply step_internal_function.
+   + exact NAMES.
+   + pose proof(do_alloc_variables_sound ge
+      (fn_params f++fn_vars f) empty_env m)as A.
+     rewrite ALLOC in A;exact A.
+   + eapply sem_bind_parameters_sound;exact BIND.
+ - destruct k;try discriminate;left;unfold normal_return;eauto.
+Qed.
+
+
+Theorem reachable_invariant: forall ge initial t reached,
+ execution_invariant ge initial ->
+ star Csem.step ge initial t reached -> execution_invariant ge reached.
+Proof.
+ intros ge initial t reached INV PATH;revert INV;induction PATH;intros INV;auto.
+ apply IHPATH;eapply invariant_preserved;eauto.
+Qed.
+
+(** A constructive normal execution discharges the denotation premise.  Syntax,
+    rather than an assumed safety predicate, ensures all alternate operand orders
+    preserve the same denotation. *)
+Theorem normal_witness_certifies_all_orders: forall ge initial tw v mf,
+ normal_state initial=true -> call_names initial ->
+ star Csem.step ge initial tw(Returnstate v Kstop mf) ->
+ (forall t reached,star Csem.step ge initial t reached ->
+   normal_return reached \/ exists tr next,Csem.step ge reached tr next) /\
+ (forall t v' mf',star Csem.step ge initial t(Returnstate v' Kstop mf') ->
+   v'=v /\ mf'=mf).
+Proof.
+ intros ge initial tw v mf NORMAL NAMES WITNESS.
+ pose proof(all_order_normal_correspondence ge initial tw v mf NORMAL WITNESS)as DEN.
+ assert(INV:execution_invariant ge initial).
+ { split;auto;split;auto;exists(v,mf);exact DEN. }
+ split.
+ - intros t reached PATH;apply invariant_progress.
+   eapply reachable_invariant;eauto.
+ - intros t v' mf' PATH.
+   pose proof(all_order_normal_correspondence ge initial t v' mf' NORMAL PATH)as DEN'.
+   rewrite DEN in DEN';inversion DEN';auto.
+Qed.
+Corollary normal_witness_excludes_all_errors: forall ge initial tw v mf,
+ normal_state initial=true -> call_names initial ->
+ star Csem.step ge initial tw(Returnstate v Kstop mf) ->
+ forall t reached,star Csem.step ge initial t reached ->
+ ~(~normal_return reached /\ nostep Csem.step ge reached).
+Proof.
+ intros ge initial tw v mf NORMAL NAMES WIT t reached PATH[NR STOP].
+ destruct(proj1(normal_witness_certifies_all_orders ge initial tw v mf NORMAL NAMES WIT)
+   t reached PATH)as [DONE|[tr[next STEP]]].
+ - contradiction.
+ - exact(STOP tr next STEP).
+Qed.
+Print Assumptions normal_witness_certifies_all_orders.
+Print Assumptions normal_witness_excludes_all_errors.

@@ -1,0 +1,37 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+1 goal
+  
+  ge : genv
+  base : cont
+  f : function
+  k : cont
+  e : env
+  m : mem
+  BASE : is_call_cont base
+  v1 : val
+  ty : type
+  CORE : simple (Eval v1 ty) = true
+  CORE0 : normal_cont k = true
+  v2 : val
+  m' : mem
+  STEP :
+    sstep ge (ExprState f (Eval v1 ty) (Kreturn (plug_cont base k)) e m) E0
+      (Returnstate v2 (call_cont (plug_cont base k)) m')
+  NF : ~ normal_return (ExprState f (Eval v1 ty) (Kreturn k) e m)
+  H6 : sem_cast v1 ty (fn_return f) m = Some v2
+  H7 : Mem.free_list m (blocks_of_env ge e) = Some m'
+  ============================
+  exists raw : Csem.state,
+    Returnstate v2 (call_cont (plug_cont base k)) m' = plug_state base raw /\
+    sstep ge (ExprState f (Eval v1 ty) (Kreturn k) e m) E0 raw

@@ -1,0 +1,3 @@
+# update_first_order_low_pass_tau exact final CBMC recheck
+
+All 19 actual frozen IDs are separate propositions in [Spec.v](Spec.v). The source arguments and three initial old binary32 fields are arbitrary bits, with writable12 and explicit byte encodings. No numerical range or finiteness assumption is imposed. Source guard packets retain actual generated AST, operand evaluation, real setup and Csem-reachable write prefixes. Manual assertions retain a real normal return, all normal-return field loads, legal official memcpy/uint32 observations in both operand orders and source-object frame. Arithmetic coefficient claims are independent functional proofs, not assertions of the final CBMC harness.

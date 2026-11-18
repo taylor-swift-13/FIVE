@@ -1,0 +1,833 @@
+{
+  "schema": "five-run/1.0",
+  "run_id": "20261106T192414-4342c82602",
+  "skill": "five-cbmc",
+  "parent": null,
+  "started_at": "2026-11-06T19:24:14.332520+00:00",
+  "start_epoch": 1793993054.3325686,
+  "invocation_kind": "skill-session",
+  "status": "passed",
+  "timing_scope": "From start to finish of this invocation; not retroactive authoring time",
+  "children": [],
+  "environment": {
+    "os": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "python": "3.10.12",
+    "cwd": "/mnt/c/Users/50635/Documents/Codex/2026-10-23/wsl-c-c-1-cbmc-frama",
+    "measurement": "GNU time + /proc RSS sampling",
+    "tools": {
+      "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc": {
+        "path": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "binary_sha256": "01ae2ae74a9dc5673631e42256f780393081650f4a22d6f4220566c0deb1643a"
+      }
+    },
+    "environment_policy": "No full environment dump; secrets excluded"
+  },
+  "scope": {
+    "scope": "Formal lowpass exact traditional BMC safety/copy/frame/reset; exact coefficient arithmetic separately proved in original Rocq model",
+    "agent": {
+      "model": "gpt-6.1-sol",
+      "requested_reasoning_effort": "medium",
+      "actual_reasoning_effort": "medium",
+      "actor_path": "/root/lowpass_recovery_complete_medium/execution_evidence"
+    },
+    "approved_split": "All input float bitpatterns remain admitted. CBC checks all generated guards and complete bits for init copies, retune frames, reset return/copies/frame. Arithmetic coefficient result is a separate unrestricted original-model Rocq claim; no prior arithmetic CBC success is claimed."
+  },
+  "tokens": {
+    "status": "available",
+    "source": {
+      "kind": "codex-session-event",
+      "reference": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T02-23-51-01a1b21a-4f9c-7d21-9744-f2c71a658793.jsonl",
+      "thread_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793"
+    },
+    "complete": true,
+    "scope": "explicit event-boundary interval",
+    "boundaries": {
+      "after_event_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793:f7d98e95a8d528885a62002d",
+      "before_event_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793:5e21476cb5ef78e04678aae9"
+    },
+    "events": [
+      {
+        "event_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793:5e21476cb5ef78e04678aae9",
+        "timestamp": "2026-11-06T19:24:24.488Z",
+        "source_line": 1251,
+        "input_tokens": 204617,
+        "output_tokens": 263,
+        "cached_input_tokens": 204160,
+        "reasoning_output_tokens": 49
+      }
+    ],
+    "notes": [],
+    "totals": {
+      "input_tokens": 204617,
+      "output_tokens": 263,
+      "cached_input_tokens": 204160,
+      "reasoning_output_tokens": 49
+    },
+    "total_tokens": 204880
+  },
+  "commands": [
+    {
+      "id": "001-reset_first_order_low_pass-formal-property-discovery",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--unsigned-overflow-check",
+        "--conversion-check",
+        "--undefined-shift-check",
+        "--unwinding-assertions",
+        "--unwind",
+        "1",
+        "--json-ui",
+        "--show-properties"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-06T19:24:22.974895+00:00",
+      "finished_at": "2026-11-06T19:24:23.092000+00:00",
+      "wall_seconds": 0.1167091800016351,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 14380,
+        "user_seconds": 0.05,
+        "system_seconds": 0.04,
+        "elapsed_seconds": 0.1,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 15220736,
+      "rss_sample_count": 6,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.023587197996675968,
+      "rss_sampling_errors": [],
+      "stdout": "logs/001-reset_first_order_low_pass-formal-property-discovery.stdout.log",
+      "stderr": "logs/001-reset_first_order_low_pass-formal-property-discovery.stderr.log",
+      "time_log": "logs/001-reset_first_order_low_pass-formal-property-discovery.time.log"
+    },
+    {
+      "id": "002-reset_first_order_low_pass-formal-exact-refinement",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--unsigned-overflow-check",
+        "--conversion-check",
+        "--undefined-shift-check",
+        "--unwinding-assertions",
+        "--unwind",
+        "1",
+        "--json-ui",
+        "--refine-arithmetic",
+        "--slice-formula"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-06T19:24:23.123969+00:00",
+      "finished_at": "2026-11-06T19:24:23.290281+00:00",
+      "wall_seconds": 0.16602662100922316,
+      "timeout_seconds": 180,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 15740,
+        "user_seconds": 0.08,
+        "system_seconds": 0.03,
+        "elapsed_seconds": 0.13,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 17678336,
+      "rss_sample_count": 8,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.022453179000876844,
+      "rss_sampling_errors": [],
+      "stdout": "logs/002-reset_first_order_low_pass-formal-exact-refinement.stdout.log",
+      "stderr": "logs/002-reset_first_order_low_pass-formal-exact-refinement.stderr.log",
+      "time_log": "logs/002-reset_first_order_low_pass-formal-exact-refinement.time.log"
+    },
+    {
+      "id": "003-update_first_order_low_pass_tau-formal-property-discovery",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/update_first_order_low_pass_tau/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--unsigned-overflow-check",
+        "--conversion-check",
+        "--undefined-shift-check",
+        "--unwinding-assertions",
+        "--unwind",
+        "1",
+        "--json-ui",
+        "--show-properties"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-06T19:24:23.295961+00:00",
+      "finished_at": "2026-11-06T19:24:23.420630+00:00",
+      "wall_seconds": 0.12437703800969757,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 14208,
+        "user_seconds": 0.06,
+        "system_seconds": 0.03,
+        "elapsed_seconds": 0.1,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 15429632,
+      "rss_sample_count": 6,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.024556165997637436,
+      "rss_sampling_errors": [],
+      "stdout": "logs/003-update_first_order_low_pass_tau-formal-property-discovery.stdout.log",
+      "stderr": "logs/003-update_first_order_low_pass_tau-formal-property-discovery.stderr.log",
+      "time_log": "logs/003-update_first_order_low_pass_tau-formal-property-discovery.time.log"
+    },
+    {
+      "id": "004-update_first_order_low_pass_tau-formal-exact-refinement",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/update_first_order_low_pass_tau/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--unsigned-overflow-check",
+        "--conversion-check",
+        "--undefined-shift-check",
+        "--unwinding-assertions",
+        "--unwind",
+        "1",
+        "--json-ui",
+        "--refine-arithmetic",
+        "--slice-formula"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-06T19:24:23.427094+00:00",
+      "finished_at": "2026-11-06T19:24:23.600506+00:00",
+      "wall_seconds": 0.17304962000343949,
+      "timeout_seconds": 180,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 15684,
+        "user_seconds": 0.06,
+        "system_seconds": 0.04,
+        "elapsed_seconds": 0.11,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 17477632,
+      "rss_sample_count": 8,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.023949379014084116,
+      "rss_sampling_errors": [],
+      "stdout": "logs/004-update_first_order_low_pass_tau-formal-exact-refinement.stdout.log",
+      "stderr": "logs/004-update_first_order_low_pass_tau-formal-exact-refinement.stderr.log",
+      "time_log": "logs/004-update_first_order_low_pass_tau-formal-exact-refinement.time.log"
+    },
+    {
+      "id": "005-init_first_order_low_pass-formal-property-discovery",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/init_first_order_low_pass/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--unsigned-overflow-check",
+        "--conversion-check",
+        "--undefined-shift-check",
+        "--unwinding-assertions",
+        "--unwind",
+        "1",
+        "--json-ui",
+        "--show-properties"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-06T19:24:23.606213+00:00",
+      "finished_at": "2026-11-06T19:24:23.734103+00:00",
+      "wall_seconds": 0.1275526380049996,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 14352,
+        "user_seconds": 0.06,
+        "system_seconds": 0.04,
+        "elapsed_seconds": 0.1,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 15790080,
+      "rss_sample_count": 6,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.024328689993126318,
+      "rss_sampling_errors": [],
+      "stdout": "logs/005-init_first_order_low_pass-formal-property-discovery.stdout.log",
+      "stderr": "logs/005-init_first_order_low_pass-formal-property-discovery.stderr.log",
+      "time_log": "logs/005-init_first_order_low_pass-formal-property-discovery.time.log"
+    },
+    {
+      "id": "006-init_first_order_low_pass-formal-exact-refinement",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/init_first_order_low_pass/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--unsigned-overflow-check",
+        "--conversion-check",
+        "--undefined-shift-check",
+        "--unwinding-assertions",
+        "--unwind",
+        "1",
+        "--json-ui",
+        "--refine-arithmetic",
+        "--slice-formula"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-06T19:24:23.741240+00:00",
+      "finished_at": "2026-11-06T19:24:23.908992+00:00",
+      "wall_seconds": 0.1674915530020371,
+      "timeout_seconds": 180,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 15936,
+        "user_seconds": 0.07,
+        "system_seconds": 0.03,
+        "elapsed_seconds": 0.13,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 17424384,
+      "rss_sample_count": 8,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.02399228699505329,
+      "rss_sampling_errors": [],
+      "stdout": "logs/006-init_first_order_low_pass-formal-exact-refinement.stdout.log",
+      "stderr": "logs/006-init_first_order_low_pass-formal-exact-refinement.stderr.log",
+      "time_log": "logs/006-init_first_order_low_pass-formal-exact-refinement.time.log"
+    }
+  ],
+  "inputs": [
+    {
+      "role": "init_first_order_low_pass-source",
+      "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/prepare/source/init_first_order_low_pass.c",
+      "path": "inputs/init_first_order_low_pass-source--init_first_order_low_pass.c",
+      "sha256": "4cdaf8372b15974ed7ed74f68f1c5be86fa20981f51e42ead9078509e90cbaed",
+      "bytes": 394
+    },
+    {
+      "role": "init_first_order_low_pass-bindings",
+      "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/prepare/source/bindings.json",
+      "path": "inputs/init_first_order_low_pass-bindings--bindings.json",
+      "sha256": "8121f74d4be65c5dd1c17576b8050b6d295fe85616768a42017f651a65deaa68",
+      "bytes": 1725
+    },
+    {
+      "role": "init_first_order_low_pass-prepare-handoff",
+      "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/prepare/handoff.json",
+      "path": "inputs/init_first_order_low_pass-prepare-handoff--handoff.json",
+      "sha256": "073842d807cc07afff7d7466daa02d5f78da08c1b51ac716249942ef13544dfb",
+      "bytes": 2618
+    },
+    {
+      "role": "init_first_order_low_pass-harness",
+      "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/cbmc/harness.c",
+      "path": "inputs/init_first_order_low_pass-harness--harness.c",
+      "sha256": "666b99f04c6dcf34ee4b19b66ec55e7be428747a9b1ab4703b77e361ba73cd80",
+      "bytes": 597
+    },
+    {
+      "role": "init_first_order_low_pass-scope",
+      "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/cbmc/report/scope.json",
+      "path": "inputs/init_first_order_low_pass-scope--scope.json",
+      "sha256": "0d8e9fc197767373b34b88cef9b529a851ca7d840696721afeed4357d5b3eaa7",
+      "bytes": 1061
+    },
+    {
+      "role": "update_first_order_low_pass_tau-source",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/prepare/source/update_first_order_low_pass_tau.c",
+      "path": "inputs/update_first_order_low_pass_tau-source--update_first_order_low_pass_tau.c",
+      "sha256": "ad38d2f64834cdaa80f95a5e670862d60be3a1b6fae57fa4838991b844f81ccd",
+      "bytes": 338
+    },
+    {
+      "role": "update_first_order_low_pass_tau-bindings",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/prepare/source/bindings.json",
+      "path": "inputs/update_first_order_low_pass_tau-bindings--bindings.json",
+      "sha256": "319b577e54184b7b2fb9bf18690d049230fcb0dd342bf73d59c4fd14e58ca90f",
+      "bytes": 1735
+    },
+    {
+      "role": "update_first_order_low_pass_tau-prepare-handoff",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/prepare/handoff.json",
+      "path": "inputs/update_first_order_low_pass_tau-prepare-handoff--handoff.json",
+      "sha256": "8b6e3e2700fc732d16d37f6d591c496f23964a66729a5756ae1a8bd2f07072b8",
+      "bytes": 2641
+    },
+    {
+      "role": "update_first_order_low_pass_tau-harness",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/cbmc/harness.c",
+      "path": "inputs/update_first_order_low_pass_tau-harness--harness.c",
+      "sha256": "d0f765d0550cb8f4e89b658581bf786bd56483db6bf09c1738c2a84a2633c8b2",
+      "bytes": 604
+    },
+    {
+      "role": "update_first_order_low_pass_tau-scope",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/cbmc/report/scope.json",
+      "path": "inputs/update_first_order_low_pass_tau-scope--scope.json",
+      "sha256": "4329de790470537196a513ca0f5cdc8b8844764f726194c5fce43a3e0cf28f97",
+      "bytes": 1067
+    },
+    {
+      "role": "reset_first_order_low_pass-source",
+      "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c",
+      "path": "inputs/reset_first_order_low_pass-source--reset_first_order_low_pass.c",
+      "sha256": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+      "bytes": 329
+    },
+    {
+      "role": "reset_first_order_low_pass-bindings",
+      "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/prepare/source/bindings.json",
+      "path": "inputs/reset_first_order_low_pass-bindings--bindings.json",
+      "sha256": "2723a79ebe8ef82a40f721a5fc248746c39a5dce45e0911f63375913d8745871",
+      "bytes": 1661
+    },
+    {
+      "role": "reset_first_order_low_pass-prepare-handoff",
+      "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/prepare/handoff.json",
+      "path": "inputs/reset_first_order_low_pass-prepare-handoff--handoff.json",
+      "sha256": "08f25e3b417b123ca4897e197db8349c2bfa1eb67e60cb1e7d6530bf1e5510d9",
+      "bytes": 2589
+    },
+    {
+      "role": "reset_first_order_low_pass-harness",
+      "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+      "path": "inputs/reset_first_order_low_pass-harness--harness.c",
+      "sha256": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c",
+      "bytes": 770
+    },
+    {
+      "role": "reset_first_order_low_pass-scope",
+      "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/cbmc/report/scope.json",
+      "path": "inputs/reset_first_order_low_pass-scope--scope.json",
+      "sha256": "cd5ade190232eb2f81834632949a3002578b557a274fb120bb30c308ad36a081",
+      "bytes": 1062
+    },
+    {
+      "role": "reset_first_order_low_pass-formal-instrumented-properties",
+      "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/cbmc/instrumented-properties.json",
+      "path": "inputs/reset_first_order_low_pass-formal-instrumented-properties--instrumented-properties.json",
+      "sha256": "53e3212716a6c18568967bc5b018a95d703fb9f8bf23c15d05aded3bff034f13",
+      "bytes": 36172
+    },
+    {
+      "role": "update_first_order_low_pass_tau-formal-instrumented-properties",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/cbmc/instrumented-properties.json",
+      "path": "inputs/update_first_order_low_pass_tau-formal-instrumented-properties--instrumented-properties.json",
+      "sha256": "a060ac2802229dedb63ab090d5aba07950537a125a9ae3ad7758e3b363062da8",
+      "bytes": 25880
+    },
+    {
+      "role": "init_first_order_low_pass-formal-instrumented-properties",
+      "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/cbmc/instrumented-properties.json",
+      "path": "inputs/init_first_order_low_pass-formal-instrumented-properties--instrumented-properties.json",
+      "sha256": "9c85ecd066b5dfaf9e25ad17960a499c1b3c667b9ce7f00ab440c9862579fcfb",
+      "bytes": 43076
+    }
+  ],
+  "codex_usage_boundary": {
+    "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T02-23-51-01a1b21a-4f9c-7d21-9744-f2c71a658793.jsonl",
+    "before": {
+      "thread_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T02-23-51-01a1b21a-4f9c-7d21-9744-f2c71a658793.jsonl",
+      "last_event_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793:f7d98e95a8d528885a62002d",
+      "last_event_timestamp": "2026-11-06T19:23:58.140Z",
+      "observed_event_count": 174,
+      "counters": {
+        "input_tokens": 22292700,
+        "output_tokens": 79797,
+        "cached_input_tokens": 22149376,
+        "reasoning_output_tokens": 37131
+      },
+      "notes": []
+    },
+    "after": {
+      "thread_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T02-23-51-01a1b21a-4f9c-7d21-9744-f2c71a658793.jsonl",
+      "last_event_id": "01a1b21a-4f9c-7d21-9744-f2c71a658793:5e21476cb5ef78e04678aae9",
+      "last_event_timestamp": "2026-11-06T19:24:24.488Z",
+      "observed_event_count": 175,
+      "counters": {
+        "input_tokens": 22497317,
+        "output_tokens": 80060,
+        "cached_input_tokens": 22353536,
+        "reasoning_output_tokens": 37180
+      },
+      "notes": []
+    }
+  },
+  "finished_at": "2026-11-06T19:25:10.895304+00:00",
+  "finish_epoch": 1793993110.8953462,
+  "result": {
+    "verdict": "passed",
+    "summary": "Approved all-input exact traditional BMC safety/copy/frame/reset scope: {\"init_first_order_low_pass\": \"passed\", \"update_first_order_low_pass_tau\": \"passed\", \"reset_first_order_low_pass\": \"passed\"}. Original full-bits arithmetic histories and every unsuccessful attempt retained. No arithmetic CBC numerical result is claimed; all copy/frame/reset full bit assertions and generated safety guards are proved.",
+    "outputs": {
+      "init_first_order_low_pass-handoff": {
+        "status": "present",
+        "role": "init_first_order_low_pass-handoff",
+        "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/cbmc/handoff.json",
+        "path": "evidence/init_first_order_low_pass-handoff--handoff.json",
+        "sha256": "375c49b17c7a87815c03a4008cc5ddf443f3ff5410d5f9b4dc4368b6fd437f07",
+        "bytes": 3346
+      },
+      "init_first_order_low_pass-results": {
+        "status": "present",
+        "role": "init_first_order_low_pass-results",
+        "source": "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/cbmc/properties.json",
+        "path": "evidence/init_first_order_low_pass-results--properties.json",
+        "sha256": "21cafbb281eec5eee72faf31b02007257fbdae353e2cadc1f106de4e21ae4ca6",
+        "bytes": 36187
+      },
+      "update_first_order_low_pass_tau-handoff": {
+        "status": "present",
+        "role": "update_first_order_low_pass_tau-handoff",
+        "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/cbmc/handoff.json",
+        "path": "evidence/update_first_order_low_pass_tau-handoff--handoff.json",
+        "sha256": "0421250cf508e25a0d281b756807389f37e4502cf07a71e48250b437ea30c8ad",
+        "bytes": 3364
+      },
+      "update_first_order_low_pass_tau-results": {
+        "status": "present",
+        "role": "update_first_order_low_pass_tau-results",
+        "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass_tau/cbmc/properties.json",
+        "path": "evidence/update_first_order_low_pass_tau-results--properties.json",
+        "sha256": "ba46318fa41bbed18a96d453c84d088441a7dd9b74c35383d43537a8487e378f",
+        "bytes": 21191
+      },
+      "reset_first_order_low_pass-handoff": {
+        "status": "present",
+        "role": "reset_first_order_low_pass-handoff",
+        "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/cbmc/handoff.json",
+        "path": "evidence/reset_first_order_low_pass-handoff--handoff.json",
+        "sha256": "b53a34f4084aa0ef6aa17ec126b2305ed42bb1979ab45c9e2eb3c33ccfa372b5",
+        "bytes": 3349
+      },
+      "reset_first_order_low_pass-results": {
+        "status": "present",
+        "role": "reset_first_order_low_pass-results",
+        "source": "/home/yangfp/five/paparazzi/models/reset_first_order_low_pass/cbmc/properties.json",
+        "path": "evidence/reset_first_order_low_pass-results--properties.json",
+        "sha256": "e000866173eeb35be1b1aac163f2272964ed4a37926cd3e5d7fe6df0bd117cc6",
+        "bytes": 30170
+      }
+    },
+    "verification_scope": {
+      "scope": "Formal lowpass exact traditional BMC safety/copy/frame/reset; exact coefficient arithmetic separately proved in original Rocq model",
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "medium",
+        "actual_reasoning_effort": "medium",
+        "actor_path": "/root/lowpass_recovery_complete_medium/execution_evidence"
+      },
+      "approved_split": "All input float bitpatterns remain admitted. CBC checks all generated guards and complete bits for init copies, retune frames, reset return/copies/frame. Arithmetic coefficient result is a separate unrestricted original-model Rocq claim; no prior arithmetic CBC success is claimed."
+    },
+    "remaining_obligations": []
+  },
+  "completeness": {
+    "artifacts": "complete",
+    "measurements": "complete",
+    "missing_roles": [],
+    "note": "A passed verifier result does not imply all requested measurements are available."
+  },
+  "cost_audit": {
+    "status": "complete",
+    "run": "/home/yangfp/five/_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+    "skill": "five-cbmc",
+    "issues": [],
+    "own_model_tokens_excluding_children": 204880,
+    "inclusive_unique_model_tokens": 204880,
+    "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+  },
+  "artifacts": [
+    {
+      "path": "evidence/cbmc-binary.txt",
+      "bytes": 43,
+      "sha256": "add2aa27827c13eb05b64cb1147a8b518914f88f8a264c3cacb83152d7a51088"
+    },
+    {
+      "path": "evidence/formal-cbmc-progress.json",
+      "bytes": 749,
+      "sha256": "993bcaaa53f6104ad97a4e3ef4989be7331f6e094d98ec29753c250379f5c5ed"
+    },
+    {
+      "path": "evidence/init_first_order_low_pass-handoff--handoff.json",
+      "bytes": 3346,
+      "sha256": "375c49b17c7a87815c03a4008cc5ddf443f3ff5410d5f9b4dc4368b6fd437f07"
+    },
+    {
+      "path": "evidence/init_first_order_low_pass-results--properties.json",
+      "bytes": 36187,
+      "sha256": "21cafbb281eec5eee72faf31b02007257fbdae353e2cadc1f106de4e21ae4ca6"
+    },
+    {
+      "path": "evidence/model-usage-receipt--usage.json",
+      "bytes": 1016,
+      "sha256": "cef18ce2e7d8d116e50d517ee991935630088168751f7396ee50a60afde47e42"
+    },
+    {
+      "path": "evidence/reset_first_order_low_pass-handoff--handoff.json",
+      "bytes": 3349,
+      "sha256": "b53a34f4084aa0ef6aa17ec126b2305ed42bb1979ab45c9e2eb3c33ccfa372b5"
+    },
+    {
+      "path": "evidence/reset_first_order_low_pass-results--properties.json",
+      "bytes": 30170,
+      "sha256": "e000866173eeb35be1b1aac163f2272964ed4a37926cd3e5d7fe6df0bd117cc6"
+    },
+    {
+      "path": "evidence/shared-stage-costs.json",
+      "bytes": 128,
+      "sha256": "effa02cb23fa78a0954fc4d0b0ee0a61a2e61008b595125e3d74b3e21a6115e0"
+    },
+    {
+      "path": "evidence/update_first_order_low_pass_tau-handoff--handoff.json",
+      "bytes": 3364,
+      "sha256": "0421250cf508e25a0d281b756807389f37e4502cf07a71e48250b437ea30c8ad"
+    },
+    {
+      "path": "evidence/update_first_order_low_pass_tau-results--properties.json",
+      "bytes": 21191,
+      "sha256": "ba46318fa41bbed18a96d453c84d088441a7dd9b74c35383d43537a8487e378f"
+    },
+    {
+      "path": "inputs/init_first_order_low_pass-bindings--bindings.json",
+      "bytes": 1725,
+      "sha256": "8121f74d4be65c5dd1c17576b8050b6d295fe85616768a42017f651a65deaa68"
+    },
+    {
+      "path": "inputs/init_first_order_low_pass-formal-instrumented-properties--instrumented-properties.json",
+      "bytes": 43076,
+      "sha256": "9c85ecd066b5dfaf9e25ad17960a499c1b3c667b9ce7f00ab440c9862579fcfb"
+    },
+    {
+      "path": "inputs/init_first_order_low_pass-harness--harness.c",
+      "bytes": 597,
+      "sha256": "666b99f04c6dcf34ee4b19b66ec55e7be428747a9b1ab4703b77e361ba73cd80"
+    },
+    {
+      "path": "inputs/init_first_order_low_pass-prepare-handoff--handoff.json",
+      "bytes": 2618,
+      "sha256": "073842d807cc07afff7d7466daa02d5f78da08c1b51ac716249942ef13544dfb"
+    },
+    {
+      "path": "inputs/init_first_order_low_pass-scope--scope.json",
+      "bytes": 1061,
+      "sha256": "0d8e9fc197767373b34b88cef9b529a851ca7d840696721afeed4357d5b3eaa7"
+    },
+    {
+      "path": "inputs/init_first_order_low_pass-source--init_first_order_low_pass.c",
+      "bytes": 394,
+      "sha256": "4cdaf8372b15974ed7ed74f68f1c5be86fa20981f51e42ead9078509e90cbaed"
+    },
+    {
+      "path": "inputs/reset_first_order_low_pass-bindings--bindings.json",
+      "bytes": 1661,
+      "sha256": "2723a79ebe8ef82a40f721a5fc248746c39a5dce45e0911f63375913d8745871"
+    },
+    {
+      "path": "inputs/reset_first_order_low_pass-formal-instrumented-properties--instrumented-properties.json",
+      "bytes": 36172,
+      "sha256": "53e3212716a6c18568967bc5b018a95d703fb9f8bf23c15d05aded3bff034f13"
+    },
+    {
+      "path": "inputs/reset_first_order_low_pass-harness--harness.c",
+      "bytes": 770,
+      "sha256": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+    },
+    {
+      "path": "inputs/reset_first_order_low_pass-prepare-handoff--handoff.json",
+      "bytes": 2589,
+      "sha256": "08f25e3b417b123ca4897e197db8349c2bfa1eb67e60cb1e7d6530bf1e5510d9"
+    },
+    {
+      "path": "inputs/reset_first_order_low_pass-scope--scope.json",
+      "bytes": 1062,
+      "sha256": "cd5ade190232eb2f81834632949a3002578b557a274fb120bb30c308ad36a081"
+    },
+    {
+      "path": "inputs/reset_first_order_low_pass-source--reset_first_order_low_pass.c",
+      "bytes": 329,
+      "sha256": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1"
+    },
+    {
+      "path": "inputs/update_first_order_low_pass_tau-bindings--bindings.json",
+      "bytes": 1735,
+      "sha256": "319b577e54184b7b2fb9bf18690d049230fcb0dd342bf73d59c4fd14e58ca90f"
+    },
+    {
+      "path": "inputs/update_first_order_low_pass_tau-formal-instrumented-properties--instrumented-properties.json",
+      "bytes": 25880,
+      "sha256": "a060ac2802229dedb63ab090d5aba07950537a125a9ae3ad7758e3b363062da8"
+    },
+    {
+      "path": "inputs/update_first_order_low_pass_tau-harness--harness.c",
+      "bytes": 604,
+      "sha256": "d0f765d0550cb8f4e89b658581bf786bd56483db6bf09c1738c2a84a2633c8b2"
+    },
+    {
+      "path": "inputs/update_first_order_low_pass_tau-prepare-handoff--handoff.json",
+      "bytes": 2641,
+      "sha256": "8b6e3e2700fc732d16d37f6d591c496f23964a66729a5756ae1a8bd2f07072b8"
+    },
+    {
+      "path": "inputs/update_first_order_low_pass_tau-scope--scope.json",
+      "bytes": 1067,
+      "sha256": "4329de790470537196a513ca0f5cdc8b8844764f726194c5fce43a3e0cf28f97"
+    },
+    {
+      "path": "inputs/update_first_order_low_pass_tau-source--update_first_order_low_pass_tau.c",
+      "bytes": 338,
+      "sha256": "ad38d2f64834cdaa80f95a5e670862d60be3a1b6fae57fa4838991b844f81ccd"
+    },
+    {
+      "path": "logs/001-reset_first_order_low_pass-formal-property-discovery.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/001-reset_first_order_low_pass-formal-property-discovery.stdout.log",
+      "bytes": 33253,
+      "sha256": "aafa024c7c3f67299c9ae50879da8a87dccf580e7aefab340d390032ea333b1f"
+    },
+    {
+      "path": "logs/001-reset_first_order_low_pass-formal-property-discovery.time.log",
+      "bytes": 109,
+      "sha256": "f7e08cca621c2c0ad1f167456b8146a857bbcea6977bffba19f779e5e29d5701"
+    },
+    {
+      "path": "logs/002-reset_first_order_low_pass-formal-exact-refinement.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/002-reset_first_order_low_pass-formal-exact-refinement.stdout.log",
+      "bytes": 30361,
+      "sha256": "37b2f5b6f49846362759caa84fa0b0de1ff16adf9e7e0a14eb7cf67b288cf9fc"
+    },
+    {
+      "path": "logs/002-reset_first_order_low_pass-formal-exact-refinement.time.log",
+      "bytes": 109,
+      "sha256": "de6fafecbc426404391dfea4524890d65c7c2f868732ad8d92262394b4feb1df"
+    },
+    {
+      "path": "logs/003-update_first_order_low_pass_tau-formal-property-discovery.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/003-update_first_order_low_pass_tau-formal-property-discovery.stdout.log",
+      "bytes": 23792,
+      "sha256": "93d28332224a27cdb7de32bbff4c9bd1c7c518da3526d3c0ce21386667105cb3"
+    },
+    {
+      "path": "logs/003-update_first_order_low_pass_tau-formal-property-discovery.time.log",
+      "bytes": 109,
+      "sha256": "d5feab1a0ce92e1019027f373f6d604b831fa11054f7cd9415baa56c61935b9e"
+    },
+    {
+      "path": "logs/004-update_first_order_low_pass_tau-formal-exact-refinement.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/004-update_first_order_low_pass_tau-formal-exact-refinement.stdout.log",
+      "bytes": 21774,
+      "sha256": "21d7b7f74ac20e6bb7bcca64253e6efb6a5e9e4155f4b7afd7bc7ca05641f80a"
+    },
+    {
+      "path": "logs/004-update_first_order_low_pass_tau-formal-exact-refinement.time.log",
+      "bytes": 109,
+      "sha256": "af9fe93f111165ad8c76319c6f541ac8be853f349c36e47dca9553cd5c3e46af"
+    },
+    {
+      "path": "logs/005-init_first_order_low_pass-formal-property-discovery.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/005-init_first_order_low_pass-formal-property-discovery.stdout.log",
+      "bytes": 39530,
+      "sha256": "497626dcfc46f6ee04b10bd2e4ebcaba902d6460d7292a586d7e16f5b187a1ad"
+    },
+    {
+      "path": "logs/005-init_first_order_low_pass-formal-property-discovery.time.log",
+      "bytes": 109,
+      "sha256": "d84240a7196346fcd5fe4fd1f8e1be5b73be41b450cdd0eb0a1b9ac485f30ed5"
+    },
+    {
+      "path": "logs/006-init_first_order_low_pass-formal-exact-refinement.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/006-init_first_order_low_pass-formal-exact-refinement.stdout.log",
+      "bytes": 36026,
+      "sha256": "daa3ab587b8b2e115fc77a42c6b61d09cff52d3f622539fbd7fd8fd71b82af98"
+    },
+    {
+      "path": "logs/006-init_first_order_low_pass-formal-exact-refinement.time.log",
+      "bytes": 109,
+      "sha256": "059731850f3766837813aa7e0701452a64f9f07956f46907447c2cb776eb41ab"
+    },
+    {
+      "path": "metrics.json",
+      "bytes": 2364,
+      "sha256": "66354c66d58a76bae9d0cb451a30a1e8c5e343c3ab3b51a977b25f08da0ac3e5"
+    },
+    {
+      "path": "report.md",
+      "bytes": 830,
+      "sha256": "7b8a3b0a5ab817c6c85d5a109da92976df34548073e55e2a6d75c5963d6648d4"
+    }
+  ]
+}

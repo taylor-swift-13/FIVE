@@ -1,0 +1,30 @@
+File "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/checked-002/FiveLowpassInitRecheck/Proof.v", line 95, characters 121-125:
+Error:
+In environment
+m : mem
+b : block
+p : ptrofs
+tau, h, value, oldtc, oldin, oldout : float32
+P : writable12 m b p
+O0 :
+  Mem.loadbytes m b (Ptrofs.unsigned p) 4 =
+  Some (encode_val Mfloat32 (Vsingle oldtc))
+O4 :
+  Mem.loadbytes m b (Ptrofs.unsigned p + 4) 4 =
+  Some (encode_val Mfloat32 (Vsingle oldin))
+O8 :
+  Mem.loadbytes m b (Ptrofs.unsigned p + 8) 4 =
+  Some (encode_val Mfloat32 (Vsingle oldout))
+t : Events.trace
+mf : mem
+PATH :
+  star Csem.step ge (entry (Args b p tau h value) m) t
+    (Returnstate (Output tau h value) Kstop mf)
+POST : Post m mf b p tau h value
+The term "PATH" has type
+ "star Csem.step ge (entry (Args b p tau h value) m) t
+    (Returnstate (Output tau h value) Kstop mf)"
+while it is expected to have type
+ "star Csem.step Execution.ge (Execution.entry (Args b p tau h value) m) t
+    (Returnstate (Output tau h value) Kstop mf)".
+

@@ -1,0 +1,100 @@
+File "./paparazzi/relations/guidance_mode/support/software/NumericOps.v", line 158, characters 63-74:
+Error:
+In environment
+lit : option val
+x : int
+T1 : typed_value tint (Vint x)
+y : int
+T2 : typed_value tint (Vint y)
+SAFE :
+  safe_binop Odiv tint tint (binarith_type (classify_binarith tint tint)) lit =
+  true
+LIT : literal_constraint lit (Vint y)
+cenv : composite_env
+m : mem
+Unable to unify "Some ?result" with
+ "match
+    sem_cast (Vint x) tint (binarith_type (classify_binarith tint tint)) m
+  with
+  | Some v1' =>
+      match
+        sem_cast (Vint y) tint (binarith_type (classify_binarith tint tint))
+          m
+      with
+      | Some v2' =>
+          match classify_binarith tint tint with
+          | bin_case_i sg =>
+              match v1' with
+              | Vint n1 =>
+                  match v2' with
+                  | Vint n2 =>
+                      (fun (sg0 : signedness) (n3 n4 : int) =>
+                       match sg0 with
+                       | Signed =>
+                           if
+                            Int.eq n4 Int.zero
+                            || Int.eq n3 (Int.repr Int.min_signed) &&
+                               Int.eq n4 Int.mone
+                           then None
+                           else Some (Vint (Int.divs n3 n4))
+                       | Unsigned =>
+                           if Int.eq n4 Int.zero
+                           then None
+                           else Some (Vint (Int.divu n3 n4))
+                       end) sg n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_case_l sg =>
+              match v1' with
+              | Vlong n1 =>
+                  match v2' with
+                  | Vlong n2 =>
+                      (fun (sg0 : signedness) (n3 n4 : int64) =>
+                       match sg0 with
+                       | Signed =>
+                           if
+                            Int64.eq n4 Int64.zero
+                            || Int64.eq n3 (Int64.repr Int64.min_signed) &&
+                               Int64.eq n4 Int64.mone
+                           then None
+                           else Some (Vlong (Int64.divs n3 n4))
+                       | Unsigned =>
+                           if Int64.eq n4 Int64.zero
+                           then None
+                           else Some (Vlong (Int64.divu n3 n4))
+                       end) sg n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_case_f =>
+              match v1' with
+              | Vfloat n1 =>
+                  match v2' with
+                  | Vfloat n2 =>
+                      (fun n3 n4 : float => Some (Vfloat (Float.div n3 n4)))
+                        n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_case_s =>
+              match v1' with
+              | Vsingle n1 =>
+                  match v2' with
+                  | Vsingle n2 =>
+                      (fun n3 n4 : float32 =>
+                       Some (Vsingle (Float32.div n3 n4))) n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_default => None
+          end
+      | None => None
+      end
+  | None => None
+  end".
+

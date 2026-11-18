@@ -1,0 +1,36 @@
+{
+  "entry": "gh_update_ref_from_speed_sp",
+  "signature": "void (struct FloatVect2)",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a",
+  "prepared_source": {
+    "path": "gh_update_ref_from_speed_sp.c",
+    "sha256": "166b467fb1a2a48531532bd8853087ddf6372eb73dd446d2758e39508fd82cfd"
+  },
+  "external_calls": [
+    {
+      "original": "sqrtf",
+      "actual": "(float)__builtin_sqrt((double)x)",
+      "scope": "CompCert builtin binary64 square root followed by cast to binary32; native libm equivalence not claimed"
+    }
+  ],
+  "compilation_options": [
+    "-fstruct-passing"
+  ],
+  "limitations": [
+    "Scope uses explicitly fixed sqrtf binding; original system libm correspondence is not proved."
+  ]
+}

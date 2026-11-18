@@ -1,0 +1,592 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassGetCase Require Import Contract GetSites.
+From FiveLowpassSupport Require Import LowpassMemory FieldBytes CbmcBits.
+From FiveGuidanceCbmcAdapters Require Import BitsAdapter.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module Source:=FiveLowpassGet.Source.
+Module Execution:=FiveLowpassGet.Execution.
+Definition Initial(m:mem)(b:block)(p:ptrofs)(tc vi vo:float32):Prop:=
+ writable12 m b p /\
+ Mem.loadbytes m b(Ptrofs.unsigned p)4=Some(encode_val Mfloat32(Vsingle tc)) /\
+ Mem.loadbytes m b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle vi)) /\
+ Mem.loadbytes m b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle vo)).
+Definition FieldCheck(m mf:mem)(b:block)(p:ptrofs)(delta:Z)(v:float32):Prop:=
+ Mem.loadbytes mf b(Ptrofs.unsigned p+delta)4=Mem.loadbytes m b(Ptrofs.unsigned p+delta)4 /\
+ Mem.load Mfloat32 mf b(Ptrofs.unsigned p+delta)=Some(Vsingle v) /\
+ CopiedBitsEqualBothOrders Execution.ge v v mf.
+Definition P_memcpy_pointer_arithmetic_1:Prop:=CbmcBits.memcpy_guard_id 3%nat.
+Definition P_memcpy_pointer_1:Prop:=CbmcBits.memcpy_guard_id 1%nat.
+Definition P_memcpy_pointer_arithmetic_2:Prop:=CbmcBits.memcpy_guard_id 2%nat.
+Definition P_memcpy_pointer_arithmetic_3:Prop:=CbmcBits.memcpy_guard_id 6%nat.
+Definition P_memcpy_pointer_2:Prop:=CbmcBits.memcpy_guard_id 4%nat.
+Definition P_memcpy_pointer_arithmetic_4:Prop:=CbmcBits.memcpy_guard_id 5%nat.
+Definition P_bits_precondition_instance_1:Prop:=CbmcBits.bits_guard_id 1%nat.
+Definition P_bits_precondition_instance_2:Prop:=CbmcBits.bits_guard_id 2%nat.
+Definition P_bits_precondition_instance_3:Prop:=CbmcBits.bits_guard_id 3%nat.
+Definition P_get_first_order_low_pass_pointer_dereference_1:Prop:=GetSites.SiteProperty 0%nat.
+Definition P_get_first_order_low_pass_pointer_dereference_2:Prop:=GetSites.SiteProperty 1%nat.
+Definition P_get_first_order_low_pass_pointer_dereference_3:Prop:=GetSites.SiteProperty 2%nat.
+Definition P_get_first_order_low_pass_pointer_dereference_4:Prop:=GetSites.SiteProperty 3%nat.
+Definition P_get_first_order_low_pass_pointer_dereference_5:Prop:=GetSites.SiteProperty 4%nat.
+Definition P_get_first_order_low_pass_pointer_dereference_6:Prop:=GetSites.SiteProperty 5%nat.
+Definition P_main_assertion_1:Prop:=forall m b p tc vi vo,Initial m b p tc vi vo->
+ (exists t mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate(Vsingle vo)Kstop mf)) /\
+ (forall t result mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate result Kstop mf)->result=Vsingle vo /\ CopiedBitsEqualBothOrders Execution.ge vo vo mf).
+Definition P_main_assertion_2:Prop:=forall m b p tc vi vo,Initial m b p tc vi vo->
+ (exists t mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate(Vsingle vo)Kstop mf)) /\
+ (forall t result mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate result Kstop mf)->FieldCheck m mf b p 0 tc).
+Definition P_main_assertion_3:Prop:=forall m b p tc vi vo,Initial m b p tc vi vo->
+ (exists t mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate(Vsingle vo)Kstop mf)) /\
+ (forall t result mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate result Kstop mf)->FieldCheck m mf b p 4 vi).
+Definition P_main_assertion_4:Prop:=forall m b p tc vi vo,Initial m b p tc vi vo->
+ (exists t mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate(Vsingle vo)Kstop mf)) /\
+ (forall t result mf,star Csem.step Execution.ge(Execution.entry(Args b p)m)t(Returnstate result Kstop mf)->FieldCheck m mf b p 8 vo).
+
+[
+  {
+    "description": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+    "property": "memcpy.pointer_arithmetic.1",
+    "sourceLocation": {
+      "comment": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "33",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer arithmetic",
+      "propertyFatal": true,
+      "propertyId": "memcpy.pointer_arithmetic.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+    "property": "memcpy.pointer.1",
+    "sourceLocation": {
+      "comment": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "33",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer",
+      "propertyId": "memcpy.pointer.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+    "property": "memcpy.pointer_arithmetic.2",
+    "sourceLocation": {
+      "comment": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "33",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer arithmetic",
+      "propertyFatal": true,
+      "propertyId": "memcpy.pointer_arithmetic.2",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "pointer arithmetic: dead object in (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+    "property": "memcpy.pointer_arithmetic.3",
+    "sourceLocation": {
+      "comment": "pointer arithmetic: dead object in (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "34",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer arithmetic",
+      "propertyFatal": true,
+      "propertyId": "memcpy.pointer_arithmetic.3",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "same object violation in (const unsigned char *)(void *)&u >= (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+    "property": "memcpy.pointer.2",
+    "sourceLocation": {
+      "comment": "same object violation in (const unsigned char *)(void *)&u >= (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "34",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer",
+      "propertyId": "memcpy.pointer.2",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "pointer relation: dead object in (const unsigned char *)(void *)&u",
+    "property": "memcpy.pointer_arithmetic.4",
+    "sourceLocation": {
+      "comment": "pointer relation: dead object in (const unsigned char *)(void *)&u",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "34",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer arithmetic",
+      "propertyFatal": true,
+      "propertyId": "memcpy.pointer_arithmetic.4",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "memcpy src/dst overlap",
+    "property": "bits.precondition_instance.1",
+    "sourceLocation": {
+      "comment": "memcpy src/dst overlap",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+      "function": "bits",
+      "line": "5",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "precondition_instance",
+      "propertyId": "bits.precondition_instance.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "memcpy source region readable",
+    "property": "bits.precondition_instance.2",
+    "sourceLocation": {
+      "comment": "memcpy source region readable",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+      "function": "bits",
+      "line": "5",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "precondition_instance",
+      "propertyId": "bits.precondition_instance.2",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "memcpy destination region writeable",
+    "property": "bits.precondition_instance.3",
+    "sourceLocation": {
+      "comment": "memcpy destination region writeable",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+      "function": "bits",
+      "line": "5",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "precondition_instance",
+      "propertyId": "bits.precondition_instance.3",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "dereference failure: pointer NULL in filter->last_out",
+    "property": "get_first_order_low_pass.pointer_dereference.1",
+    "sourceLocation": {
+      "comment": "dereference failure: pointer NULL in filter->last_out",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/../prepare/source/get_first_order_low_pass.c",
+      "function": "get_first_order_low_pass",
+      "line": "9",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer dereference",
+      "propertyFatal": true,
+      "propertyId": "get_first_order_low_pass.pointer_dereference.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "dereference failure: pointer invalid in filter->last_out",
+    "property": "get_first_order_low_pass.pointer_dereference.2",
+    "sourceLocation": {
+      "comment": "dereference failure: pointer invalid in filter->last_out",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/../prepare/source/get_first_order_low_pass.c",
+      "function": "get_first_order_low_pass",
+      "line": "9",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer dereference",
+      "propertyFatal": true,
+      "propertyId": "get_first_order_low_pass.pointer_dereference.2",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "dereference failure: deallocated dynamic object in filter->last_out",
+    "property": "get_first_order_low_pass.pointer_dereference.3",
+    "sourceLocation": {
+      "comment": "dereference failure: deallocated dynamic object in filter->last_out",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/../prepare/source/get_first_order_low_pass.c",
+      "function": "get_first_order_low_pass",
+      "line": "9",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer dereference",
+      "propertyFatal": true,
+      "propertyId": "get_first_order_low_pass.pointer_dereference.3",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "dereference failure: dead object in filter->last_out",
+    "property": "get_first_order_low_pass.pointer_dereference.4",
+    "sourceLocation": {
+      "comment": "dereference failure: dead object in filter->last_out",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/../prepare/source/get_first_order_low_pass.c",
+      "function": "get_first_order_low_pass",
+      "line": "9",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer dereference",
+      "propertyFatal": true,
+      "propertyId": "get_first_order_low_pass.pointer_dereference.4",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "dereference failure: pointer outside object bounds in filter->last_out",
+    "property": "get_first_order_low_pass.pointer_dereference.5",
+    "sourceLocation": {
+      "comment": "dereference failure: pointer outside object bounds in filter->last_out",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/../prepare/source/get_first_order_low_pass.c",
+      "function": "get_first_order_low_pass",
+      "line": "9",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer dereference",
+      "propertyFatal": true,
+      "propertyId": "get_first_order_low_pass.pointer_dereference.5",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "dereference failure: invalid integer address in filter->last_out",
+    "property": "get_first_order_low_pass.pointer_dereference.6",
+    "sourceLocation": {
+      "comment": "dereference failure: invalid integer address in filter->last_out",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/../prepare/source/get_first_order_low_pass.c",
+      "function": "get_first_order_low_pass",
+      "line": "9",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer dereference",
+      "propertyFatal": true,
+      "propertyId": "get_first_order_low_pass.pointer_dereference.6",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "getter returns last_out exact bits",
+    "property": "main.assertion.1",
+    "sourceLocation": {
+      "comment": "getter returns last_out exact bits",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+      "function": "main",
+      "line": "10",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "assertion",
+      "propertyId": "main.assertion.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "time_const readonly",
+    "property": "main.assertion.2",
+    "sourceLocation": {
+      "comment": "time_const readonly",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+      "function": "main",
+      "line": "11",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "assertion",
+      "propertyId": "main.assertion.2",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "last_in readonly",
+    "property": "main.assertion.3",
+    "sourceLocation": {
+      "comment": "last_in readonly",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+      "function": "main",
+      "line": "12",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "assertion",
+      "propertyId": "main.assertion.3",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "last_out readonly",
+    "property": "main.assertion.4",
+    "sourceLocation": {
+      "comment": "last_out readonly",
+      "file": "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+      "function": "main",
+      "line": "13",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "assertion",
+      "propertyId": "main.assertion.4",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  }
+]

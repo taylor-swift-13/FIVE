@@ -1,0 +1,107 @@
+Definition f_update_first_order_low_pass := {|
+  fn_return := tfloat;
+  fn_callconv := cc_default;
+  fn_params := ((_filter, (tptr (Tstruct _FirstOrderLowPass noattr))) ::
+                (_value, tfloat) :: nil);
+  fn_vars := ((_out, tfloat) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign (Evar _out tfloat)
+         (Ebinop Odiv
+           (Ebinop Oadd
+             (Ebinop Oadd (Evalof (Evar _value tfloat) tfloat)
+               (Evalof
+                 (Efield
+                   (Evalof
+                     (Ederef
+                       (Evalof
+                         (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                         (tptr (Tstruct _FirstOrderLowPass noattr)))
+                       (Tstruct _FirstOrderLowPass noattr))
+                     (Tstruct _FirstOrderLowPass noattr)) _last_in tfloat)
+                 tfloat) tfloat)
+             (Ebinop Omul
+               (Ebinop Osub
+                 (Evalof
+                   (Efield
+                     (Evalof
+                       (Ederef
+                         (Evalof
+                           (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                           (tptr (Tstruct _FirstOrderLowPass noattr)))
+                         (Tstruct _FirstOrderLowPass noattr))
+                       (Tstruct _FirstOrderLowPass noattr)) _time_const
+                     tfloat) tfloat)
+                 (Eval (Vsingle (Float32.of_bits (Int.repr 1065353216))) tfloat)
+                 tfloat)
+               (Evalof
+                 (Efield
+                   (Evalof
+                     (Ederef
+                       (Evalof
+                         (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                         (tptr (Tstruct _FirstOrderLowPass noattr)))
+                       (Tstruct _FirstOrderLowPass noattr))
+                     (Tstruct _FirstOrderLowPass noattr)) _last_out tfloat)
+                 tfloat) tfloat) tfloat)
+           (Ebinop Oadd
+             (Eval (Vsingle (Float32.of_bits (Int.repr 1065353216))) tfloat)
+             (Evalof
+               (Efield
+                 (Evalof
+                   (Ederef
+                     (Evalof
+                       (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                       (tptr (Tstruct _FirstOrderLowPass noattr)))
+                     (Tstruct _FirstOrderLowPass noattr))
+                   (Tstruct _FirstOrderLowPass noattr)) _time_const tfloat)
+               tfloat) tfloat) tfloat) tfloat))
+  (Ssequence
+    (Sdo (Eassign
+           (Efield
+             (Evalof
+               (Ederef
+                 (Evalof
+                   (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                   (tptr (Tstruct _FirstOrderLowPass noattr)))
+                 (Tstruct _FirstOrderLowPass noattr))
+               (Tstruct _FirstOrderLowPass noattr)) _last_in tfloat)
+           (Evalof (Evar _value tfloat) tfloat) tfloat))
+    (Ssequence
+      (Sdo (Eassign
+             (Efield
+               (Evalof
+                 (Ederef
+                   (Evalof
+                     (Evar _filter (tptr (Tstruct _FirstOrderLowPass noattr)))
+                     (tptr (Tstruct _FirstOrderLowPass noattr)))
+                   (Tstruct _FirstOrderLowPass noattr))
+                 (Tstruct _FirstOrderLowPass noattr)) _last_out tfloat)
+             (Evalof (Evar _out tfloat) tfloat) tfloat))
+      (Sreturn (Some (Evalof (Evar _out tfloat) tfloat))))))
+|}.
+
+
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FiveLowpassUpdate Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_update_first_order_low_pass)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.
+

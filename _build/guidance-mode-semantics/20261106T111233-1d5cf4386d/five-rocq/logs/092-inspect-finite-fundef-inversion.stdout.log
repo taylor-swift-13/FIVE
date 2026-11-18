@@ -1,0 +1,82 @@
+181:(** [find_def ge b] returns the global definition associated with the given address. *)
+192:(** [find_funct] is similar to [find_funct_ptr], but the function address
+379:Theorem find_funct_inv:
+389:Theorem find_funct_find_funct_ptr:
+391:  find_funct ge (Vptr b Ptrofs.zero) = find_funct_ptr ge b.
+397:  forall ge b f, find_funct_ptr ge b = Some f <-> find_def ge b = Some (Gfun f).
+399:  intros. unfold find_funct_ptr. destruct (find_def ge b) as [[f1|v1]|]; intuition congruence.
+405:  intros. unfold find_var_info. destruct (find_def ge b) as [[f1|v1]|]; intuition congruence.
+464:Theorem find_def_inversion:
+471:  unfold find_def; simpl; intros.
+476:  unfold find_def; simpl; intros. rewrite PTree.gempty in H. discriminate.
+479:Corollary find_funct_ptr_inversion:
+484:  intros. apply find_def_inversion with b. apply find_funct_ptr_iff; auto.
+487:Corollary find_funct_inversion:
+492:  intros. exploit find_funct_inv; eauto. intros [b EQ]. subst v.
+493:  rewrite find_funct_find_funct_ptr in H.
+494:  eapply find_funct_ptr_inversion; eauto.
+503:  intros. exploit find_funct_ptr_inversion; eauto. intros [id IN]. eauto.
+512:  intros. exploit find_funct_inversion; eauto. intros [id IN]. eauto.
+1181:  red; intros. unfold find_def in H2; simpl in H2.
+1288:  intros. rewrite find_funct_ptr_iff in H0. eapply find_def_not_fresh; eauto.
+1307:  red; intros. unfold find_def in H0; simpl in H0; rewrite PTree.gempty in H0; discriminate.
+1333:  intros. rewrite find_funct_ptr_iff in H.
+1716:                       (find_def (globalenv p) b) (find_def (globalenv tp) b).
+1723:  find_def (globalenv tp) b = Some tg /\ match_globdef match_fundef match_varinfo ctx g tg.
+1725:  intros. generalize (find_def_match_2 b). rewrite H; intros R; inv R.
+1733:  find_funct_ptr (globalenv tp) b = Some tf /\ match_fundef cunit f tf /\ linkorder cunit ctx.
+1735:  intros. rewrite find_funct_ptr_iff in *. apply find_def_match in H.
+1744:  find_funct (globalenv tp) v = Some tf /\ match_fundef cunit f tf /\ linkorder cunit ctx.
+1746:  intros. exploit find_funct_inv; eauto. intros [b EQ]. subst v.
+1747:  rewrite find_funct_find_funct_ptr in H.
+1748:  rewrite find_funct_find_funct_ptr.
+1758:  intros. rewrite find_var_info_iff in *. apply find_def_match in H.
+Definition f_five_sqrtf := {|
+  fn_return := tfloat;
+  fn_callconv := cc_default;
+  fn_params := ((_x, tfloat) :: nil);
+  fn_vars := ((_view, (Tunion _FiveSqrtBits noattr)) ::
+              (_magnitude, tuint) :: (_lo, tuint) :: (_hi, tuint) ::
+              (_mid, tuint) :: (_candidate, tdouble) :: (_target, tdouble) ::
+              (_lower, tdouble) :: (_upper, tdouble) ::
+              (_midpoint, tdouble) :: (_midpoint_square, tdouble) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign
+         (Efield
+           (Evalof (Evar _view (Tunion _FiveSqrtBits noattr))
+             (Tunion _FiveSqrtBits noattr)) _f tfloat)
+         (Evalof (Evar _x tfloat) tfloat) tfloat))
+  (Ssequence
+    (Sdo (Eassign (Evar _magnitude tuint)
+           (Ebinop Oand
+             (Evalof
+               (Efield
+                 (Evalof (Evar _view (Tunion _FiveSqrtBits noattr))
+                   (Tunion _FiveSqrtBits noattr)) _u tuint) tuint)
+             (Eval (Vint (Int.repr 2147483647)) tuint) tuint) tuint))
+ ___builtin_write32_reversed :: ___builtin_write16_reversed ::
+ ___builtin_read32_reversed :: ___builtin_read16_reversed ::
+ ___builtin_fnmsub :: ___builtin_fnmadd :: ___builtin_fmsub ::
+ ___builtin_fmadd :: ___builtin_fmin :: ___builtin_fmax ::
+ ___builtin_expect :: ___builtin_unreachable :: ___builtin_va_end ::
+ ___builtin_va_copy :: ___builtin_va_arg :: ___builtin_va_start ::
+ ___builtin_membar :: ___builtin_annot_intval :: ___builtin_annot ::
+ ___builtin_sel :: ___builtin_memcpy_aligned :: ___builtin_sqrt ::
+ ___builtin_fsqrt :: ___builtin_fabsf :: ___builtin_fabs ::
+ ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz :: ___builtin_clzll ::
+ ___builtin_clzl :: ___builtin_clz :: ___builtin_bswap16 ::
+ ___builtin_bswap32 :: ___builtin_bswap :: ___builtin_bswap64 ::
+ ___builtin_ais_annot :: ___compcert_i64_umulh :: ___compcert_i64_smulh ::
+ ___compcert_i64_sar :: ___compcert_i64_shr :: ___compcert_i64_shl ::
+ ___compcert_i64_umod :: ___compcert_i64_smod :: ___compcert_i64_udiv ::
+ ___compcert_i64_sdiv :: ___compcert_i64_utof :: ___compcert_i64_stof ::
+ ___compcert_i64_utod :: ___compcert_i64_stod :: ___compcert_i64_dtou ::
+ ___compcert_i64_dtos :: ___compcert_va_composite ::
+ ___compcert_va_float64 :: ___compcert_va_int64 :: ___compcert_va_int32 ::
+ nil).
+
+Definition prog : Csyntax.program := 
+  mkprogram composites global_definitions public_idents _main Logic.I.
+
+

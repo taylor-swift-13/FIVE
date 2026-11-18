@@ -1,0 +1,32 @@
+File "./paparazzi/relations/lowpass_recovery/support/ResetCall.v", line 29, characters 72-74:
+Error:
+In environment
+m : mem
+b : block
+value : float32
+W4 : Mem.valid_access m Mfloat32 b 4 Writable
+W8 : Mem.valid_access m Mfloat32 b 8 Writable
+e : env
+ma : mem
+ALLOC : do_alloc_variables ge empty_env m reset_declarations = (e, ma)
+AV : alloc_variables ge empty_env m reset_declarations e ma
+ALL :
+  forall (id : ident) (ty : type),
+  In (id, ty) reset_declarations ->
+  exists bx : block,
+    e ! id = Some (bx, ty) /\
+    ~ Mem.valid_block m bx /\
+    Mem.range_perm ma bx 0 (sizeof ge ty) Cur Freeable
+RP : Mem.range_perm ma b 0 (sizeof ge filter_type) Cur Freeable
+FP : ~ Mem.valid_block m b
+LP : e ! _filter = Some (b, filter_type)
+bv : block
+LV : e ! _value = Some (bv, tfloat)
+FV : ~ Mem.valid_block m bv
+RV : Mem.range_perm ma bv 0 (sizeof ge tfloat) Cur Freeable
+SEP : env_separated e
+The term "W4" has type "Mem.valid_access m Mfloat32 b 4 Writable"
+while it is expected to have type "Mem.valid_access m Mfloat32 b 4 Nonempty"
+(cannot unify "Mem.perm m b ofs Cur Writable" and
+"Mem.perm m b ofs Cur Nonempty").
+

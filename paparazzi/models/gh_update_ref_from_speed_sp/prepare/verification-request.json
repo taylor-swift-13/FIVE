@@ -1,0 +1,38 @@
+{
+  "schema": "five-verification-request/1",
+  "authorization": "Complete both horizontal-guidance entries and cross-entry guidance_mode relation; all requested safety/termination, CBMC recheck, normal completion and exact final named-state bits.",
+  "entry": "gh_update_ref_from_speed_sp",
+  "implementation": "prepare/source/gh_update_ref_from_speed_sp.c",
+  "assumptions": [],
+  "domain": "Model unrestricted all machine argument lists/memories. Proof scope initialized 64-byte gh_ref and readable 8-byte struct argument; natural representable float-to-int64 position increments and no signed position addition overflow; arbitrary remaining float fields and saturation branches.",
+  "properties": [
+    "automatic CBMC bounds/pointer/overflow/shift/conversion checks",
+    "source-order position and speed integration",
+    "all unchanged named state fields retain initial bits",
+    "actual acceleration saturation"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "All14 named fields by binary32/int64 bits; little endian; full64byte layout with no padding.",
+  "binding": "Common same-input source/source closure: internal five_sqrtf algorithm; no external sqrt callback or tool-specific macro divergence.",
+  "binding_revision": "integer-restoring-v2",
+  "binding_source_sha256": "ba19f7684dc74b1e279c00e57cb9afe974d3e904f849397c990e7b7f49b6918b"
+}

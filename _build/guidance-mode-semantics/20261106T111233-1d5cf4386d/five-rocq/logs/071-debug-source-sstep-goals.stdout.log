@@ -1,0 +1,44 @@
+8 goals
+  
+  ge : genv
+  allowed : fundef -> Prop
+  internal_body :
+    forall f : function, allowed (Internal f) -> core_stmt (fn_body f)
+  external_supported :
+    forall (ef : external_function) (args : list type) 
+      (ret : type) (cc : calling_convention),
+    allowed (External ef args ret cc) -> executable_builtin ef = true
+  f : function
+  v : val
+  ty : type
+  s1, s2 : statement
+  k : cont
+  e : env
+  m : mem
+  b : bool
+  STEP :
+    sstep ge (ExprState f (Eval v ty) (Kifthenelse s1 s2 k) e m) E0
+      (State f (if b then s1 else s2) k e m)
+  H0 : nv ty
+  H1 : core_cont (Kifthenelse s1 s2 k)
+  H : bool_val v ty m = Some b
+  H5 : core_stmt s1
+  H6 : core_stmt s2
+  H7 : core_cont k
+  ============================
+  core_stmt (if b then s1 else s2) /\ core_cont k
+
+goal 2 is:
+ core_cont (call_cont k)
+goal 3 is:
+ t = E0
+goal 4 is:
+ t = E0
+goal 5 is:
+ t = E0
+goal 6 is:
+ t = E0
+goal 7 is:
+ t = E0
+goal 8 is:
+ t = E0

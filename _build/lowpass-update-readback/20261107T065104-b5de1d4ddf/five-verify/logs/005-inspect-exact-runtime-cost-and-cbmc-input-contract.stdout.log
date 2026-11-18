@@ -1,0 +1,71 @@
+{
+  "schema": "five-stage-costs/1",
+  "records": [
+    {
+      "stage": "five-rocq",
+      "run": "_build/lowpass-readback/20261107T030051-ab4ee8aef9/five-rocq",
+      "status": "recorded",
+      "time": {
+        "wall_seconds": null,
+        "tool_cpu_seconds": null
+      },
+      "token": {
+        "input": null,
+        "output": null,
+        "total": null,
+        "cached_input": null,
+        "reasoning_output": null
+      },
+      "memory": {
+        "tool_peak_rss_bytes": null
+      },
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "medium",
+        "actual_reasoning_effort": "medium",
+        "evidence": "../../../../../../report/lowpass_readback/evidence/runtime.json"
+      },
+      "shared_costs": "../../../report/costs.json",
+      "evidence": [
+        "../../../../../../../_build/lowpass-readback/20261107T030051-ab4ee8aef9/five-rocq/metrics.json",
+        "../../../../../../../_build/lowpass-readback/20261107T030051-ab4ee8aef9/five-rocq/run.json"
+      ],
+      "measurement_scope": "No exclusive problem model boundary: null is unallocated, not zero. Exact shared skill-session costs include all failures/retries and are referenced once."
+    }
+  ]
+}
+[
+  {
+    "role": "prepare-handoff",
+    "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/prepare/handoff.json",
+    "path": "inputs/prepare-handoff--handoff.json",
+    "sha256": "8bc6bb48aba2a79e8d2dd1063d665b29e53c85e9a4d06cc3f40292014a058a5f",
+    "bytes": 1598
+  }
+]
+86:                             agent.get('actual_reasoning_effort') == 'medium', f'proof runtime model/effort: {path}')
+87-                runtime_ref = agent.get('evidence') or agent.get('runtime_evidence') or next(
+88-                    (ref for ref in refs if Path(ref).name in ('runtime-metadata.json', 'runtime-config.json')), None)
+89-                self.require(bool(runtime_ref), f'missing runtime receipt: {path}')
+90-                if runtime_ref:
+91-                    runtime = self.read(reference(runtime_ref))
+92-                    events = runtime if isinstance(runtime, list) else runtime.get('selected_runtime_metadata')
+93-                    if isinstance(events, list):
+94-                        actual = next((r for r in events if r.get('type') == 'turn_context'), {})
+95-                    else:
+96-                        actual = runtime.get('actual', runtime)
+97-                    self.require(actual.get('model') == 'gpt-6.1-sol' and
+98-                                 (actual.get('effort') or actual.get('actual_reasoning_effort')) == 'medium',
+99-                                 f'actual runtime receipt mismatch: {reference(runtime_ref)}')
+100-            if row.get('status') == 'not_measured':
+101-                self.require(all(value is None for group in ('time', 'token', 'memory')
+102-                                 for value in row.get(group, {}).values()) and
+103-                             bool(row.get('measurement_scope') or row.get('missing_reason')),
+104-                             f'unexplained historical measurement absence: {path}')
+105-            elif row.get('status') not in ('not_run', 'not_applicable'):
+106-                self.require(bool(refs), f'missing cost evidence: {path}')
+107-            for ref in refs:
+108-                self.file(reference(ref))
+109-
+110-    def proof_problem(self, problem):
+111-        problem = Path(problem)

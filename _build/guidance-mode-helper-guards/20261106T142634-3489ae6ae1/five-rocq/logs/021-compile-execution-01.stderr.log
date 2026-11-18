@@ -1,0 +1,86 @@
+File "./paparazzi/relations/guidance_mode/support/software/GuardExecution.v", line 82, characters 10-29:
+Error:
+In environment
+ge : genv
+LAYOUT : union_layout S._FiveSqrtBits S._f S._u ge
+SIZE : sizeof ge (Tunion S._FiveSqrtBits noattr) = 4
+m : mem
+x : float32
+e : env
+ma : mem
+ALLOC : do_alloc_variables ge empty_env m helper_declarations = (e, ma)
+AV : alloc_variables ge empty_env m helper_declarations e ma
+ALL :
+  forall (id : ident) (ty : type),
+  In (id, ty) helper_declarations ->
+  exists b : block,
+    e ! id = Some (b, ty) /\
+    ~ Mem.valid_block m b /\
+    Mem.range_perm ma b 0 (sizeof ge ty) Cur Freeable
+SEP : env_separated e
+FRESH :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) -> ~ Mem.valid_block m b
+FREEA :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) -> Mem.range_perm ma b 0 (sizeof ge ty) Cur Freeable
+ENV : env_matches helper_types e
+WA : locals_writable e ma
+bx : block
+LX : e ! S._x = Some (bx, tfloat)
+FX : ~ Mem.valid_block m bx
+PX : Mem.range_perm ma bx 0 (sizeof ge tfloat) Cur Freeable
+mb : mem
+ST : Mem.store Mfloat32 ma bx 0 (Vsingle x) = Some mb
+BIND : bind_parameters ge e ma (fn_params S.f_five_sqrtf) [Vsingle x] mb
+STA : access_preserved ma mb
+WB : locals_writable e mb
+REP : locals_repr (PTree.set S._x (Vsingle x) (PTree.empty val)) e mb
+INIT :
+  initialized_values S._FiveSqrtBits helper_types [S._x]
+    (PTree.set S._x (Vsingle x) (PTree.empty val))
+y : float32
+rr : PTree.t val
+bodym : mem
+t : list guard_event
+EVAL :
+  statement_eval ge e (fn_body S.f_five_sqrtf) mb =
+  Some (runtime_outcome (ValueReturn (Vsingle y) tfloat rr), bodym)
+TRACE :
+  statement_trace S._FiveSqrtBits S._f S._u helper_types 0
+    (PTree.set S._x (Vsingle x) (PTree.empty val)) 
+    (fn_body S.f_five_sqrtf) =
+  Some (ValueReturn (Vsingle y) tfloat rr, t)
+VALUE :
+  value_statement S._FiveSqrtBits S._f S._u helper_types
+    (PTree.set S._x (Vsingle x) (PTree.empty val)) 
+    (fn_body S.f_five_sqrtf) =
+  Some (ValueReturn (Vsingle y) tfloat rr)
+TV : typed_value tfloat (Vsingle y)
+RB : locals_repr (outcome_rho (ValueReturn (Vsingle y) tfloat rr)) e bodym
+WBODY : locals_writable e bodym
+KEEP : access_preserved mb bodym
+HISTORY : stores_to (local_blocks e) mb bodym
+TREE :
+  instrumented_execution S._FiveSqrtBits S._f S._u helper_types ge e 0
+    (PTree.set S._x (Vsingle x) (PTree.empty val)) mb
+    (fn_body S.f_five_sqrtf) (ValueReturn (Vsingle y) tfloat rr) bodym t
+RESULT : source_derived_sqrt x = y
+FREEBODY :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) ->
+  Mem.range_perm bodym b 0 (sizeof ge ty) Cur Freeable
+mf : mem
+FREE : Mem.free_list bodym (blocks_of_env ge e) = Some mf
+FRAMEFREE :
+  forall (ch : memory_chunk) (b : block) (ofs : Z),
+  (forall (id : positive) (ty : type), e ! id = Some (b, ty) -> False) ->
+  Mem.load ch mf b ofs = Mem.load ch bodym b ofs
+ACCESSFREE :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (p : permission),
+  (forall (id : positive) (ty : type), e ! id = Some (b, ty) -> False) ->
+  Mem.valid_access bodym ch b ofs p -> Mem.valid_access mf ch b ofs p
+Unable to unify "exec_stmt ?ge ?le ?m ?s E0 ?mf (runtime_outcome ?o)" with
+ "exec_stmt ge e mb (fn_body S.f_five_sqrtf) E0 bodym
+    (Out_return (Some (Vsingle y, tfloat)))".
+

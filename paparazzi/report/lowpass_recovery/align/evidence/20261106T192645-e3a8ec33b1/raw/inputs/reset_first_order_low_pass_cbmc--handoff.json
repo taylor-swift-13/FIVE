@@ -1,0 +1,110 @@
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "reset_first_order_low_pass",
+  "stage": "five-cbmc",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "reset_first_order_low_pass case root",
+  "input_handoff": "prepare/handoff.json",
+  "next_stage": "five-align",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/reset_first_order_low_pass.c",
+      "sha256": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "2723a79ebe8ef82a40f721a5fc248746c39a5dce45e0911f63375913d8745871"
+    },
+    {
+      "role": "harness",
+      "path": "cbmc/harness.c",
+      "sha256": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+    },
+    {
+      "role": "scope",
+      "path": "cbmc/report/scope.json",
+      "sha256": "cd5ade190232eb2f81834632949a3002578b557a274fb120bb30c308ad36a081"
+    },
+    {
+      "role": "instrumented_properties",
+      "path": "cbmc/instrumented-properties.json",
+      "sha256": "53e3212716a6c18568967bc5b018a95d703fb9f8bf23c15d05aded3bff034f13"
+    },
+    {
+      "role": "properties",
+      "path": "cbmc/properties.json",
+      "sha256": "e000866173eeb35be1b1aac163f2272964ed4a37926cd3e5d7fe6df0bd117cc6"
+    },
+    {
+      "role": "cbmc_results",
+      "path": "cbmc/cbmc-result.json",
+      "sha256": "37b2f5b6f49846362759caa84fa0b0de1ff16adf9e7e0a14eb7cf67b288cf9fc"
+    },
+    {
+      "role": "run_binding",
+      "path": "cbmc/run-binding.json",
+      "sha256": "e31d19aa451cb258846e1fbaf87d69c74565b45ca5cfc9735cb438e49431e4ee"
+    },
+    {
+      "role": "history",
+      "path": "cbmc/history/full_bits001/history.json",
+      "sha256": "1fb4eef535a111d882208e2148c2fb53707061bf2bdab8b2744a26011a81d1c3"
+    },
+    {
+      "role": "arithmetic_history",
+      "path": "cbmc/history/arithmetic_observation002/history.json",
+      "sha256": "2749c3d86976d174a2baab00e590246151cb6f1bbe36328e3c4a1bf2947705d4"
+    },
+    {
+      "role": "report",
+      "path": "cbmc/report/report.md",
+      "sha256": "5161857a0efba2930d15c223805ba4f75c135cff9bc00cb4a07b18aa4df4723b"
+    },
+    {
+      "role": "costs",
+      "path": "cbmc/report/costs.json",
+      "sha256": "247d4de2d49b22c4c63bf8fbc07b8d68bb8677c38c24defbf91d2ba91946bd59"
+    },
+    {
+      "role": "shared_costs",
+      "path": "../../../_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc/evidence/shared-stage-costs.json",
+      "sha256": "b17b8671e6168209d4c638a850f35d968ae8ab6fae3bc9b03cdbb1d035de76c1"
+    },
+    {
+      "role": "actual_run",
+      "path": "../../../_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc/run.json",
+      "sha256": "93fcc5850c387041c434fc3644c7fa8124a5fa2914d284b240e5867d8d533cc6"
+    },
+    {
+      "role": "actual_metrics",
+      "path": "../../../_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc/metrics.json",
+      "sha256": "66354c66d58a76bae9d0cb451a30a1e8c5e343c3ab3b51a977b25f08da0ac3e5"
+    }
+  ],
+  "verification_method": "traditional-bounded-model-checking",
+  "property_count": 27,
+  "property_statuses": {
+    "SUCCESS": 27
+  },
+  "limitations": [
+    "CBC scope is complete safety/copy/frame/reset; coefficient numerical result is a separate original-model Rocq claim; no input assumptions.",
+    "Full original bit observation attempts remain unresolved history; current results do not retroactively prove them.",
+    "External CBMC evidence requires independent Rocq recheck; C frontend/native-hardware trust boundary retained."
+  ]
+}

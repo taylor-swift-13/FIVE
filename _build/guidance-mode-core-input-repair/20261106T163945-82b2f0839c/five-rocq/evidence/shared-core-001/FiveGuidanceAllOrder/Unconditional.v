@@ -1,0 +1,25 @@
+From FiveGuidanceMode Require Import Spec.
+From FiveGuidanceAllOrder Require Import EntryCorollaries EntrySafety.
+From FiveGuidanceSoftwareProof Require Import FunctionEntry.
+Require FiveGuidanceEntry.SaturationBody FiveGuidanceEntry.SaturationBodyAccel.
+
+Theorem speed_sqrt_contract:FiveGuidanceEntry.SaturationBody.sqrt_call_contract.
+Proof. exact speed_helper_funcall. Qed.
+Theorem accel_sqrt_contract:FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract.
+Proof. exact accel_helper_funcall. Qed.
+
+Theorem normal_completion:Spec.NormalCompletion.
+Proof. exact(normal_completion_from_all_orders speed_sqrt_contract accel_sqrt_contract). Qed.
+Theorem all_final_state_formula:Spec.AllFinalStateFormula.
+Proof. exact(all_final_formula_given_software speed_sqrt_contract accel_sqrt_contract). Qed.
+Theorem all_final_named_bits:Spec.AllFinalNamedBits.
+Proof. exact(all_final_named_bits_given_software speed_sqrt_contract accel_sqrt_contract). Qed.
+Definition speed_safe_termination:=speed_safe_termination_given_software speed_sqrt_contract.
+Definition accel_safe_termination:=accel_safe_termination_given_software accel_sqrt_contract.
+Definition speed_no_error:=speed_no_error_given_software speed_sqrt_contract.
+Definition accel_no_error:=accel_no_error_given_software accel_sqrt_contract.
+Print Assumptions normal_completion.
+Print Assumptions all_final_state_formula.
+Print Assumptions all_final_named_bits.
+Print Assumptions speed_safe_termination.
+Print Assumptions accel_safe_termination.

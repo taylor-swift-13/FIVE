@@ -1,0 +1,34 @@
+all_successor_termination_goal =
+(fun (gh ret : block) (m : mem) (flight : bool) (_ : InputGood m gh ret) =>
+ let ACC : Acc (successor ge) (entry (call_args gh ret flight) m) :=
+   all_successor_termination (call_args gh ret flight) m in
+ ACC)
+:
+AllSuccessorTerminationGoal
+     : AllSuccessorTerminationGoal
+
+Arguments all_successor_termination_goal gh ret m flight _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

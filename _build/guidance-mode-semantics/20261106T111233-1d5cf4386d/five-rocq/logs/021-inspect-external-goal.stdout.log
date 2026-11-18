@@ -1,0 +1,55 @@
+   437	  destruct RD; subst m'. left; left; apply step_call; eauto.
+   438	  (* stuck rred *)
+   439	  exploit not_imm_safe_t; eauto. intros [R | R]; eauto.
+   440	(* callstate *)
+   441	  destruct fd; simpl in NB; try contradiction; myinv.
+   442	  (* internal *)
+   443	  destruct (do_alloc_variables ge empty_env m (fn_params f ++ fn_vars f)) as [e m1] eqn:?.
+   444	  myinv. left; right; apply step_internal_function with m1. auto.
+   445	  change e with (fst (e,m1)). change m1 with (snd (e,m1)) at 2. rewrite <- Heqp.
+   446	  apply do_alloc_variables_sound. eapply sem_bind_parameters_sound; eauto.
+   447	  (* executable external function *)
+   448	  myinv.
+   449	  exploit executable_builtin_sound; eauto. intros [EC PT].
+   450	  left; right; eapply step_external_function; eauto.
+   451	(* returnstate *)
+   452	  destruct k; myinv...
+   453	(* stuckstate *)
+   454	  contradiction.
+   455	Qed.
+   456	
+   457	Theorem pure_do_step_complete:
+   458	  forall w S t S' w',
+  change e with (fst (e,m1)). change m1 with (snd (e,m1)) at 2. rewrite <- Heqp.
+  apply do_alloc_variables_sound. eapply sem_bind_parameters_sound; eauto.
+  (* external *)
+  destruct p as [[[w' tr] v] m']. myinv. left; right; constructor.
+  eapply do_ef_external_sound; eauto.
+(* returnstate *)
+  destruct k; myinv...
+(* stuckstate *)
+  contradiction.
+Qed.
+
+Remark estep_not_val:
+  forall f a k e m t S, estep ge (ExprState f a k e m) t S -> is_val a = None.
+Proof.
+  intros.
+  assert (forall b from to C, context from to C -> (from = to /\ C = fun x => x) \/ is_val (C b) = None).
+    induction 1; simpl; auto.
+  inv H.
+  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+  destruct (H0 a0 _ _ _ H8) as [[A B] | A]. subst. destruct a0; auto. elim H9. constructor. auto.
+Qed.
+
+Theorem do_step_complete:
+  forall w S t S' w',
+  possible_trace w t w' -> Csem.step ge S t S' -> exists rule, In (TR rule t S') (do_step w S).
+Proof with (unfold ret; eauto with coqlib).
+  intros until w'; intros PT H.
+  destruct H.
+  (* Expression step *)
+  inversion H; subst; exploit estep_not_val; eauto; intro NOTVAL.
+(* lred *)

@@ -1,0 +1,468 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation.
+From FiveGuidanceSoftwareProof Require Import FlatStatements.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition slot_chunk(ty:type):memory_chunk:=
+ match access_mode ty with By_value ch=>ch|_=>Mint32 end.
+Definition locals_repr(rho:PTree.t val)(e:env)(m:mem):Prop:=
+ forall id b ty v,e!id=Some(b,ty)->rho!id=Some v->Mem.load(slot_chunk ty)m b 0=Some v.
+Definition locals_writable(e:env)(m:mem):Prop:=
+ forall id b ty,e!id=Some(b,ty)->Mem.valid_access m(slot_chunk ty)b 0 Writable.
+Lemma locals_after_store : forall rho e m id b ty ch value mf observed,
+ env_separated e -> locals_repr rho e m ->e!id=Some(b,ty)->
+ Mem.store ch m b 0 value=Some mf ->
+ Mem.load(slot_chunk ty)mf b 0=Some observed ->
+ locals_repr(PTree.set id observed rho)e mf.
+Proof.
+ intros rho e m id b ty ch value mf observed SEP REP LOOK ST POST.
+ intros other bx tx vx LX RX.
+ rewrite PTree.gsspec in RX;destruct(peq other id)as[EQ|NE].
+ - subst other;rewrite LOOK in LX;injection LX as B T;subst bx tx;injection RX as V;subst vx;exact POST.
+ - erewrite Mem.load_store_other;[eapply REP;eauto|exact ST|left].
+   intro EQ;subst bx;apply NE;eapply SEP;eauto.
+Qed.
+Lemma locals_writable_after_store : forall e m ch b ofs v mf,
+ locals_writable e m ->Mem.store ch m b ofs v=Some mf ->locals_writable e mf.
+Proof. intros e m ch b ofs v mf W ST id bx ty LOOK;eapply Mem.store_valid_access_1;[exact ST|eapply W;exact LOOK]. Qed.
+Lemma store_single_as_bits : forall m b ofs x mf,
+ Mem.store Mfloat32 m b ofs(Vsingle x)=Some mf ->
+ Mem.load Mint32 mf b ofs=Some(Vint(Float32.to_bits x)).
+Proof.
+ intros m b ofs x mf ST.
+ destruct(Mem.load_store_similar _ _ _ _ _ _ ST Mint32 eq_refl ltac:(reflexivity))as[v[LD DE]].
+ cbn[decode_encode_val]in DE;subst v;exact LD.
+Qed.
+Lemma load_bits_as_single : forall m b ofs bits,
+ Mem.load Mint32 m b ofs=Some(Vint bits) ->
+ Mem.load Mfloat32 m b ofs=Some(Vsingle(Float32.of_bits bits)).
+Proof.
+ intros m b ofs bits LOAD.
+ destruct(Mem.load_loadbytes _ _ _ _ _ LOAD)as[bytes[BY DE]].
+ assert(ALIGN:(align_chunk Mfloat32|ofs))by(exact(proj2(Mem.load_valid_access _ _ _ _ _ LOAD))).
+ pose proof(Mem.loadbytes_load Mfloat32 m b ofs bytes BY ALIGN)as FLOAT.
+ unfold decode_val in DE,FLOAT.
+ destruct(proj_bytes bytes)as[bl|]eqn:B.
+ - assert(E:bits=Int.repr(decode_int bl)).
+   { exact(f_equal(fun v=>match v with Vint n=>n|_=>Int.zero end)DE). }
+   rewrite E;exact FLOAT.
+ - cbn in DE;discriminate.
+Qed.
+Lemma read_scalar_local : forall(ge:Csem.genv)e m id b ty ch v,
+ e!id=Some(b,ty)->access_mode ty=By_value ch->type_is_volatile ty=false->
+ Mem.load ch m b 0=Some v ->
+ pure_rval ge e m(Evalof(Evar id ty)ty)=Some v.
+Proof.
+ intros ge e m id b ty ch v LOOK MODE NV LOAD.
+ cbn[pure_rval pure_lval];rewrite LOOK;repeat rewrite dec_eq_true.
+ assert(D:Cexec.do_deref_loc ge quiet_world ty m b Ptrofs.zero Full=Some(quiet_world,E0,v)).
+ { apply Cexec.do_deref_loc_complete;[|constructor].
+   eapply deref_loc_value;[exact MODE|exact NV|].
+   unfold Mem.loadv;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact LOAD|change(size_chunk ch<=18446744073709551616);destruct ch;cbn;lia]. }
+ rewrite D;reflexivity.
+Qed.
+
+Lemma write_location_exists : forall(ge:Csem.genv)e rho m id b container l r ch vr vc observed,
+ env_separated e ->locals_repr rho e m ->locals_writable e m ->
+ e!id=Some(b,container) ->
+ pure_lval ge e m l=Some(b,Ptrofs.zero,Full) ->
+ access_mode(typeof l)=By_value ch ->type_is_volatile(typeof l)=false ->
+ Mem.valid_access m ch b 0 Writable ->
+ pure_rval ge e m r=Some vr ->sem_cast vr(typeof r)(typeof l)m=Some vc ->
+ (forall mf,Mem.store ch m b 0 vc=Some mf ->Mem.load(slot_chunk container)mf b 0=Some observed) ->
+ exists mf,
+ statement_eval ge e(Sdo(Eassign l r(typeof l)))m=Some(Out_normal,mf) /\
+ locals_repr(PTree.set id observed rho)e mf /\
+ locals_writable e mf /\ access_preserved m mf /\
+ Mem.store ch m b 0 vc=Some mf.
+Proof.
+ intros ge e rho m id b container l r ch vr vc observed SEP REP W LOOK LOC MODE NV ACCESS RV CAST POST.
+ destruct(Mem.valid_access_store m ch b 0 vc ACCESS)as[mf ST].
+ assert(AS:assign_loc ge(typeof l)m b Ptrofs.zero Full vc E0 mf vc).
+ { eapply assign_loc_value;[exact MODE|exact NV|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact ST|change(size_chunk ch<=18446744073709551616);destruct ch;cbn;lia]. }
+ assert(D:Cexec.do_assign_loc ge quiet_world(typeof l)m b Ptrofs.zero Full vc=Some(quiet_world,E0,mf,vc)).
+ { apply Cexec.do_assign_loc_complete;[exact AS|constructor]. }
+ exists mf;split.
+ - cbn[statement_eval flat_eval];rewrite dec_eq_true,LOC,RV,CAST,D;reflexivity.
+ - split;[eapply locals_after_store;eauto|]. split.
+   + eapply locals_writable_after_store;eauto.
+   + split;[intros chunk bx ofs p VA;eapply Mem.store_valid_access_1;eauto|exact ST].
+Qed.
+Lemma write_scalar_exists : forall(ge:Csem.genv)e rho m id b ty ch r vr vc,
+ env_separated e ->locals_repr rho e m ->locals_writable e m ->
+ e!id=Some(b,ty)->access_mode ty=By_value ch->type_is_volatile ty=false ->
+ pure_rval ge e m r=Some vr ->sem_cast vr(typeof r)ty m=Some vc ->
+ Val.load_result ch vc=vc ->
+ exists mf,
+ statement_eval ge e(Sdo(Eassign(Evar id ty)r ty))m=Some(Out_normal,mf) /\
+ locals_repr(PTree.set id vc rho)e mf /\
+ locals_writable e mf /\ access_preserved m mf /\
+ Mem.store ch m b 0 vc=Some mf.
+Proof.
+ intros ge e rho m id b ty ch r vr vc SEP REP W LOOK MODE NV RV CAST RESULT.
+ eapply write_location_exists;try eassumption.
+ - cbn[pure_lval];rewrite LOOK,dec_eq_true;reflexivity.
+ - pose proof(W id b ty LOOK)as A;unfold slot_chunk in A;rewrite MODE in A;exact A.
+ - intros mf ST;unfold slot_chunk;rewrite MODE.
+   erewrite Mem.load_store_same by exact ST;rewrite RESULT;reflexivity.
+Qed.
+
+Lemma local_read_from_repr : forall(ge:Csem.genv)e rho m id b ty ch v,
+ locals_repr rho e m ->e!id=Some(b,ty)->rho!id=Some v ->
+ access_mode ty=By_value ch->type_is_volatile ty=false ->
+ pure_rval ge e m(Evalof(Evar id ty)ty)=Some v.
+Proof.
+ intros ge e rho m id b ty ch v REP LOOK VAL MODE NV.
+ eapply read_scalar_local;try eassumption.
+ pose proof(REP id b ty v LOOK VAL)as LOAD;unfold slot_chunk in LOAD;rewrite MODE in LOAD;exact LOAD.
+Qed.
+Lemma read_location_rvalue : forall(ge:Csem.genv)e m l ty ch b ofs v,
+ typeof l=ty ->pure_lval ge e m l=Some(b,ofs,Full) ->
+ access_mode ty=By_value ch->type_is_volatile ty=false ->
+ Mem.loadv ch m(Vptr b ofs)=Some v ->
+ pure_rval ge e m(Evalof l ty)=Some v.
+Proof.
+ intros ge e m l ty ch b ofs v TYPE LOC MODE NV LOAD.
+ change((if type_eq ty(typeof l)then
+ match pure_lval ge e m l with
+ |Some(b0,o0,bf)=>match Cexec.do_deref_loc ge quiet_world ty m b0 o0 bf with
+ |Some(_,_,w)=>Some w|None=>None end|None=>None end else None)=Some v).
+ rewrite TYPE,dec_eq_true,LOC.
+ assert(D:Cexec.do_deref_loc ge quiet_world ty m b ofs Full=Some(quiet_world,E0,v)).
+ { apply Cexec.do_deref_loc_complete;[|constructor]. eapply deref_loc_value;eauto. }
+ rewrite D;reflexivity.
+Qed.
+Lemma local_union_location : forall(ge:Csem.genv)e m vid uid field fty b co,
+ e!vid=Some(b,Tunion uid noattr)->
+ (genv_cenv ge)!uid=Some co ->
+ union_field_offset ge field(co_members co)=OK(0,Full) ->
+ pure_lval ge e m(Efield(Evalof(Evar vid(Tunion uid noattr))(Tunion uid noattr))field fty)=Some(b,Ptrofs.zero,Full).
+Proof.
+ intros ge e m vid uid field fty b co LOOK GET OFF.
+ cbn[pure_lval pure_rval];rewrite LOOK;repeat rewrite dec_eq_true.
+ assert(D:Cexec.do_deref_loc ge quiet_world(Tunion uid noattr)m b Ptrofs.zero Full=Some(quiet_world,E0,Vptr b Ptrofs.zero)).
+ { apply Cexec.do_deref_loc_complete;[apply deref_loc_copy;reflexivity|constructor]. }
+ rewrite D;cbn[typeof];rewrite GET,OFF;reflexivity.
+Qed.
+Print Assumptions local_union_location.
+Print Assumptions write_location_exists.
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Ctypes Cop Csyntax Csyntaxdefs Csem.
+From FiveGuidanceSoftwareProof Require Import ValueEvaluator NumericOps.
+Import ListNotations.
+Definition has_id(id:ident)(xs:list ident):bool:=existsb(Pos.eqb id)xs.
+Lemma has_id_true:forall id xs,has_id id xs=true <-> In id xs.
+Proof.
+ intros id xs;unfold has_id;rewrite existsb_exists;split.
+ - intros[x[IN EQ]];apply Pos.eqb_eq in EQ;subst;exact IN.
+ - intros IN;exists id;split;[exact IN|apply Pos.eqb_refl].
+Qed.
+Definition scalar_type(ty:type):bool:=match numeric_kind ty with Some _=>true|None=>false end.
+Definition literal_typed(ty:type)(v:val):bool:=
+ match numeric_kind ty,v with Some K32,Vint _|Some K64,Vlong _|Some KF32,Vsingle _=>true|_,_=>false end.
+Lemma literal_typed_sound:forall ty v,literal_typed ty v=true ->typed_value ty v.
+Proof. intros ty v;unfold literal_typed,typed_value;destruct(numeric_kind ty)as[k|];[destruct k|];destruct v;simpl;intros;try discriminate;exact I. Qed.
+Section CERTIFICATE.
+Variables union_id float_field uint_field:ident.
+Variable gamma:PTree.t type.
+Local Notation place :=(place_of union_id float_field uint_field gamma).
+Fixpoint check_expr(initialized:list ident)(a:expr):bool:=
+ match a with
+ |Eval v ty=>literal_typed ty v
+ |Evalof l ty=>if type_eq ty(typeof l)then
+   match place l with Some p=>has_id(place_id p)initialized && scalar_type ty|None=>false end else false
+ |Eunop op a ty=>check_expr initialized a && safe_unop op(typeof a)ty
+ |Ebinop op a b ty=>check_expr initialized a && check_expr initialized b && safe_binop op(typeof a)(typeof b)ty(literal_value b)
+ |Ecast a ty=>check_expr initialized a && safe_cast(typeof a)ty
+ |_=>false end.
+Definition check_assign(initialized:list ident)(l r:expr)(ty:type):option(list ident):=
+ if type_eq ty(typeof l)then
+ match place l with
+ |Some p=>if check_expr initialized r && safe_cast(typeof r)(typeof l)then Some(place_id p::initialized)else None
+ |None=>None end else None.
+Inductive static_outcome:=StaticNormal(initialized:list ident)|StaticReturn.
+Definition initialized_intersection(xs ys:list ident):list ident:=filter(fun id=>has_id id ys)xs.
+Definition join_outcome(a b:static_outcome):static_outcome:=
+ match a,b with
+ |StaticReturn,StaticReturn=>StaticReturn
+ |StaticNormal xs,StaticReturn|StaticReturn,StaticNormal xs=>StaticNormal xs
+ |StaticNormal xs,StaticNormal ys=>StaticNormal(initialized_intersection xs ys)end.
+Fixpoint check_statement(ret:type)(initialized:list ident)(s:statement):option static_outcome:=
+ match s with
+ |Sskip=>Some(StaticNormal initialized)
+ |Sdo(Eassign l r ty)=>match check_assign initialized l r ty with Some ids=>Some(StaticNormal ids)|None=>None end
+ |Ssequence a b=>match check_statement ret initialized a with
+   |Some(StaticNormal ids)=>check_statement ret ids b
+   |Some StaticReturn=>Some StaticReturn|None=>None end
+ |Sifthenelse a yes no=>if check_expr initialized a then
+   match check_statement ret initialized yes,check_statement ret initialized no with
+   |Some a,Some b=>Some(join_outcome a b)|_,_=>None end else None
+ |Sreturn(Some a)=>if check_expr initialized a then if type_eq(typeof a)ret then Some StaticReturn else None else None
+ |_=>None end.
+Definition slot_typed(ty:type)(v:val):Prop:=
+ if type_eq ty(Tunion union_id noattr)then has_kind K32 v else typed_value ty v.
+Definition initialized_values(ids:list ident)(rho:PTree.t val):Prop:=
+ forall id,In id ids->exists ty v,gamma!id=Some ty /\rho!id=Some v /\slot_typed ty v.
+Definition good_value_outcome(ret:type)(expected:static_outcome)(actual:value_outcome):Prop:=
+ match actual with
+ |ValueReturn v ty _=>ty=ret /\typed_value ret v
+ |ValueNormal rho=>match expected with StaticNormal ids=>initialized_values ids rho|StaticReturn=>False end end.
+Lemma initialized_values_weaken:forall xs ys rho,
+ (forall id,In id xs->In id ys)->initialized_values ys rho->initialized_values xs rho.
+Proof. unfold initialized_values;intros xs ys rho SUB WELL id IN;apply WELL;apply SUB;exact IN. Qed.
+Lemma intersection_left:forall xs ys id,In id(initialized_intersection xs ys)->In id xs.
+Proof. intros;unfold initialized_intersection in H;apply filter_In in H;tauto. Qed.
+Lemma intersection_right:forall xs ys id,In id(initialized_intersection xs ys)->In id ys.
+Proof. intros;unfold initialized_intersection in H;apply filter_In in H as[_ H];apply has_id_true in H;exact H. Qed.
+End CERTIFICATE.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cstrategy Smallstep.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+(** Generic construction lemmas for real Cstrategy executions.  These do not
+    replace or alter the generated Csyntax, and make no assumption of a return. *)
+Fixpoint source_simple (a : expr) : bool :=
+ match a with
+ | Eval _ _ | Evar _ _ | Esizeof _ _ | Ealignof _ _=>true
+ | Ederef r _ | Efield r _ _ | Eaddrof r _ | Eunop _ r _ | Ecast r _=>source_simple r
+ | Evalof l _=>source_simple l && negb(type_is_volatile(typeof l))
+ | Ebinop _ r s _=>source_simple r && source_simple s
+ | _=>false end.
+Lemma simple_eval_expr_refl : forall ge e m,
+ (forall a v, Cstrategy.eval_simple_rvalue ge e m a v -> source_simple a=true ->
+   Cstrategy.eval_expr ge e m RV a E0 m a) /\
+ (forall a b ofs bf, Cstrategy.eval_simple_lvalue ge e m a b ofs bf -> source_simple a=true ->
+   Cstrategy.eval_expr ge e m LV a E0 m a).
+Proof.
+ intros ge e m;apply Cstrategy.eval_simple_rvalue_lvalue_ind;
+ intros; simpl in *;
+ repeat match goal with H : _ && _ =true |- _ => apply andb_true_iff in H;destruct H end;
+ try discriminate;
+ try solve [constructor;auto];
+ try solve [replace E0 with (E0**E0) by reflexivity; eapply Cstrategy.eval_binop;eauto];
+ try solve [eapply Cstrategy.eval_valof;[|eauto];apply negb_true_iff in H0;exact H0].
+ all: eapply Cstrategy.eval_valof;[match goal with H: negb _=true |- _=>apply negb_true_iff in H;exact H end|eauto].
+Qed.
+Lemma simple_expression : forall ge e m a v,
+ Cstrategy.eval_simple_rvalue ge e m a v -> source_simple a=true ->
+ Cstrategy.eval_expression ge e m a E0 m v.
+Proof.
+ intros ge e m a v EV SI;eapply Cstrategy.eval_expression_intro;
+ [eapply(proj1(simple_eval_expr_refl ge e m));eauto|exact EV].
+Qed.
+Lemma atomic_assign : forall ge e m l r ty b ofs bf v vc v' mf,
+ Cstrategy.eval_simple_lvalue ge e m l b ofs bf -> source_simple l=true ->
+ Cstrategy.eval_simple_rvalue ge e m r v -> source_simple r=true ->
+ sem_cast v (typeof r) (typeof l) m=Some vc ->
+ assign_loc ge (typeof l) m b ofs bf vc E0 mf v' -> ty=typeof l ->
+ Cstrategy.exec_stmt ge e m (Sdo(Eassign l r ty)) E0 mf Out_normal.
+Proof.
+ intros ge e m l r ty b ofs bf v vc v' mf LL SL RR SR CAST STORE TY.
+ eapply Cstrategy.exec_Sdo.
+ eapply Cstrategy.eval_expression_intro with (a':=Eval v' ty);[|constructor].
+ replace E0 with (E0**E0**E0) by reflexivity.
+ eapply Cstrategy.eval_assign;
+ [eapply(proj2(simple_eval_expr_refl ge e m));eauto|
+ eapply(proj1(simple_eval_expr_refl ge e m));eauto|exact LL|exact RR|exact CAST|exact STORE|exact TY].
+Qed.
+Lemma atomic_assignop : forall ge e m op l r tyres ty b ofs bf vl vr vop vc v' mf,
+ Cstrategy.eval_simple_lvalue ge e m l b ofs bf -> source_simple l=true ->
+ Cstrategy.eval_simple_rvalue ge e m r vr -> source_simple r=true ->
+ deref_loc ge (typeof l) m b ofs bf E0 vl ->
+ sem_binary_operation ge op vl (typeof l) vr (typeof r) m=Some vop ->
+ sem_cast vop tyres (typeof l) m=Some vc ->
+ assign_loc ge (typeof l) m b ofs bf vc E0 mf v' -> ty=typeof l ->
+ Cstrategy.exec_stmt ge e m (Sdo(Eassignop op l r tyres ty)) E0 mf Out_normal.
+Proof.
+ intros ge e m op l r tyres ty b ofs bf vl vr vop vc v' mf LL SL RR SR LOAD OP CAST STORE TY.
+ eapply Cstrategy.exec_Sdo.
+ eapply Cstrategy.eval_expression_intro with (a':=Eval v' ty);[|constructor].
+ replace E0 with (E0**E0**E0**E0) by reflexivity.
+ eapply Cstrategy.eval_assignop;
+ [eapply(proj2(simple_eval_expr_refl ge e m));eauto|
+ eapply(proj1(simple_eval_expr_refl ge e m));eauto|exact LL|exact LOAD|exact RR|exact OP|exact CAST|exact STORE|exact TY].
+Qed.
+Lemma sequence_normal : forall ge e a b m ma mf out,
+ Cstrategy.exec_stmt ge e m a E0 ma Out_normal ->
+ Cstrategy.exec_stmt ge e ma b E0 mf out ->
+ Cstrategy.exec_stmt ge e m (Ssequence a b) E0 mf out.
+Proof. intros;replace E0 with (E0**E0) by reflexivity;eapply Cstrategy.exec_Sseq_1;eauto. Qed.
+Lemma read_scalar : forall ge e m l ty chunk b ofs v,
+ Cstrategy.eval_simple_lvalue ge e m l b ofs Full ->
+ ty=typeof l -> type_is_volatile ty=false -> access_mode ty=By_value chunk ->
+ Mem.loadv chunk m (Vptr b ofs)=Some v ->
+ Cstrategy.eval_simple_rvalue ge e m (Evalof l ty) v.
+Proof. intros; eapply Cstrategy.esr_rvalof;eauto;eapply deref_loc_value;eauto. Qed.
+Lemma assign_scalar : forall ge m ty chunk b ofs v mf,
+ type_is_volatile ty=false -> access_mode ty=By_value chunk ->
+ Mem.storev chunk m (Vptr b ofs) v=Some mf ->
+ assign_loc ge ty m b ofs Full v E0 mf v.
+Proof. intros;eapply assign_loc_value;eauto. Qed.
+Print Assumptions simple_eval_expr_refl.
+Print Assumptions atomic_assignop.
+Lemma strategy_star_csem : forall ge a t b,
+ star Cstrategy.step ge a t b -> star Csem.step ge a t b.
+Proof.
+ intros ge a t b H;induction H.
+ - constructor.
+ - eapply star_trans;[apply plus_star;eapply Cstrategy.step_simulation;exact H|exact IHstar|exact H1].
+Qed.
+Lemma funcall_original_normal : forall ge m fd args t mf res,
+ Cstrategy.eval_funcall ge m fd args t mf res ->
+ star Csem.step ge (Callstate fd args Kstop m) t (Returnstate res Kstop mf).
+Proof.
+ intros;apply strategy_star_csem;eapply Cstrategy.eval_funcall_to_steps;[exact H|exact I].
+Qed.
+Print Assumptions funcall_original_normal.
+Definition access_preserved (m mf:mem) : Prop := forall ch b ofs p,
+ Mem.valid_access m ch b ofs p -> Mem.valid_access mf ch b ofs p.
+Inductive stores_to (allowed:block->Prop) : mem->mem->Prop :=
+ | stores_to_refl : forall m, stores_to allowed m m
+ | stores_to_step : forall m ma mf ch b ofs v,
+ allowed b -> Mem.store ch m b ofs v=Some ma -> stores_to allowed ma mf -> stores_to allowed m mf.
+Lemma stores_to_trans : forall P m ma mf,
+ stores_to P m ma -> stores_to P ma mf -> stores_to P m mf.
+Proof. intros P m ma mf H;induction H;intros;[assumption|eapply stores_to_step;eauto]. Qed.
+Lemma stores_to_access : forall P m mf, stores_to P m mf -> access_preserved m mf.
+Proof.
+ intros P m mf H;induction H;unfold access_preserved in *;intros;[assumption|].
+ apply IHstores_to;eapply Mem.store_valid_access_1;eauto.
+Qed.
+Lemma stores_to_load_frame : forall P m mf, stores_to P m mf ->
+ forall ch b ofs, ~P b -> Mem.load ch mf b ofs=Mem.load ch m b ofs.
+Proof.
+ intros P m mf H;induction H;intros ch0 b0 ofs0 NP;[reflexivity|].
+ rewrite IHstores_to by exact NP.
+ erewrite Mem.load_store_other by(exact H0||(left;intro;subst;contradiction));reflexivity.
+Qed.
+Lemma sequence_normal_inv : forall ge e a b m mf,
+ Cstrategy.exec_stmt ge e m(Ssequence a b)E0 mf Out_normal ->
+ exists ma, Cstrategy.exec_stmt ge e m a E0 ma Out_normal /\
+ Cstrategy.exec_stmt ge e ma b E0 mf Out_normal.
+Proof.
+ intros ge e a b m mf H;inversion H;subst;try contradiction.
+ match goal with EQ:?x ** ?y=E0 |- _=>change(x++y=[])in EQ;apply app_eq_nil in EQ as [-> ->] end.
+ eexists;split;eassumption.
+Qed.
+Print Assumptions stores_to_load_frame.
+Lemma statement_prefix_path : forall ge e m a mf,
+ Cstrategy.exec_stmt ge e m a E0 mf Out_normal -> forall f k tail,
+ star Csem.step ge(State f(Ssequence a tail)k e m)E0(State f tail k e mf).
+Proof.
+ intros ge e m a mf EVAL f k tail.
+ destruct(Cstrategy.exec_stmt_to_steps ge e m a E0 mf Out_normal EVAL f(Kseq tail k))as[reached[PATH END]].
+ inversion END;subst reached.
+ eapply star_step with(t1:=E0)(t2:=E0);[right;apply Csem.step_seq| |reflexivity].
+ eapply star_trans with(t1:=E0)(t2:=E0).
+ - apply strategy_star_csem;exact PATH.
+ - apply star_one;right;apply Csem.step_skip_seq.
+ - reflexivity.
+Qed.
+Print Assumptions statement_prefix_path.
+Lemma stores_to_weaken : forall P Q m mf,
+ (forall b,P b ->Q b) ->stores_to P m mf ->stores_to Q m mf.
+Proof.
+ intros P Q m mf INC H;induction H;[constructor|eapply stores_to_step;eauto].
+Qed.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Csem Cexec.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+Section STACK.
+Variable ge:Csem.genv.
+Lemma allocation_load : forall vars e m ch b ofs v,
+ Mem.load ch m b ofs=Some v ->
+ Mem.load ch (snd(Cexec.do_alloc_variables ge e m vars))b ofs=Some v.
+Proof.
+ induction vars as[|[id ty] vars IH];intros e m ch b ofs v LD;cbn [Cexec.do_alloc_variables];[exact LD|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A;apply IH.
+ eapply Mem.load_alloc_other;eauto.
+Qed.
+Lemma allocation_perm : forall vars e m b ofs k p,
+ Mem.perm m b ofs k p -> Mem.perm(snd(Cexec.do_alloc_variables ge e m vars))b ofs k p.
+Proof.
+ induction vars as[|[id ty]vars IH];intros e m b ofs k p PER;cbn [Cexec.do_alloc_variables];[exact PER|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A;apply IH.
+ eapply Mem.perm_alloc_1;eauto.
+Qed.
+Lemma allocation_valid_block : forall vars e m b,
+ Mem.valid_block m b -> Mem.valid_block(snd(Cexec.do_alloc_variables ge e m vars))b.
+Proof.
+ induction vars as[|[id ty]vars IH];intros e m b VB;cbn [Cexec.do_alloc_variables];[exact VB|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A;apply IH.
+ eapply Mem.valid_block_alloc;eauto.
+Qed.
+Lemma allocation_keeps_binding : forall vars e m id,
+ ~In id(map fst vars) ->
+ (fst(Cexec.do_alloc_variables ge e m vars))!id=e!id.
+Proof.
+ induction vars as[|[head ty]vars IH];intros e m id NOT;cbn [Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(simpl in NOT;tauto).
+ apply PTree.gso;intro EQ;subst;simpl in NOT;tauto.
+Qed.
+Definition env_valid (m:mem)(e:env):Prop := forall id b ty,e!id=Some(b,ty)->Mem.valid_block m b.
+Definition env_separated (e:env):Prop := forall id1 id2 b ty1 ty2,
+ e!id1=Some(b,ty1)->e!id2=Some(b,ty2)->id1=id2.
+Lemma allocation_env_valid : forall vars e m,
+ env_valid m e -> env_valid(snd(Cexec.do_alloc_variables ge e m vars))(fst(Cexec.do_alloc_variables ge e m vars)).
+Proof.
+ induction vars as[|[head ty]vars IH];intros e m VALID;cbn [Cexec.do_alloc_variables];[exact VALID|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A;apply IH.
+ intros id b t LOOK;rewrite PTree.gsspec in LOOK;destruct(peq id head).
+ - injection LOOK as EQ _;subst b;eapply Mem.valid_new_block;exact A.
+ - eapply Mem.valid_block_alloc;[exact A|eapply VALID;exact LOOK].
+Qed.
+Lemma allocation_env_separated : forall vars e m,
+ env_valid m e -> env_separated e -> env_separated(fst(Cexec.do_alloc_variables ge e m vars)).
+Proof.
+ induction vars as[|[head ty]vars IH];intros e m VALID SEP;cbn [Cexec.do_alloc_variables];[exact SEP|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A;apply IH.
+ - intros id b t LOOK;rewrite PTree.gsspec in LOOK;destruct(peq id head).
+   + injection LOOK as EQ _;subst b;eapply Mem.valid_new_block;exact A.
+   + eapply Mem.valid_block_alloc;[exact A|eapply VALID;exact LOOK].
+ - intros id1 id2 b t1 t2 L1 L2.
+   rewrite PTree.gsspec in L1,L2;destruct(peq id1 head), (peq id2 head);subst;auto.
+   + injection L1 as EQ _;subst b;exfalso.
+     eapply(Mem.fresh_block_alloc _ _ _ _ _ A);eapply VALID;exact L2.
+   + injection L2 as EQ _;subst b;exfalso.
+     eapply(Mem.fresh_block_alloc _ _ _ _ _ A);eapply VALID;exact L1.
+   + eapply SEP;eauto.
+Qed.
+Lemma allocated_variable : forall vars e m id ty,
+ NoDup(map fst vars) -> In(id,ty)vars ->
+ exists b,
+ (fst(Cexec.do_alloc_variables ge e m vars))!id=Some(b,ty) /\
+ ~Mem.valid_block m b /\
+ Mem.valid_block(snd(Cexec.do_alloc_variables ge e m vars))b /\
+ Mem.range_perm(snd(Cexec.do_alloc_variables ge e m vars))b 0(sizeof ge ty)Cur Freeable.
+Proof.
+ induction vars as[|[head ht]vars IH];intros e m id ty ND IN;[contradiction|].
+ inversion ND as[|? ? NOT NDREST];subst.
+ cbn [Cexec.do_alloc_variables].
+ destruct(Mem.alloc m 0(sizeof ge ht))as[ma fresh]eqn:A.
+ destruct IN as[EQ|IN].
+ - injection EQ as EID ET;subst head ht;exists fresh;split.
+   + rewrite allocation_keeps_binding by exact NOT;apply PTree.gss.
+   + split;[eapply Mem.fresh_block_alloc;exact A|]. split.
+     * apply allocation_valid_block;eapply Mem.valid_new_block;exact A.
+     * intros ofs RANGE;apply allocation_perm;eapply Mem.perm_alloc_2;[exact A|exact RANGE].
+ - destruct(IH(PTree.set head(fresh,ht)e)ma id ty NDREST IN)as[b[LOOK[FRESH[VB PERM]]]].
+   exists b;split;[exact LOOK|]. split.
+   + intro OLD;apply FRESH;eapply Mem.valid_block_alloc;[exact A|exact OLD].
+   + split;assumption.
+Qed.
+End STACK.
+Print Assumptions allocated_variable.
+Print Assumptions allocation_env_separated.
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"

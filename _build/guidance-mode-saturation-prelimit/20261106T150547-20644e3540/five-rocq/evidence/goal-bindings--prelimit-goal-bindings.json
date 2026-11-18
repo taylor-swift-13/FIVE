@@ -1,0 +1,75 @@
+{
+  "status": "proved",
+  "goal_bindings": [
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Speed.saturation_to_factor",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=true->\n exists e mnorm bp bn bf,\n local_point e mnorm bp bn bf ba bc a maximum /\\\n star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0(factor_state e mnorm k)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Speed.saturation_to_factor_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Speed.saturation_to_sqrt",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=true->\n exists e mnorm bp bn bf kc,\n local_point e mnorm bp bn bf ba bc a maximum /\\\n star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0\n (Callstate(Internal S.f_five_sqrtf)[Vsingle(norm2 a)]kc mnorm)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Speed.saturation_to_sqrt_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Speed.unsaturated_to_skip",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=false->\n exists e mnorm bp bn bf,\n local_point e mnorm bp bn bf ba bc a maximum /\\\n star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0\n (State S.f_gh_saturate_accel Sskip k e mnorm)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Speed.unsaturated_to_skip_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Speed.unsaturated_returns",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=false->is_call_cont k->\n exists mf,star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0(Returnstate Vundef k mf)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Speed.unsaturated_returns_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationCallScope.Speed.saturation_funcall_guard_certificate",
+      "expected_type": "forall m ba bc a maximum k,\n is_call_cont k ->\n sqrt_call_contract ->Genv.find_symbol ge S._gh_max_accel=Some bc ->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum) ->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a)) ->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a)) ->\n Mem.valid_access m Mfloat32 ba 0 Writable ->Mem.valid_access m Mfloat32 ba 4 Writable ->\n exists mf P,certificate ge P(Returnstate Vundef k mf) /\\\n P(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m) /\\\n (forall s,P s->helper_call_ok S.f_five_sqrtf(norm2 a)(saturation_branch maximum a)s) /\\\n Mem.load Mfloat32 mf ba 0=Some(Vsingle(vx(saturate maximum a))) /\\\n Mem.load Mfloat32 mf ba 4=Some(Vsingle(vy(saturate maximum a))) /\\\n access_preserved m mf /\\\n (forall ch b ofs,Mem.valid_block m b ->b<>ba ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\\\n (forall b ofs nbytes,Mem.valid_block m b ->b<>ba ->Mem.loadbytes mf b ofs nbytes=Mem.loadbytes m b ofs nbytes)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Speed.saturation_funcall_guard_certificate_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationCallScope.Speed.helper_argument_scope",
+      "expected_type": "forall m ba bc a maximum k,\n is_call_cont k->Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n forall t args kc mc,\n bounded_star ge k(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)t\n (Callstate(Internal S.f_five_sqrtf)args kc mc)->\n saturation_branch maximum a=true /\\args=[Vsingle(norm2 a)]",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Speed.helper_argument_scope_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationCallScope.Speed.unsaturated_no_helper_call",
+      "expected_type": "forall m ba bc a maximum k,\n is_call_cont k->Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=false->forall t args kc mc,\n ~bounded_star ge k(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)t\n (Callstate(Internal S.f_five_sqrtf)args kc mc)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Speed.unsaturated_no_helper_call_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Accel.saturation_to_factor",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=true->\n exists e mnorm bp bn bf,\n local_point e mnorm bp bn bf ba bc a maximum /\\\n star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0(factor_state e mnorm k)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Accel.saturation_to_factor_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Accel.saturation_to_sqrt",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=true->\n exists e mnorm bp bn bf kc,\n local_point e mnorm bp bn bf ba bc a maximum /\\\n star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0\n (Callstate(Internal S.f_five_sqrtf)[Vsingle(norm2 a)]kc mnorm)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Accel.saturation_to_sqrt_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Accel.unsaturated_to_skip",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=false->\n exists e mnorm bp bn bf,\n local_point e mnorm bp bn bf ba bc a maximum /\\\n star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0\n (State S.f_gh_saturate_accel Sskip k e mnorm)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Accel.unsaturated_to_skip_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationPrelimit.Accel.unsaturated_returns",
+      "expected_type": "forall m ba bc a maximum k,\n Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=false->is_call_cont k->\n exists mf,star Csem.step ge(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)E0(Returnstate Vundef k mf)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Accel.unsaturated_returns_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationCallScope.Accel.saturation_funcall_guard_certificate",
+      "expected_type": "forall m ba bc a maximum k,\n is_call_cont k ->\n sqrt_call_contract ->Genv.find_symbol ge S._gh_max_accel=Some bc ->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum) ->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a)) ->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a)) ->\n Mem.valid_access m Mfloat32 ba 0 Writable ->Mem.valid_access m Mfloat32 ba 4 Writable ->\n exists mf P,certificate ge P(Returnstate Vundef k mf) /\\\n P(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m) /\\\n (forall s,P s->helper_call_ok S.f_five_sqrtf(norm2 a)(saturation_branch maximum a)s) /\\\n Mem.load Mfloat32 mf ba 0=Some(Vsingle(vx(saturate maximum a))) /\\\n Mem.load Mfloat32 mf ba 4=Some(Vsingle(vy(saturate maximum a))) /\\\n access_preserved m mf /\\\n (forall ch b ofs,Mem.valid_block m b ->b<>ba ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\\\n (forall b ofs nbytes,Mem.valid_block m b ->b<>ba ->Mem.loadbytes mf b ofs nbytes=Mem.loadbytes m b ofs nbytes)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Accel.saturation_funcall_guard_certificate_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationCallScope.Accel.helper_argument_scope",
+      "expected_type": "forall m ba bc a maximum k,\n is_call_cont k->Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n forall t args kc mc,\n bounded_star ge k(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)t\n (Callstate(Internal S.f_five_sqrtf)args kc mc)->\n saturation_branch maximum a=true /\\args=[Vsingle(norm2 a)]",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Accel.helper_argument_scope_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.SaturationCallScope.Accel.unsaturated_no_helper_call",
+      "expected_type": "forall m ba bc a maximum k,\n is_call_cont k->Genv.find_symbol ge S._gh_max_accel=Some bc->\n Mem.load Mfloat32 m bc 0=Some(Vsingle maximum)->\n Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a))->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a))->\n Mem.valid_access m Mfloat32 ba 0 Writable->Mem.valid_access m Mfloat32 ba 4 Writable->\n saturation_branch maximum a=false->forall t args kc mc,\n ~bounded_star ge k(Callstate(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]k m)t\n (Callstate(Internal S.f_five_sqrtf)args kc mc)",
+      "binding": "FiveGuidancePrelimitEvidence.PrelimitGoalBinding.Accel.unsaturated_no_helper_call_target"
+    }
+  ]
+}

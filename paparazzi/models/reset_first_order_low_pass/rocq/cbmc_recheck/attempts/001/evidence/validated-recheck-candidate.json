@@ -1,0 +1,2560 @@
+{
+  "schema": "five-cbmc-rocq-recheck/1",
+  "verification_method": "traditional-bounded-model-checking",
+  "status": "proved",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "5582d2642d4ef936f5555c93dc9aeb14e2eeb105f090f3c019869639e4c98513",
+  "cbmc_run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+  "cbmc_command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+  "cbmc_json": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc/logs/002-reset_first_order_low_pass-formal-exact-refinement.stdout.log",
+  "cbmc_input_sha256": {
+    "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+    "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+  },
+  "properties": [
+    {
+      "property_id": "memcpy.pointer.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+        "location": {
+          "comment": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer",
+          "propertyId": "memcpy.pointer.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_pointer_1",
+        "original_property_id": "memcpy.pointer.1",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_1",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_pointer_1",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_1",
+        "original_property_id": "memcpy.pointer_arithmetic.1",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_1",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_pointer_arithmetic_1",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.2",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "pointer relation: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_2",
+        "original_property_id": "memcpy.pointer_arithmetic.2",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_2",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_pointer_arithmetic_2",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "memcpy.pointer.2",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "same object violation in (const unsigned char *)(void *)&u >= (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+        "location": {
+          "comment": "same object violation in (const unsigned char *)(void *)&u >= (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "34",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer",
+          "propertyId": "memcpy.pointer.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_pointer_2",
+        "original_property_id": "memcpy.pointer.2",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_2",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_pointer_2",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.3",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "pointer relation: dead object in (const unsigned char *)(void *)&u",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(void *)&u",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "34",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.3",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_3",
+        "original_property_id": "memcpy.pointer_arithmetic.3",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_3",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_pointer_arithmetic_3",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "memcpy.pointer_arithmetic.4",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "pointer relation: dead object in (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+        "location": {
+          "comment": "pointer relation: dead object in (const unsigned char *)(const void *)&x + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "34",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.4",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_pointer_arithmetic_4",
+        "original_property_id": "memcpy.pointer_arithmetic.4",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_4",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_pointer_arithmetic_4",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "bits.precondition_instance.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "memcpy src/dst overlap",
+        "location": {
+          "comment": "memcpy src/dst overlap",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+          "function": "bits",
+          "line": "5",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "precondition_instance",
+          "propertyId": "bits.precondition_instance.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_bits_precondition_instance_1",
+        "original_property_id": "bits.precondition_instance.1",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_bits_precondition_instance_1",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_bits_precondition_instance_1",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "bits.precondition_instance.2",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "memcpy source region readable",
+        "location": {
+          "comment": "memcpy source region readable",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+          "function": "bits",
+          "line": "5",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "precondition_instance",
+          "propertyId": "bits.precondition_instance.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_bits_precondition_instance_2",
+        "original_property_id": "bits.precondition_instance.2",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_bits_precondition_instance_2",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_bits_precondition_instance_2",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "bits.precondition_instance.3",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "memcpy destination region writeable",
+        "location": {
+          "comment": "memcpy destination region writeable",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+          "function": "bits",
+          "line": "5",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "precondition_instance",
+          "propertyId": "bits.precondition_instance.3",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_bits_precondition_instance_3",
+        "original_property_id": "bits.precondition_instance.3",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_bits_precondition_instance_3",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_bits_precondition_instance_3",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "main.assertion.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "reset returns exact value bits",
+        "location": {
+          "comment": "reset returns exact value bits",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+          "function": "main",
+          "line": "11",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual source field/return value and official memcpy/uint32 assertion in both operand orders with caller-object preservation",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_main_assertion_1",
+        "original_property_id": "main.assertion.1",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_main_assertion_1",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_main_assertion_1",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "main.assertion.2",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "time_const frame bits",
+        "location": {
+          "comment": "time_const frame bits",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+          "function": "main",
+          "line": "12",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual source field/return value and official memcpy/uint32 assertion in both operand orders with caller-object preservation",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_main_assertion_2",
+        "original_property_id": "main.assertion.2",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_main_assertion_2",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_main_assertion_2",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "main.assertion.3",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "last_in exact value bits",
+        "location": {
+          "comment": "last_in exact value bits",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+          "function": "main",
+          "line": "13",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.3",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual source field/return value and official memcpy/uint32 assertion in both operand orders with caller-object preservation",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_main_assertion_3",
+        "original_property_id": "main.assertion.3",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_main_assertion_3",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_main_assertion_3",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "main.assertion.4",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "last_out exact value bits",
+        "location": {
+          "comment": "last_out exact value bits",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+          "function": "main",
+          "line": "14",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check"
+          ],
+          "propertyClass": "assertion",
+          "propertyId": "main.assertion.4",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual source field/return value and official memcpy/uint32 assertion in both operand orders with caller-object preservation",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_main_assertion_4",
+        "original_property_id": "main.assertion.4",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_main_assertion_4",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_main_assertion_4",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "memcpy.overflow.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "arithmetic overflow on unsigned to signed type conversion in (signed long int)n",
+        "location": {
+          "comment": "arithmetic overflow on unsigned to signed type conversion in (signed long int)n",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "45",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "overflow",
+          "propertyId": "memcpy.overflow.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_overflow_1",
+        "original_property_id": "memcpy.overflow.1",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_overflow_1",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_overflow_1",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "memcpy.overflow.2",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "arithmetic overflow on signed to unsigned type conversion in (unsigned long int)(signed long int)n",
+        "location": {
+          "comment": "arithmetic overflow on signed to unsigned type conversion in (unsigned long int)(signed long int)n",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "45",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "overflow",
+          "propertyId": "memcpy.overflow.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Actual bits-helper allocations/store/official memcpy/output integer with selected builtin guard",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_memcpy_overflow_2",
+        "original_property_id": "memcpy.overflow.2",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_memcpy_overflow_2",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_memcpy_overflow_2",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: pointer NULL in filter->last_in",
+        "location": {
+          "comment": "dereference failure: pointer NULL in filter->last_in",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "10",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_1",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.1",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_1",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_1",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.2",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: pointer invalid in filter->last_in",
+        "location": {
+          "comment": "dereference failure: pointer invalid in filter->last_in",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "10",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.2",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_2",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.2",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_2",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_2",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.3",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: deallocated dynamic object in filter->last_in",
+        "location": {
+          "comment": "dereference failure: deallocated dynamic object in filter->last_in",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "10",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.3",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_3",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.3",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_3",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_3",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.4",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: dead object in filter->last_in",
+        "location": {
+          "comment": "dereference failure: dead object in filter->last_in",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "10",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.4",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_4",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.4",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_4",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_4",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.5",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: pointer outside object bounds in filter->last_in",
+        "location": {
+          "comment": "dereference failure: pointer outside object bounds in filter->last_in",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "10",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.5",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_5",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.5",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_5",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_5",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.6",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: invalid integer address in filter->last_in",
+        "location": {
+          "comment": "dereference failure: invalid integer address in filter->last_in",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "10",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.6",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_6",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.6",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_6",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_6",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.7",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: pointer NULL in filter->last_out",
+        "location": {
+          "comment": "dereference failure: pointer NULL in filter->last_out",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "11",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.7",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_7",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.7",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_7",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_7",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.8",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: pointer invalid in filter->last_out",
+        "location": {
+          "comment": "dereference failure: pointer invalid in filter->last_out",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "11",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.8",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_8",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.8",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_8",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_8",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.9",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: deallocated dynamic object in filter->last_out",
+        "location": {
+          "comment": "dereference failure: deallocated dynamic object in filter->last_out",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "11",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.9",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_9",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.9",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_9",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_9",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.10",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: dead object in filter->last_out",
+        "location": {
+          "comment": "dereference failure: dead object in filter->last_out",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "11",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.10",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_10",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.10",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_10",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_10",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.11",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: pointer outside object bounds in filter->last_out",
+        "location": {
+          "comment": "dereference failure: pointer outside object bounds in filter->last_out",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "11",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.11",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_11",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.11",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_11",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_11",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    },
+    {
+      "property_id": "reset_first_order_low_pass.pointer_dereference.12",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "dereference failure: invalid integer address in filter->last_out",
+        "location": {
+          "comment": "dereference failure: invalid integer address in filter->last_out",
+          "file": "paparazzi/models/reset_first_order_low_pass/cbmc/../prepare/source/reset_first_order_low_pass.c",
+          "function": "reset_first_order_low_pass",
+          "line": "11",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:pointer-overflow-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer dereference",
+          "propertyFatal": true,
+          "propertyId": "reset_first_order_low_pass.pointer_dereference.12",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 input and all three old field bit patterns, including all NaN payloads; writable aligned nonwrapping 12-byte caller object and exact old field encodings; no numeric restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/reset_first_order_low_pass/prepare/source/reset_first_order_low_pass.c": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1",
+          "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+        },
+        "observation": "Original Csem generated-source AST, operand evaluation, actual setup and reachable store prefix",
+        "mapped_statement": "FiveLowpassResetRecheck.Spec.P_reset_first_order_low_pass_pointer_dereference_12",
+        "original_property_id": "reset_first_order_low_pass.pointer_dereference.12",
+        "rocq_scope": "Original source has no loops/recursion; actual Csem normal-return stars and all reached source assignment prefixes; no finite execution fuel replaces safety.",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false,
+          "scope": "Actual traditional CBMC run over raw harness/source; bound1 applies to the whole instrumented main; source lowpass functions are loop-free and recursion-free."
+        },
+        "command_scope": {
+          "run": "_build/lowpass-execution-worker/20261106T192414-4342c82602/five-cbmc",
+          "command_id": "002-reset_first_order_low_pass-formal-exact-refinement",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/reset_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--signed-overflow-check",
+            "--unsigned-overflow-check",
+            "--conversion-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui",
+            "--refine-arithmetic",
+            "--slice-formula"
+          ]
+        },
+        "memory_region": "Caller FirstOrderLowPass fields at base+0,+4,+8, total12 bytes; actual bits-helper source/destination are fresh distinct4-byte blocks."
+      },
+      "theorem": "FiveLowpassResetRecheck.Proof.prove_P_reset_first_order_low_pass_pointer_dereference_12",
+      "evidence": [
+        "paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json"
+      ],
+      "mapping_status": "mapped",
+      "proof_status": "proved",
+      "rocq_goal": {
+        "module": "FiveLowpassResetRecheck.Spec",
+        "symbol": "P_reset_first_order_low_pass_pointer_dereference_12",
+        "declaration_file": "rocq/cbmc_recheck/problem/Spec.v",
+        "paths_relative_to": "case"
+      },
+      "correspondence": {
+        "inputs": "Typed binary32 source arguments and all three typed old fields, with exact binary32 encodings and no numerical restriction.",
+        "state": "Original CompCert Csem source entry/setup and actual generated assignment operands/prefix memory; manual claims quantify all normal source returns.",
+        "observation": "Source float field load or source return value, then the actual official memcpy/uint32 bits observation with both operand orders and old caller-object preservation."
+      }
+    }
+  ],
+  "limitations": [
+    "Final CBMC harness has only copy/reset/frame manual observations; all-binary32 arithmetic coefficient theorem remains independent Rocq functional/relation proof.",
+    "Object identity/dead-object metadata are adapted to CompCert typed blocks and live permissions; memcpy uses the official CompCert semantics on actual fresh caller blocks."
+  ],
+  "bindings": [
+    {
+      "path": "prepare/source/reset_first_order_low_pass.c",
+      "sha256": "0eeb6d11befeb4d75eced7835cf064e2dfc623d4fab3e5143f2ea11e1ecd01b1"
+    },
+    {
+      "path": "prepare/source/bindings.json",
+      "sha256": "2723a79ebe8ef82a40f721a5fc248746c39a5dce45e0911f63375913d8745871"
+    },
+    {
+      "path": "align/request.json",
+      "sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9"
+    },
+    {
+      "path": "align/model/Source.v",
+      "sha256": "d8802732ddf24834833b4d3df9871faea45246affc7d960142fdf89b8f4c8a88"
+    },
+    {
+      "path": "align/model/Execution.v",
+      "sha256": "c081027fa57c4fa78d79b8a5cc257e07798490e4051c59d22d1506c1d63cf03c"
+    },
+    {
+      "path": "align/model/compcert-manifest.json",
+      "sha256": "5582d2642d4ef936f5555c93dc9aeb14e2eeb105f090f3c019869639e4c98513"
+    },
+    {
+      "path": "cbmc/harness.c",
+      "sha256": "8aaaa78c75f50ca043fca301b998a9929f9213376a743d26271b864634209e3c"
+    },
+    {
+      "path": "cbmc/properties.json",
+      "sha256": "e000866173eeb35be1b1aac163f2272964ed4a37926cd3e5d7fe6df0bd117cc6"
+    },
+    {
+      "path": "cbmc/run-binding.json",
+      "sha256": "e31d19aa451cb258846e1fbaf87d69c74565b45ca5cfc9735cb438e49431e4ee"
+    },
+    {
+      "path": "rocq/cbmc_recheck/problem/Spec.v",
+      "sha256": "c99bd709dd3b1bc8a5cf5ba3fc3b84450a7e79670ea674763020c7f7fa777d22"
+    },
+    {
+      "path": "rocq/cbmc_recheck/attempts/001/Proof.v",
+      "sha256": "df3a61f8ac8abdd799eb1cdf6f9341bdbd87f0d97bfae3ee6501cdbdc27761b4"
+    },
+    {
+      "path": "rocq/cbmc_recheck/attempts/001/check.py",
+      "sha256": "3baa86e5664f40a529e7d4f9d834ca7b7c6c54ffc30f96e0404fe99a11476437"
+    },
+    {
+      "path": "rocq/cbmc_recheck/attempts/001/provenance.json",
+      "sha256": "0057bbbd471da745876621862d668e5fce512bb4e65cb8238d39f01176da1ee5"
+    },
+    {
+      "path": "rocq/cbmc_recheck/attempts/001/evidence/goal-validation.json",
+      "sha256": "495fdc7b7310e36321981e19375c5d021b7a14dc8034b6b52ab1f8e1ad7d32f0"
+    },
+    {
+      "path": "rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json",
+      "sha256": "acec148d9c012b1fc57b85f7c476dd5d8c3d74d2fb16e1098b15f03659424a8c"
+    }
+  ]
+}

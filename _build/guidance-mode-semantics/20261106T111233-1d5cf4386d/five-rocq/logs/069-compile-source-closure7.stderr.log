@@ -1,0 +1,39 @@
+File "./paparazzi/relations/guidance_mode/support/semantics/SourceClosure.v", line 164, characters 10-23:
+Error:
+In environment
+ge : genv
+allowed : fundef -> Prop
+internal_body :
+  forall f : function, allowed (Internal f) -> core_stmt (fn_body f)
+external_supported :
+  forall (ef : external_function) (args : list type) 
+    (ret : type) (cc : calling_convention),
+  allowed (External ef args ret cc) -> executable_builtin ef = true
+f : function
+v1 : val
+ty : type
+k : cont
+e : env
+m : mem
+v2 : val
+m' : mem
+STEP :
+  sstep ge (ExprState f (Eval v1 ty) (Kreturn k) e m) E0
+    (Returnstate v2 (call_cont k) m')
+H1 : nv ty
+H2 : core_cont (Kreturn k)
+H : sem_cast v1 ty (fn_return f) m = Some v2
+H0 : Mem.free_list m (blocks_of_env ge e) = Some m'
+H4 : core_cont k
+Unable to unify
+ "(fix core_stmt (s : statement) : Prop :=
+     match s with
+     | Ssequence a b => core_stmt a /\ core_stmt b
+     | Sifthenelse a b c => core_expr a /\ core_stmt b /\ core_stmt c
+     | Sdo a | Sreturn (Some a) => core_expr a
+     | Sskip | Sreturn None => True
+     | _ => False
+     end)
+    (fn_body ?f)"
+with "core_cont (call_cont k)".
+

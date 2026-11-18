@@ -1,0 +1,33 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  ty : type
+  mf : mem
+  C : expr -> expr
+  HC : context RV RV C
+  b : block
+  ofs : ptrofs
+  bf : bitfield
+  v2 : val
+  ty2 : type
+  v' : val
+  HR :
+    rred ge (Eassign (Eloc b ofs bf ty) (Eval v2 ty2) ty) m E0 
+      (Eval v' ty) mf
+  AT : atomic_expr (Eassign (Eloc b ofs bf ty) (Eval v2 ty2) ty) = true
+  SA : false = false
+  AA :
+    simple (Eloc b ofs bf ty) && simple (Eval v2 ty2) &&
+    nv (typeof (Eloc b ofs bf ty)) = true
+  ROOT : forall z : expr, C z = z
+  EQ :
+    atomic_eval ge e m (Eassign (Eloc b ofs bf ty) (Eval v2 ty2) ty) =
+    atomic_eval ge e mf (Eval v' ty)
+  v : val
+  H6 : sem_cast v2 ty2 ty m = Some v
+  H7 : assign_loc ge ty m b ofs bf v E0 mf v'
+  ============================
+  atomic_eval ge e m (C (Eassign (Eloc b ofs bf ty) (Eval v2 ty2) ty)) =
+  atomic_eval ge e mf (Eval v' ty)

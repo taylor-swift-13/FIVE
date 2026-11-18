@@ -1,0 +1,14 @@
+{
+  "implementation": "prepared common-software-sqrt C closure",
+  "verification_method": "traditional-bounded-model-checking",
+  "assumptions": [
+    "Both binary32 scaled position increments strictly greater than -2^63 and strictly less than +2^63 (CBMC6.11 conservative conversion guards).",
+    "Truncated signed64 increment addition does not overflow either position coordinate.",
+    "Other input/state binary32 fields unrestricted, including NaN/Inf/signed zero; both saturation branches included."
+  ],
+  "difference_from_rocq": "Rocq natural to_long domain can include exact -2^63 where defined; CBMC emitted conservative check is strict and receives an explicit stronger harness lower bound.",
+  "loops": "none",
+  "recursion": "none",
+  "unwind": 1,
+  "observation": "Named scalar bits little endian; all14fields and sourceordered acceleration saturation formula. Both tools share the exact included software C binding."
+}

@@ -1,0 +1,25 @@
+{
+  "status": "proved",
+  "goal_bindings": [
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.GuardedEntryFlowSpeed.guarded_speed_entry_certificate",
+      "expected_type": "sqrt_call_contract ->forall s sp m bg src o,\n speed_initial s sp m bg src o ->\n exists sf mf P,\n speed_update fixed_maximum s sp=Some sf /\\\n certificate ge P(Returnstate Vundef Kstop mf) /\\\n P(FiveGhSpeed.Execution.entry[Vptr src o]m) /\\\n repr sf mf bg /\\writable mf bg /\\\n Mem.loadbytes mf bg 0 4=Some(encode_val Mfloat32(Vsingle(accel_x sf))) /\\\n Mem.loadbytes mf bg 4 4=Some(encode_val Mfloat32(Vsingle(accel_y sf))) /\\\n Mem.loadbytes mf bg 16 8=Some(encode_val Mint64(Vlong(pos_x sf))) /\\\n Mem.loadbytes mf bg 24 8=Some(encode_val Mint64(Vlong(pos_y sf))) /\\\n (forall reached,P reached->helper_call_ok S.f_five_sqrtf(norm2(raw_for_speed s sp))\n (saturation_branch fixed_maximum(raw_for_speed s sp))reached)",
+      "binding": "FiveGuidanceEntryGuardEvidence.GuardedEntryGoalBinding.Speed.guarded_speed_entry_certificate_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.GuardedEntryFlowSpeed.speed_all_helper_calls",
+      "expected_type": "forall s sp m bg src o,\n speed_initial s sp m bg src o->forall t args kc mc,\n star Csem.step ge(FiveGhSpeed.Execution.entry[Vptr src o]m)t(Callstate(Internal S.f_five_sqrtf)args kc mc)->\n saturation_branch fixed_maximum(raw_for_speed s sp)=true /\\args=[Vsingle(norm2(raw_for_speed s sp))]",
+      "binding": "FiveGuidanceEntryGuardEvidence.GuardedEntryGoalBinding.Speed.speed_all_helper_calls_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.GuardedEntryFlowAccel.guarded_accel_entry_certificate",
+      "expected_type": "sqrt_call_contract ->forall s sp m bg src o,\n accel_initial s sp m bg src o ->\n exists sf mf P,\n accel_update fixed_maximum s sp=Some sf /\\\n certificate ge P(Returnstate Vundef Kstop mf) /\\\n P(FiveGhAccel.Execution.entry[Vptr src o]m) /\\\n repr sf mf bg /\\writable mf bg /\\\n Mem.loadbytes mf bg 0 4=Some(encode_val Mfloat32(Vsingle(accel_x sf))) /\\\n Mem.loadbytes mf bg 4 4=Some(encode_val Mfloat32(Vsingle(accel_y sf))) /\\\n Mem.loadbytes mf bg 16 8=Some(encode_val Mint64(Vlong(pos_x sf))) /\\\n Mem.loadbytes mf bg 24 8=Some(encode_val Mint64(Vlong(pos_y sf))) /\\\n (forall reached,P reached->helper_call_ok S.f_five_sqrtf(norm2(raw_for_accel s sp))\n (saturation_branch fixed_maximum(raw_for_accel s sp))reached)",
+      "binding": "FiveGuidanceEntryGuardEvidence.GuardedEntryGoalBinding.Accel.guarded_accel_entry_certificate_target"
+    },
+    {
+      "theorem": "FiveGuidanceCbmcAdapters.GuardedEntryFlowAccel.accel_all_helper_calls",
+      "expected_type": "forall s sp m bg src o,\n accel_initial s sp m bg src o->forall t args kc mc,\n star Csem.step ge(FiveGhAccel.Execution.entry[Vptr src o]m)t(Callstate(Internal S.f_five_sqrtf)args kc mc)->\n saturation_branch fixed_maximum(raw_for_accel s sp)=true /\\args=[Vsingle(norm2(raw_for_accel s sp))]",
+      "binding": "FiveGuidanceEntryGuardEvidence.GuardedEntryGoalBinding.Accel.accel_all_helper_calls_target"
+    }
+  ]
+}

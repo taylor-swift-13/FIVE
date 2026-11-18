@@ -14,8 +14,11 @@ import sys
 
 
 class Validator:
-    def __init__(self, root):
+    def __init__(self, root, allowed_proof_efforts=None):
         self.root = Path(root).resolve()
+        self.allowed_proof_efforts = frozenset(allowed_proof_efforts or ("medium",))
+        if not self.allowed_proof_efforts <= {"low", "medium", "high", "xhigh", "max", "ultra"}:
+            raise ValueError("Unsupported allowed proof reasoning effort")
         self.errors = []
         self.active = []
 
@@ -81,9 +84,10 @@ class Validator:
                 refs.append(row['shared_costs'])
             if proof:
                 agent = row.get('agent', {})
+                requested_effort = agent.get('requested_reasoning_effort')
                 self.require(agent.get('model') == 'gpt-6.1-sol' and
-                             agent.get('requested_reasoning_effort') == 'medium' and
-                             agent.get('actual_reasoning_effort') == 'medium', f'proof runtime model/effort: {path}')
+                             requested_effort in self.allowed_proof_efforts and
+                             agent.get('actual_reasoning_effort') == requested_effort, f'proof runtime model/effort: {path}')
                 runtime_ref = agent.get('evidence') or agent.get('runtime_evidence') or next(
                     (ref for ref in refs if Path(ref).name in ('runtime-metadata.json', 'runtime-config.json')), None)
                 self.require(bool(runtime_ref), f'missing runtime receipt: {path}')
@@ -95,7 +99,7 @@ class Validator:
                     else:
                         actual = runtime.get('actual', runtime)
                     self.require(actual.get('model') == 'gpt-6.1-sol' and
-                                 (actual.get('effort') or actual.get('actual_reasoning_effort')) == 'medium',
+                                 (actual.get('effort') or actual.get('actual_reasoning_effort')) == requested_effort,
                                  f'actual runtime receipt mismatch: {reference(runtime_ref)}')
             if row.get('status') == 'not_measured':
                 self.require(all(value is None for group in ('time', 'token', 'memory')
@@ -200,8 +204,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--compile', action='store_true', help='rerun active checkers after metadata passes')
+    parser.add_argument('--allow-proof-effort', action='append',
+                        choices=('low', 'medium', 'high', 'xhigh', 'max', 'ultra'),
+                        help='explicit allowed requested proof effort; repeat for mixed histories; default medium')
     args = parser.parse_args()
-    result = Validator(args.root).run(args.compile)
+    result = Validator(args.root, args.allow_proof_effort).run(args.compile)
     print(json.dumps(result, indent=2))
     return int(bool(result['errors']))
 

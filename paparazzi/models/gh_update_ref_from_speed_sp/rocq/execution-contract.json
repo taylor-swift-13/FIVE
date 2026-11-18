@@ -1,0 +1,116 @@
+{
+  "purpose": "execution-translation",
+  "status": "proved",
+  "execution_backend": "compcert-csyntax-cexec",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "74046e826c76216eb02885fe01ac8a968b90128c0d3a14eee7ec04d43caa9689",
+  "execution_domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem including invalid, uninitialized, unwritable states"
+  },
+  "domain_restrictions": [],
+  "execution_entry": {
+    "module": "FiveGhSpeed.Execution",
+    "symbol": "entry",
+    "source": "paparazzi/models/gh_update_ref_from_speed_sp/align/model/Execution.v",
+    "sha256": "fc3e6877de333c73994538a549da82de16a0bec79a901ca58081844c1ed42859"
+  },
+  "source_semantics": {
+    "id": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "target": {
+      "semantics": "CompCert Csem/Cexec",
+      "version": "3.17",
+      "arch": "x86",
+      "model": "64",
+      "abi": "standard",
+      "bitsize": 64,
+      "system": "linux",
+      "endianness": "little",
+      "float32": "IEEE754 binary32",
+      "rounding": "round-to-nearest-ties-to-even",
+      "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+      "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+    },
+    "source_sha256": {
+      "paparazzi/models/gh_update_ref_from_speed_sp/prepare/source/gh_update_ref_from_speed_sp.c": "bfbb3e4f976d9482dbb2ccecc513001a165507c06a6643235c40d1eac29e44fb",
+      "paparazzi/models/gh_update_ref_from_speed_sp/prepare/source/five_sqrtf.c": "ba19f7684dc74b1e279c00e57cb9afe974d3e904f849397c990e7b7f49b6918b",
+      "paparazzi/models/gh_update_ref_from_speed_sp/prepare/source/bindings.json": "cc7bf2183170ad52a90697279b0287ac91061fdd13e2f93901443cf7615ffead",
+      "paparazzi/models/gh_update_ref_from_speed_sp/align/model/Source.v": "dfc796be5a4b71920898fb6ddafc5f348c6c08f5ba8b61125f2536371c09c8db",
+      "paparazzi/models/gh_update_ref_from_speed_sp/align/model/Execution.v": "fc3e6877de333c73994538a549da82de16a0bec79a901ca58081844c1ed42859"
+    }
+  },
+  "obligations": [
+    {
+      "id": "domain-preservation",
+      "status": "proof-backed",
+      "coverage": "The actual entry is the unchanged Internal function call for every list val and every memory; the syntax invariant is automatic.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "floating-point-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves every float operation, value, NaN/error behavior and trace.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "machine-integer-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves all machine-integer, shift, cast and pointer operations.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "memory-access-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact raw successor equivalence preserves loads, stores, allocation, free, invalid access and unknown-byte behavior.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "control-and-exhaustion-correspondence",
+      "status": "proof-backed",
+      "coverage": "Unbounded bidirectional star equivalence from arbitrary entry arguments and memory; no fuel limit or selected order.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "normal-result-and-memory-correspondence",
+      "status": "proof-backed",
+      "coverage": "Every returned value and memory has equivalent raw source/model executions, and byte observations are literally the same Mem.loadbytes.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "invalid-operation-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, source non-normal-return/nostep is equivalent to model non-normal-return/nostep.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "whole-execution-correspondence",
+      "status": "proof-backed",
+      "coverage": "Bidirectional unbounded whole-execution equivalence retains every Csem evaluation order, trace, final state and error.",
+      "evidence": [
+        "paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence/attempts/001/evidence/kernel-evidence.json"
+      ]
+    }
+  ],
+  "alignment_issues": [],
+  "external_library_bindings": {
+    "five_sqrtf": "Exact internal integer-restoring C implementation frozen in prepare/source/five_sqrtf.c; raw correspondence does not assert equivalence to a different library sqrt implementation."
+  },
+  "external_environment": "All proved source states are silent. Every permitted External call is a CompCert registered executable builtin with checked silent/no-memory-change semantics. Active prepared callsites use internal functions. No callback, assembly or I/O assumptions narrow the machine domain.",
+  "trusted_boundary": "Recorded C frontend and inherited CompCert/Flocq classical/library declarations; no GCC/hardware or cross-tool NaN-payload equivalence is claimed.",
+  "semantic_dependency_evidence": "_build/guidance-mode-semantics/20261106T111233-1d5cf4386d/five-rocq/evidence/semantic-dependencies.json"
+}

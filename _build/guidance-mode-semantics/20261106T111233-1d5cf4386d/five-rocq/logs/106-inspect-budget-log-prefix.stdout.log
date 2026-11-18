@@ -1,0 +1,132 @@
+2 goals
+  
+  vf : val
+  fd : fundef
+  FIND : Genv.find_funct ge vf = Some fd
+  TY : type_of_fundef fd = Tfunction [tfloat] tfloat cc_default
+  CL :
+    fun_case_f [tfloat] tfloat cc_default =
+    fun_case_f [tfloat] tfloat cc_default
+  id : ident
+  IN : In (id, Gfun fd) global_definitions
+  ============================
+  fd = Internal f_five_sqrtf \/
+  fd = Internal f_gh_saturate_accel \/
+  fd = Internal f_gh_update_ref_from_speed_sp \/
+  match fd with
+  | Internal _ => False
+  | External ef _ _ _ => executable_builtin ef = true
+  end
+
+goal 2 is:
+ S
+   ((fix Ffix (x x0 : nat) {struct x} : nat :=
+       match x with
+       | 0 => x0
+       | S H => S (Ffix H x0)
+       end)
+      match fd with
+      | Internal H =>
+          (fix Ffix (x x0 : nat) {struct x} : nat :=
+             match x with
+             | 0 => x0
+             | S H0 => S (Ffix H0 x0)
+             end)
+            ((fix Ffix (x : statement) : nat :=
+                match x with
+                | Sdo H0 =>
+                    (fix Ffix0 (x0 x1 : nat) {struct x0} : nat :=
+                       match x0 with
+                       | 0 => x1
+                       | S H1 => S (Ffix0 H1 x1)
+                       end)
+                      ((fix Ffix0 (x0 : expr) : nat :=
+                          match x0 with
+                          | Efield l _ _ | Evalof l _ | Eaddrof l _ =>
+                              S (Ffix0 l)
+                          | Eseqand r1 r2 _ | Eseqor r1 r2 _ =>
+                              S
+                                (S
+                                   ((fix Ffix2 (x1 x2 : nat) {struct x1} :
+                                         nat :=
+                                       match x1 with
+                                       | 0 => x2
+                                       | S H1 => S (Ffix2 H1 x2)
+                                       end)
+                                      (Ffix0 r1) (Ffix0 r2)))
+                          | Econdition r1 r2 r3 _ =>
+                              S
+                                (S
+                                   ((fix Ffix2 (x1 x2 : nat) {struct x1} :
+                                         nat :=
+                                       match x1 with
+                                       | 0 => x2
+                                       | S H1 => S (Ffix2 H1 x2)
+                                       end)
+                                      ((fix Ffix2 
+                                        (x1 x2 : nat) {struct x1} : nat :=
+                                          match x1 with
+                                          | 0 => x2
+                                          | S H1 => S (Ffix2 H1 x2)
+                                          end)
+                                         (Ffix0 r1) 
+                                         (Ffix0 r2))
+                                      (Ffix0 r3)))
+                          | Eassign l r _ =>
+                              S
+                                ((fix Ffix2 (x1 x2 : nat) {struct x1} :
+                                      nat :=
+                                    match x1 with
+                                    | 0 => x2
+                                    | S H1 => S (Ffix2 H1 x2)
+                                    end)
+                                   (Ffix0 l) (Ffix0 r))
+                          | Eassignop _ l r _ _ =>
+                              S
+                                (S
+                                   (S
+                                      ((fix Ffix2 
+                                        (x1 x2 : nat) {struct x1} : nat :=
+                                          match x1 with
+                                          | 0 => x2
+                                          | S H1 => S (Ffix2 H1 x2)
+                                          end)
+                                         (Ffix0 l) 
+                                         (Ffix0 r))))
+                          | Epostincr _ l _ => S (S (S (S (Ffix0 l))))
+                          | Ebinop _ r1 r2 _ | Ecomma r1 r2 _ =>
+                              S
+                                ((fix Ffix2 (x1 x2 : nat) {struct x1} :
+                                      nat :=
+                                    match x1 with
+                                    | 0 => x2
+                                    | S H1 => S (Ffix2 H1 x2)
+                                    end)
+                                   (Ffix0 r1) (Ffix0 r2))
+                          | Ecall r1 rargs ty =>
+                              S
+                                ((fix Ffix2 (x1 x2 : nat) {struct x1} :
+                                      nat :=
+                                    match x1 with
+                                    | 0 => x2
+                                    | S H1 => S (Ffix2 H1 x2)
+                                    end)
+                                   ((fix Ffix2 (x1 x2 : nat) {struct x1} :
+                                         nat :=
+                                       match x1 with
+                                       | 0 => x2
+                                       | S H1 => S (Ffix2 H1 x2)
+                                       end)
+                                      (if
+                                        (fix Ffix2
+                                           (x1 x2 : type) {struct x1} :
+                                             {x1 = x2} + {x1 = x2 -> False} :=
+                                           (fix Ffix3 
+                                            (x3 : type) :
+                                                forall x4 : type,
+                                                {x3 = x4} +
+                                                {x3 = x4 -> False} :=
+                                              match
+                                                x3 as c
+                                                return
+                                                 (forall

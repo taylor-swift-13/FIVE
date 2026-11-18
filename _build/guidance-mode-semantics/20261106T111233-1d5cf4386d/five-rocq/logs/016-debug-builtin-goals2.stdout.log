@@ -1,0 +1,32 @@
+2 goals
+  
+  ge : genv
+  do_external_function, do_inline_assembly :
+    string ->
+    signature ->
+    Senv.t -> world -> list val -> mem -> option (world * trace * val * mem)
+  e : env
+  w : world
+  name : string
+  sg : signature
+  args : list val
+  w2 : world
+  v : val
+  m2 : mem
+  bf : builtin_function
+  LOOK : lookup_builtin_function name sg = Some bf
+  HB : true = true
+  PT : possible_trace w2 E0 w2
+  E : known_builtin_sem bf ge args m2 E0 v m2
+  H : builtin_function_sem bf args = Some v
+  ============================
+  match builtin_function_sem bf args with
+  | Some v0 => Some (w2, E0, v0, m2)
+  | None => None
+  end = Some (w2, E0, v, m2)
+
+goal 2 is:
+ match builtin_function_sem bf args with
+ | Some v0 => Some (w2, E0, v0, m2)
+ | None => None
+ end = Some (w2, E0, v, m2)

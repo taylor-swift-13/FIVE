@@ -1,0 +1,1 @@
+All original Csem successors terminate from every raw argument list and every memory, including invalid inputs, by Acc of the actual successor relation. This is stronger than typed-input termination and uses no finite execution bound. The actual generated entry is init_first_order_low_pass.

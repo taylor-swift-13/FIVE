@@ -1,0 +1,27 @@
+4 goals
+  
+  ge : genv
+  base : cont
+  BASE : is_call_cont base
+  f : function
+  k : cont
+  e : env
+  m, m' : mem
+  STEP :
+    sstep ge (State f (Sreturn None) k e m) E0
+      (Returnstate Vundef (call_cont k) m')
+  NORMAL : normal_cont k = true
+  H : Mem.free_list m (blocks_of_env ge e) = Some m'
+  ============================
+  sstep ge (State f (Sreturn None) (plug_cont base k) e m) E0
+    (Returnstate Vundef (plug_cont base (call_cont k)) m')
+
+goal 2 is:
+ sstep ge (ExprState f (Eval v1 ty) (Kreturn (plug_cont base k)) e m) E0
+   (Returnstate v2 (plug_cont base (call_cont k)) m')
+goal 3 is:
+ sstep ge (State f Sskip (plug_cont base k) e m) E0
+   (Returnstate Vundef (plug_cont base k) m')
+goal 4 is:
+ sstep ge (Callstate (Internal f) vargs (plug_cont base k) m) E0
+   (State f (fn_body f) (plug_cont base k) e m2)

@@ -1,0 +1,27 @@
+File "./paparazzi/relations/guidance_mode/support/software/GuardMemorySound.v", line 14, characters 6-14:
+Warning: Use of "Notation" keyword for abbreviations is deprecated, use
+"Abbreviation" instead.
+[notation-for-abbreviation,deprecated-since-9.2,deprecated,default]
+File "./paparazzi/relations/guidance_mode/support/software/GuardMemorySound.v", line 81, characters 0-2306:
+Error: Non strictly positive occurrence of "instrumented_execution" in
+ "forall (off : nat) (rho : PTree.t val) (m : mem) 
+    (c : expr) (yes no : statement) (v : val) (choose : bool)
+    (o : value_outcome) (mf : mem) (t : list guard_event),
+  locals_repr rho le m ->
+  value_expr uid ff uf gamma rho c = Some v ->
+  pure_rval ge le m c = Some v ->
+  bool_val v (typeof c) m = Some choose ->
+  Forall (event_at ge le m) (expression_trace off rho c) ->
+  (if choose
+   then
+    instrumented_execution ge le
+      (off + Datatypes.length (expression_sites c) + 0)%nat rho m yes o mf t
+   else
+    instrumented_execution ge le
+      (off + Datatypes.length (expression_sites c) +
+       Datatypes.length (statement_sites yes))%nat
+      rho m no o mf t) ->
+  exec_stmt ge le m (Sifthenelse c yes no) E0 mf (runtime_outcome o) ->
+  instrumented_execution ge le off rho m (Sifthenelse c yes no) o mf
+    (expression_trace off rho c ++ t)".
+

@@ -1,0 +1,156 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FivePaparazziState Require Import State MemorySupport.
+From FiveGuidanceEntry Require Import Entry BigstepSupport.
+Require FiveGhSpeed.Source FiveGhSpeed.Execution.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module S:=FiveGhSpeed.Source.
+Definition ge:=FiveGhSpeed.Execution.ge.
+Definition vt:=Tstruct S._FloatVect2 noattr.
+Definition it:=Tstruct S._Int64Vect2 noattr.
+Definition gt:=Tstruct S._GuidanceHRef noattr.
+Definition local_field (id coord : ident) (ty ft : type) : expr :=
+ Efield (Evalof (Evar id ty) ty) coord ft.
+Definition global_field (id : ident) (ty : type) : expr :=
+ Efield (Evalof (Evar S._gh_ref gt) gt) id ty.
+Definition global_vector_field (id coord : ident) (ty ft : type) : expr :=
+ Efield (Evalof (global_field id ty) ty) coord ft.
+Lemma local_vector_location : forall e m id b coord ofs,
+ e!id=Some(b,vt) -> (coord=S._x /\ ofs=0 \/ coord=S._y /\ ofs=4) ->
+ Cstrategy.eval_simple_lvalue ge e m (local_field id coord vt tfloat) b (Ptrofs.repr ofs) Full.
+Proof.
+ intros e m id b coord ofs LOOK [[-> ->]|[-> ->]];
+ unfold local_field,vt;
+ rewrite <- Ptrofs.add_zero_l at 1.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceEntry Require Import Entry SoftwareSqrt BigstepSupport EffectfulSupport AccelPrefix.
+Require FiveGhAccel.Source FiveGhAccel.Execution.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module S:=FiveGhAccel.Source.
+Definition old_load_frame(m mf:mem):Prop:=forall ch b ofs,Mem.valid_block m b ->Mem.load ch mf b ofs=Mem.load ch m b ofs.
+Definition old_bytes_frame(m mf:mem):Prop:=forall b ofs n,Mem.valid_block m b ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Definition sqrt_call_contract:Prop:=forall m x,exists mf,
+ Cstrategy.eval_funcall ge m(Internal S.f_five_sqrtf)[Vsingle x]E0 mf(Vsingle(software_sqrt x)) /\
+ access_preserved m mf /\old_load_frame m mf /\old_bytes_frame m mf.
+Definition pointer_read:expr:=Evalof(Evar S._accel_sp(tptr vt))(tptr vt).
+Definition accel_field(coord:ident):expr:=Efield(Evalof(Ederef pointer_read vt)vt)coord tfloat.
+Definition accel_read(coord:ident):expr:=Evalof(accel_field coord)tfloat.
+Definition named_read(id:ident):expr:=Evalof(Evar id tfloat)tfloat.
+Definition norm_statement:statement:=Sdo(Eassign(Evar S._a_norm2 tfloat)
+ (Ebinop Oadd(Ebinop Omul(accel_read S._x)(accel_read S._x)tfloat)
+ (Ebinop Omul(accel_read S._y)(accel_read S._y)tfloat)tfloat)tfloat).
+Definition sqrt_function_type:=Tfunction(tfloat::nil)tfloat cc_default.
+ change(Mem.range_perm mb bs 0 8 Cur Freeable)in PS.
+ change(Mem.range_perm mb bu 0 16 Cur Freeable)in PU.
+ change(Mem.range_perm mb be 0 8 Cur Freeable)in PE.
+ change(Mem.range_perm mb ba 0 8 Cur Freeable)in PA.
+ destruct(body_prelimit s sp e mb bg param bp bs bu be ba dx dy ENV SYM EH LP LPS LSS LPU LE LA
+ DGP DGS DGU DPS DPU DSU DPG DPP DPSP DPUA DGE DGA DPE DPA DEA REP1 W1 LX LY
+ (freeable_vector_access _ _ _ PP(or_introl eq_refl))(freeable_vector_access _ _ _ PP(or_intror eq_refl))
+ (freeable_vector_access _ _ _ PS(or_introl eq_refl))(freeable_vector_access _ _ _ PS(or_intror eq_refl))
+ (freeable_longvector_access _ _ _ PU(or_introl eq_refl))(freeable_longvector_access _ _ _ PU(or_intror eq_refl))
+ (freeable_vector_access _ _ _ PE(or_introl eq_refl))(freeable_vector_access _ _ _ PE(or_intror eq_refl))
+ (freeable_vector_access _ _ _ PA(or_introl eq_refl))(freeable_vector_access _ _ _ PA(or_intror eq_refl))CX CY)
+ as(mf&kc&BODY&RF&WF&KEEP&AX&AY&ABYTES).
+ unfold SpeedPrelimit;exists(integrated s dx dy),E0,kc,mf,ba,Ptrofs.zero,bg.
+ split;[unfold integrate;rewrite CX,CY;reflexivity|].
+ split.
+ - eapply star_step with(t1:=E0)(t2:=E0);[|exact BODY|reflexivity].
+   unfold FiveGhSpeed.Execution.entry;right;eapply Csem.step_internal_function.
+   + repeat constructor;simpl;intuition discriminate.
+   + exact AV.
+   + exact BIND.
+ - split.
+   + unfold argument_repr;rewrite Ptrofs.unsigned_zero.
+     split;[exact AX|]. split;[exact AY|]. split;[lia|]. split;[vm_compute;intuition discriminate|exact ABYTES].
+   + auto.
+Qed.
+Print Assumptions actual_prelimit_exists.
+(** Restricted form of the CompCert Cexec animator correctness proof.
+    Original Cexec.v copyright INRIA; distributed under the CompCert license. *)
+From Coq Require Import Bool List ZArith Classical String.
+From compcert Require Import Axioms Coqlib Decidableplus Errors Maps Integers Floats AST Values Memory Events Globalenvs Builtins Determinism Ctypes Cop Csyntax Csem Cexec.
+Import ListNotations.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+
+Definition executable_builtin (ef: external_function): bool :=
+ match ef with
+ | EF_builtin name sg | EF_runtime name sg =>
+   match lookup_builtin_function name sg with Some _ => true | None => false end
+ | _ => false end.
+
+(** Syntactic closure only: no conditions on values, memory, permissions or definedness. *)
+Fixpoint no_builtin (a: expr): bool :=
+  match a with
+  | Ebuiltin ef _ al _ => executable_builtin ef && no_builtin_list al
+  | Efield a _ _ | Evalof a _ | Ederef a _ | Eaddrof a _
+  | Eunop _ a _ | Ecast a _ | Epostincr _ a _ | Eparen a _ _ => no_builtin a
+  | Ebinop _ a b _ | Eseqand a b _ | Eseqor a b _
+  | Eassign a b _ | Eassignop _ a b _ _ | Ecomma a b _ => no_builtin a && no_builtin b
+  | Econdition a b c _ => no_builtin a && no_builtin b && no_builtin c
+  | Ecall a al _ => no_builtin a && no_builtin_list al
+  | _ => true
+  end
+with no_builtin_list (al: exprlist): bool :=
+  match al with Enil => true | Econs a al => no_builtin a && no_builtin_list al end.
+
+Section LOCAL_EXEC.
+Variable ge: genv.
+Variable do_external_function do_inline_assembly:
+  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+Variable e: env.
+Variable w: world.
+Local Notation step_expr := (Cexec.step_expr ge do_external_function do_inline_assembly e w).
+Local Notation step_exprlist := (Cexec.step_exprlist ge do_external_function do_inline_assembly e w).
+
+Lemma executable_builtin_sound:
+ forall ef w args m w2 t v m2,
+ executable_builtin ef = true ->
+ Cexec.do_external ge do_external_function do_inline_assembly ef w args m = Some(w2,t,v,m2) ->
+ external_call ef ge args m t v m2 /\ possible_trace w t w2.
+Proof.
+ intros ef w0 args m0 w2 t v m2 HB; destruct ef; simpl in HB; try discriminate;
+ unfold Cexec.do_external, Cexec.do_builtin_or_external;
+ unfold external_call, builtin_or_external_sem;
+ destruct (lookup_builtin_function name sg) as [bf|] eqn:LOOK; try discriminate;
+ destruct (builtin_function_sem bf args) eqn:RES; intros E; inversion E; subst;
+ split; constructor; auto.
+Qed.
+Lemma executable_builtin_complete:
+ forall ef w args m w2 t v m2,
+ executable_builtin ef = true -> external_call ef ge args m t v m2 ->
+ possible_trace w t w2 ->
+ Cexec.do_external ge do_external_function do_inline_assembly ef w args m = Some(w2,t,v,m2).
+Proof.
+ intros ef w0 args m0 w2 t v m2 HB; destruct ef; simpl in HB; try discriminate;
+ unfold external_call, builtin_or_external_sem;
+ unfold Cexec.do_external, Cexec.do_builtin_or_external;
+ destruct (lookup_builtin_function name sg) as [bf|] eqn:LOOK; try discriminate;
+ intros E PT; inversion E; subst; inversion PT; subst; try congruence.
+ all: rewrite H; reflexivity.
+Qed.
+
+Local Hint Constructors context Csem.contextlist : core.
+Ltac unpack_nb := repeat match goal with H: _ && _ = true |- _ => apply andb_true_iff in H; let A := fresh "NB" in let B := fresh "NB" in destruct H as [A B] end.
+Ltac pure_myinv :=
+  match goal with
+  | [ H: False |- _ ] => destruct H
+  | [ H: _ /\ _ |- _ ] => destruct H; pure_myinv
+  | [ H: exists _, _ |- _ ] => destruct H; pure_myinv
+  | _ => idtac
+  end.
+Theorem pure_step_expr_sound:
+  forall a k m, no_builtin a = true -> reducts_ok ge e w k a m (step_expr k a m)
+with pure_step_exprlist_sound:
+  forall al m, no_builtin_list al = true -> list_reducts_ok ge e w al m (step_exprlist al m).
+Proof with (try (apply not_invert_ok; simpl; intro; pure_myinv; intuition congruence; fail)).
+  induction a; intros k m NB; simpl in NB; unpack_nb; try discriminate; simpl; destruct k; try (apply wrong_kind_ok; simpl; congruence).
+(* Eval *)
+  split; intros. tauto. simpl; congruence.
+(* Evar *)
+  destruct (e!x) as [[b ty']|] eqn:?.
+  destruct (type_eq ty ty')...

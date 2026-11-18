@@ -1,0 +1,189 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition writable12(m:mem)(b:block)(p:ptrofs):Prop :=
+ (4 | Ptrofs.unsigned p) /\ Ptrofs.unsigned p+12<=Ptrofs.modulus /\
+ Mem.range_perm m b (Ptrofs.unsigned p)(Ptrofs.unsigned p+12) Cur Writable.
+Lemma field_pointer:forall m b p delta,writable12 m b p -> In delta[0;4;8] ->
+ Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr delta))=Ptrofs.unsigned p+delta.
+Proof.
+ intros m b p delta[AL[NW RP]]D;rewrite Ptrofs.add_unsigned.
+ assert(DR:0<=delta<=Ptrofs.max_unsigned)by(change(0<=delta<=18446744073709551615);destruct D as[<-|[<-|[<-|[]]]];lia).
+ rewrite (Ptrofs.unsigned_repr delta DR).
+ apply Ptrofs.unsigned_repr;pose proof(Ptrofs.unsigned_range p).
+ unfold Ptrofs.max_unsigned;destruct D as[<-|[<-|[<-|[]]]];lia.
+Qed.
+Lemma field_access:forall m b p delta,writable12 m b p -> In delta[0;4;8] ->
+ Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+delta)Writable.
+Proof.
+ intros m b p delta[AL[NW RP]]D;split.
+ - intros ofs RANGE;apply RP;cbn[size_chunk]in RANGE;destruct D as[<-|[<-|[<-|[]]]];lia.
+ - change(4|Ptrofs.unsigned p+delta);destruct AL as[k K];destruct D as[<-|[<-|[<-|[]]]];
+   [exists k|exists(k+1)|exists(k+2)];lia.
+Qed.
+Lemma field_store:forall m b p delta v,writable12 m b p -> In delta[0;4;8] ->
+ exists mf,Mem.store Mfloat32 m b(Ptrofs.unsigned p+delta)(Vsingle v)=Some mf.
+Proof. intros m b p delta v P D;destruct(Mem.valid_access_store m Mfloat32 b(Ptrofs.unsigned p+delta)(Vsingle v)(field_access m b p delta P D))as[mf ST];exists mf;exact ST. Qed.
+Lemma store_preserves_writable12:forall m b p ch block ofs v mf,
+ writable12 m b p -> Mem.store ch m block ofs v=Some mf -> writable12 mf b p.
+Proof.
+ intros m b p ch blk ofs v mf[AL[NW RP]]ST;repeat split;auto.
+ intros z H;eapply Mem.perm_store_1;[exact ST|apply RP;exact H].
+Qed.
+Definition byte_frame(m mf:mem)(b:block)(p:ptrofs):Prop :=
+ forall block ofs n,block<>b \/ ofs+n<=Ptrofs.unsigned p \/ Ptrofs.unsigned p+12<=ofs ->
+ Mem.loadbytes mf block ofs n=Mem.loadbytes m block ofs n.
+Lemma field_store_frame:forall m b p delta v mf,
+ In delta[0;4;8] -> Mem.store Mfloat32 m b(Ptrofs.unsigned p+delta)(Vsingle v)=Some mf ->
+ byte_frame m mf b p.
+Proof.
+ intros m b p delta v mf D ST block ofs n OUT.
+ eapply Mem.loadbytes_store_other;[exact ST|].
+ cbn[size_chunk];destruct D as[<-|[<-|[<-|[]]]];destruct OUT as[B|[L|R]];intuition lia.
+Qed.
+Lemma byte_frame_trans:forall m m1 mf b p,byte_frame m m1 b p->byte_frame m1 mf b p->byte_frame m mf b p.
+Proof. intros m m1 mf b p A B block ofs n OUT;rewrite B by exact OUT;apply A;exact OUT. Qed.
+Lemma field_store_load:forall m b base delta v mf,
+ Mem.store Mfloat32 m b(base+delta)(Vsingle v)=Some mf ->
+ Mem.load Mfloat32 mf b(base+delta)=Some(Vsingle v).
+Proof. intros;exact(Mem.load_store_same _ _ _ _ _ _ H). Qed.
+Definition three_stores(m:mem)(b:block)(p:ptrofs)(tc vi vo:float32)(mf:mem):Prop :=
+ exists m1 m2,Mem.store Mfloat32 m b(Ptrofs.unsigned p+0)(Vsingle tc)=Some m1 /\
+ Mem.store Mfloat32 m1 b(Ptrofs.unsigned p+4)(Vsingle vi)=Some m2 /\
+ Mem.store Mfloat32 m2 b(Ptrofs.unsigned p+8)(Vsingle vo)=Some mf.
+Lemma three_stores_exist:forall m b p tc vi vo,writable12 m b p->exists mf,three_stores m b p tc vi vo mf.
+Proof.
+ intros m b p tc vi vo P.
+ destruct(field_store m b p 0 tc P ltac:(simpl;auto))as[m1 S1].
+ pose proof(store_preserves_writable12 _ _ _ _ _ _ _ _ P S1)as P1.
+ destruct(field_store m1 b p 4 vi P1 ltac:(simpl;auto))as[m2 S2].
+ pose proof(store_preserves_writable12 _ _ _ _ _ _ _ _ P1 S2)as P2.
+ destruct(field_store m2 b p 8 vo P2 ltac:(simpl;auto))as[mf S3].
+ exists mf,m1,m2;auto.
+Qed.
+Lemma three_stores_bytes:forall m b p tc vi vo mf,three_stores m b p tc vi vo mf ->
+ Mem.loadbytes mf b(Ptrofs.unsigned p)12=
+ Some(encode_val Mfloat32(Vsingle tc)++encode_val Mfloat32(Vsingle vi)++encode_val Mfloat32(Vsingle vo)).
+Proof.
+ intros m b p tc vi vo mf[m1[m2[S1[S2 S3]]]].
+ assert(L0:Mem.loadbytes mf b(Ptrofs.unsigned p)4=Some(encode_val Mfloat32(Vsingle tc))).
+ { erewrite Mem.loadbytes_store_other by(exact S3||(cbn[size_chunk];lia)).
+   erewrite Mem.loadbytes_store_other by(exact S2||(cbn[size_chunk];lia)).
+   replace(Ptrofs.unsigned p)with(Ptrofs.unsigned p+0)by lia.
+   exact(Mem.loadbytes_store_same _ _ _ _ _ _ S1). }
+ assert(L4:Mem.loadbytes mf b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle vi))).
+ { erewrite Mem.loadbytes_store_other by(exact S3||(cbn[size_chunk];lia)).
+   exact(Mem.loadbytes_store_same _ _ _ _ _ _ S2). }
+ assert(L8:Mem.loadbytes mf b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle vo)))by exact(Mem.loadbytes_store_same _ _ _ _ _ _ S3).
+ assert(L48:Mem.loadbytes mf b(Ptrofs.unsigned p+4)8=Some(encode_val Mfloat32(Vsingle vi)++encode_val Mfloat32(Vsingle vo))).
+ { replace 8 with(4+4)by lia;eapply Mem.loadbytes_concat;try exact L4;try lia.
+   replace(Ptrofs.unsigned p+4+4)with(Ptrofs.unsigned p+8)by lia;exact L8. }
+ replace 12 with(4+8)by lia;eapply Mem.loadbytes_concat;eauto;lia.
+Qed.
+Lemma three_stores_frame:forall m b p tc vi vo mf,three_stores m b p tc vi vo mf ->byte_frame m mf b p.
+Proof.
+ intros m b p tc vi vo mf[m1[m2[S1[S2 S3]]]].
+ eapply byte_frame_trans;[exact(field_store_frame m b p 0 tc m1 ltac:(simpl;auto) S1)|].
+ eapply byte_frame_trans;[exact(field_store_frame m1 b p 4 vi m2 ltac:(simpl;auto) S2)|].
+ exact(field_store_frame m2 b p 8 vo mf ltac:(simpl;auto) S3).
+Qed.
+Print Assumptions field_pointer.
+Print Assumptions three_stores_bytes.
+Print Assumptions three_stores_frame.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.
+From FiveLowpassInit Require Import Source Execution.
+From FiveLowpassSupport Require Import Expressions LowpassMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition filter_type:=tptr(Tstruct Source._FirstOrderLowPass noattr).
+Definition input_var(id:ident):expr:=Evalof(Evar id tfloat)tfloat.
+Definition filter_var:expr:=Evalof(Evar Source._filter filter_type)filter_type.
+Definition output_field(id:ident):expr:=Efield(Evalof(Ederef filter_var(Tstruct Source._FirstOrderLowPass noattr))(Tstruct Source._FirstOrderLowPass noattr))id tfloat.
+Definition coefficient(tau h:float32):float32:=Float32.div(Float32.mul(Float32.of_bits(Int.repr 1073741824))tau)h.
+Definition ratio:expr:=Ebinop Odiv(Ebinop Omul(Eval(Vsingle(Float32.of_bits(Int.repr 1073741824)))tfloat)(input_var Source._tau)tfloat)(input_var Source._sample_time)tfloat.
+Lemma output_location:forall e m bp b p id delta,
+ e!Source._filter=Some(bp,filter_type)->Mem.load Mptr m bp 0=Some(Vptr b p)->
+ (id=Source._time_const /\ delta=0) \/ (id=Source._last_in /\ delta=4) \/ (id=Source._last_out /\ delta=8)->
+ pure_lval Execution.ge e m(output_field id)=Some(b,Ptrofs.add p(Ptrofs.repr delta),Full).
+Proof.
+ intros e m bp b p id delta LP LD ID.
+ unfold output_field; eapply struct_field.
+ - unfold filter_var,filter_type;eapply pointer_variable;eauto.
+ - reflexivity.
+ - destruct ID as[[-> ->]|[[-> ->]|[-> ->]]];reflexivity.
+Qed.
+Lemma ratio_value:forall e m bt bh tau h,
+ e!Source._tau=Some(bt,tfloat)->e!Source._sample_time=Some(bh,tfloat)->
+ Mem.load Mfloat32 m bt 0=Some(Vsingle tau)->Mem.load Mfloat32 m bh 0=Some(Vsingle h)->
+ pure_rval Execution.ge e m ratio=Some(Vsingle(coefficient tau h)).
+Proof.
+ intros;unfold ratio;cbn[pure_rval];fold(pure_rval Execution.ge e m(input_var Source._tau));fold(pure_rval Execution.ge e m(input_var Source._sample_time)).
+ rewrite(float_variable _ _ _ _ _ _ H H1),(float_variable _ _ _ _ _ _ H0 H2);reflexivity.
+Qed.
+Lemma init_body_eval:forall e m bp bv bt bh b p value tau h m1 m2 m3,
+ writable12 m b p ->
+ e!Source._filter=Some(bp,filter_type)->e!Source._value=Some(bv,tfloat)->
+ e!Source._tau=Some(bt,tfloat)->e!Source._sample_time=Some(bh,tfloat)->
+ Mem.load Mptr m bp 0=Some(Vptr b p)->
+ Mem.load Mfloat32 m bv 0=Some(Vsingle value)->Mem.load Mfloat32 m bt 0=Some(Vsingle tau)->Mem.load Mfloat32 m bh 0=Some(Vsingle h)->
+ bp<>b->bv<>b->bt<>b->bh<>b->
+ Mem.store Mfloat32 m b(Ptrofs.unsigned p+4)(Vsingle value)=Some m1->Mem.store Mfloat32 m1 b(Ptrofs.unsigned p+8)(Vsingle value)=Some m2->Mem.store Mfloat32 m2 b(Ptrofs.unsigned p+0)(Vsingle(coefficient tau h))=Some m3->
+ stmt_eval Execution.ge e tvoid(fn_body Source.f_init_first_order_low_pass)m=Some(Nnormal,m3).
+Proof.
+ intros e m bp bv bt bh b p value tau h m1 m2 m3 W LP LV LT LH PF VF TF HF PB VB TB HB S1 S2 S3.
+ assert(PF1:Mem.load Mptr m1 bp 0=Some(Vptr b p))by(erewrite Mem.load_store_other by(exact S1||(left;exact PB));exact PF).
+ assert(PF2:Mem.load Mptr m2 bp 0=Some(Vptr b p))by(erewrite Mem.load_store_other by(exact S2||(left;exact PB));exact PF1).
+ assert(VF1:Mem.load Mfloat32 m1 bv 0=Some(Vsingle value))by(erewrite Mem.load_store_other by(exact S1||(left;exact VB));exact VF).
+ assert(TF2:Mem.load Mfloat32 m2 bt 0=Some(Vsingle tau)).
+ { erewrite Mem.load_store_other by(exact S2||(left;exact TB));erewrite Mem.load_store_other by(exact S1||(left;exact TB));exact TF. }
+ assert(HF2:Mem.load Mfloat32 m2 bh 0=Some(Vsingle h)).
+ { erewrite Mem.load_store_other by(exact S2||(left;exact HB));erewrite Mem.load_store_other by(exact S1||(left;exact HB));exact HF. }
+ assert(E1:atomic_eval Execution.ge e m(Eassign(output_field Source._last_in)(input_var Source._value)tfloat)=Some(Vsingle value,m1)).
+ { eapply assign_float;try reflexivity.
+ - eapply output_location;[exact LP|exact PF|right;left;auto].
+ - eapply float_variable;eauto.
+ - rewrite(field_pointer m b p 4 W ltac:(simpl;auto));destruct W as[_[NW _]];change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(Ptrofs.unsigned p+4+4<=18446744073709551616);lia.
+ - rewrite(field_pointer m b p 4 W ltac:(simpl;auto));exact S1. }
+ assert(E2:atomic_eval Execution.ge e m1(Eassign(output_field Source._last_out)(input_var Source._value)tfloat)=Some(Vsingle value,m2)).
+ { eapply assign_float;try reflexivity.
+ - eapply output_location;[exact LP|exact PF1|right;right;auto].
+ - eapply float_variable;eauto.
+ - rewrite(field_pointer m b p 8 W ltac:(simpl;auto));destruct W as[_[NW _]];change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(Ptrofs.unsigned p+8+4<=18446744073709551616);lia.
+ - rewrite(field_pointer m b p 8 W ltac:(simpl;auto));exact S2. }
+ assert(E3:atomic_eval Execution.ge e m2(Eassign(output_field Source._time_const)ratio tfloat)=Some(Vsingle(coefficient tau h),m3)).
+ { eapply assign_float;try reflexivity.
+ - eapply output_location;[exact LP|exact PF2|left;auto].
+ - eapply ratio_value;eauto.
+ - rewrite(field_pointer m b p 0 W ltac:(simpl;auto));destruct W as[_[NW _]];change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(Ptrofs.unsigned p+0+4<=18446744073709551616);lia.
+ - rewrite(field_pointer m b p 0 W ltac:(simpl;auto));exact S3. }
+ change(stmt_eval Execution.ge e tvoid(Ssequence(Sdo(Eassign(output_field Source._last_in)(input_var Source._value)tfloat))(Ssequence(Sdo(Eassign(output_field Source._last_out)(input_var Source._value)tfloat))(Sdo(Eassign(output_field Source._time_const)ratio tfloat))))m=Some(Nnormal,m3)).
+ cbn[stmt_eval].
+ rewrite E1,E2,E3;reflexivity.
+Qed.
+Print Assumptions init_body_eval.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassGetCase Require Import Contract GetCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+From FiveLowpassGetNoError Require Import Spec.
+Theorem no_error_proved:Spec.NoError.
+Proof. unfold Spec.NoError;intros args m (b&p&value&EQ&P);subst args.
+ destruct(get_call_summary m b p value P)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args b p)m)=true)by(vm_compute;reflexivity).
+ assert(CN:call_names(Execution.entry(Args b p)m))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ eapply defined_evaluator_no_error;[exact N|exact CN|exact EV]. Qed.
+Print Assumptions no_error_proved.
+From FiveLowpassGetTermination Require Import Spec.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassSupport Require Import Straightline.
+Theorem termination:Spec.AllSuccessorsTerminate.
+Proof. unfold Spec.AllSuccessorsTerminate;intros args m;apply normal_all_successors_terminate;vm_compute;reflexivity. Qed.
+Print Assumptions termination.

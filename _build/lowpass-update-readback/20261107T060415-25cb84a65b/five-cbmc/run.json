@@ -1,0 +1,393 @@
+{
+  "schema": "five-run/1.0",
+  "run_id": "20261107T060415-25cb84a65b",
+  "skill": "five-cbmc",
+  "parent": "_build/lowpass-update-readback-parent/20261107T055822-213c1c3ee8/five-verify",
+  "started_at": "2026-11-07T06:04:15.502825+00:00",
+  "start_epoch": 1794031455.5028458,
+  "invocation_kind": "skill-session",
+  "status": "passed",
+  "timing_scope": "From start to finish of this invocation; not retroactive authoring time",
+  "children": [],
+  "environment": {
+    "os": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "python": "3.10.12",
+    "cwd": "/home/yangfp/five",
+    "measurement": "GNU time + /proc RSS sampling",
+    "tools": {
+      "python3": {
+        "path": "/usr/bin/python3",
+        "binary_sha256": "a2f33a6e006989270f4340528eb61f8f97366e00a5d1b602ac8672ea44fc56ae"
+      },
+      "bash": {
+        "path": "/usr/bin/bash",
+        "binary_sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4"
+      },
+      "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc": {
+        "path": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "binary_sha256": "01ae2ae74a9dc5673631e42256f780393081650f4a22d6f4220566c0deb1643a"
+      }
+    },
+    "environment_policy": "No full environment dump; secrets excluded"
+  },
+  "scope": {
+    "task": "update exact bit storage; actual traditional BMC; all binary32 values, no FP finite or FP divzero diagnostics"
+  },
+  "tokens": {
+    "status": "available",
+    "source": {
+      "kind": "codex-session-event",
+      "reference": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88"
+    },
+    "complete": true,
+    "scope": "explicit event-boundary interval",
+    "boundaries": {
+      "after_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:f6724816279b3c1b34f3bbdc",
+      "before_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:9143853ac56998879491a43f"
+    },
+    "events": [
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:b4ff04e85651a6e009132c27",
+        "timestamp": "2026-11-07T06:04:16.767Z",
+        "source_line": 143,
+        "input_tokens": 71639,
+        "output_tokens": 665,
+        "cached_input_tokens": 71424,
+        "reasoning_output_tokens": 19
+      },
+      {
+        "event_id": "01a1b496-fd37-75f1-9982-f10250215e88:9143853ac56998879491a43f",
+        "timestamp": "2026-11-07T06:04:30.980Z",
+        "source_line": 148,
+        "input_tokens": 72663,
+        "output_tokens": 257,
+        "cached_input_tokens": 72064,
+        "reasoning_output_tokens": 0
+      }
+    ],
+    "notes": [],
+    "totals": {
+      "input_tokens": 144302,
+      "output_tokens": 922,
+      "cached_input_tokens": 143488,
+      "reasoning_output_tokens": 19
+    },
+    "total_tokens": 145224
+  },
+  "commands": [
+    {
+      "id": "001-construct-original-body-harness",
+      "argv": [
+        "python3",
+        "-c",
+        "\nfrom pathlib import Path\np=Path('paparazzi/models/update_first_order_low_pass/cbmc/harness.c')\np.write_text('''#include \"../prepare/source/update_first_order_low_pass.c\"\n#include <stdint.h>\n#include <string.h>\nextern float nondet_float(void);\nstatic uint32_t bits(float x) { uint32_t u; memcpy(&u,&x,4); return u; }\nvoid main(void) {\n struct FirstOrderLowPass f={nondet_float(),nondet_float(),nondet_float()};\n float old_tc=f.time_const;\n float input=nondet_float();\n float result=update_first_order_low_pass(&f,input);\n __CPROVER_assert(bits(result)==bits(f.last_out),\"update returns stored last_out exact bits\");\n __CPROVER_assert(bits(f.last_in)==bits(input),\"last_in input exact bits\");\n __CPROVER_assert(bits(f.time_const)==bits(old_tc),\"time_const readonly\");\n}\n''')\nprint(p.read_text())\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:04:15.594690+00:00",
+      "finished_at": "2026-11-07T06:04:15.666510+00:00",
+      "wall_seconds": 0.07138240899075754,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 9912,
+        "user_seconds": 0.02,
+        "system_seconds": 0.0,
+        "elapsed_seconds": 0.03,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 11526144,
+      "rss_sample_count": 4,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.022174719983013347,
+      "rss_sampling_errors": [],
+      "stdout": "logs/001-construct-original-body-harness.stdout.log",
+      "stderr": "logs/001-construct-original-body-harness.stderr.log",
+      "time_log": "logs/001-construct-original-body-harness.time.log"
+    },
+    {
+      "id": "002-tool-version",
+      "argv": [
+        "bash",
+        "-lc",
+        "source scripts/env.sh; command -v cbmc; cbmc --version"
+      ],
+      "resolved_executable": "/usr/bin/bash",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:04:15.677011+00:00",
+      "finished_at": "2026-11-07T06:04:15.852879+00:00",
+      "wall_seconds": 0.1756173380126711,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 17848,
+        "user_seconds": 0.05,
+        "system_seconds": 0.04,
+        "elapsed_seconds": 0.11,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 22351872,
+      "rss_sample_count": 9,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.022354941989760846,
+      "rss_sampling_errors": [],
+      "stdout": "logs/002-tool-version.stdout.log",
+      "stderr": "logs/002-tool-version.stderr.log",
+      "time_log": "logs/002-tool-version.time.log"
+    },
+    {
+      "id": "003-traditional-bmc-full-bits",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "paparazzi/models/update_first_order_low_pass/cbmc/harness.c",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--pointer-check",
+        "--bounds-check",
+        "--unwind",
+        "1",
+        "--unwinding-assertions",
+        "--json-ui"
+      ],
+      "resolved_executable": "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:04:30.219127+00:00",
+      "finished_at": "2026-11-07T06:04:30.388306+00:00",
+      "wall_seconds": 0.16885965698747896,
+      "timeout_seconds": 180,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 21220,
+        "user_seconds": 0.08,
+        "system_seconds": 0.03,
+        "elapsed_seconds": 0.14,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 22953984,
+      "rss_sample_count": 9,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.022257412027101964,
+      "rss_sampling_errors": [],
+      "stdout": "logs/003-traditional-bmc-full-bits.stdout.log",
+      "stderr": "logs/003-traditional-bmc-full-bits.stderr.log",
+      "time_log": "logs/003-traditional-bmc-full-bits.time.log"
+    },
+    {
+      "id": "004-publish-actual-properties",
+      "argv": [
+        "python3",
+        "-c",
+        "\nfrom pathlib import Path\nimport json,hashlib,shutil\ncase=Path('paparazzi/models/update_first_order_low_pass');run=Path('_build/lowpass-update-readback/20261107T060415-25cb84a65b/five-cbmc')\ndef dump(p,x):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(x,indent=2)+'\\n')\ndef sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()\nraw=run/'logs/003-traditional-bmc-full-bits.stdout.log';data=json.loads(raw.read_text());props=[p for d in data for p in d.get('result',[])]\nassert all(p['status']=='SUCCESS' for p in props)\ndump(case/'cbmc/properties.json',props)\nscope={'precondition':'actual typed local filter with three arbitrary binary32 inputs and arbitrary binary32 new input; all bits; no numerical assumption','entry':'main','loop_bound':1,'recursion':'none','observation':'memcpy uint32 exact bits','source_read_write':'time_const and last_in and last_out read; last_in and last_out written; time_const unchanged','fp_diagnostics':'No finite/NaN/float-divzero assertions requested. Binary32 special results are allowed.'}\ndump(case/'cbmc/scope.json',scope)\nh=json.loads((case/'prepare/handoff.json').read_text());h.update(stage='cbmc',next_stage='align');h['outputs'] += [{'role':role,'path':str(p.relative_to(case)),'sha256':sha(p)}for role,p in [('harness',case/'cbmc/harness.c'),('properties',case/'cbmc/properties.json'),('scope',case/'cbmc/scope.json')]]\nh['cbmc_evidence']={'run':str(run),'command_id':'003-traditional-bmc-full-bits','json':str(raw)};dump(case/'cbmc/handoff.json',h)\n(case/'cbmc/report/report.md').write_text(f'Traditional direct CBMC on exact prepared body: all {len(props)} actual properties SUCCESS. Four arbitrary binary32 values; no loop/recursion; unwind 1. Exact memcpy bit assertions and all emitted guards retained. No floating finite/nonzero assertion. Counterexamples not applicable.\\n')\nprint(len(props));print([(p['property'],p['description'])for p in props])\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-07T06:05:01.546150+00:00",
+      "finished_at": "2026-11-07T06:05:01.613472+00:00",
+      "wall_seconds": 0.0669871780264657,
+      "timeout_seconds": 60,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 14848,
+        "user_seconds": 0.03,
+        "system_seconds": 0.0,
+        "elapsed_seconds": 0.04,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 16510976,
+      "rss_sample_count": 4,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.019913742027711123,
+      "rss_sampling_errors": [],
+      "stdout": "logs/004-publish-actual-properties.stdout.log",
+      "stderr": "logs/004-publish-actual-properties.stderr.log",
+      "time_log": "logs/004-publish-actual-properties.time.log"
+    }
+  ],
+  "inputs": [
+    {
+      "role": "prepare-handoff",
+      "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/prepare/handoff.json",
+      "path": "inputs/prepare-handoff--handoff.json",
+      "sha256": "8bc6bb48aba2a79e8d2dd1063d665b29e53c85e9a4d06cc3f40292014a058a5f",
+      "bytes": 1598
+    }
+  ],
+  "codex_usage_boundary": {
+    "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+    "before": {
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "last_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:f6724816279b3c1b34f3bbdc",
+      "last_event_timestamp": "2026-11-07T06:03:51.029Z",
+      "observed_event_count": 20,
+      "counters": {
+        "input_tokens": 967121,
+        "output_tokens": 5487,
+        "cached_input_tokens": 906496,
+        "reasoning_output_tokens": 340
+      },
+      "notes": []
+    },
+    "after": {
+      "thread_id": "01a1b496-fd37-75f1-9982-f10250215e88",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/07/rollout-2026-11-07T13-59-16-01a1b496-fd37-75f1-9982-f10250215e88.jsonl",
+      "last_event_id": "01a1b496-fd37-75f1-9982-f10250215e88:9143853ac56998879491a43f",
+      "last_event_timestamp": "2026-11-07T06:04:30.980Z",
+      "observed_event_count": 22,
+      "counters": {
+        "input_tokens": 1111423,
+        "output_tokens": 6409,
+        "cached_input_tokens": 1049984,
+        "reasoning_output_tokens": 359
+      },
+      "notes": []
+    }
+  },
+  "finished_at": "2026-11-07T06:05:01.747845+00:00",
+  "finish_epoch": 1794031501.7478619,
+  "result": {
+    "verdict": "passed",
+    "summary": "All actual update CBMC properties SUCCESS.",
+    "outputs": {
+      "handoff": {
+        "status": "present",
+        "role": "handoff",
+        "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/cbmc/handoff.json",
+        "path": "evidence/handoff--handoff.json",
+        "sha256": "c7f2d54ff90d0195970bbff622ba89664f4b0b88f6acff7b804f190bce301124",
+        "bytes": 2350
+      },
+      "properties": {
+        "status": "present",
+        "role": "properties",
+        "source": "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/cbmc/properties.json",
+        "path": "evidence/properties--properties.json",
+        "sha256": "90ccc0bd13444f4d6042c18f0aba33ab6d2e28215c5abdba3fd373509455c7d4",
+        "bytes": 42070
+      }
+    },
+    "verification_scope": {
+      "task": "update exact bit storage; actual traditional BMC; all binary32 values, no FP finite or FP divzero diagnostics"
+    },
+    "remaining_obligations": []
+  },
+  "completeness": {
+    "artifacts": "complete",
+    "measurements": "complete",
+    "missing_roles": [],
+    "note": "A passed verifier result does not imply all requested measurements are available."
+  },
+  "cost_audit": {
+    "status": "complete",
+    "run": "/home/yangfp/five/_build/lowpass-update-readback/20261107T060415-25cb84a65b/five-cbmc",
+    "skill": "five-cbmc",
+    "issues": [],
+    "own_model_tokens_excluding_children": 145224,
+    "inclusive_unique_model_tokens": 145224,
+    "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+  },
+  "artifacts": [
+    {
+      "path": "evidence/handoff--handoff.json",
+      "bytes": 2350,
+      "sha256": "c7f2d54ff90d0195970bbff622ba89664f4b0b88f6acff7b804f190bce301124"
+    },
+    {
+      "path": "evidence/model-usage-receipt--usage.json",
+      "bytes": 1310,
+      "sha256": "121ab1ec8c5e701509794b4123fa87eb8fa2f178399f6d5a02c9d436a46aac49"
+    },
+    {
+      "path": "evidence/properties--properties.json",
+      "bytes": 42070,
+      "sha256": "90ccc0bd13444f4d6042c18f0aba33ab6d2e28215c5abdba3fd373509455c7d4"
+    },
+    {
+      "path": "inputs/prepare-handoff--handoff.json",
+      "bytes": 1598,
+      "sha256": "8bc6bb48aba2a79e8d2dd1063d665b29e53c85e9a4d06cc3f40292014a058a5f"
+    },
+    {
+      "path": "logs/001-construct-original-body-harness.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/001-construct-original-body-harness.stdout.log",
+      "bytes": 658,
+      "sha256": "1129088a0d425b2df05937b9337404babe2d0b9b5e7e79c1ad59744a828cf435"
+    },
+    {
+      "path": "logs/001-construct-original-body-harness.time.log",
+      "bytes": 108,
+      "sha256": "ea643c4a81d82a36802e1bf43c0fcfca25c6e5e85368397f6d043e6a579ad149"
+    },
+    {
+      "path": "logs/002-tool-version.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/002-tool-version.stdout.log",
+      "bytes": 64,
+      "sha256": "1dc8c54853b3d37d41b877f088fa00d46c03ee1c59b433cbaf7a4545f6ce58ea"
+    },
+    {
+      "path": "logs/002-tool-version.time.log",
+      "bytes": 109,
+      "sha256": "cc3a03edaf72160ddd532188f069686c9c8de589bb415785f408aff6b0d4a153"
+    },
+    {
+      "path": "logs/003-traditional-bmc-full-bits.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/003-traditional-bmc-full-bits.stdout.log",
+      "bytes": 41578,
+      "sha256": "2f8d4528b6c50c33f67c1a30adce14016d1146ea6b6dce62545f0fc236085caa"
+    },
+    {
+      "path": "logs/003-traditional-bmc-full-bits.time.log",
+      "bytes": 109,
+      "sha256": "8912ae3bf2fff02657b7374ffc39c0d6718f8fa8f1528efac8d199b6cd6a17d8"
+    },
+    {
+      "path": "logs/004-publish-actual-properties.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/004-publish-actual-properties.stdout.log",
+      "bytes": 4045,
+      "sha256": "5d9b318e05a7eac030f8fc999769cc146cdd58c448cc97a2857283850bf984fe"
+    },
+    {
+      "path": "logs/004-publish-actual-properties.time.log",
+      "bytes": 109,
+      "sha256": "2be40977e000f47221b335a7e5e5607dacab476fed93abf4fe374b022784c933"
+    },
+    {
+      "path": "metrics.json",
+      "bytes": 2676,
+      "sha256": "e7acfa88ceaa086c36ed4a0df30c3a21efe715f701d15a5ee3c8a879f5b27e5b"
+    },
+    {
+      "path": "report.md",
+      "bytes": 466,
+      "sha256": "b6f4e207093ed3390c8b925122fec8d35b2f4107790daa22039d06d638d199e3"
+    }
+  ]
+}

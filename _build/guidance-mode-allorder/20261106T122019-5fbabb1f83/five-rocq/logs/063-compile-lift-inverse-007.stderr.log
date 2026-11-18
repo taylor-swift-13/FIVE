@@ -1,0 +1,30 @@
+File "./paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v", line 107, characters 39-50:
+Error:
+In environment
+ge : genv
+base : cont
+f : function
+args : list val
+m : mem
+BASE : is_call_cont base
+NORMAL : normal_stmt (fn_body f) = true
+NF : ~ normal_return (Callstate (Internal f) args Kstop m)
+e : env
+m2 : mem
+STEP :
+  sstep ge (Callstate (Internal f) args base m) E0
+    (State f (fn_body f) base e m2)
+m1 : mem
+H5 : list_norepet (var_names (fn_params f) ++ var_names (fn_vars f))
+H6 : alloc_variables ge empty_env m (fn_params f ++ fn_vars f) e m1
+H7 : bind_parameters ge e m1 (fn_params f) args m2
+Unable to unify
+ "match ?raw with
+  | State f s k e m => State f s (plug_cont base k) e m
+  | ExprState f a k e m => ExprState f a (plug_cont base k) e m
+  | Callstate fd args k m => Callstate fd args (plug_cont base k) m
+  | Returnstate v k m => Returnstate v (plug_cont base k) m
+  | Stuckstate => Stuckstate
+  end"
+with "State f (fn_body f) base e m2".
+

@@ -1,0 +1,179 @@
+{
+  "purpose": "execution-translation",
+  "execution_backend": "compcert-csyntax-cexec",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem including invalid, uninitialized, unwritable states"
+  },
+  "prepared_verification_request": "../prepare/verification-request.json"
+}
+        token_status = 'available' if not incomplete and not event_conflicts else ('partial' if events else 'unavailable')
+        known_total = bool(events) or token_status=='available'
+        token_metrics = {'status':token_status,'input_tokens':sum(e['input_tokens'] for e in events.values()) if known_total else None,
+                        'output_tokens':sum(e['output_tokens'] for e in events.values()) if known_total else None,
+                        'total_tokens':sum(e['input_tokens']+e['output_tokens'] for e in events.values()) if known_total else None,
+                        'cached_input_tokens':sum(e.get('cached_input_tokens') or 0 for e in events.values()) if known_total and all(e.get('cached_input_tokens') is not None for e in events.values()) else None,
+                        'reasoning_output_tokens':sum(e.get('reasoning_output_tokens') or 0 for e in events.values()) if known_total and all(e.get('reasoning_output_tokens') is not None for e in events.values()) else None,
+                        'events':list(events.values()),'sources':token_sources,'unmeasured_invocations':incomplete,'conflicting_event_ids':event_conflicts,
+                        'counting_rule':'total=input+output; cache/reasoning are subsets; event_id union across wrapper and children',
+                        'scope':'Model invocations only. Tool log bytes and source-code size are not token usage.'}
+        own_tree = max((c['peak_process_tree_rss_sampled_bytes'] or 0 for c in commands),default=None)
+        missing_tree_peaks = [c['id'] for c in commands if c.get('peak_process_tree_rss_sampled_bytes') is None]
+        tree_sampling_complete = not missing_tree_peaks and all(
+            m['memory'].get('tree_sampling_complete',m['memory']['peak_process_tree_rss_sampled_bytes'] is not None)
+            for m in child_metrics)
+        own_process = max(((c.get('gnu_time') or {}).get('max_process_rss_kib',0)*1024 for c in commands),default=None)
+        own_cpu = sum((c.get('gnu_time') or {}).get('user_seconds',0)+(c.get('gnu_time') or {}).get('system_seconds',0) for c in commands)
+        cpu_complete = all(c.get('gnu_time') is not None for c in commands) and all(m['time']['cpu_tool_seconds'] is not None for m in child_metrics)
+        parallel = any(a['start_epoch'] < b.get('finish_epoch',time.time()) and b['start_epoch'] < a.get('finish_epoch',time.time())
+                       for i,a in enumerate(children) for b in children[i+1:])
+        peaks = [p for p in [own_tree,*[m['memory']['peak_process_tree_rss_sampled_bytes'] for m in child_metrics]] if p is not None]
+        processes = [p for p in [own_process,*[m['memory']['max_individual_process_rss_bytes'] for m in child_metrics]] if p is not None]
+        metrics = {'schema':SCHEMA,'run_id':meta['run_id'],'skill':meta['skill'],
+                   'time':{'wall_seconds':max(0,meta.get('finish_epoch',time.time())-meta['start_epoch']),
+                           'cpu_tool_seconds':own_cpu+sum(m['time']['cpu_tool_seconds'] for m in child_metrics) if cpu_complete else None,
+                           'cpu_recorded_tool_seconds':own_cpu+sum(m['time']['cpu_recorded_tool_seconds'] for m in child_metrics),
+                           'own_tool_wall_seconds':sum(c['wall_seconds'] for c in commands),
+                           'scope':meta['timing_scope'],'aggregation':'wrapper wall is direct elapsed time, not sum of children'},
+                   'memory':{'peak_process_tree_rss_sampled_bytes':max(peaks) if peaks and not parallel and tree_sampling_complete else None,
+                             'max_individual_process_rss_bytes':max(processes) if processes else None,
+                             'max_child_tree_rss_sampled_bytes':max(peaks) if peaks else None,
+                             'method':'10ms requested /proc process-tree RSS sampling; GNU time max RSS per command',
+                             'scope':'Launched tool processes plus time launcher; excludes model-serving/desktop agent memory',
+                             'limitations':'RSS sum may count shared pages more than once; sampling may miss brief peaks. GNU max RSS is an individual-process maximum, not summed concurrent memory.',
+                             'aggregation':'max over sequential tools/children; overlapping child runs have no combined peak estimate',
+                             'parallel_children':parallel},
+                   'tokens':token_metrics,'command_count':len(commands),
+                   'measurement_status':'complete' if token_status == 'available' and peaks and not parallel and cpu_complete and tree_sampling_complete else 'partial'}
+        metrics['memory']['tree_sampling_complete'] = tree_sampling_complete
+        metrics['memory']['commands_without_sampled_tree_peak'] = missing_tree_peaks
+        dump(self.folder/'metrics.json',metrics)
+        return metrics
+
+    def finish(self, verdict, summary, required_roles, missing=None):
+        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+            raise ValueError('Invalid verification verdict')
+        metadata = self.read('run.json')
+        boundary=metadata.get('codex_usage_boundary')
+        if boundary and not boundary.get('after'):
+            try:
+                from codex_usage import snapshot, receipt
+                import tempfile
+                boundary['after']=snapshot(boundary['session_file'])
+                metadata['codex_usage_boundary']=boundary
+                dump(self.folder/'run.json',metadata)
+                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+                    usage_file=Path(temporary)/'usage.json'
+                    dump(usage_file,usage)
+                    self.import_tokens(usage_file)
+                metadata=self.read('run.json')
+            except Exception as usage_error:
+                metadata=self.read('run.json')
+                metadata['tokens']={'status':'unavailable','source':{'kind':'codex-session-event','reference':boundary['session_file']},'events':[],'reason':str(usage_error)}
+                metadata['usage_capture_error']=str(usage_error)
+                dump(self.folder/'run.json',metadata)
+        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+        dump(self.folder/'run.json',metadata)
+        roles = {}
+        for role, path in required_roles.items():
+            try:
+                roles[role] = {'status':'present',**self.capture(path,role)}
+            except FileNotFoundError:
+                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+        # Child runs are linked (normally nested under stages/), never copied twice.
+        metrics = self.refresh_metrics()
+        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+             'note':'A passed verifier result does not imply all requested measurements are available.'})
+        from cost_audit import audit_run
+        cost_audit = audit_run(self.folder)
+        metadata = self.read('run.json')
+        metadata['cost_audit'] = cost_audit
+        if cost_audit['status'] != 'complete':
+            metadata['completeness']['measurements'] = 'partial'
+            metrics['measurement_status'] = 'partial'
+            dump(self.folder/'metrics.json',metrics)
+        dump(self.folder/'run.json',metadata)
+        self.render()
+        print(f'ARTIFACTS: {self.folder}',flush=True)
+
+    def render(self):
+        metrics = self.read('metrics.json')
+        module = theorem.rsplit('.', 1)[0]
+        candidates = module_candidates(kernel_commands[0], module)
+        if len(candidates) != 1 or candidates[0] not in dependencies:
+            raise ValueError('kernel theorem module does not resolve to bound dependency snapshot')
+        source = candidates[0]
+        matching_compiles = [c for c in proof_run.get('commands', []) if full_compile(c) and any((Path(c['cwd']) / arg).resolve() == source for arg in c['argv'] if arg.endswith('.v'))]
+        if not matching_compiles or any(module_candidates(c, module) != [source] for c in matching_compiles):
+            raise ValueError('proof compile and kernel namespace mappings differ')
+    bindings = data.get('goal_bindings')
+    goals = status.get('requested_goals')
+    if not isinstance(bindings, list) or not bindings or not isinstance(goals, list) or len(set(goals)) != len(goals):
+        raise ValueError('missing/malformed goal bindings')
+    if [r.get('requested_goal') for r in bindings] != goals:
+        raise ValueError('requested goals differ from certified goals')
+    ident = r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*'
+    for row in bindings:
+        if not re.fullmatch(ident, str(row.get('theorem', ''))) or not isinstance(row.get('type'), str) or not row['type'].strip() or any(token in row['type'] for token in ('(*', '*)', '\n', '\r')) or re.search(r'\.(?:\s|$)', row['type']):
+            raise ValueError('malformed theorem/type binding')
+        if row['theorem'] not in receipt['theorems']:
+            raise ValueError('goal theorem is not claimed by kernel receipt')
+    cert = data['certificate']
+    certificate = checked(cert)
+    imports = cert.get('imports')
+    if not isinstance(imports, list) or not imports or not all(re.fullmatch(ident, str(n)) for n in imports):
+        raise ValueError('malformed certificate imports')
+    if certificate.read_text() != certificate_source(imports, bindings):
+        raise ValueError('certificate does not express exact theorem-to-goal bindings')
+    run = json.loads((root / cert['run'] / 'run.json').read_text())
+    if run.get('status') != 'passed':
+        raise ValueError('certificate run did not pass')
+    run_inputs = {Path(x['source']).resolve(): x['sha256'] for x in run.get('inputs', [])}
+    if run_inputs.get(certificate) != cert['sha256'] or any(run_inputs.get(p) != h for p, h in dependencies.items()):
+        raise ValueError('certificate run omitted actual certificate/dependency snapshot')
+    def command(command_id):
+        rows = [c for c in run.get('commands', []) if c.get('id') == command_id]
+        if len(rows) != 1 or rows[0].get('exit_code') != 0 or rows[0].get('status') != 'passed':
+            raise ValueError('missing/failed certificate command')
+        return rows[0]
+    compile_row = command(cert['compile_command_id'])
+    stdout = compile_row.get('stdout')
+    if not isinstance(stdout, str) or not (root / cert['run'] / stdout).is_file() or not (root / cert['run'] / stdout).stat().st_size:
+        raise ValueError('missing actual certificate Print Assumptions output')
+    argv = compile_row['argv']
+    if not full_compile(compile_row) or not any((Path(compile_row['cwd']) / arg).resolve() == certificate for arg in argv if arg.endswith('.v')):
+        raise ValueError('certificate was not actually compiled')
+    # Reuse canonical independent-kernel and compilation/snapshot checks for
+    # certificate module, avoiding a second permissive argv implementation.
+    certificate_receipt = cert['kernel_evidence']
+    kernel_record(root, certificate_receipt)
+    ce = json.loads((root / certificate_receipt).read_text())
+    if ce['run'] != cert['run'] or ce['command_id'] != cert['kernel_command_id'] or ce['theorems'] != [cert['module'] + '.goal_' + str(i) for i in range(len(bindings))] or ce['statement_artifacts'] != [cert['path']] or ce['dependency_sha256'] != {**receipt['dependency_sha256'], cert['path']: cert['sha256']}:
+        raise ValueError('certificate kernel receipt differs from exact certification')
+    # Imports must resolve to the very same compiled dependency source paths.
+    for row in (compile_row, command(cert['kernel_command_id'])):
+        for module in set(imports) | {b['theorem'].rsplit('.', 1)[0] for b in bindings} | {b['type'].rsplit('.', 1)[0] for b in bindings if re.fullmatch(ident, b['type']) and '.' in b['type']}:
+            candidates = module_candidates(row, module)
+            if not any(p in dependencies for p in candidates):
+                raise ValueError('certificate import not bound to actual compiled snapshot: ' + module)
+        if certificate not in module_candidates(row, cert['module']):
+            raise ValueError('certificate module does not resolve to actual compiled certificate')

@@ -1,0 +1,154 @@
+428:Definition f_gh_saturate_accel := {|
+429-  fn_return := tvoid;
+430-  fn_callconv := cc_default;
+431-  fn_params := ((_accel_sp, (tptr (Tstruct _FloatVect2 noattr))) :: nil);
+432-  fn_vars := ((_a_norm2, tfloat) :: (_factor, tfloat) :: nil);
+433-  fn_body :=
+434-(Ssequence
+435-  (Sdo (Eassign (Evar _a_norm2 tfloat)
+436-         (Ebinop Oadd
+437-           (Ebinop Omul
+438-             (Evalof
+439-               (Efield
+440-                 (Evalof
+441-                   (Ederef
+442-                     (Evalof
+443-                       (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+444-                       (tptr (Tstruct _FloatVect2 noattr)))
+445-                     (Tstruct _FloatVect2 noattr))
+446-                   (Tstruct _FloatVect2 noattr)) _x tfloat) tfloat)
+447-             (Evalof
+448-               (Efield
+449-                 (Evalof
+450-                   (Ederef
+451-                     (Evalof
+452-                       (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+453-                       (tptr (Tstruct _FloatVect2 noattr)))
+454-                     (Tstruct _FloatVect2 noattr))
+455-                   (Tstruct _FloatVect2 noattr)) _x tfloat) tfloat) tfloat)
+456-           (Ebinop Omul
+457-             (Evalof
+458-               (Efield
+459-                 (Evalof
+460-                   (Ederef
+461-                     (Evalof
+462-                       (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+463-                       (tptr (Tstruct _FloatVect2 noattr)))
+464-                     (Tstruct _FloatVect2 noattr))
+465-                   (Tstruct _FloatVect2 noattr)) _y tfloat) tfloat)
+466-             (Evalof
+467-               (Efield
+468-                 (Evalof
+469-                   (Ederef
+470-                     (Evalof
+471-                       (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+472-                       (tptr (Tstruct _FloatVect2 noattr)))
+473-                     (Tstruct _FloatVect2 noattr))
+474-                   (Tstruct _FloatVect2 noattr)) _y tfloat) tfloat) tfloat)
+475-           tfloat) tfloat))
+476-  (Sifthenelse (Ebinop Ogt (Evalof (Evar _a_norm2 tfloat) tfloat)
+477-                 (Ebinop Omul (Evalof (Evar _gh_max_accel tfloat) tfloat)
+478-                   (Evalof (Evar _gh_max_accel tfloat) tfloat) tfloat) tint)
+479-    (Ssequence
+480-      (Sdo (Eassign (Evar _factor tfloat)
+481-             (Ebinop Odiv (Evalof (Evar _gh_max_accel tfloat) tfloat)
+482-               (Ecast
+483-                 (Ecall
+484-                   (Evalof
+485-                     (Evar ___builtin_sqrt (Tfunction (tdouble :: nil)
+486-                                             tdouble cc_default))
+487-                     (Tfunction (tdouble :: nil) tdouble cc_default))
+488-                   (Econs
+489-                     (Ecast (Evalof (Evar _a_norm2 tfloat) tfloat) tdouble)
+490-                     Enil) tdouble) tfloat) tfloat) tfloat))
+491-      (Ssequence
+492-        (Sdo (Eassign
+493-               (Efield
+494-                 (Evalof
+495-                   (Ederef
+496-                     (Evalof
+497-                       (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+498-                       (tptr (Tstruct _FloatVect2 noattr)))
+499-                     (Tstruct _FloatVect2 noattr))
+500-                   (Tstruct _FloatVect2 noattr)) _x tfloat)
+501-               (Ebinop Omul
+502-                 (Evalof
+503-                   (Efield
+504-                     (Evalof
+505-                       (Ederef
+506-                         (Evalof
+507-                           (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+508-                           (tptr (Tstruct _FloatVect2 noattr)))
+509-                         (Tstruct _FloatVect2 noattr))
+510-                       (Tstruct _FloatVect2 noattr)) _x tfloat) tfloat)
+511-                 (Evalof (Evar _factor tfloat) tfloat) tfloat) tfloat))
+512-        (Sdo (Eassign
+513-               (Efield
+514-                 (Evalof
+515-                   (Ederef
+516-                     (Evalof
+517-                       (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+518-                       (tptr (Tstruct _FloatVect2 noattr)))
+519-                     (Tstruct _FloatVect2 noattr))
+520-                   (Tstruct _FloatVect2 noattr)) _y tfloat)
+521-               (Ebinop Omul
+522-                 (Evalof
+523-                   (Efield
+524-                     (Evalof
+525-                       (Ederef
+526-                         (Evalof
+527-                           (Evar _accel_sp (tptr (Tstruct _FloatVect2 noattr)))
+528-                           (tptr (Tstruct _FloatVect2 noattr)))
+529-                         (Tstruct _FloatVect2 noattr))
+530-                       (Tstruct _FloatVect2 noattr)) _y tfloat) tfloat)
+531-                 (Evalof (Evar _factor tfloat) tfloat) tfloat) tfloat))))
+532-    Sskip))
+533-|}.
+534-
+535-Definition composites : list composite_definition :=
+536-(Composite _FloatVect2 Struct
+537-   (Member_plain _x tfloat :: Member_plain _y tfloat :: nil)
+538-   noattr ::
+539- Composite _Int64Vect2 Struct
+540-   (Member_plain _x tlong :: Member_plain _y tlong :: nil)
+541-   noattr ::
+542- Composite _GuidanceHRef Struct
+543-   (Member_plain _accel (Tstruct _FloatVect2 noattr) ::
+544-    Member_plain _speed (Tstruct _FloatVect2 noattr) ::
+545-    Member_plain _pos (Tstruct _Int64Vect2 noattr) ::
+546-    Member_plain _tau tfloat :: Member_plain _omega tfloat ::
+547-    Member_plain _zeta tfloat :: Member_plain _max_speed tfloat ::
+548-    Member_plain _zeta_omega tfloat :: Member_plain _omega_2 tfloat ::
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FiveGhSpeed Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_gh_update_ref_from_speed_sp)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.
+  rewrite (sem_bind_parameters_complete ge _ _ _ _ _ _ H2)...
+  rewrite (executable_builtin_complete ge do_external_function do_inline_assembly _ _ _ _ _ _ _ _ NB H0 PT)...
+Qed.
+
+
+Definition silent_state (S: state): Prop := forall t S', Csem.step ge S t S' -> t = E0.
+
+Theorem pure_do_step_exact:
+  forall w S t S', callback_free_state S -> silent_state S ->
+  ((exists rule, In (TR rule t S') (do_step w S)) <-> Csem.step ge S t S').
+Proof.

@@ -1,0 +1,96 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+classic : forall P : Prop, P \/ ~ P
+13 goals
+  
+  ge : genv
+  base : cont
+  f : function
+  s : statement
+  k : cont
+  e : env
+  m : mem
+  CORE : true = true
+  CORE1 : block_stmt s = true
+  CORE2 : block_cont k = true
+  ND : ~ block_done (State f Sskip (Kseq s k) e m)
+  m' : mem
+  STEP :
+    sstep ge (State f Sskip (Kseq s (plug_cont base k)) e m) E0
+      (Returnstate Vundef (Kseq s (plug_cont base k)) m')
+  H5 : is_call_cont (Kseq s (plug_cont base k))
+  H6 : Mem.free_list m (blocks_of_env ge e) = Some m'
+  ============================
+  exists raw : Csem.state,
+    Returnstate Vundef (Kseq s (plug_cont base k)) m' = plug_state base raw /\
+    sstep ge (State f Sskip (Kseq s k) e m) E0 raw
+
+goal 2 is:
+ exists raw : Csem.state,
+   State f (Swhile x s) k e m = plug_state (Kwhile2 x s k) raw /\
+   sstep ge (State f (Sdo e0) Kstop e m) E0 raw
+goal 3 is:
+ exists raw : Csem.state,
+   ExprState f x (Kdowhile2 x s k) e m = plug_state (Kdowhile1 x s k) raw /\
+   sstep ge (State f (Sdo e0) Kstop e m) E0 raw
+goal 4 is:
+ exists raw : Csem.state,
+   State f a3 (Kfor4 a2 a3 s k) e m = plug_state (Kfor3 a2 a3 s k) raw /\
+   sstep ge (State f (Sdo e0) Kstop e m) E0 raw
+goal 5 is:
+ exists raw : Csem.state,
+   State f Sskip k e m = plug_state (Kswitch2 k) raw /\
+   sstep ge (State f (Sdo e0) Kstop e m) E0 raw
+goal 6 is:
+ exists raw : Csem.state,
+   State f (Swhile x s) k e m = plug_state (Kwhile2 x s k) raw /\
+   sstep ge (State f (Ssequence st1 st2) Kstop e m) E0 raw
+goal 7 is:
+ exists raw : Csem.state,
+   ExprState f x (Kdowhile2 x s k) e m = plug_state (Kdowhile1 x s k) raw /\
+   sstep ge (State f (Ssequence st1 st2) Kstop e m) E0 raw
+goal 8 is:
+ exists raw : Csem.state,
+   State f a3 (Kfor4 a2 a3 s k) e m = plug_state (Kfor3 a2 a3 s k) raw /\
+   sstep ge (State f (Ssequence st1 st2) Kstop e m) E0 raw
+goal 9 is:
+ exists raw : Csem.state,
+   State f Sskip k e m = plug_state (Kswitch2 k) raw /\
+   sstep ge (State f (Ssequence st1 st2) Kstop e m) E0 raw
+goal 10 is:
+ exists raw : Csem.state,
+   State f (Swhile x s) k e m = plug_state (Kwhile2 x s k) raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) Kstop e m) E0 raw
+goal 11 is:
+ exists raw : Csem.state,
+   ExprState f x (Kdowhile2 x s k) e m = plug_state (Kdowhile1 x s k) raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) Kstop e m) E0 raw
+goal 12 is:
+ exists raw : Csem.state,
+   State f a3 (Kfor4 a2 a3 s k) e m = plug_state (Kfor3 a2 a3 s k) raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) Kstop e m) E0 raw
+goal 13 is:
+ exists raw : Csem.state,
+   State f Sskip k e m = plug_state (Kswitch2 k) raw /\
+   sstep ge (State f (Sifthenelse e0 st1 st2) Kstop e m) E0 raw

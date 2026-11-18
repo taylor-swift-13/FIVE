@@ -1,0 +1,36 @@
+{
+  "schema": "five-verification-request/1",
+  "authorization": "User authorized reset then get readback relation and full getter verification.",
+  "entry": "get_first_order_low_pass",
+  "implementation": "prepare/source/get_first_order_low_pass.c",
+  "assumptions": [],
+  "domain": "All machine inputs in model; proofs require aligned nonwrapping pointer, readable initialized binary32 last_out only. No floating restrictions. Caller frame all original valid blocks.",
+  "properties": [
+    "actual CBMC guards and assertions",
+    "precise object and frame behavior",
+    "all reachable no_error",
+    "all successor termination",
+    "normal completion and nonvacuity"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "Mem.loadbytes including unknown bytes; returned Vsingle exact Float32.to_bits; getter preserves every original valid caller block."
+}

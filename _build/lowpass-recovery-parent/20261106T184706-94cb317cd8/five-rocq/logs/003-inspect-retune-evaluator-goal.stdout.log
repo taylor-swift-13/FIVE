@@ -1,0 +1,102 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bt, bh, b : block
+  p : ptrofs
+  tau, h : float32
+  m1 : mem
+  LP : e ! _filter = Some (bp, retune_filter_type)
+  LT : e ! _tau = Some (bt, tfloat)
+  LH : e ! _sample_time = Some (bh, tfloat)
+  PF : Mem.load Mptr m bp 0 = Some (Vptr b p)
+  TF : Mem.load Mfloat32 m bt 0 = Some (Vsingle tau)
+  HF : Mem.load Mfloat32 m bh 0 = Some (Vsingle h)
+  BOUND : Ptrofs.unsigned p + 12 <= Ptrofs.modulus
+  ST :
+    Mem.store Mfloat32 m b (Ptrofs.unsigned p)
+      (Vsingle
+         (Float32.div
+            (Float32.mul (Float32.of_bits (Int.repr 1073741824)) tau) h)) =
+    Some m1
+  LAY :
+    (prog_comp_env prog) ! _FirstOrderLowPass =
+    Some
+      {|
+        co_su := Struct;
+        co_members :=
+          [Member_plain 1683323178995770525%positive
+             (Tfloat F32 {| attr_volatile := false; attr_alignas := None |});
+           Member_plain 5998969733781%positive
+             (Tfloat F32 {| attr_volatile := false; attr_alignas := None |});
+           Member_plain 411106727543445%positive
+             (Tfloat F32 {| attr_volatile := false; attr_alignas := None |})];
+        co_attr := {| attr_volatile := false; attr_alignas := None |};
+        co_sizeof := 12;
+        co_alignof := 4;
+        co_rank := 0;
+        co_sizeof_pos :=
+          Z.le_ge 0 12
+            (Z.le_trans 0 12 12
+               (sizeof_composite_pos PTree.Empty Struct
+                  [Member_plain 1683323178995770525%positive (...);
+                   Member_plain 5998969733781%positive (...);
+                   Member_plain 411106727543445%positive (...)])
+               (align_le 12 4
+                  (alignof_composite_pos PTree.Empty [
+                     ...; ...; ...] {| ... |})));
+        co_alignof_two_p :=
+          align_attr_two_p 4
+            {| attr_volatile := false; attr_alignas := None |}
+            (alignof_composite_two_p PTree.Empty
+               [Member_plain 1683323178995770525%positive
+                  (Tfloat F32 {| ... |});
+                Member_plain 5998969733781%positive (Tfloat F32 {| ... |});
+                Member_plain 411106727543445%positive (Tfloat F32 {| ... |})]);
+        co_sizeof_alignof :=
+          align_divides 12 4
+            (alignof_composite_pos PTree.Empty
+               [Member_plain 1683323178995770525%positive
+                  (Tfloat F32 {| ... |});
+                Member_plain 5998969733781%positive (Tfloat F32 {| ... |});
+                Member_plain 411106727543445%positive (Tfloat F32 {| ... |})]
+               {| attr_volatile := false; attr_alignas := None |})
+      |}
+  ============================
+  match
+    match
+      match match ... with
+            | ... => Some v
+            | ... => None
+            end with
+      | Some w =>
+          match ...
+                ...
+                ...
+                end with
+          | Some (Vsingle n2) => Some (Vsingle ...)
+          | _ => None
+          end
+      | None => None
+      end
+    with
+    | Some v =>
+        match
+          match v with
+          | Vsingle f => Some (Vsingle f)
+          | _ => None
+          end
+        with
+        | Some vc =>
+            match (if ... then ... else ...) with
+            | Some (_, _, mf, vf) => Some (vf, mf)
+            | None => None
+            end
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some (_, m') => Some (Nnormal, m')
+  | None => None
+  end = Some (Nnormal, m1)

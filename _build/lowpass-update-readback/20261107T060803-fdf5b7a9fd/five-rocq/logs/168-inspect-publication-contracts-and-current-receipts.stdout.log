@@ -1,0 +1,257 @@
+{
+  "verification_method": "traditional-bounded-model-checking",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "79432512eb985dccf300a3bd6cc6382b305f55728f8803a7b2182fead78ffa27",
+  "cbmc_run": "_build/lowpass-readback/20261107T031944-e95257d59b/five-cbmc",
+  "cbmc_command_id": "001-getter-direct-traditional-cbmc",
+  "cbmc_json": "_build/lowpass-readback/20261107T031944-e95257d59b/five-cbmc/logs/001-getter-direct-traditional-cbmc.stdout.log",
+  "cbmc_input_sha256": {
+    "paparazzi/models/get_first_order_low_pass/prepare/source/get_first_order_low_pass.c": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4",
+    "paparazzi/models/get_first_order_low_pass/cbmc/harness.c": "47b360e59964086e51a0bf9c8aea0e179f3c9439e8d64cf225653e28b5af3d00"
+  },
+  "schema": "five-cbmc-rocq-recheck/1",
+  "status": "proved",
+  "properties": [
+    {
+      "property_id": "memcpy.pointer_arithmetic.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "description": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+        "location": {
+          "comment": "pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+          "file": "<builtin-library-memcpy>",
+          "function": "memcpy",
+          "line": "33",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+            "checked:pointer-overflow-check",
+            "checked:undefined-shift-check",
+            "checked:pointer-primitive-check",
+            "checked:memory-leak-check",
+            "checked:memory-cleanup-check",
+            "checked:float-div-by-zero-check",
+            "checked:enum-range-check",
+            "checked:unsigned-overflow-check",
+            "checked:conversion-check",
+            "checked:float-overflow-check",
+            "checked:nan-check"
+          ],
+          "propertyClass": "pointer arithmetic",
+          "propertyFatal": true,
+          "propertyId": "memcpy.pointer_arithmetic.1",
+          "workingDirectory": "/home/yangfp/five"
+        },
+        "input_preconditions": "All typed binary32 field bitpatterns; aligned writable initialized12 caller object; no numerical restriction.",
+        "source_harness_sha256": {
+          "paparazzi/models/get_first_order_low_pass/prepare/source/get_first_order_low_pass.c": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4",
+          "paparazzi/models/get_first_order_low_pass/cbmc/harness.c": "47b360e59964086e51a0bf9c8aea0e179f3c9439e8d64cf225653e28b5af3d00"
+        },
+        "observation": "Return exact Float32.to_bits and field bytes through official memcpy BitsRun adapters; source pointer read site guard witness.",
+        "mapped_statement": "FiveLowpassGetRecheck.Spec.P_memcpy_pointer_arithmetic_1",
+        "original_property_id": "memcpy.pointer_arithmetic.1",
+        "cbmc_bounds": {
+          "entry": "main",
+          "unwind": 1,
+          "unwinding_assertions": true,
+          "source_loops": false,
+          "source_recursion": false
+        },
+        "command_scope": {
+          "run": "_build/lowpass-readback/20261107T031944-e95257d59b/five-cbmc",
+          "command_id": "001-getter-direct-traditional-cbmc",
+          "argv": [
+            "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+            "paparazzi/models/get_first_order_low_pass/cbmc/harness.c",
+            "--function",
+            "main",
+            "--64",
+            "--little-endian",
+            "--bounds-check",
+            "--pointer-check",
+            "--pointer-overflow-check",
+            "--signed-overflow-check",
+            "--undefined-shift-check",
+            "--unwinding-assertions",
+            "--unwind",
+            "1",
+            "--json-ui"
+          ]
+        }
+      },
+      "theorem": "FiveLowpassGetRecheck.Proof.prove_P_memcpy_pointer_arithmetic_1",
+{
+  "purpose": "execution-translation",
+  "status": "proved",
+  "execution_backend": "compcert-csyntax-cexec",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "79432512eb985dccf300a3bd6cc6382b305f55728f8803a7b2182fead78ffa27",
+  "execution_domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem including invalid, uninitialized, unwritable states"
+  },
+  "domain_restrictions": [],
+  "execution_entry": {
+    "module": "FiveLowpassGet.Execution",
+    "symbol": "entry",
+    "source": "paparazzi/models/get_first_order_low_pass/align/model/Execution.v",
+    "sha256": "70e9676dfbe4cbc8f322ff95176393bfb514fe9e6cf66ed059d1df431685fae3"
+  },
+  "source_semantics": {
+    "id": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "target": {
+      "semantics": "CompCert Csem/Cexec",
+      "version": "3.17",
+      "arch": "x86",
+      "model": "64",
+      "abi": "standard",
+      "bitsize": 64,
+      "system": "linux",
+      "endianness": "little",
+      "float32": "IEEE754 binary32",
+      "rounding": "round-to-nearest-ties-to-even",
+      "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+      "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+    },
+    "source_sha256": {
+      "paparazzi/models/get_first_order_low_pass/prepare/source/get_first_order_low_pass.c": "c68c75a0a14480b35bc9e5b93c87d3c6939bb6e28d04d53dce63713e76ed91d4",
+      "paparazzi/models/get_first_order_low_pass/align/model/Source.v": "925064dc2aa6f43eaf2400c11474915559c3032da4bde281d46d06f49f1e7844",
+      "paparazzi/models/get_first_order_low_pass/align/model/Execution.v": "70e9676dfbe4cbc8f322ff95176393bfb514fe9e6cf66ed059d1df431685fae3"
+    }
+  },
+  "obligations": [
+    {
+      "id": "domain-preservation",
+      "status": "proof-backed",
+      "coverage": "The actual entry is the unchanged Internal function call for every list val and every memory; the syntax invariant is automatic.",
+      "evidence": [
+        "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "floating-point-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves every float operation, value, NaN/error behavior and trace.",
+      "evidence": [
+        "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "machine-integer-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves all machine-integer, shift, cast and pointer operations.",
+      "evidence": [
+        "paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+from pathlib import Path
+import json,os
+root=Path(__file__).resolve().parents[4];case=root/'paparazzi/models/get_first_order_low_pass';report=root/'paparazzi/report/lowpass_readback'
+def dump(p,o):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+'\n')
+def rel(p,b):return os.path.relpath(p,b)
+def row(run,base):
+ r=json.loads((run/'run.json').read_text());m=json.loads((run/'metrics.json').read_text());t=m['tokens'];stage=r['skill']
+ result={'stage':stage,'run':str(run.relative_to(root)),'outcome':r['status'],'status':'recorded','time':{'wall_seconds':m['time']['wall_seconds'],'tool_cpu_seconds':m['time']['cpu_tool_seconds'] if m.get('command_count') else None},'token':{k:t.get(v)for k,v in [('input','input_tokens'),('output','output_tokens'),('total','total_tokens'),('cached_input','cached_input_tokens'),('reasoning_output','reasoning_output_tokens')]},'memory':{'tool_peak_rss_bytes':m['memory']['peak_process_tree_rss_sampled_bytes'] if m.get('command_count') else None},'inclusive_resources':{'tool_cpu_seconds':None,'tool_peak_rss_bytes':None,'reason':'Direct authoring/setup Python file-construction helpers outside Run.command were not sampled. The displayed tool CPU/RSS are the actual metered command set only; inclusive unknowns remain null.'},'evidence':[rel(run/'run.json',base),rel(run/'metrics.json',base)],'measurement_scope':'Genuine skill-session event boundaries and direct elapsed wall. Metered command CPU and requested10ms tool-tree RSS; cache/reasoning subsets; no historical model expense reallocation. RSS may miss short peaks or count shared pages, excludes model service/desktop.'}
+ return result
+runs=[]
+for run in sorted((root/'_build/lowpass-readback').glob('*/*')):
+ if not(run/'run.json').exists():continue
+ if json.loads((run/'run.json').read_text()).get('status')=='running':continue
+ runs.append(run)
+for stage in ['prepare','cbmc','align','rocq']:
+ p=case/stage/'report/costs.json';records=[row(r,p.parent)for r in runs if json.loads((r/'run.json').read_text())['skill']=='five-'+stage]
+ dump(p,{'schema':'five-stage-costs/1','records':records})
+dump(report/'evidence/cost-run-index.json',{'schema':'five-cost-run-index/1','closed_worker_runs':[str(r.relative_to(root))for r in runs],'historical_reset_reuse':{'source':'paparazzi/models/reset_first_order_low_pass','costs':'paparazzi/models/reset_first_order_low_pass/rocq/report/costs.json','classification':'historical reuse, excluded from new verification cost; fresh independent parent review expense separately counted'},'inclusive_setup_cpu_rss':'null; genuinely unobserved, no replay or estimate substitutes missing data'})
+dump(report/'costs.json',{'schema':'five-stage-costs/1','records':[row(r,report)for r in runs],'historical_reuse_costs':rel(root/'paparazzi/models/reset_first_order_low_pass/rocq/report/costs.json',report),'task_aggregate_status':'awaiting closed parent and worker final verification receipts; every existing record is actual observed expense'})
+print('updated exact closed-stage observed costs, inclusive CPU/RSS remain null')
+#!/usr/bin/env python3
+"""Validate every actual update/get readback problem and optionally rebuild active proofs."""
+from pathlib import Path
+import argparse, importlib.util, json, subprocess, sys, hashlib, re
+root=Path(__file__).resolve().parents[3]
+CASES=('get_first_order_low_pass','update_first_order_low_pass')
+REQUIRED_PROBLEMS={'no_error','termination','cbmc_recheck','execution_correspondence','functional'}
+sys.path.insert(0,str(root/'scripts'))
+spec=importlib.util.spec_from_file_location('five_reference_validator',root/'scripts/check-example-artifacts.py')
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+def audit_input_copies(validator):
+ """Check retained input bytes, beyond the original source/hash receipt gate."""
+ runs=set()
+ for attempt in set(validator.active):
+  validation=validator.read(attempt/'evidence/goal-validation.json')
+  if validation.get('certificate',{}).get('run'):runs.add(validation['certificate']['run'])
+  ref=validation.get('kernel_evidence')
+  if ref:
+   evidence=validator.read(root/ref)
+   if evidence.get('run'):runs.add(evidence['run'])
+ for name in CASES:
+  ledger=validator.read(root/'paparazzi/models'/name/'rocq/spec-recheck.json')
+  if ledger.get('cbmc_run'):runs.add(ledger['cbmc_run'])
+ checked=0
+ for ref in sorted(runs):
+  run=(root/ref).resolve()
+  if not validator.require(run.is_relative_to(root),'run path outside repository: '+str(run)):continue
+  metadata=validator.read(run/'run.json')
+  validator.require(metadata.get('status')=='passed','active proof/CBMC run not passed: '+str(run))
+  rows=metadata.get('inputs',[]);validator.require(bool(rows),'empty retained input manifest: '+str(run))
+  for row in rows:
+   relative=row.get('path');expected=row.get('sha256')
+   if not validator.require(row.get('status')!='missing'and isinstance(relative,str)and isinstance(expected,str)and re.fullmatch('[0-9a-f]{64}',expected),'missing or malformed retained input: '+str(run)+': '+str(row.get('source'))):continue
+   copied=(run/relative).resolve()
+   if not validator.require(copied.is_relative_to(run),'captured input escapes run: '+str(copied)):continue
+   if validator.file(copied):
+    validator.require(hashlib.sha256(copied.read_bytes()).hexdigest()==expected,'captured input SHA mismatch: '+str(copied));checked+=1
+ return {'runs':sorted(runs),'input_copies_checked':checked}
+def main():
+ parser=argparse.ArgumentParser();parser.add_argument('--compile',action='store_true');args=parser.parse_args()
+ validator=module.Validator(root)
+ for name in CASES:
+  case=root/'paparazzi/models'/name;validator.case(case)
+  actual={p.parent.name for p in (case/'rocq').glob('*/problem')}
+  validator.require(REQUIRED_PROBLEMS==actual,'missing requested proof problems: '+name+': '+str(sorted(REQUIRED_PROBLEMS-actual)))
+  for problem in sorted((case/'rocq').glob('*/problem')):
+   status=validator.read(problem/'status.json')
+   validator.require(status.get('status')=='proved','requested problem not proved: '+str(problem))
+  for problem in sorted((case/'rocq').glob('*/problem')):
+   if problem.parent.name not in ('no_error','termination','cbmc_recheck'):validator.proof_problem(problem)
+ validator.proof_problem(root/'paparazzi/relations/lowpass_update_readback/problem')
+ status=validator.read(root/'paparazzi/relations/lowpass_update_readback/problem/status.json')
+ validator.require(status.get('status')=='proved','requested relation is not proved')
+ input_copies=audit_input_copies(validator)
+ # Both execution and CBMC gates independently inspect current source bindings.
+ if not validator.errors:
+  for name in CASES:
+   case=root/'paparazzi/models'/name
+   from compcert_gate import accept_compcert_delivery
+   import hashlib
+   request=case/'align/request.json'
+   try:accept_compcert_delivery(root,request_path=str(request.relative_to(root)),expected_request_sha256=hashlib.sha256(request.read_bytes()).hexdigest(),contract_path=str((case/'rocq/execution-contract.json').relative_to(root)),manifest_path=str((case/'align/model/compcert-manifest.json').relative_to(root)),spec_recheck_path=str((case/'rocq/spec-recheck.json').relative_to(root)))
+   except Exception as exc:validator.errors.append('complete execution gate: '+name+': '+str(exc))
+ if validator.errors:
+  print(json.dumps({'status':'failed','errors':validator.errors},indent=2));return 1
+ if args.compile:
+  for attempt in dict.fromkeys(validator.active):subprocess.run([sys.executable,str(attempt/'check.py')],cwd=root,check=True)
+ print(json.dumps({'status':'passed','active_problems':len(set(validator.active)),'compile':args.compile,'problems':[str(p.relative_to(root)) for p in validator.active],'input_copy_audit':input_copies},indent=2));return 0
+if __name__=='__main__':raise SystemExit(main())
+{
+  "schema": "five-proof-validation/1",
+  "index": {
+    "path": "paparazzi/models/update_first_order_low_pass/rocq/functional/attempts/001/provenance.json",
+    "sha256": "d07aee4c161888ac40cfec95140f9f1b02948502c6de1647d26db4a86add2200"
+  },
+  "inputs": [
+    {
+      "path": "shared/verification/Obligations.v",
+      "sha256": "b248d4397fbd3ddc2ea8f6324f32752d1493d6a5f48f097e0fd214212010a6b4",
+      "snapshot": "paparazzi/report/lowpass_update_readback/evidence/checked-20261107T060803-fdf5b7a9fd/FiveShared/verification/Obligations.v"
+    },
+    {
+      "path": "paparazzi/models/update_first_order_low_pass/align/model/Source.v",
+      "sha256": "8f35f13c38d61ad1d1fe8a4db2e6d3d3861e881315e0a0f029c39fcdb52b5c6e",
+      "snapshot": "paparazzi/report/lowpass_update_readback/evidence/checked-20261107T060803-fdf5b7a9fd/FiveLowpassUpdate/Source.v"
+    },
+    {

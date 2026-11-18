@@ -1,0 +1,20 @@
+File "./paparazzi/relations/guidance_mode/support/entry/SymbolicPrefix.v", line 92, characters 66-70:
+Error:
+In environment
+e : env
+m : mem
+l : expr
+b : block
+ofs : Z
+x : float32
+LOC : eval_simple_lvalue ge e m l b (Ptrofs.repr ofs) Full
+TY : typeof l = tfloat
+RNG : 0 <= ofs <= Ptrofs.max_unsigned
+LOAD : Mem.load Mfloat32 m b ofs = Some (Vsingle x)
+The term "LOAD" has type "Mem.load Mfloat32 m b ofs = Some (Vsingle x)"
+while it is expected to have type
+ "(if zle (ofs + size_chunk Mfloat32) Ptrofs.modulus
+   then Mem.load Mfloat32 m b ofs
+   else None) =
+  Some (Vsingle x)".
+

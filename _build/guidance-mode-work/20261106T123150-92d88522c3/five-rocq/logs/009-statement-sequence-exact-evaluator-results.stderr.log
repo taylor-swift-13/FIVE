@@ -1,0 +1,28 @@
+File "./paparazzi/relations/guidance_mode/support/software/FlatStatements.v", line 90, characters 73-74:
+Error:
+In environment
+s1, s2 : statement
+IHs1 :
+  forall (ge : genv) (le : env) (m : mem) (out : outcome) (mf : mem),
+  source_statement s1 = true ->
+  statement_eval ge le s1 m = Some (out, mf) ->
+  exec_stmt ge le m s1 E0 mf out
+IHs2 :
+  forall (ge : genv) (le : env) (m : mem) (out : outcome) (mf : mem),
+  source_statement s2 = true ->
+  statement_eval ge le s2 m = Some (out, mf) ->
+  exec_stmt ge le m s2 E0 mf out
+ge : genv
+le : env
+m : mem
+out : outcome
+mf : mem
+CORE : source_statement s1 = true
+CORE0 : source_statement s2 = true
+m1 : mem
+F : statement_eval ge le s1 m = Some (Out_break, m1)
+EV : Some (Out_break, m1) = Some (out, mf)
+The term "F" has type "statement_eval ge le s1 m = Some (Out_break, m1)"
+while it is expected to have type
+ "statement_eval ge le s1 m = Some (Out_normal, m1)".
+

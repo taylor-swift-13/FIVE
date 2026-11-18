@@ -1,0 +1,51 @@
+{
+  "tool": "CBMC",
+  "version": "6.11.0 (cbmc-6.11.0)",
+  "scope": "Follow-up minimal conversion-check diagnostic; separate from the completed guidance-case verification and its closed cost interval.",
+  "results": [
+    {
+      "name": "value-only",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "/home/yangfp/five/paparazzi/report/guidance_mode/evidence/float-int64-minimum/boundary.c",
+        "--64",
+        "--little-endian",
+        "--round-to-nearest",
+        "--json-ui"
+      ],
+      "exit_code": 0,
+      "properties": [
+        {
+          "id": "main.assertion.1",
+          "description": "exact minimum returned",
+          "status": "SUCCESS"
+        }
+      ]
+    },
+    {
+      "name": "with-conversion-check",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "/home/yangfp/five/paparazzi/report/guidance_mode/evidence/float-int64-minimum/boundary.c",
+        "--64",
+        "--little-endian",
+        "--round-to-nearest",
+        "--json-ui",
+        "--conversion-check"
+      ],
+      "exit_code": 10,
+      "properties": [
+        {
+          "id": "main.overflow.1",
+          "description": "arithmetic overflow on float to signed integer type conversion in (int64_t)x",
+          "status": "FAILURE"
+        },
+        {
+          "id": "main.assertion.1",
+          "description": "exact minimum returned",
+          "status": "SUCCESS"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+# 0 "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/prepare/source/init_first_order_low_pass.c"
+# 0 "<built-in>"
+# 0 "<command-line>"
+# 1 "/usr/include/stdc-predef.h" 1 3 4
+# 0 "<command-line>" 2
+# 1 "/home/yangfp/five/paparazzi/models/init_first_order_low_pass/prepare/source/init_first_order_low_pass.c"
+
+struct FirstOrderLowPass {
+  float time_const;
+  float last_in;
+  float last_out;
+};
+
+static inline void init_first_order_low_pass(struct FirstOrderLowPass *filter, float tau, const float sample_time,
+    float value)
+{
+  filter->last_in = value;
+  filter->last_out = value;
+  filter->time_const = 2.0f * tau / sample_time;
+}

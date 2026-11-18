@@ -1,0 +1,134 @@
+Warning:
+/home/yangfp/five/_build/pid-ultra-cold-replays/20261117T163145081903/checked/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/_build/pid-ultra-cold-replays/20261117T163145081903/checked/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "/home/yangfp/five/paparazzi/relations/pid_measurement_robustness/attempts/001/Proof.v", line 45, characters 27-28:
+Error: Cannot infer this placeholder of type "Z" in
+environment:
+axis : ident
+gh, ret : block
+g : Gains
+epsilon : Z
+a, b, qa, qb : mem
+x, y : AxisSample
+ma, mb : mem
+distance : Z
+AX : In axis [P._x; P._y]
+EPS : 0 <= epsilon
+INITIAL : IntegralBound axis a b distance
+EA : EnvironmentStep gh a qa
+EB : EnvironmentStep gh b qb
+GOODA : InputGood qa gh ret
+GOODB : InputGood qb gh ret
+READA : ReadAxis axis gh qa g x
+READB : ReadAxis axis gh qb g y
+REF : reference x = reference y
+RS : reference_speed x = reference_speed y
+MS : measurement_speed x = measurement_speed y
+ACC : reference_accel x = reference_accel y
+MEASURE :
+  Z.abs (Int.signed (measurement x) - Int.signed (measurement y)) <= epsilon
+HEADING :
+  load_global Mfloat32 qa Spec.P._guidance_h gh_type
+    [Spec.P._sp; Spec.P._heading] =
+  load_global Mfloat32 qb Spec.P._guidance_h gh_type
+    [Spec.P._sp; Spec.P._heading]
+CALLA : NormalCall gh ret true qa ma
+CALLB : NormalCall gh ret true qb mb
+BA :
+  axis_bounds (gain_p g) (gain_d g) (gain_i g) (gain_v g) 
+    (gain_a g) (mpe x) (mse x) (reference_speed x) 
+    (reference_accel x) (old_integral x)
+BB :
+  axis_bounds (gain_p g) (gain_d g) (gain_i g) (gain_v g) 
+    (gain_a g) (mpe y) (mse y) (reference_speed y) 
+    (reference_accel y) (old_integral y)
+ILA :
+  load_global Mint32 ma SemanticBridge.P._guidance_pid_trim_att_integrator
+    vec_type [axis] =
+  Some (Vint (mi g x))
+CLA :
+  load_global Mint32 ma SemanticBridge.P._guidance_pid pid_type
+    [SemanticBridge.P._cmd_earth; axis] =
+  Some (Vint (mc g x))
+RLA :
+  load_path Mint32 ma ret sp_type
+    [SemanticBridge.P._sp; SemanticBridge.P._ltp_i; SemanticBridge.P._vect;
+     axis] =
+  Some (Vint (mc g x))
+ILB :
+  load_global Mint32 mb SemanticBridge.P._guidance_pid_trim_att_integrator
+    vec_type [axis] =
+  Some (Vint (mi g y))
+CLB :
+  load_global Mint32 mb SemanticBridge.P._guidance_pid pid_type
+    [SemanticBridge.P._cmd_earth; axis] =
+  Some (Vint (mc g y))
+RLB :
+  load_path Mint32 mb ret sp_type
+    [SemanticBridge.P._sp; SemanticBridge.P._ltp_i; SemanticBridge.P._vect;
+     axis] =
+  Some (Vint (mc g y))
+DIST :
+  Z.abs (Int.signed (old_integral x) - Int.signed (old_integral y)) <=
+  distance
+OA :
+  load_global Mint32 qa P._guidance_pid_trim_att_integrator vec_type [axis] =
+  Some (Vint (old_integral x))
+OB :
+  load_global Mint32 qb P._guidance_pid_trim_att_integrator vec_type [axis] =
+  Some (Vint (old_integral y))
+SE : mse y = mse x
+PEA :
+  Int.signed (mpe x) =
+  position_error (Int.signed (reference x)) (Int.signed (measurement x))
+PEB :
+  Int.signed (mpe y) =
+  position_error (Int.signed (reference y)) (Int.signed (measurement y))
+IAEX :
+  Int.signed
+    (FlightSemantics.next_integral true (old_integral x) 
+       (gain_i g)
+       (CoreSemantics.pd_bits (gain_p g) (gain_d g) (mpe x) (mse x))
+       (Int.repr 1429)) =
+  integral_z (Int.signed (gain_p g)) (Int.signed (gain_d g))
+    (Int.signed (gain_i g)) (Int.signed (mpe x)) (Int.signed (mse x))
+    (Int.signed (old_integral x))
+CAEX :
+  Int.signed
+    (ControllerPrefix.controller_command true (gain_p g) 
+       (gain_d g) (gain_i g) (gain_v g) (gain_a g) 
+       (mpe x) (mse x) (reference_speed x) (reference_accel x)
+       (old_integral x) (Int.repr 1429) (Int.repr 3216)) =
+  command_z (Int.signed (gain_p g)) (Int.signed (gain_d g))
+    (Int.signed (gain_i g)) (Int.signed (gain_v g)) 
+    (Int.signed (gain_a g)) (Int.signed (mpe x)) (Int.signed (mse x))
+    (Int.signed (reference_speed x)) (Int.signed (reference_accel x))
+    (Int.signed (old_integral x))
+IBEX :
+  Int.signed
+    (FlightSemantics.next_integral true (old_integral y) 
+       (gain_i g)
+       (CoreSemantics.pd_bits (gain_p g) (gain_d g) (mpe y) (mse y))
+       (Int.repr 1429)) =
+  integral_z (Int.signed (gain_p g)) (Int.signed (gain_d g))
+    (Int.signed (gain_i g)) (Int.signed (mpe y)) (Int.signed (mse y))
+    (Int.signed (old_integral y))
+CBEX :
+  Int.signed
+    (ControllerPrefix.controller_command true (gain_p g) 
+       (gain_d g) (gain_i g) (gain_v g) (gain_a g) 
+       (mpe y) (mse y) (reference_speed y) (reference_accel y)
+       (old_integral y) (Int.repr 1429) (Int.repr 3216)) =
+  command_z (Int.signed (gain_p g)) (Int.signed (gain_d g))
+    (Int.signed (gain_i g)) (Int.signed (gain_v g)) 
+    (Int.signed (gain_a g)) (Int.signed (mpe y)) (Int.signed (mse y))
+    (Int.signed (reference_speed y)) (Int.signed (reference_accel y))
+    (Int.signed (old_integral y))
+

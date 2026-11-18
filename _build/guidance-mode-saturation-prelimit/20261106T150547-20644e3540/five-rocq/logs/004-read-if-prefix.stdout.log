@@ -1,0 +1,172 @@
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress CallfreeExecution PhaseComposition.
+Section IF_SHELL.
+Variable ge:genv.
+Variable f:function.
+Variable e:env.
+Variable k:cont.
+Variable m:mem.
+Variable condition:expr.
+Variable yes no:statement.
+Variable value:val.
+Variable taken:bool.
+Hypothesis condition_simple:simple condition=true.
+Hypothesis condition_value:pure_rval ge e m condition=Some value.
+Hypothesis condition_bool:bool_val value(typeof condition)m=Some taken.
+Definition target:Csem.state:=State f(if taken then yes else no)k e m.
+Definition invariant(s:Csem.state):Prop:=
+ s=State f(Sifthenelse condition yes no)k e m \/
+ (exists residual,s=ExprState f residual(Kifthenelse yes no k)e m /\
+ typeof residual=typeof condition /\simple residual=true /\pure_rval ge e m residual=Some value) \/s=target.
+Lemma initial:invariant(State f(Sifthenelse condition yes no)k e m).
+Proof. left;reflexivity. Qed.
+Theorem all_successors:forall s t next,invariant s->s<>target->Csem.step ge s t next->invariant next.
+Proof.
+ intros s t next[START|[EXPR|DONE]]NF STEP.
+ - subst s;destruct STEP as[ES|SS];[inversion ES|].
+   inversion SS;subst;
+   try solve[right;left;exists condition;repeat split;auto];
+   repeat match goal with H:_ \/ _|-_=>destruct H end;discriminate.
+ - destruct EXPR as[a[EQ[TY[SI VAL]]]];subst s.
+   destruct STEP as[ES|SS].
+   + destruct(simple_estep ge f a(Kifthenelse yes no k)e m t next SI ES)as[BAD|[a'[EQ[TA[SA DEN]]]]].
+     * subst next;inversion ES;subst;exfalso.
+       match goal with N:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _|-_=>
+       apply N;pose proof(pure_not_stuck ge e m _ value SI VAL)as NS;exact(NS _ _ _ CT eq_refl)end.
+     * subst next;right;left;exists a';repeat split;auto;congruence.
+   + inversion SS;subst.
+     cbn[pure_rval]in VAL;injection VAL as EQ.
+     cbn[typeof]in TY.
+     match goal with B:bool_val _ _ _=Some _|-_=>
+     rewrite EQ,TY in B;rewrite condition_bool in B;injection B as EQB end.
+     right;right;unfold target;rewrite <-EQB;reflexivity.
+ - contradiction.
+Qed.
+Theorem progress:forall s,invariant s->s=target \/exists t next,Csem.step ge s t next /\invariant next.
+Proof.
+ intros s[START|[EXPR|DONE]].
+ - subst s;right;exists E0,(ExprState f condition(Kifthenelse yes no k)e m);split.
+   + right;apply step_ifthenelse_1.
+   + right;left;exists condition;repeat split;auto.
+ - destruct EXPR as[a[EQ[TY[SI VAL]]]];subst s.
+   destruct(literal RV a)eqn:LIT.
+   + destruct(literal_r_inv a LIT)as[v[ty EQ]];subst a.
+     cbn[pure_rval]in VAL;injection VAL as EQ.
+     cbn[typeof]in TY;right;exists E0,target;split.
+     * right;unfold target;eapply step_ifthenelse_2;rewrite EQ,TY;exact condition_bool.
+     * right;right;reflexivity.
+   + destruct(immediate_has_step ge f a(Kifthenelse yes no k)e m LIT
+     (simple_immediate ge e m a SI ltac:(rewrite VAL;discriminate)))as[t[next STEP]].
+     right;exists t,next;split;[exact STEP|].
+     eapply all_successors;[right;left;exists a;repeat split;auto| |exact STEP].
+     intro EQ;unfold target in EQ;discriminate EQ.
+ - auto.
+Qed.
+Theorem if_certificate:certificate ge invariant target.
+Proof. split;[apply progress|apply all_successors]. Qed.
+Print Assumptions if_certificate.
+End IF_SHELL.
+paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v:147:   + right;eexists;eexists;right;eapply step_ifthenelse_1.
+paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v:159:       right;eexists;eexists;right;eapply step_ifthenelse_2;exact BV.
+paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v:231:   try solve[eexists;split;[|eauto 8 using step_skip_seq,step_do_1,step_seq,step_ifthenelse_1,step_do_2,step_ifthenelse_2];reflexivity].
+paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v:235:   try solve[eexists;split;[|eauto 8 using step_skip_seq,step_do_1,step_seq,step_ifthenelse_1,step_do_2,step_ifthenelse_2];reflexivity].
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v:309:   + right;eexists;eexists;right;eapply step_ifthenelse_1.
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v:327:       right;eexists;eexists;right;eapply step_ifthenelse_2;exact BOOL.
+paparazzi/relations/guidance_mode/support/allorder/PureIfShell.v:50:   + right;apply step_ifthenelse_1.
+paparazzi/relations/guidance_mode/support/allorder/PureIfShell.v:57:     * right;unfold target;eapply step_ifthenelse_2;rewrite EQ,TY;exact condition_bool.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FivePaparazziState Require Import State MemorySupport.
+From FiveGuidanceEntry Require Import Entry BigstepSupport.
+Require FiveGhAccel.Source FiveGhAccel.Execution.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module S:=FiveGhAccel.Source.
+Definition ge:=FiveGhAccel.Execution.ge.
+Definition vt:=Tstruct S._FloatVect2 noattr.
+Definition it:=Tstruct S._Int64Vect2 noattr.
+Definition gt:=Tstruct S._GuidanceHRef noattr.
+Definition local_field (id coord : ident) (ty ft : type) : expr :=
+ Efield (Evalof (Evar id ty) ty) coord ft.
+Definition global_field (id : ident) (ty : type) : expr :=
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+Import ListNotations.
+
+Definition commit (ge:genv) (m:mem) (ty:type) (loc:block*ptrofs*bitfield) (v:val) (vty:type) : option(val*mem) :=
+ let '(b,ofs,bf):=loc in
+ match sem_cast v vty ty m with
+ | Some vc => match Cexec.do_assign_loc ge quiet_world ty m b ofs bf vc with
+   | Some (_,_,mf,vf)=>Some(vf,mf) | None=>None end
+ | None=>None end.
+Definition atomic_expr (a:expr):bool :=
+ match a with
+ | Eassign l r _ | Eassignop _ l r _ _ => simple l && simple r && nv(typeof l)
+ | _=>simple a end.
+Definition atomic_eval (ge:genv) (e:env) (m:mem) (a:expr):option(val*mem) :=
+ match a with
+ | Eassign l r ty =>
+   if type_eq (typeof l) ty then
+   match pure_lval ge e m l,pure_rval ge e m r with
+   | Some loc,Some v=>commit ge m (typeof l) loc v (typeof r)
+   | _,_=>None end else None
+ | Eassignop op l r tyres ty =>
+   if type_eq (typeof l) ty then
+   match pure_lval ge e m l,pure_rval ge e m r with
+   | Some(b,ofs,bf),Some vr=>
+     match Cexec.do_deref_loc ge quiet_world (typeof l) m b ofs bf with
+     | Some(_,_,vl)=>match sem_binary_operation ge op vl (typeof l) vr (typeof r) m with
+       | Some vo=>commit ge m (typeof l) (b,ofs,bf) vo tyres
+       | None=>None end
+     | None=>None end
+   | _,_=>None end else None
+ | _=>option_map (fun v=>(v,m)) (pure_rval ge e m a)
+ end.
+Lemma atomic_simple: forall a,simple a=true -> atomic_expr a=true.
+Proof. destruct a;simpl;auto;discriminate. Qed.
+Lemma atomic_eval_simple: forall ge e m a,simple a=true ->
+ atomic_eval ge e m a=option_map(fun v=>(v,m))(pure_rval ge e m a).
+Proof. destruct a;simpl;auto;discriminate. Qed.
+Lemma atomic_context_hole: forall from to C,context from to C -> forall a,
+ atomic_expr(C a)=true -> atomic_expr a=true.
+Proof. induction 1;simpl;intros a HA;core_unpack;try discriminate;eauto using atomic_simple,simple_context_hole. Qed.
+Lemma atomic_context_replace: forall from to C,context from to C -> forall a b,
+ typeof a=typeof b -> atomic_expr(C a)=true -> simple b=true -> atomic_expr(C b)=true.
+Proof.
+ induction 1;simpl;intros a b HT HA HB;core_unpack;try discriminate;core_build;
+ eauto using simple_context_replace,atomic_simple.
+ all: try (rewrite <-(context_type_eq _ _ _ H a b HT);assumption).
+Qed.
+Lemma atomic_effect_root: forall C,context RV RV C -> forall a,
+ atomic_expr(C a)=true -> simple a=false -> forall z,C z=z.
+Proof.
+ intros C HC a HA SA;inversion HC;subst;simpl in HA;core_unpack;try discriminate;auto;
+ exfalso;match goal with
+ | CT:Csem.context _ _ ?C,SI:simple(?C a)=true |- _=>
+ pose proof(simple_context_hole _ _ _ CT a SI);congruence end.
+Qed.
+Lemma atomic_context_congr: forall ge e m from C,
+ context from RV C -> forall a b,
+ typeof a=typeof b -> simple a=true -> simple b=true ->
+ pure_eq ge e m from a b ->
+ atomic_eval ge e m (C a)=atomic_eval ge e m (C b).
+Proof.
+ intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+ try (repeat rewrite atomic_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+ all: try (match goal with
+ | |- atomic_eval ?ge ?e ?m ?A = atomic_eval ?ge ?e ?m ?B =>
+ change (option_map (fun v=>(v,m)) (pure_rval ge e m A) =
+         option_map (fun v=>(v,m)) (pure_rval ge e m B))
+ end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+ all: simpl;rewrite ?(context_type_eq _ _ _ H a b HT),
+ (pure_context_congr ge e m _ _ _ H a b HT HE);reflexivity.
+Qed.
+Lemma atomic_assign_head: forall ge e m l r ty t a' mf,
+ atomic_expr(Eassign l r ty)=true -> rred ge(Eassign l r ty)m t a' mf ->
+ t=E0 /\ atomic_eval ge e m(Eassign l r ty)=atomic_eval ge e mf a'.
+Proof.
+ intros ge e m l r ty t a' mf AT HR;inversion HR;subst;simpl in AT;core_unpack.
+ assert(TT:t=E0) by(eapply assign_loc_silent;eauto). subst t;split;auto.
+ cbn[atomic_eval pure_lval pure_rval commit typeof];rewrite dec_eq_true.

@@ -1,0 +1,37 @@
+File "./paparazzi/relations/guidance_mode/support/software/AssignmentSound.v", line 13, characters 6-14:
+Warning: Use of "Notation" keyword for abbreviations is deprecated, use
+"Abbreviation" instead.
+[notation-for-abbreviation,deprecated-since-9.2,deprecated,default]
+File "./paparazzi/relations/guidance_mode/support/software/AssignmentSound.v", line 52, characters 11-13:
+Error:
+In environment
+union_id, float_field, uint_field : ident
+gamma : PTree.t type
+l : expr
+p : local_place
+vc : val
+le : PTree.tree (block * type)
+m : mem
+b : block
+PLACE : place l = Some p
+TV : typed_value (place_container p) vc
+LOOK : le ! (place_id p) = Some (b, place_container p)
+W : locals_writable le m
+G : gamma ! (place_id p) = Some (place_container p)
+TP : typeof l = place_type p
+UN : place_union p = false
+L : l = Evar (place_id p) (place_container p)
+SAME : place_type p = place_container p
+VA : Mem.valid_access m (slot_chunk (place_container p)) b 0 Writable
+SC : scalar_type (place_container p) = true
+MODE :
+  access_mode (place_container p) = By_value (slot_chunk (place_container p))
+NV : type_is_volatile (place_container p) = false
+RES : Val.load_result (slot_chunk (place_container p)) vc = vc
+ST : slot_typed union_id (place_container p) vc
+The term "VA" has type
+ "Mem.valid_access m (slot_chunk (place_container p)) b 0 Writable"
+while it is expected to have type
+ "Mem.range_perm m b 0 (0 + size_chunk (slot_chunk (place_container p))) Cur
+    Writable".
+
