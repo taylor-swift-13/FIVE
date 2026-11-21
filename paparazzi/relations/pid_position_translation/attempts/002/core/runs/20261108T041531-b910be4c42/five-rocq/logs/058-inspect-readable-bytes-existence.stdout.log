@@ -1,0 +1,22 @@
+Theorem range_perm_loadbytes:
+  forall m b ofs len,
+  range_perm m b ofs (ofs + len) Cur Readable ->
+  exists bytes, loadbytes m b ofs len = Some bytes.
+Proof.
+  intros. econstructor. unfold loadbytes. rewrite pred_dec_true; eauto.
+Qed.
+
+Theorem loadbytes_range_perm:
+  forall m b ofs len bytes,
+  loadbytes m b ofs len = Some bytes ->
+  range_perm m b ofs (ofs + len) Cur Readable.
+Proof.
+  intros until bytes. unfold loadbytes.
+  destruct (range_perm_dec m b ofs (ofs + len) Cur Readable). auto. congruence.
+Qed.
+
+Theorem loadbytes_load:
+  forall chunk m b ofs bytes,
+  loadbytes m b ofs (size_chunk chunk) = Some bytes ->
+  (align_chunk chunk | ofs) ->
+  load chunk m b ofs = Some(decode_val chunk

@@ -1,0 +1,39 @@
+{
+  "case_id": "update_pid_df",
+  "entry": "update_pid_df",
+  "source": "prepare/source/update_pid_df.c",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "requested_model": "gpt-6.1-sol",
+  "requested_effort": "ultra",
+  "actual_model": "gpt-6.1-sol",
+  "actual_effort": "ultra",
+  "goals": [
+    "no_error",
+    "all_successor_termination",
+    "all_actual_cbmc_properties",
+    "positional_pid_exact_equivalence",
+    "finite_horizon_floating_deviation"
+  ],
+  "conditions": {
+    "single_call": "32-byte aligned writable PID_df object with arbitrary typed float32 fields and input; full machine model",
+    "numeric_relation": "Finite coefficients and samples, symbolic bounded horizon; exact theorem in relation Spec.v"
+  },
+  "cbmc": {
+    "traditional_bmc": true,
+    "loop_bound": "loop-free entry",
+    "assertions": "history stores, coefficient preservation, return/stored result bits; automatic pointer/bounds checks"
+  }
+}

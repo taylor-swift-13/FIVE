@@ -1,0 +1,51 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/ArithmeticContexts.v", line 55, characters 21-49:
+Error:
+In environment
+arithmetic_lred_context :
+  forall (from to : kind) (C : expr -> expr),
+  context from to C ->
+  forall (ge : genv) (e : env) (m : mem) (a a' : expr) (mf : mem),
+  arithmetic_expr (C a) -> lred ge e a m a' mf -> arithmetic_expr (C a')
+arithmetic_lred_list :
+  forall (from : kind) (C : expr -> exprlist),
+  contextlist from C ->
+  forall (ge : genv) (e : env) (m : mem) (a a' : expr) (mf : mem),
+  arithmetic_exprlist (C a) ->
+  lred ge e a m a' mf -> arithmetic_exprlist (C a')
+k : kind
+C : expr -> expr
+ty : type
+H : context k RV C
+IHcontext :
+  forall (ge : genv) (e : env) (m : mem) (a a' : expr) (mf : mem),
+  arithmetic_expr (C a) -> lred ge e a m a' mf -> arithmetic_expr (C a')
+ge : genv
+e : env
+m : mem
+a, a' : expr
+mf : mem
+A : arithmetic_expr (Ederef (C a) ty)
+RED : lred ge e a m a' mf
+Unable to unify
+ "match ?C ?a' with
+  | Ebinop Cop.Oadd a b (Tpointer _ _) => True
+  | Ebinop Cop.Oadd a b Tvoid | Ebinop Cop.Oadd a b (Tint _ _ _) |
+    Ebinop Cop.Oadd a b (Tlong _ _) | Ebinop Cop.Oadd a b (Tfloat _ _) |
+    Ebinop Cop.Oadd a b (Tarray _ _ _) |
+    Ebinop Cop.Oadd a b (Tfunction _ _ _) |
+    Ebinop Cop.Oadd a b (Tstruct _ _) | Ebinop Cop.Oadd a b (Tunion _ _) =>
+      add_origin a b
+  | Ebinop Cop.Omul a b _ => mul_origin a b
+  | Ebinop Cop.Oshl a b _ => producer MaskEight a /\ b = lit 1
+  | Ebinop Cop.Oshr _ b _ => producer ShiftCount b
+  | Eassignop Cop.Oadd l r tyres ty =>
+      typeof l = Ctypesdefs.tshort /\
+      ty = Ctypesdefs.tshort /\
+      tyres = Ctypesdefs.tint /\ producer SmallDelta r
+  | Epostincr Cop.Incr _ ty => ty = Ctypesdefs.tshort
+  | Eassignop Cop.Omul _ _ _ _ | Eassignop Cop.Oshl _ _ _ _ |
+    Eassignop Cop.Oshr _ _ _ _ | Epostincr Cop.Decr _ _ => False
+  | _ => True
+  end"
+with "True".
+

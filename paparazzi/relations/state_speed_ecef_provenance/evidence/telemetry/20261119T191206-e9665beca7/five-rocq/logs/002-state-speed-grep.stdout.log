@@ -1,0 +1,260 @@
+934-             (Econs
+935-               (Eaddrof (Evar _enu (Tstruct _EnuCoor_f noattr))
+936-                 (tptr (Tstruct _EnuCoor_f noattr))) Enil))) tvoid)))
+937-|}.
+938-
+939:Definition f_stateCalcSpeedEcef_f := {|
+940-  fn_return := tvoid;
+941-  fn_callconv := cc_default;
+942-  fn_params := nil;
+943-  fn_vars := nil;
+944-  fn_body :=
+945-(Ssequence
+946-  (Sifthenelse (Ebinop Oand
+947-                 (Ebinop Oshr
+948-                   (Evalof
+949-                     (Efield
+950-                       (Evalof (Evar _state (Tstruct _State noattr))
+951-                         (Tstruct _State noattr)) _speed_status tushort)
+952-                     tushort) (Eval (Vint (Int.repr 5)) tint) tint)
+953-                 (Eval (Vint (Int.repr 1)) tint) tint)
+954-    (Sreturn None)
+955-    Sskip)
+956-  (Ssequence
+957-    (Sifthenelse (Ebinop Oand
+958-                   (Ebinop Oshr
+959-                     (Evalof
+960-                       (Efield
+961-                         (Evalof (Evar _state (Tstruct _State noattr))
+962-                           (Tstruct _State noattr)) _speed_status tushort)
+963-                       tushort) (Eval (Vint (Int.repr 0)) tint) tint)
+964-                   (Eval (Vint (Int.repr 1)) tint) tint)
+965-      (Ssequence
+966-        (Sdo (Eassign
+967-               (Efield
+968-                 (Evalof
+969-                   (Efield
+970-                     (Evalof (Evar _state (Tstruct _State noattr))
+971-                       (Tstruct _State noattr)) _ecef_speed_f
+972-                     (Tstruct _EcefCoor_f noattr))
+973-                   (Tstruct _EcefCoor_f noattr)) _x tfloat)
+974-               (Ebinop Odiv
+975-                 (Ecast
+976-                   (Evalof
+977-                     (Efield
+978-                       (Evalof
+979-                         (Efield
+980-                           (Evalof (Evar _state (Tstruct _State noattr))
+981-                             (Tstruct _State noattr)) _ned_speed_i
+982-                           (Tstruct _NedCoor_i noattr))
+983-                         (Tstruct _NedCoor_i noattr)) _x tint) tint) tfloat)
+984-                 (Ebinop Oshl (Eval (Vint (Int.repr 1)) tint)
+985-                   (Eval (Vint (Int.repr 19)) tint) tint) tfloat) tfloat))
+986-        (Ssequence
+987-          (Sdo (Eassign
+988-                 (Efield
+989-                   (Evalof
+990-                     (Efield
+991-                       (Evalof (Evar _state (Tstruct _State noattr))
+992-                         (Tstruct _State noattr)) _ecef_speed_f
+993-                       (Tstruct _EcefCoor_f noattr))
+994-                     (Tstruct _EcefCoor_f noattr)) _y tfloat)
+995-                 (Ebinop Odiv
+996-                   (Ecast
+997-                     (Evalof
+998-                       (Efield
+999-                         (Evalof
+1000-                           (Efield
+1001-                             (Evalof (Evar _state (Tstruct _State noattr))
+1002-                               (Tstruct _State noattr)) _ned_speed_i
+1003-                             (Tstruct _NedCoor_i noattr))
+1004-                           (Tstruct _NedCoor_i noattr)) _y tint) tint)
+1005-                     tfloat)
+1006-                   (Ebinop Oshl (Eval (Vint (Int.repr 1)) tint)
+1007-                     (Eval (Vint (Int.repr 19)) tint) tint) tfloat) tfloat))
+1008-          (Sdo (Eassign
+1009-                 (Efield
+1010-                   (Evalof
+1011-                     (Efield
+1012-                       (Evalof (Evar _state (Tstruct _State noattr))
+1013-                         (Tstruct _State noattr)) _ecef_speed_f
+1014-                       (Tstruct _EcefCoor_f noattr))
+1015-                     (Tstruct _EcefCoor_f noattr)) _z tfloat)
+1016-                 (Ebinop Odiv
+1017-                   (Ecast
+1018-                     (Evalof
+1019-                       (Efield
+--
+1196-               (Tstruct _State noattr)) _speed_status tushort)
+1197-           (Ebinop Oshl (Eval (Vint (Int.repr 1)) tint)
+1198-             (Eval (Vint (Int.repr 5)) tint) tint) tint tushort))))
+1199-|}.
+1200-
+1201:Definition f_stateGetSpeedEcef_f := {|
+1202-  fn_return := (tptr (Tstruct _EcefCoor_f noattr));
+1203-  fn_callconv := cc_default;
+1204-  fn_params := nil;
+1205-  fn_vars := nil;
+1206-  fn_body :=
+1207-(Ssequence
+1208-  (Sifthenelse (Eunop Onotbool
+1209-                 (Ebinop Oand
+1210-                   (Ebinop Oshr
+1211-                     (Evalof
+1212-                       (Efield
+1213-                         (Evalof (Evar _state (Tstruct _State noattr))
+1214-                           (Tstruct _State noattr)) _speed_status tushort)
+1215-                       tushort) (Eval (Vint (Int.repr 5)) tint) tint)
+1216-                   (Eval (Vint (Int.repr 1)) tint) tint) tint)
+1217-    (Sdo (Ecall
+1218-           (Evalof
+1219-             (Evar _stateCalcSpeedEcef_f (Tfunction nil tvoid cc_default))
+1220-             (Tfunction nil tvoid cc_default)) Enil tvoid))
+1221-    Sskip)
+1222-  (Sreturn (Some (Eaddrof
+1223-                   (Efield
+1224-                     (Evalof (Evar _state (Tstruct _State noattr))
+1225-                       (Tstruct _State noattr)) _ecef_speed_f
+1226-                     (Tstruct _EcefCoor_f noattr))
+1227-                   (tptr (Tstruct _EcefCoor_f noattr))))))
+1228-|}.
+1229-
+1230-Definition composites : list composite_definition :=
+1231-(Composite _DoubleRMat Struct
+1232-   (Member_plain _m (tarray tdouble 9) :: nil)
+1233-   noattr ::
+1234- Composite _EcefCoor_d Struct
+1235-   (Member_plain _x tdouble :: Member_plain _y tdouble ::
+1236-    Member_plain _z tdouble :: nil)
+1237-   noattr ::
+1238- Composite _EcefCoor_f Struct
+1239-   (Member_plain _x tfloat :: Member_plain _y tfloat ::
+1240-    Member_plain _z tfloat :: nil)
+1241-   noattr ::
+1242- Composite _EcefCoor_i Struct
+1243-   (Member_plain _x tint :: Member_plain _y tint :: Member_plain _z tint ::
+1244-    nil)
+1245-   noattr ::
+1246- Composite _EnuCoor_f Struct
+1247-   (Member_plain _x tfloat :: Member_plain _y tfloat ::
+1248-    Member_plain _z tfloat :: nil)
+1249-   noattr ::
+1250- Composite _FloatRMat Struct
+1251-   (Member_plain _m (tarray tfloat 9) :: nil)
+1252-   noattr ::
+1253- Composite _LlaCoor_f Struct
+1254-   (Member_plain _lat tfloat :: Member_plain _lon tfloat ::
+1255-    Member_plain _alt tfloat :: nil)
+1256-   noattr ::
+1257- Composite _LtpDef_f Struct
+1258-   (Member_plain _ecef (Tstruct _EcefCoor_f noattr) ::
+1259-    Member_plain _lla (Tstruct _LlaCoor_f noattr) ::
+1260-    Member_plain _ltp_of_ecef (Tstruct _FloatRMat noattr) ::
+1261-    Member_plain _hmsl tfloat :: nil)
+1262-   noattr ::
+1263- Composite _NedCoor_f Struct
+1264-   (Member_plain _x tfloat :: Member_plain _y tfloat ::
+1265-    Member_plain _z tfloat :: nil)
+1266-   noattr ::
+1267- Composite _NedCoor_i Struct
+1268-   (Member_plain _x tint :: Member_plain _y tint :: Member_plain _z tint ::
+1269-    nil)
+1270-   noattr ::
+1271- Composite _EnuCoor_i Struct
+1272-   (Member_plain _x tint :: Member_plain _y tint :: Member_plain _z tint ::
+1273-    nil)
+1274-   noattr ::
+1275- Composite _FloatRates Struct
+1276-   (Member_plain _p tfloat :: Member_plain _q tfloat ::
+1277-    Member_plain _r tfloat :: nil)
+1278-   noattr ::
+1279- Composite _FloatVect2 Struct
+1280-   (Member_plain _x tfloat :: Member_plain _y tfloat :: nil)
+1281-   noattr ::
+--
+1395-    Member_plain _airspeed_f tfloat ::
+1396-    Member_plain _angle_of_attack_f tfloat ::
+1397-    Member_plain _sideslip_f tfloat :: nil)
+1398-   noattr :: nil).
+1399-
+1400:Definition global_definitions : list (ident * globdef fundef type) :=
+1401-((___compcert_va_int32,
+1402-   Gfun(External (EF_runtime "__compcert_va_int32"
+1403-                   (mksignature (AST.Xptr :: nil) AST.Xint cc_default))
+1404-     ((tptr tvoid) :: nil) tuint cc_default)) ::
+1405- (___compcert_va_int64,
+1406-   Gfun(External (EF_runtime "__compcert_va_int64"
+1407-                   (mksignature (AST.Xptr :: nil) AST.Xlong cc_default))
+1408-     ((tptr tvoid) :: nil) tulong cc_default)) ::
+1409- (___compcert_va_float64,
+1410-   Gfun(External (EF_runtime "__compcert_va_float64"
+1411-                   (mksignature (AST.Xptr :: nil) AST.Xfloat cc_default))
+1412-     ((tptr tvoid) :: nil) tdouble cc_default)) ::
+1413- (___compcert_va_composite,
+1414-   Gfun(External (EF_runtime "__compcert_va_composite"
+1415-                   (mksignature (AST.Xptr :: AST.Xlong :: nil) AST.Xptr
+1416-                     cc_default)) ((tptr tvoid) :: tulong :: nil)
+1417-     (tptr tvoid) cc_default)) ::
+1418- (___compcert_i64_dtos,
+1419-   Gfun(External (EF_runtime "__compcert_i64_dtos"
+1420-                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+1421-     (tdouble :: nil) tlong cc_default)) ::
+1422- (___compcert_i64_dtou,
+1423-   Gfun(External (EF_runtime "__compcert_i64_dtou"
+1424-                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+1425-     (tdouble :: nil) tulong cc_default)) ::
+1426- (___compcert_i64_stod,
+1427-   Gfun(External (EF_runtime "__compcert_i64_stod"
+1428-                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+1429-     (tlong :: nil) tdouble cc_default)) ::
+1430- (___compcert_i64_utod,
+1431-   Gfun(External (EF_runtime "__compcert_i64_utod"
+1432-                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+1433-     (tulong :: nil) tdouble cc_default)) ::
+1434- (___compcert_i64_stof,
+1435-   Gfun(External (EF_runtime "__compcert_i64_stof"
+1436-                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+1437-     (tlong :: nil) tfloat cc_default)) ::
+1438- (___compcert_i64_utof,
+1439-   Gfun(External (EF_runtime "__compcert_i64_utof"
+1440-                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+1441-     (tulong :: nil) tfloat cc_default)) ::
+1442- (___compcert_i64_sdiv,
+1443-   Gfun(External (EF_runtime "__compcert_i64_sdiv"
+1444-                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+1445-                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+1446- (___compcert_i64_udiv,
+1447-   Gfun(External (EF_runtime "__compcert_i64_udiv"
+1448-                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+1449-                     cc_default)) (tulong :: tulong :: nil) tulong
+1450-     cc_default)) ::
+1451- (___compcert_i64_smod,
+1452-   Gfun(External (EF_runtime "__compcert_i64_smod"
+1453-                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+1454-                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+1455- (___compcert_i64_umod,
+1456-   Gfun(External (EF_runtime "__compcert_i64_umod"
+1457-                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+1458-                     cc_default)) (tulong :: tulong :: nil) tulong
+1459-     cc_default)) ::
+1460- (___compcert_i64_shl,
+1461-   Gfun(External (EF_runtime "__compcert_i64_shl"
+1462-                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+1463-                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+1464- (___compcert_i64_shr,
+1465-   Gfun(External (EF_runtime "__compcert_i64_shr"
+1466-                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+1467-                     cc_default)) (tulong :: tint :: nil) tulong cc_default)) ::
+1468- (___compcert_i64_sar,
+1469-   Gfun(External (EF_runtime "__compcert_i64_sar"
+1470-                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+1471-                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+1472- (___compcert_i64_smulh,
+1473-   Gfun(External (EF_runtime "__compcert_i64_smulh"
+1474-                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+1475-                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+1476- (___compcert_i64_umulh,
+1477-   Gfun(External (EF_runtime "__compcert_i64_umulh"
+1478-                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+1479-                     cc_default)) (tulong :: tulong :: nil) tulong
+1480-     cc_default)) ::

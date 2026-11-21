@@ -1,0 +1,33 @@
+Mem.nextblock_alloc
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       Mem.nextblock m2 = BinPos.Pos.succ (Mem.nextblock m1)
+Mem.perm_alloc_1
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall (b' : Values.block) (ofs : BinNums.Z) 
+         (k : perm_kind) (p : permission),
+       Mem.perm m1 b' ofs k p -> Mem.perm m2 b' ofs k p
+Mem.perm_alloc_2
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall (ofs : BinNums.Z) (k : perm_kind),
+       BinInt.Z.le lo ofs /\ BinInt.Z.lt ofs hi ->
+       Mem.perm m2 b ofs k Freeable
+Mem.perm_alloc_3
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall (ofs : BinNums.Z) (k : perm_kind) (p : permission),
+       Mem.perm m2 b ofs k p -> BinInt.Z.le lo ofs /\ BinInt.Z.lt ofs hi
+Mem.perm_alloc_4
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall (b' : Values.block) (ofs : BinNums.Z) 
+         (k : perm_kind) (p : permission),
+       Mem.perm m2 b' ofs k p -> b' <> b -> Mem.perm m1 b' ofs k p
+Mem.loadbytes_alloc_same
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall (n ofs : BinNums.Z) (bytes : list memval) (byte : memval),
+       Mem.loadbytes m2 b ofs n = Some bytes ->
+       List.In byte bytes -> byte = Undef

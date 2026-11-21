@@ -1,0 +1,204 @@
+637:  ec_valid_block:
+638-    forall ge vargs m1 t vres m2 b,
+639-    sem ge vargs m1 t vres m2 ->
+640-    Mem.valid_block m1 b -> Mem.valid_block m2 b;
+641-
+642-(** External calls cannot increase the max permissions of a valid block.
+643-    They can decrease the max permissions, e.g. by freeing. *)
+644:  ec_max_perm:
+645-    forall ge vargs m1 t vres m2 b ofs p,
+646-    sem ge vargs m1 t vres m2 ->
+647-    Mem.valid_block m1 b -> Mem.perm m2 b ofs Max p -> Mem.perm m1 b ofs Max p;
+648-
+649-(** External call cannot modify memory unless they have [Max, Writable]
+650-   permissions. *)
+651-  ec_readonly:
+652-    forall ge vargs m1 t vres m2 b ofs n bytes,
+653-    sem ge vargs m1 t vres m2 ->
+654-    Mem.valid_block m1 b ->
+655-    Mem.loadbytes m2 b ofs n = Some bytes ->
+656-    (forall i, ofs <= i < ofs + n -> ~Mem.perm m1 b i Max Writable) ->
+657-    Mem.loadbytes m1 b ofs n = Some bytes;
+--
+1561:Definition external_call_valid_block ef := ec_valid_block (external_call_spec ef).
+1562:Definition external_call_max_perm ef := ec_max_perm (external_call_spec ef).
+1563-Definition external_call_readonly ef := ec_readonly (external_call_spec ef).
+1564-Definition external_call_mem_extends ef := ec_mem_extends (external_call_spec ef).
+1565-Definition external_call_mem_inject_gen ef := ec_mem_inject (external_call_spec ef).
+1566-Definition external_call_trace_length ef := ec_trace_length (external_call_spec ef).
+1567-Definition external_call_receptive ef := ec_receptive (external_call_spec ef).
+1568-Definition external_call_determ ef := ec_determ (external_call_spec ef).
+1569-
+1570-(** Corollary of [external_call_well_typed_gen]. *)
+1571-
+1572-Lemma external_call_well_typed:
+1573-  forall ef ge vargs m1 t vres m2,
+1574-  external_call ef ge vargs m1 t vres m2 ->
+1575-  Val.has_type vres (proj_sig_res (ef_sig ef)).
+  auto.
+- (* representable *)
+  auto.
+- (* perm inv *)
+  intros. eauto using perm_free_3.
+- (* metadata *)
+  intros. eauto using perm_free_3.
+Qed.
+
+Lemma perm_free_list:
+  forall l m m' b ofs k p,
+  free_list m l = Some m' ->
+  perm m' b ofs k p ->
+  perm m b ofs k p /\
+  (forall lo hi, In (b, lo, hi) l -> lo <= ofs < hi -> False).
+Proof.
+  induction l; simpl; intros.
+  inv H. auto.
+  destruct a as [[b1 lo1] hi1].
+  destruct (free m b1 lo1 hi1) as [m1|] eqn:E; try discriminate.
+  exploit IHl; eauto. intros [A B].
+  split. eauto with mem.
+  intros. destruct H1. inv H1.
+  elim (perm_free_2 _ _ _ _ _ E ofs k p). auto. auto.
+  eauto.
+Qed.
+
+Theorem free_inject:
+  forall f m1 l m1' m2 b lo hi m2',
+  inject f m1 m2 ->
+  free_list m1 l = Some m1' ->
+989:Theorem perm_store_2:
+995:Local Hint Resolve perm_store_1 perm_store_2: mem.
+1171:Local Hint Resolve perm_store_1 perm_store_2: mem.
+1450:Theorem perm_storebytes_2:
+1456:Local Hint Resolve perm_storebytes_1 perm_storebytes_2: mem.
+1597:  eapply perm_storebytes_2; eauto. apply r0. lia.
+1707:Theorem perm_alloc_1:
+1741:Theorem perm_alloc_4:
+1747:Local Hint Resolve perm_alloc_1 perm_alloc_2 perm_alloc_3 perm_alloc_4: mem.
+1845:  red; intros. eapply perm_alloc_1; eauto.
+1847:  red; intros; elim n0. red; intros. eapply perm_alloc_4; eauto. eauto with mem.
+1906:Theorem valid_block_free_1:
+1918:Local Hint Resolve valid_block_free_1 valid_block_free_2: mem.
+2066:Local Hint Resolve valid_block_free_1 valid_block_free_2
+2393:  eapply perm_store_2; eauto.
+2494:  eapply perm_storebytes_2; eauto.
+2497:  red; intros. eapply perm_storebytes_2; eauto.
+2500:  assert (perm m1 b0 ofs0 Cur Readable). eapply perm_storebytes_2; eauto.
+2534:  intros. eapply mi_perm0; eauto. eapply perm_storebytes_2; eauto.
+2537:  red; intros. eapply perm_storebytes_2; eauto.
+2541:  rewrite PMap.gso. eapply mi_memval0; eauto. eapply perm_storebytes_2; eauto.
+2583:  eapply perm_storebytes_2; eauto.
+2586:  red; intros. eapply perm_storebytes_2; eauto.
+2589:  assert (perm m1 b0 ofs Cur Readable). eapply perm_storebytes_2; eauto.
+2607:  intros. eapply perm_alloc_1; eauto.
+      volatile_store ge chunk m b ofs v t m' ->
+      assign_loc ty m b ofs Full v t m' v
+  | assign_loc_copy: forall b' ofs' bytes m',
+      access_mode ty = By_copy ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs') ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs) ->
+      b' <> b \/ Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs' + sizeof ge ty <= Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs + sizeof ge ty <= Ptrofs.unsigned ofs' ->
+      Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof ge ty) = Some bytes ->
+      Mem.storebytes m b (Ptrofs.unsigned ofs) bytes = Some m' ->
+      assign_loc ty m b ofs Full (Vptr b' ofs') E0 m' (Vptr b' ofs')
+  | assign_loc_bitfield: forall sz sg pos width v m' v',
+      store_bitfield ty sz sg pos width m (Vptr b ofs) v m' v' ->
+      assign_loc ty m b ofs (Bits sz sg pos width) v E0 m' v'.
+
+(** Allocation of function-local variables.
+  [alloc_variables e1 m1 vars e2 m2] allocates one memory block
+  for each variable declared in [vars], and associates the variable
+  name with this block.  [e1] and [m1] are the initial local environment
+  and memory state.  [e2] and [m2] are the final local environment
+  and memory state. *)
+
+Inductive alloc_variables: env -> mem ->
+                           list (ident * type) ->
+                           env -> mem -> Prop :=
+  | alloc_variables_nil:
+      forall e m,
+      alloc_variables e m nil e m
+  | alloc_variables_cons:
+      forall e m id ty vars m1 b1 m2 e2,
+      Mem.alloc m 0 (sizeof ge ty) = (m1, b1) ->
+      alloc_variables (PTree.set id (b1, ty) e) m1 vars e2 m2 ->
+      alloc_variables e m ((id, ty) :: vars) e2 m2.
+
+(** Initialization of local variables that are parameters to a function.
+  [bind_parameters e m1 params args m2] stores the values [args]
+  in the memory blocks corresponding to the variables [params].
+  [m1] is the initial memory state and [m2] the final memory state. *)
+
+Inductive bind_parameters (e: env):
+                           mem -> list (ident * type) -> list val ->
+                           mem -> Prop :=
+  | bind_parameters_nil:
+      forall m,
+      bind_parameters e m nil nil m
+  | bind_parameters_cons:
+      forall m id ty params v1 vl v1' b m1 m2,
+      PTree.get id e = Some(b, ty) ->
+      assign_loc ty m b Ptrofs.zero Full v1 E0 m1 v1' ->
+      bind_parameters e m1 params vl m2 ->
+      bind_parameters e m ((id, ty) :: params) (v1 :: vl) m2.
+
+(** Return the list of blocks in the codomain of [e], with low and high bounds. *)
+
+Definition block_of_binding (id_b_ty: ident * (block * type)) :=
+  match id_b_ty with (id, (b, ty)) => (b, 0, sizeof ge ty) end.
+
+Definition blocks_of_env (e: env) : list (block * Z * Z) :=
+  List.map block_of_binding (PTree.elements e).
+
+(** Selection of the appropriate case of a [switch], given the value [n]
+  of the selector expression. *)
+
+Fixpoint select_switch_default (sl: labeled_statements): labeled_statements :=
+  match sl with
+  | LSnil => sl
+  | LScons None s sl' => sl
+  | LScons (Some i) s sl' => select_switch_default sl'
+  end.
+
+Fixpoint select_switch_case (n: Z) (sl: labeled_statements): option labeled_statements :=
+  match sl with
+  | LSnil => None
+  | LScons None s sl' => select_switch_case n sl'
+  | LScons (Some c) s sl' => if zeq c n then Some sl else select_switch_case n sl'
+  end.
+
+Definition select_switch (n: Z) (sl: labeled_statements): labeled_statements :=
+  match select_switch_case n sl with
+  | Some sl' => sl'
+  | None => select_switch_default sl
+  end.
+
+(** Turn a labeled statement into a sequence *)
+
+Fixpoint seq_of_labeled_statement (sl: labeled_statements) : statement :=
+  match sl with
+  | LSnil => Sskip
+  | LScons _ s sl' => Ssequence s (seq_of_labeled_statement sl')
+  end.
+
+(** Extract the values from a list of function arguments *)
+
+Inductive cast_arguments (m: mem): exprlist -> list type -> list val -> Prop :=
+  | cast_args_nil:
+      cast_arguments m Enil nil nil
+  | cast_args_cons: forall v ty el targ1 targs v1 vl,
+      sem_cast v ty targ1 m = Some v1 -> cast_arguments m el targs vl ->
+      cast_arguments m (Econs (Eval v ty) el) (targ1 :: targs) (v1 :: vl).
+
+(** ** Reduction semantics for expressions *)
+
+Section EXPR.
+
+Variable e: env.
+
+(** The semantics of expressions follows the popular Wright-Felleisen style.
+  It is a small-step semantics that reduces one redex at a time.
+  We first define head reductions (at the top of an expression, then
+  use reduction contexts to define reduction within an expression. *)

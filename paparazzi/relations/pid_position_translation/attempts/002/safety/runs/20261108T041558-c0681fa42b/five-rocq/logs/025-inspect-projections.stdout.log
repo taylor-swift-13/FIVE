@@ -1,0 +1,95 @@
+ _stateCalcPositionNed_i :: _state :: _stabilization :: _guidance_v ::
+ _guidance_h :: _guidance_pid_trim_att_integrator ::
+ _guidance_pid_speed_err :: _guidance_pid_pos_err :: _guidance_pid ::
+ _atan2f :: ___builtin_debug :: ___builtin_write32_reversed ::
+ ___builtin_write16_reversed :: ___builtin_read32_reversed ::
+ ___builtin_read16_reversed :: ___builtin_fnmsub :: ___builtin_fnmadd ::
+ ___builtin_fmsub :: ___builtin_fmadd :: ___builtin_fmin ::
+ ___builtin_fmax :: ___builtin_expect :: ___builtin_unreachable ::
+ ___builtin_va_end :: ___builtin_va_copy :: ___builtin_va_arg ::
+ ___builtin_va_start :: ___builtin_membar :: ___builtin_annot_intval ::
+ ___builtin_annot :: ___builtin_sel :: ___builtin_memcpy_aligned ::
+ ___builtin_sqrt :: ___builtin_fsqrt :: ___builtin_fabsf ::
+ ___builtin_fabs :: ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz ::
+ ___builtin_clzll :: ___builtin_clzl :: ___builtin_clz ::
+ ___builtin_bswap16 :: ___builtin_bswap32 :: ___builtin_bswap ::
+ ___builtin_bswap64 :: ___builtin_ais_annot :: ___compcert_i64_umulh ::
+ ___compcert_i64_smulh :: ___compcert_i64_sar :: ___compcert_i64_shr ::
+ ___compcert_i64_shl :: ___compcert_i64_umod :: ___compcert_i64_smod ::
+ ___compcert_i64_udiv :: ___compcert_i64_sdiv :: ___compcert_i64_utof ::
+ ___compcert_i64_stof :: ___compcert_i64_utod :: ___compcert_i64_stod ::
+ ___compcert_i64_dtou :: ___compcert_i64_dtos :: ___compcert_va_composite ::
+ ___compcert_va_float64 :: ___compcert_va_int64 :: ___compcert_va_int32 ::
+ nil).
+
+Definition prog : Csyntax.program := 
+  mkprogram composites global_definitions public_idents _main Logic.I.
+
+
+1545:Record program : Type := {
+1554:Definition program_of_program (p: program) : AST.program fundef type :=
+1559:Coercion program_of_program: program >-> AST.program.
+1858:  match link (program_of_program p1) (program_of_program p2) with
+1880:     linkorder (program_of_program p1) (program_of_program p2)
+1896:  destruct (link (program_of_program x) (program_of_program y)) as [p|] eqn:LP; try discriminate.
+1934:  destruct (link (program_of_program p1) (program_of_program p2)) as [pp|] eqn:LP; try discriminate.
+1936:               link (program_of_program tp1) (program_of_program tp2) = Some tpp
+1984:  destruct (link (program_of_program p1) (program_of_program p2)) as [pp|] eqn:LP; try discriminate.
+1986:               link (program_of_program tp1) (program_of_program tp2) = Some tpp
+2012:  unfold program_of_program; simpl. destruct pp, tpp; exact MP.
+  forall env ty, naturally_aligned ty -> alignof_blockcopy env ty = Z.min 8 (alignof env ty).
+Proof.
+  induction ty; intros [A B]; unfold alignof, align_attr; rewrite A; simpl.
+- auto.
+- destruct i; auto.
+- auto.
+- destruct f; auto.
+- destruct Archi.ptr64; auto.
+- apply IHty; auto.
+- auto.
+- destruct (env!i); auto.
+- destruct (env!i); auto.
+Qed.
+
+(** Type ranks *)
+
+(** The rank of a type is a nonnegative integer that measures the direct nesting
+  of arrays, struct and union types.  It does not take into account indirect
+  nesting such as a struct type that appears under a pointer or function type.
+  Type ranks ensure that type expressions (ignoring pointer and function types)
+  have an inductive structure. *)
+
+Fixpoint rank_type (ce: composite_env) (t: type) : nat :=
+  match t with
+  | Tarray t' _ _ => S (rank_type ce t')
+  | Tstruct id _ | Tunion id _ =>
+      match ce!id with
+      | None => O
+      | Some co => S (co_rank co)
+      end
+  | _ => O
+  end.
+
+Fixpoint rank_members (ce: composite_env) (m: members) : nat :=
+  match m with
+  | nil => 0%nat
+  | Member_plain _ t :: m => Init.Nat.max (rank_type ce t) (rank_members ce m)
+  | Member_bitfield _ _ _ _ _ _ :: m => rank_members ce m
+  end.
+
+(** ** C types and back-end types *)
+
+(** Extracting a type list from a function parameter declaration. *)
+
+Definition type_of_params (params: list (ident * type)) : list type :=
+  List.map snd params.
+
+(** Translating C types to Cminor types and function signatures. *)
+
+Definition typ_of_type (t: type) : AST.typ :=
+  match t with
+  | Tvoid => AST.Tint
+  | Tint _ _ _ => AST.Tint
+  | Tlong _ _ => AST.Tlong
+  | Tfloat F32 _ => AST.Tsingle
+  | Tfloat F64 _ => AST.Tfloat

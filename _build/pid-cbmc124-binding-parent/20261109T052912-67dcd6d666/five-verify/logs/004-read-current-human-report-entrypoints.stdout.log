@@ -1,0 +1,18 @@
+FILE paparazzi/README.md
+# Paparazzi verification cases
+
+## Horizontal guidance update verification
+
+[Horizontal guidance mode relation](relations/guidance_mode/problem/report.md) compares the speed-command and acceleration-command routes after source-ordered integration. The two [speed](models/gh_update_ref_from_speed_sp/README.md) and [acceleration](models/gh_update_ref_from_accel_sp/README.md) cases retain separate canonical questions and proof attempts. Scope, status and costs are in the [aggregate report](report/guidance_mode/report.md).
+
+FILE paparazzi/relations/pid_position_translation/problem/report.md
+# 位置平移不变性问题
+
+唯一模型入口是原始 guidance_pid_h_run_pos。两次执行使用同一 Source/Execution 模块、两个内存值及真实隐藏返回指针 ABI。
+
+Spec.v 量化所有 InputPair 和两种 in_flight，同时平移参考位置与真实 NEDi 缓存位置，并要求32位有符号加法及误差相减可表示。前提没有计算误差相等或已经返回。目标同时要求正常返回存在，以及全部允许正常执行对的已初始化 cmd_earth、积分器、返回标签与有效 LTP 字段位相同。frame 是单独目标；输入非空性和实际非零执行非空性分开。
+
+Rocq 证明域是缓存有效、runtime thrust approximation=false、gains 0..100、speed/accel 原始整数 ±10000、初始积分 ±100000000、全局 binary32 heading 在[-3,3]。允许独立 caller GH 或 gh=&guidance_h；return buffer 不与全局对象重叠。完整模型仍保留所有原始参数/内存和未进入的运行时分支。
+
+六项主目标均 pending。四个算术引理、通用 Cexec→Csem 路径桥和两份原 getter 符号正常返回子定理通过内核；尚未组合成主入口关系证明。CBMC 124/124 成功不是 Rocq 公理。
+

@@ -1,0 +1,50 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/safety/FactoryAllOrder.v", line 48, characters 16-41:
+Error:
+In environment
+m : mem
+src, ret : block
+o : ptrofs
+h, x, y : int
+LX : Mem.load Mint32 m src (Ptrofs.unsigned o) = Some (Vint x)
+LY : Mem.load Mint32 m src (Ptrofs.unsigned o + 4) = Some (Vint y)
+AL : (4 | Ptrofs.unsigned o)
+RP :
+  Mem.range_perm m src (Ptrofs.unsigned o) (Ptrofs.unsigned o + 8) Cur
+    Readable
+WR : Mem.range_perm m ret 0 36 Cur Writable
+mf : mem
+PATH :
+  star Csem.step FactoryCall.F.ge
+    (Callstate (Internal FactoryCall.S.f_stab_sp_from_ltp_i)
+       [Vptr ret Ptrofs.zero; Vptr src o; Vint h] Kstop m)
+    E0 (Returnstate Vundef Kstop mf)
+ACTIVE : active_fields mf ret x y h
+SYNTAX :
+  normal_state
+    (Callstate (Internal S.f_stab_sp_from_ltp_i) (args src ret o h) Kstop m) =
+  true
+NAMES :
+  call_names
+    (Callstate (Internal S.f_stab_sp_from_ltp_i) (args src ret o h) Kstop m)
+PROGRESS :
+  forall (t : trace) (reached : Csem.state),
+  star Csem.step F.ge
+    (Callstate (Internal S.f_stab_sp_from_ltp_i) (args src ret o h) Kstop m)
+    t reached ->
+  normal_return reached \/
+  (exists (tr : trace) (next : Csem.state), Csem.step F.ge reached tr next)
+UNIQUE :
+  forall (t : trace) (v' : val) (mf' : mem),
+  star Csem.step F.ge
+    (Callstate (Internal S.f_stab_sp_from_ltp_i) (args src ret o h) Kstop m)
+    t (Returnstate v' Kstop mf') ->
+  v' = Vundef /\ mf' = mf
+base : cont
+BASE : is_call_cont base
+Unable to unify
+ "match ?base with
+  | Kstop | Kcall _ _ _ _ _ => True
+  | _ => False
+  end"
+with "Csem.state".
+

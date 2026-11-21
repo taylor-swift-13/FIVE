@@ -1,0 +1,57 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/__pycache__
+was previously bound to PidPositionTranslationAttempt002.core.__pycache__; it
+is remapped to PidPositionTranslationCore.__pycache__
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/core/PreciseFrame.v", line 16, characters 52-56:
+Error:
+In environment
+cu : memory_chunk
+bu : block
+ou : Z
+v : val
+us : list scalar_update
+IH :
+  forall (m mf : mem) (b : block) (ofs n : Z),
+  replay_stores m us = Some mf ->
+  Forall (misses_bytes b ofs n) us ->
+  0 <= n -> Mem.loadbytes mf b ofs n = Mem.loadbytes m b ofs n
+m, mf : mem
+b : block
+ofs, n : Z
+ma : mem
+ST : Mem.store cu m bu ou v = Some ma
+RUN : replay_stores ma us = Some mf
+MISS : Forall (misses_bytes b ofs n) ((cu, bu, ou, v) :: us)
+N : 0 <= n
+HEAD : misses_bytes b ofs n (cu, bu, ou, v)
+TAIL : Forall (misses_bytes b ofs n) us
+The term "HEAD" has type "misses_bytes b ofs n (cu, bu, ou, v)"
+while it is expected to have type
+ "b <> bu \/ n <= 0 \/ ofs + n <= ou \/ ou + size_chunk cu <= ofs".
+

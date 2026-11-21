@@ -1,0 +1,63 @@
+181:Lemma flat_context_congr:
+182-  forall ge e m from C, context from RV C -> forall a b,
+183-  typeof a = typeof b -> simple a = true -> simple b = true ->
+184-  pure_eq ge e m from a b -> flat_eval ge e m (C a) = flat_eval ge e m (C b).
+185-Proof.
+186-  intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+187-    try (repeat rewrite flat_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+188-  all: try (match goal with
+189-    | |- flat_eval ?ge ?e ?m ?A = flat_eval ?ge ?e ?m ?B =>
+190-      change (option_map (fun v => (v,m)) (pure_rval ge e m A) =
+191-              option_map (fun v => (v,m)) (pure_rval ge e m B))
+192-    end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+193-  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+194-  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+195-Qed.
+196-
+197-Lemma flat_assign_head:
+198-  forall ge e m l r ty t a' m', core_expr (Eassign l r ty) = true ->
+199-  rred ge (Eassign l r ty) m t a' m' ->
+200-  flat_eval ge e m (Eassign l r ty) = flat_eval ge e m' a'.
+201-Proof.
+202-  intros ge e m l r ty t a' m' CORE HR; inversion HR; subst; simpl in CORE; core_unpack.
+203-  simpl. rewrite dec_eq_true.
+204-  match goal with H: sem_cast _ _ _ _ = Some _ |- _ => rewrite H end.
+205-  assert (HT: t = E0) by
+206-    (match goal with A: assign_loc ge ?T ?M ?B ?O ?BF ?V t ?M' ?V' |- _ =>
+207-       exact (assign_loc_silent ge T M B O BF V t M' V' ltac:(assumption) A) end). subst t.
+208-  match goal with A: assign_loc ge _ _ _ _ _ _ E0 _ _ |- _ =>
+209-    rewrite (do_assign_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ _ A (possible_trace_nil _)) end.
+210-  reflexivity.
+211-Qed.
+212-
+213-Lemma flat_lred_context:
+214-  forall ge e m a a' m' from C,
+215-  context from RV C -> from = LV -> flat_expr (C a) = true ->
+216-  lred ge e a m a' m' ->
+217-  m' = m /\ flat_expr (C a') = true /\
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> atom_expr (C a) = true -> simple b = true -> atom_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HT HA HB; core_unpack; try discriminate; core_build;
+    eauto using simple_context_replace, atom_of_simple.
+  rewrite <- (context_type_eq _ _ _ H a b HT); assumption.
+Qed.
+
+Lemma atom_context_congr:
+  forall ge e m from C, context from RV C -> forall a b,
+  typeof a = typeof b -> simple a = true -> simple b = true ->
+  pure_eq ge e m from a b -> atom_eval ge e m (C a) = atom_eval ge e m (C b).
+Proof.
+  intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+    try (repeat rewrite atom_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+  all: try (match goal with
+    | |- atom_eval ?ge ?e ?m ?A = atom_eval ?ge ?e ?m ?B =>
+      change (option_map (fun v => (v,m)) (pure_rval ge e m A) =
+              option_map (fun v => (v,m)) (pure_rval ge e m B))
+    end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+Qed.
+
+Lemma atom_assign_head:
+  forall ge e m l r ty t a' m', core_expr (Eassign l r ty) = true ->

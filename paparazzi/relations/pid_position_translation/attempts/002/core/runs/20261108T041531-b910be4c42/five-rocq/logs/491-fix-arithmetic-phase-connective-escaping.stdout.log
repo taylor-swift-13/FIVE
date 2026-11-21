@@ -1,0 +1,8 @@
+Definition tree_state(ge:genv)(s:Csem.state):Prop:=match s with
+| ExprState _ a _ e m=>arithmetic_tree ge e m a|_=>True end.
+Definition annotated_state(ge:genv)(f:function)(s:Csem.state):Prop:=
+ function_scope f s /\tree_state ge s.
+Definition observed_certificate(ge:genv)(Observe:Csem.state->Prop)(initial target:Csem.state):Prop:=
+ exists P,certificate ge P target /\P initial /\forall s,P s->Observe s.
+Lemma observed_singleton:forall ge Observe s,Observe s->observed_certificate ge Observe s s.
+Proof. intros;exists(fun t=>t=s);split;[apply singleton_certificate|];split;[reflexivity|intros;subst;assumption]. Qed.

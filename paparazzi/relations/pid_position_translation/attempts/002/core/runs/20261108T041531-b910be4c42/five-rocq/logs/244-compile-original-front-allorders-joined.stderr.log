@@ -1,0 +1,132 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/core/FrontAllOrder.v", line 247, characters 28-35:
+Error:
+In environment
+e : PTree.tree (block * type)
+m : mem
+bg, gh, pb, vb, sb : block
+rx, ry, px, py, sx, sy, vx, vy, flags, sflags : int
+ENV : e ! S._gh = Some (bg, tptr gh_type)
+LP : e ! S._guidance_pid_pos_err = None
+LV : e ! S._guidance_pid_speed_err = None
+GP : e ! S._stateGetPositionNed_i = None
+GV : e ! S._stateGetSpeedNed_i = None
+SP : Genv.find_symbol E.ge S._guidance_pid_pos_err = Some pb
+SV : Genv.find_symbol E.ge S._guidance_pid_speed_err = Some vb
+STATE : Genv.find_symbol E.ge S._state = Some sb
+ND : NoDup [bg; gh; pb; vb; sb]
+PTR : Mem.load Mint64 m bg 0 = Some (Vptr gh Ptrofs.zero)
+RX : load_path Mint32 m gh gh_type [S._ref; S._pos; S._x] = Some (Vint rx)
+RY : load_path Mint32 m gh gh_type [S._ref; S._pos; S._y] = Some (Vint ry)
+SX : load_path Mint32 m gh gh_type [S._ref; S._speed; S._x] = Some (Vint sx)
+SY : load_path Mint32 m gh gh_type [S._ref; S._speed; S._y] = Some (Vint sy)
+PX : Mem.load Mint32 m sb 100 = Some (Vint px)
+PY : Mem.load Mint32 m sb 104 = Some (Vint py)
+VX : Mem.load Mint32 m sb 296 = Some (Vint vx)
+VY : Mem.load Mint32 m sb 300 = Some (Vint vy)
+CACHE : Mem.load Mint16unsigned m sb 2 = Some (Vint flags)
+SCACHE : Mem.load Mint16unsigned m sb 280 = Some (Vint sflags)
+VALID : Int.and flags (Int.repr 2) = Int.repr 2
+SVALID : Int.and sflags (Int.repr 2) = Int.repr 2
+WP : Mem.range_perm m pb 0 8 Cur Writable
+WV : Mem.range_perm m vb 0 8 Cur Writable
+DBG : bg <> pb
+DGH : gh <> pb
+DS : sb <> pb
+DVBG : bg <> vb
+DVGH : gh <> vb
+DVS : sb <> vb
+DPV : pb <> vb
+m1 : mem
+POS :
+  forall k : cont,
+  exists P : Csem.state -> Prop,
+    certificate E.ge P (State S.f_guidance_pid_h_run_pos Sskip k e m1) /\
+    P (State S.f_guidance_pid_h_run_pos position_assign_pair k e m)
+X1 : Mem.load Mint32 m1 pb 0 = Some (Vint (Int.sub rx px))
+Y1 : Mem.load Mint32 m1 pb 4 = Some (Vint (Int.sub ry py))
+W1 : raw_writes (fun b : block => b = pb) m m1
+m2 : mem
+PCL :
+  exec_stmt ClampCombination.E.ge e m1
+    (Ssequence
+       (global_clamp_assignment S._guidance_pid_pos_err ClampCombination.S._x
+          8)
+       (global_clamp_assignment S._guidance_pid_pos_err ClampCombination.S._y
+          8))
+    E0 m2 Out_normal
+X2 :
+  Mem.load Mint32 m2 pb 0 =
+  Some (Vint (clamp_bits (Int.sub rx px) (Int.repr 4096)))
+Y2 :
+  Mem.load Mint32 m2 pb 4 =
+  Some (Vint (clamp_bits (Int.sub ry py) (Int.repr 4096)))
+W2 : raw_writes (fun b : block => b = pb) m1 m2
+WPOS : raw_writes (fun b : block => b = pb) m m2
+PTR2 : Mem.load Mint64 m2 bg 0 = Some (Vptr gh Ptrofs.zero)
+SX2 :
+  load_path Mint32 m2 gh gh_type [S._ref; S._speed; S._x] = Some (Vint sx)
+SY2 :
+  load_path Mint32 m2 gh gh_type [S._ref; S._speed; S._y] = Some (Vint sy)
+VX2 : Mem.load Mint32 m2 sb 296 = Some (Vint vx)
+VY2 : Mem.load Mint32 m2 sb 300 = Some (Vint vy)
+SC2 : Mem.load Mint16unsigned m2 sb 280 = Some (Vint sflags)
+m3 : mem
+SPD :
+  forall k : cont,
+  exists P : Csem.state -> Prop,
+    certificate E.ge P (State S.f_guidance_pid_h_run_pos Sskip k e m3) /\
+    P (State S.f_guidance_pid_h_run_pos speed_assign_pair k e m2)
+VX3 : Mem.load Mint32 m3 vb 0 = Some (Vint (Int.sub sx vx))
+VY3 : Mem.load Mint32 m3 vb 4 = Some (Vint (Int.sub sy vy))
+W3 : raw_writes (fun b : block => b = vb) m2 m3
+mf : mem
+SCL :
+  exec_stmt ClampCombination.E.ge e m3
+    (Ssequence
+       (global_clamp_assignment S._guidance_pid_speed_err
+          ClampCombination.S._x 19)
+       (global_clamp_assignment S._guidance_pid_speed_err
+          ClampCombination.S._y 19))
+    E0 mf Out_normal
+VX4 :
+  Mem.load Mint32 mf vb 0 =
+  Some (Vint (clamp_bits (Int.sub sx vx) (Int.repr 8388608)))
+VY4 :
+  Mem.load Mint32 mf vb 4 =
+  Some (Vint (clamp_bits (Int.sub sy vy) (Int.repr 8388608)))
+W4 : raw_writes (fun b : block => b = vb) m3 mf
+WSPD : raw_writes (fun b : block => b = vb) m2 mf
+k : cont
+tD := Ssequence speed_clamp_pair after_front : statement
+tC := Ssequence speed_assign_pair tD : statement
+tB := Ssequence position_clamp_pair tC : statement
+The term "eq_refl" has type
+ "block_stmt speed_clamp_pair = block_stmt speed_clamp_pair"
+while it is expected to have type "block_stmt speed_clamp_pair = true"
+(cannot unify "block_stmt speed_clamp_pair" and "true").
+

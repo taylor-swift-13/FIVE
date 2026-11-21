@@ -1,0 +1,114 @@
+Lemma do_deref_loc_complete:
+  forall w ty m b ofs bf w' t v,
+  deref_loc ge ty m b ofs bf t v -> possible_trace w t w' ->
+  do_deref_loc w ty m b ofs bf = Some(w', t, v).
+Proof.
+  unfold do_deref_loc; intros. inv H.
+- inv H0. rewrite H1; rewrite H2; rewrite H3; auto.
+- rewrite H1; rewrite H2. apply do_volatile_load_complete; auto.
+- inv H0. rewrite H1. auto.
+- inv H0. rewrite H1. auto.
+- inv H0. inv H1.
+  unfold proj_sumbool; rewrite ! dec_eq_true, ! zle_true, ! zlt_true by lia. cbn.
+  cbn in H4; rewrite H4. auto. 
+Qed.
+
+Lemma do_assign_loc_sound:
+  forall w ty m b ofs bf v w' t m' v',
+  do_assign_loc w ty m b ofs bf v = Some(w', t, m', v') ->
+  assign_loc ge ty m b ofs bf v t m' v' /\ possible_trace w t w'.
+Proof.
+  unfold do_assign_loc; intros until v'.
+  destruct bf.
+- destruct (access_mode ty) eqn:?; mydestr.
+  intros. exploit do_volatile_store_sound; eauto. intros (P & Q & R). subst v'. intuition. eapply assign_loc_volatile; eauto.
+  split. eapply assign_loc_value; eauto. constructor.
+  destruct v; mydestr. destruct a as [P [Q R]].
+  split. eapply assign_loc_copy; eauto. constructor.
+- mydestr. InvBooleans.
+  destruct ty; mydestr. destruct v; mydestr. destruct v; mydestr. InvBooleans. subst s i.
+  split. eapply assign_loc_bitfield; eauto. econstructor; eauto. constructor.
+Qed.
+
+Lemma do_assign_loc_complete:
+  forall w ty m b ofs bf v w' t m' v',
+  assign_loc ge ty m b ofs bf v t m' v' -> possible_trace w t w' ->
+  do_assign_loc w ty m b ofs bf v = Some(w', t, m', v').
+Proof.
+  unfold do_assign_loc; intros. inv H.
+- inv H0. rewrite H1; rewrite H2; rewrite H3; auto.
+- rewrite H1; rewrite H2. apply do_volatile_store_complete; auto.
+- rewrite H1. destruct (check_assign_
+Lemma do_assign_loc_complete:
+  forall w ty m b ofs bf v w' t m' v',
+  assign_loc ge ty m b ofs bf v t m' v' -> possible_trace w t w' ->
+  do_assign_loc w ty m b ofs bf v = Some(w', t, m', v').
+Proof.
+  unfold do_assign_loc; intros. inv H.
+- inv H0. rewrite H1; rewrite H2; rewrite H3; auto.
+- rewrite H1; rewrite H2. apply do_volatile_store_complete; auto.
+- rewrite H1. destruct (check_assign_copy ty b ofs b' ofs').
+  inv H0. rewrite H5; rewrite H6; auto.
+  elim n. red; tauto.
+- inv H0. inv H1. 
+  unfold proj_sumbool; rewrite ! zle_true, ! zlt_true by lia. cbn.
+  rewrite ! dec_eq_true.
+  cbn in H4; rewrite H4. cbn in H5; rewrite H5. auto.
+Qed.
+
+(** External calls *)
+
+Variable do_external_function:
+  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+
+Hypothesis do_external_function_sound:
+  forall id sg ge vargs m t vres m' w w',
+  do_external_function id sg ge w vargs m = Some(w', t, vres, m') ->
+  external_functions_sem id sg ge vargs m t vres m' /\ possible_trace w t w'.
+
+Hypothesis do_external_function_complete:
+  forall id sg ge vargs m t vres m' w w',
+  external_functions_sem id sg ge vargs m t vres m' ->
+  possible_trace w t w' ->
+  do_external_function id sg ge w vargs m = Some(w', t, vres, m').
+
+Variable do_inline_assembly:
+  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+
+Hypothesis do_inline_assembly_sound:
+  forall txt sg ge vargs m t vres m' w w',
+  do_inline_assembly txt sg ge w vargs m = Some(w', t, vres, m') ->
+  inline_assembly_sem txt sg ge vargs m t vres m' /\ possible_trace w t w'.
+
+Hypothesis do_inline_assembly_complete:
+  forall txt sg ge vargs m t vres m' 
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics.
+From PidPositionSafety Require Import PidTermination.
+From PidPositionTranslationAttempt002 Require Import EntryPrefix.
+Import ListNotations.
+Open Scope Z_scope.
+Module S := PidPositionRunPos.Source.
+Module E := PidPositionRunPos.Execution.
+Local Transparent E.ge.
+Lemma prefix_ge_ce : genv_cenv E.ge=ce.
+Proof. unfold E.ge,Csem.globalenv,ce. cbv beta iota zeta delta [genv_cenv]. reflexivity. Qed.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics.
+From PidPositionSafety Require Import PidTermination.
+From PidPositionTranslationAttempt002 Require Import EntryPrefix SpeedEntryPrefix.
+Import ListNotations.
+Open Scope Z_scope.
+Module S := PidPositionRunPos.Source.
+Module E := PidPositionRunPos.Execution.
+Local Transparent E.ge.
+Lemma prefix_ge_ce : genv_cenv E.ge=ce.
+Proof. unfold E.ge,Csem.globalenv,ce. cbv beta iota zeta delta [genv_cenv]. reflexivity. Qed.

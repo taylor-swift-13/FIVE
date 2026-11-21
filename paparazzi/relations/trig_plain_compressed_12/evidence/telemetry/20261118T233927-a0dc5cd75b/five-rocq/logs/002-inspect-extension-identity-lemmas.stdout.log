@@ -1,0 +1,168 @@
+Lemma bits_zero_ext:
+  forall n x i, 0 <= i ->
+  testbit (zero_ext n x) i = if zlt i n then testbit x i else false.
+Proof.
+Lemma bits_sign_ext:
+  forall n x i, 0 <= i < zwordsize ->
+  testbit (sign_ext n x) i = testbit x (if zlt i n then i else n - 1).
+Proof.
+Theorem zero_ext_above:
+  forall n x, n >= zwordsize -> zero_ext n x = x.
+Proof.
+  intros. apply same_bits_eq; intros.
+Theorem zero_ext_below:
+  forall n x, n <= 0 -> zero_ext n x = zero.
+Proof.
+  intros. bit_solve. destruct (zlt i n); auto. apply bits_below; lia. lia.
+Theorem sign_ext_above:
+  forall n x, n >= zwordsize -> sign_ext n x = x.
+Proof.
+  intros. apply same_bits_eq; intros.
+Theorem sign_ext_below:
+  forall n x, n <= 0 -> sign_ext n x = zero.
+Proof.
+  intros. bit_solve. apply bits_below. destruct (zlt i n); lia.
+Theorem zero_ext_and:
+  forall n x, 0 <= n -> zero_ext n x = and x (repr (two_p n - 1)).
+Proof.
+  bit_solve. rewrite testbit_repr; auto. rewrite Ztestbit_two_p_m1; intuition.
+Theorem zero_ext_mod:
+  forall n x, 0 <= n < zwordsize ->
+  unsigned (zero_ext n x) = Z.modulo (unsigned x) (two_p n).
+Proof.
+Theorem zero_ext_widen:
+  forall x n n', 0 <= n <= n' ->
+  zero_ext n' (zero_ext n x) = zero_ext n x.
+Proof.
+Theorem sign_ext_widen:
+  forall x n n', 0 < n <= n' ->
+  sign_ext n' (sign_ext n x) = sign_ext n x.
+Proof.
+Theorem sign_zero_ext_widen:
+  forall x n n', 0 <= n < n' ->
+  sign_ext n' (zero_ext n x) = zero_ext n x.
+Proof.
+Theorem zero_ext_narrow:
+  forall x n n', 0 <= n <= n' ->
+  zero_ext n (zero_ext n' x) = zero_ext n x.
+Proof.
+Theorem sign_ext_narrow:
+  forall x n n', 0 < n <= n' ->
+  sign_ext n (sign_ext n' x) = sign_ext n x.
+Proof.
+Theorem zero_sign_ext_narrow:
+  forall x n n', 0 < n <= n' ->
+  zero_ext n (sign_ext n' x) = zero_ext n x.
+Proof.
+Theorem zero_ext_idem:
+  forall n x, 0 <= n -> zero_ext n (zero_ext n x) = zero_ext n x.
+Proof.
+  intros. apply zero_ext_widen. lia.
+Theorem sign_ext_idem:
+  forall n x, 0 < n -> sign_ext n (sign_ext n x) = sign_ext n x.
+Proof.
+  intros. apply sign_ext_widen. lia.
+Theorem sign_ext_zero_ext:
+  forall n x, 0 < n -> sign_ext n (zero_ext n x) = sign_ext n x.
+Proof.
+  intros. destruct (zlt n zwordsize).
+Theorem zero_ext_sign_ext:
+  forall n x, 0 < n -> zero_ext n (sign_ext n x) = zero_ext n x.
+Proof.
+  intros. apply zero_sign_ext_narrow. lia.
+Theorem sign_ext_equal_if_zero_equal:
+  forall n x y, 0 < n ->
+  zero_ext n x = zero_ext n y ->
+  sign_ext n x = sign_ext n y.
+Lemma zero_ext_range:
+  forall n x, 0 <= n < zwordsize -> 0 <= unsigned (zero_ext n x) < two_p n.
+Proof.
+  intros. rewrite zero_ext_mod; auto. apply Z_mod_lt. apply two_p_gt_ZERO. lia.
+Lemma eqmod_zero_ext:
+  forall n x, 0 <= n < zwordsize -> eqmod (two_p n) (unsigned (zero_ext n x)) (unsigned x).
+Proof.
+  intros. rewrite zero_ext_mod; auto. apply eqmod_sym. apply eqmod_mod.
+Lemma sign_ext_range:
+  forall n x, 0 < n < zwordsize -> -two_p (n-1) <= signed (sign_ext n x) < two_p (n-1).
+Proof.
+  intros. rewrite sign_ext_shr_shl by lia.
+Lemma eqmod_sign_ext':
+  forall n x, 0 < n < zwordsize ->
+  eqmod (two_p n) (unsigned (sign_ext n x)) (unsigned x).
+Proof.
+Lemma eqmod_sign_ext:
+  forall n x, 0 < n < zwordsize ->
+  eqmod (two_p n) (signed (sign_ext n x)) (unsigned x).
+Proof.
+Lemma shl_zero_ext:
+  forall n m x, 0 <= n ->
+  shl (zero_ext n x) m = zero_ext (n + unsigned m) (shl x m).
+Proof.
+Lemma shl_sign_ext:
+  forall n m x, 0 < n ->
+  shl (sign_ext n x) m = sign_ext (n + unsigned m) (shl x m).
+Proof.
+Lemma shru_zero_ext:
+  forall n m x, 0 <= n ->
+  shru (zero_ext (n + unsigned m) x) m = zero_ext n (shru x m).
+Proof.
+Lemma shru_zero_ext_0:
+  forall n m x, n <= unsigned m ->
+  shru (zero_ext n x) m = zero.
+Proof.
+Lemma shr_sign_ext:
+  forall n m x, 0 < n -> n + unsigned m < zwordsize ->
+  shr (sign_ext (n + unsigned m) x) m = sign_ext n (shr x m).
+Proof.
+Lemma zero_ext_shru_min:
+  forall s x n, ltu n iwordsize = true ->
+  zero_ext s (shru x n) = zero_ext (Z.min s (zwordsize - unsigned n)) (shru x n).
+Proof.
+Lemma sign_ext_shr_min:
+  forall s x n, ltu n iwordsize = true ->
+  sign_ext s (shr x n) = sign_ext (Z.min s (zwordsize - unsigned n)) (shr x n).
+Proof.
+Lemma shl_zero_ext_min:
+  forall s x n, ltu n iwordsize = true ->
+  shl (zero_ext s x) n = shl (zero_ext (Z.min s (zwordsize - unsigned n)) x) n.
+Proof.
+Lemma shl_sign_ext_min:
+  forall s x n, ltu n iwordsize = true ->
+  shl (sign_ext s x) n = shl (sign_ext (Z.min s (zwordsize - unsigned n)) x) n.
+Proof.
+Lemma shl'_zero_ext:
+  forall n m x, 0 <= n ->
+  shl' (zero_ext n x) m = zero_ext (n + Int.unsigned m) (shl' x m).
+Proof.
+Lemma shl'_sign_ext:
+  forall n m x, 0 < n ->
+  shl' (sign_ext n x) m = sign_ext (n + Int.unsigned m) (shl' x m).
+Proof.
+Lemma shru'_zero_ext:
+  forall n m x, 0 <= n ->
+  shru' (zero_ext (n + Int.unsigned m) x) m = zero_ext n (shru' x m).
+Proof.
+Lemma shru'_zero_ext_0:
+  forall n m x, n <= Int.unsigned m ->
+  shru' (zero_ext n x) m = zero.
+Proof.
+Lemma shr'_sign_ext:
+  forall n m x, 0 < n -> n + Int.unsigned m < zwordsize ->
+  shr' (sign_ext (n + Int.unsigned m) x) m = sign_ext n (shr' x m).
+Proof.
+Lemma zero_ext_shru'_min:
+  forall s x n, Int.ltu n iwordsize' = true ->
+  zero_ext s (shru' x n) = zero_ext (Z.min s (zwordsize - Int.unsigned n)) (shru' x n).
+Proof.
+Lemma sign_ext_shr'_min:
+  forall s x n, Int.ltu n iwordsize' = true ->
+  sign_ext s (shr' x n) = sign_ext (Z.min s (zwordsize - Int.unsigned n)) (shr' x n).
+Proof.
+Lemma shl'_zero_ext_min:
+  forall s x n, Int.ltu n iwordsize' = true ->
+  shl' (zero_ext s x) n = shl' (zero_ext (Z.min s (zwordsize - Int.unsigned n)) x) n.
+Proof.
+Lemma shl'_sign_ext_min:
+  forall s x n, Int.ltu n iwordsize' = true ->
+  shl' (sign_ext s x) n = shl' (sign_ext (Z.min s (zwordsize - Int.unsigned n)) x) n.
+Proof.

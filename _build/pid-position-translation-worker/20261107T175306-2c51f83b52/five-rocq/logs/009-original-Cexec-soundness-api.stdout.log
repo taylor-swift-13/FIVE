@@ -1,0 +1,61 @@
+2163:Theorem do_step_sound:
+2164-  forall w S rule t S',
+2165-  In (TR rule t S') (do_step w S) ->
+2166-  Csem.step ge S t S' \/ (t = E0 /\ S' = Stuckstate /\ can_crash_world w S).
+2167-Proof with try (left; right; econstructor; eauto; fail).
+2168-  intros until S'. destruct S; simpl.
+2169-(* State *)
+2170-  destruct s; myinv...
+2171-  (* skip *)
+2172-  destruct k; myinv...
+2173-  (* break *)
+2174-  destruct k; myinv...
+2175-  (* continue *)
+2176-  destruct k; myinv...
+2177-  (* goto *)
+2178-  destruct p as [s' k']. myinv...
+2179-(* ExprState *)
+2180-  destruct (is_val r) as [[v ty]|] eqn:?.
+2181-  (* expression is a value *)
+2182-  rewrite (is_val_inv _ _ _ Heqo).
+2183-  destruct k; myinv...
+2184-  (* expression reduces *)
+2185-  intros. exploit list_in_map_inv; eauto. intros [[C rd] [A B]].
+2186-  generalize (step_expr_sound e w r RV m). unfold reducts_ok. intros [P Q].
+2187-  exploit P; eauto. intros [a' [k' [CTX [EQ RD]]]].
+2188-  unfold expr_final_state in A. simpl in A.
+2189-  destruct k'; destruct rd; inv A; simpl in RD; try contradiction.
+2190-  (* lred *)
+2191-  left; left; apply step_lred; auto.
+2192-  (* stuck lred *)
+2193-  exploit not_imm_safe_t; eauto. intros [R | R]; eauto.
+2194-  (* rred *)
+2195-  destruct RD. left; left; apply step_rred; auto.
+2196-  (* callred *)
+2197-  destruct RD; subst m'. left; left; apply step_call; eauto.
+2198-  (* stuck rred *)
+paparazzi/relations/guidance_mode/support/allocation/StackAllocation.v
+paparazzi/relations/guidance_mode/support/allocation/StackWrapper.v
+paparazzi/relations/guidance_mode/support/allocation/Allocation.v
+paparazzi/relations/guidance_mode/support/semantics/SemanticsSupport.v
+paparazzi/relations/guidance_mode/support/semantics/SourceClosure.v
+paparazzi/relations/guidance_mode/support/semantics/ExpressionRank.v
+paparazzi/relations/guidance_mode/support/semantics/SourceTermination.v
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v
+paparazzi/relations/guidance_mode/support/semantics/TableSupport.v
+paparazzi/relations/guidance_mode/support/semantics/WeightedTermination.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/SaturationAccess.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/BitsAdapter.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/ManualAssertions.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/MemoryGuards.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/GuardedPhases.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/ByteAssertions.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/GuardedSpeedPrefix.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/CanonicalCallScope.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/SpeedPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/AccelPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/SaturationPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/GuardedEntryFlowAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/CallScope.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/CanonicalInputWitness.v

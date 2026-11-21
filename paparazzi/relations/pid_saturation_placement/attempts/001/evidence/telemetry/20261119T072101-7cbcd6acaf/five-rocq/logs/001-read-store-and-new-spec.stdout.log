@@ -1,0 +1,64 @@
+Lemma inputgood_store_integral_x : forall m gh ret bi mf fresh,
+ InputGood m gh ret ->
+ Genv.find_symbol E.ge S._guidance_pid_trim_att_integrator=Some bi ->
+ Genv.find_var_info E.ge bi=Some S.v_guidance_pid_trim_att_integrator ->
+ -100000000<=Int.signed fresh<=100000000 ->
+ Mem.store Mint32 m bi 0(Vint fresh)=Some mf ->InputGood mf gh ret.
+Proof.
+ intros m gh ret bi mf fresh GOOD SI VI BOUND STORE.
+ destruct GOOD as[LEG[IP SAFE]].
+ destruct LEG as(GR&UNIQUE&RETS&GH&RET&GLOBALS&WR&CACHE&APP&HEAD&GAINS&AXES).
+ assert(GI:gh<>bi).
+ { intro EQ;subst gh;pose proof(UNIQUE _ SI)as BAD;discriminate. }
+ assert(PATH:forall ch b ty path,b<>bi ->load_path ch mf b ty path=load_path ch m b ty path).
+ { intros ch b ty path NE;unfold load_path;destruct(path_info ty path)as[[ft ofs]|];[|reflexivity].
+   eapply Mem.load_store_other;[exact STORE|left;exact NE]. }
+ assert(GLOBAL:forall ch id ty path,id<>S._guidance_pid_trim_att_integrator ->
+ load_global ch mf id ty path=load_global ch m id ty path).
+ { intros ch id ty path NE;unfold load_global;destruct(Genv.find_symbol E.ge id)as[b|]eqn:SB;[|reflexivity].
+   apply PATH;eapply Genv.global_addresses_distinct;[exact NE|exact SB|exact SI]. }
+ assert(PERM:forall b ofs k pm,Mem.perm mf b ofs k pm <->Mem.perm m b ofs k pm).
+ { intros;split;intro H;[eapply Mem.perm_store_2|eapply Mem.perm_store_1];eauto. }
+ assert(GLOBALS':global_bytes_initialized mf).
+ { eapply global_contract_after_store;[exact GLOBALS| |exact STORE].
+   intros b gv VAR RO EQ;subst b;rewrite VI in VAR;injection VAR as <-;discriminate. }
+ assert(WR':writable_controller_globals mf).
+ { intros id IN;destruct(WR id IN)as[b[gv[SB[VB RP]]]];exists b,gv;repeat split;try assumption.
+   intros ofs R;apply PERM;apply RP;exact R. }
+ assert(CACHE':caches_valid mf).
+ { destruct CACHE as[ps[ss[P[S0[PP SS]]]]];exists ps,ss.
+   rewrite!GLOBAL by discriminate;auto. }
+ assert(APP':load_global Mint8unsigned mf S._guidance_pid pid_type[S._approx_force_by_thrust]=Some(Vint Int.zero)).
+ { rewrite GLOBAL by discriminate;exact APP. }
+ assert(HEAD':heading_safe mf).
+ { destruct HEAD as[h[H RANGE]];exists h;rewrite GLOBAL by discriminate;auto. }
+ assert(GAINS':forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka] ->bounded_global mf S._guidance_pid pid_type[gain]0 100).
+ { intros gain IN;destruct(GAINS gain IN)as[v[L R]];exists v;split;[rewrite GLOBAL by discriminate;exact L|exact R]. }
+ assert(AXES':forall axis,In axis[S._x;S._y]->
+ bounded_global mf S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+ bounded_path mf gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+ bounded_path mf gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+ bounded_global mf S._state state_type[S._ned_speed_i;axis](-10000)10000).
+ { intros axis IN;destruct(AXES axis IN)as[II[RS[RA VS]]];split.
+   - destruct IN as[<-|[<-|[]]].
+     + exists fresh;split;[unfold load_global;rewrite SI;change(Mem.load Mint32 mf bi 0=Some(Vint fresh));exact(Mem.load_store_same _ _ _ _ _ _ STORE)|exact BOUND].
+     + destruct II as[i[IL IR]];exists i;split;[|exact IR].
+       unfold load_global in *;rewrite SI in *;change(Mem.load Mint32 mf bi 4=Some(Vint i)).
+       rewrite(Mem.load_store_other _ _ _ _ _ _ STORE Mint32 bi 4)by(right;right;cbn;lia);exact IL.
+   - destruct RS as[s[SL SR]];destruct RA as[a[AL AR]];destruct VS as[v[VL VR]].
+     split;[exists s;split;[rewrite PATH by exact GI;exact SL|exact SR]|].
+     split;[exists a;split;[rewrite PATH by exact GI;exact AL|exact AR]|].
+     exists v;split;[rewrite GLOBAL by discriminate;exact VL|exact VR]. }
+ assert(SAFE':position_subtractions_safe mf gh).
+ { intros axis IN;destruct(SAFE axis IN)as[r[p[R[P B]]]];exists r,p.
+   rewrite PATH by exact GI;rewrite GLOBAL by discriminate;auto. }
+ assert(IP':initialized_positions mf gh).
+ { intros axis IN;destruct(IP axis IN)as[r[p[R P]]];exists r,p.
+   rewrite PATH by exact GI;rewrite GLOBAL by discriminate;auto. }
+ assert(GH':Mem.range_perm mf gh 0(sizeof ce gh_type)Cur Readable).
+ { intros ofs R;apply PERM;apply GH;exact R. }
+ assert(RET':Mem.range_perm mf ret 0(sizeof ce sp_type)Cur Writable).
+ { intros ofs R;apply PERM;apply RET;exact R. }
+ unfold InputGood;split;[unfold InputGoodLegacy;tauto|exact(conj IP' SAFE')].
+Qed.
+new Spec pending

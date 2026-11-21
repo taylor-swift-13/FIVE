@@ -1,0 +1,19 @@
+1 goal
+  
+  ge : genv
+  e : env
+  mf : mem
+  v1 : val
+  ty1 : type
+  r1, r2 : expr
+  ty : type
+  b : bool
+  H0 : True
+  H1 : arithmetic_tree ge e mf r1
+  H2 : arithmetic_tree ge e mf r2
+  RED :
+    rred ge (Econdition (Eval v1 ty1) r1 r2 ty) mf E0
+      (Eparen (if b then r1 else r2) ty ty) mf
+  H : bool_val v1 ty1 mf = Some b
+  ============================
+  arithmetic_tree ge e mf (if b then r1 else r2)

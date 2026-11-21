@@ -1,0 +1,95 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bc : block
+  p, x : int
+  POS : e ! _pos = Some (bp, Tint I16 Unsigned noattr)
+  LOCAL : e ! _pprz_trig_int_compr = None
+  SYMBOL : Genv.find_symbol (globalenv prog) _pprz_trig_int_compr = Some bc
+  LP : Mem.load Mint16unsigned m bp 0 = Some (Vint p)
+  LB :
+    Mem.load Mint8unsigned m bc (Ptrofs.unsigned (nibble_offset p)) =
+    Some (Vint x)
+  E20 : Int.eq (Int.repr 2) Int.zero = false
+  E2M : Int.eq (Int.repr 2) Int.mone = false
+  ============================
+  match
+    match
+      match
+        match
+          match
+            (if false || false
+             then None
+             else Some (Vint (Int.divs p (Int.repr 2))))
+          with
+          | Some (Vint n2) =>
+              Some
+                (Vptr bc
+                   (Ptrofs.add Ptrofs.zero
+                      (Ptrofs.mul (Ptrofs.repr 1) (Ptrofs.of_ints n2))))
+          | _ => None
+          end
+        with
+        | Some (Vptr b ofs) => Some (b, ofs, Full)
+        | _ => None
+        end
+      with
+      | Some (b, ofs, bf) =>
+          match
+            do_deref_loc (globalenv prog) quiet_world
+              (Tint I8 Unsigned noattr) m b ofs bf
+          with
+          | Some (_, _, v) => Some v
+          | None => None
+          end
+      | None => None
+      end
+    with
+    | Some v =>
+        match
+          match
+            (if false || false
+             then None
+             else Some (Vint (Int.mods p (Int.repr 2))))
+          with
+          | Some w =>
+              match
+                match w with
+                | Vint i => Some (Vint i)
+                | _ => None
+                end
+              with
+              | Some (Vint n2) => Some (Vint (Int.mul (Int.repr 4) n2))
+              | _ => None
+              end
+          | None => None
+          end
+        with
+        | Some w =>
+            match v with
+            | Vint n1 =>
+                match w with
+                | Vint n2 =>
+                    if Int.ltu n2 Int.iwordsize
+                    then Some (Vint (Int.shr n1 n2))
+                    else None
+                | _ => None
+                end
+            | _ => None
+            end
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some v =>
+      match match v with
+            | Vint i => Some (Vint i)
+            | _ => None
+            end with
+      | Some (Vint n1) => Some (Vint (Int.and n1 (Int.repr 15)))
+      | _ => None
+      end
+  | None => None
+  end = nibble_machine p x

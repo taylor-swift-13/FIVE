@@ -1,0 +1,33 @@
+1 goal
+  
+  ge : genv
+  caller, leaf : function
+  e : env
+  k : cont
+  m : mem
+  sid, ires : AST.ident
+  br, ret : block
+  params : list type
+  cc : AST.calling_convention
+  vf : val
+  values : list val
+  post : expr
+  local_res : e ! ires = Some (br, tptr sty)
+  res_deref :
+    do_deref_loc ge quiet_world (tptr sty) m br Ptrofs.zero Full =
+    Some (quiet_world, E0, Vptr ret Ptrofs.zero)
+  find_leaf : Genv.find_funct ge vf = Some (Internal leaf)
+  leaf_type : type_of_fundef (Internal leaf) = Tfunction params tvoid cc
+  st : L.lhs_stage
+  fn : expr
+  al : exprlist
+  P : prepared fn al
+  ES : Csem.estep ge (pre_state st fn al) E0 Stuckstate
+  C : expr -> expr
+  a : expr
+  K : kind
+  H6 : context K RV C
+  H7 : ~ imm_safe ge e K a m
+  H0 : C a = pre_expr st fn al
+  ============================
+  E0 = E0 /\ pre_or_call Stuckstate

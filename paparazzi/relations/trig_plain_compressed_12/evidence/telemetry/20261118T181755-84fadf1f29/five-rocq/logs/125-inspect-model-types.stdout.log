@@ -1,0 +1,69 @@
+get_nibble_literal_expression
+     : forall (e : Maps.PTree.tree (Values.block * Ctypes.type)) (m : Memory.Mem.mem) (bp bc : Values.block) (p : BinNums.Z),
+       BinInt.Z.le BinNums.Z0 p /\
+       BinInt.Z.lt p
+         (BinInt.Z.pos (BinNums.xI (BinNums.xI (BinNums.xO (BinNums.xO (BinNums.xI (BinNums.xI (BinNums.xO (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH)))))))))))) ->
+       Maps.PTree.get Source._pos e = Some (bp, Ctypes.Tint Ctypes.I16 Ctypes.Unsigned Ctypes.noattr) ->
+       Maps.PTree.get Source._pprz_trig_int_compr e = None ->
+       Globalenvs.Genv.find_symbol (globalenv Source.prog) Source._pprz_trig_int_compr = Some bc ->
+       Memory.Mem.load AST.Mint16unsigned m bp BinNums.Z0 = Some (Values.Vint (Integers.Int.repr p)) ->
+       Memory.Mem.load AST.Mint8unsigned m bc (BinInt.Z.div p (BinInt.Z.pos (BinNums.xO BinNums.xH))) = Some (Values.Vint (Integers.Int.repr (source_byte p))) ->
+       PureEval.pure_rval (globalenv Source.prog) e m nibble_expr = Some (Values.Vint (Integers.Int.repr (source_nibble p)))
+get_nibble_call_total
+     : forall (Q : Values.val -> Memory.Mem.mem -> Prop) (args : list Values.val) (k : cont) (m : Memory.Mem.mem) (e : env) (m0 m1 : Memory.Mem.mem) (result returned : Values.val)
+         (mf : Memory.Mem.mem),
+       Cexec.do_alloc_variables (globalenv Source.prog) empty_env m (Csyntax.fn_params Source.f_get_nibble ++ Csyntax.fn_vars Source.f_get_nibble) = (e, m0) ->
+       Cexec.sem_bind_parameters (globalenv Source.prog) Control.quiet e m0 (Csyntax.fn_params Source.f_get_nibble) args = Some m1 ->
+       PureEval.pure_rval (globalenv Source.prog) e m1 nibble_expr = Some result ->
+       Cop.sem_cast result (Csyntax.typeof nibble_expr) (Csyntax.fn_return Source.f_get_nibble) m1 = Some returned ->
+       Memory.Mem.free_list m1 (blocks_of_env (globalenv Source.prog) e) = Some mf ->
+       Total.total (globalenv Source.prog) Q (Returnstate returned (call_cont k) mf) ->
+       Total.total (globalenv Source.prog) Q (Callstate (Ctypes.Internal Source.f_get_nibble) args k m)
+encoder_low_fact
+     : forall (e : env) (m m1 : Memory.Mem.mem) (bb : Values.block) (cnt : BinNums.Z),
+       BinInt.Z.le BinNums.Z0 cnt /\
+       BinInt.Z.lt cnt
+         (BinInt.Z.pos
+            (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH))))))))))))) ->
+       InitState.short_cell e m Source._val (PackedPrefix.table_at cnt) ->
+       InitState.short_cell e m Source._cnt cnt ->
+       Maps.PTree.get Source._data_buf_12 e = None ->
+       Globalenvs.Genv.find_symbol (globalenv prog) Source._data_buf_12 = Some bb ->
+       Memory.Mem.store AST.Mint8unsigned m bb cnt (Values.Vint (Integers.Int.repr (PackedPrefix.low_written cnt))) = Some m1 ->
+       Compound.atom_eval (globalenv prog) e m encode_low = Some (Values.Vint (Integers.Int.repr (PackedPrefix.low_written cnt)), m1)
+encoder_setup_exists
+     : forall (m : Memory.Mem.mem) (value previous count : BinNums.Z) (tb : Values.block) (tofs : Integers.Ptrofs.int),
+       BinInt.Z.le BinNums.Z0 value /\
+       BinInt.Z.le value
+         (BinInt.Z.pos
+            (BinNums.xI
+               (BinNums.xI
+                  (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI BinNums.xH)))))))))))))) ->
+       BinInt.Z.le BinNums.Z0 previous /\
+       BinInt.Z.le previous
+         (BinInt.Z.pos
+            (BinNums.xI
+               (BinNums.xI
+                  (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI BinNums.xH)))))))))))))) ->
+       BinInt.Z.le BinNums.Z0 count /\
+       BinInt.Z.le count
+         (BinInt.Z.pos
+            (BinNums.xI
+               (BinNums.xI
+                  (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI (BinNums.xI BinNums.xH)))))))))))))) ->
+       exists (e : env) (mp : Memory.Mem.mem), encoder_setup m value previous count tb tofs e mp
+encoder_call_total
+     : forall (Q : Values.val -> Memory.Mem.mem -> Prop) (args : list Values.val) (k : cont) (m : Memory.Mem.mem) (e : env) (m0 m1 m2 m3 mf : Memory.Mem.mem)
+         (low_result high_result condition : Values.val) (choice : bool) (prev_result tab_result : Values.val),
+       Cexec.do_alloc_variables (globalenv Source.prog) empty_env m (Csyntax.fn_params Source.f_table_encode_12 ++ Csyntax.fn_vars Source.f_table_encode_12) = (e, m0) ->
+       Cexec.sem_bind_parameters (globalenv Source.prog) Control.quiet e m0 (Csyntax.fn_params Source.f_table_encode_12) args = Some m1 ->
+       Compound.atom_eval (globalenv Source.prog) e m1 encode_low = Some (low_result, m2) ->
+       PureEval.pure_rval (globalenv Source.prog) e m2 encode_cond = Some condition ->
+       Cop.bool_val condition (Csyntax.typeof encode_cond) m2 = Some choice ->
+       Compound.atom_eval (globalenv Source.prog) e m2 (if choice then encode_even else encode_odd) = Some (high_result, m3) ->
+       PureEval.pure_rval (globalenv Source.prog) e m3 encode_prev = Some prev_result ->
+       PureEval.pure_rval (globalenv Source.prog) e m3 encode_tab = Some tab_result ->
+       is_call_cont k ->
+       Memory.Mem.free_list m3 (blocks_of_env (globalenv Source.prog) e) = Some mf ->
+       Total.total (globalenv Source.prog) Q (Returnstate Values.Vundef k mf) ->
+       Total.total (globalenv Source.prog) Q (Callstate (Ctypes.Internal Source.f_table_encode_12) args k m)

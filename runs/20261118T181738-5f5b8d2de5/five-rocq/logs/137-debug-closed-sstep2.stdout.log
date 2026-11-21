@@ -1,0 +1,35 @@
+2 goals
+  
+  ge : genv
+  allowed : function -> Prop
+  ids : list ident
+  allowed_locals :
+    forall f : function,
+    allowed f ->
+    Forall (fun p : ident * type => ~ In (fst p) ids)
+      (fn_params f ++ fn_vars f)
+  allowed_bodies :
+    forall f : function,
+    allowed f -> forall e : env, unshadowed e -> closed_stmt e (fn_body f)
+  f : function
+  vargs : list val
+  k : cont
+  m : mem
+  e : env
+  m2 : mem
+  STEP :
+    sstep ge (Callstate (Internal f) vargs k m) E0
+      (State f (fn_body f) k e m2)
+  H2 : exists f0 : function, Internal f = Internal f0 /\ allowed f0
+  H3 : is_call_cont k
+  H4 : exists e : env, closed_cont e k
+  m1 : mem
+  H : list_norepet (var_names (fn_params f) ++ var_names (fn_vars f))
+  H0 : alloc_variables ge empty_env m (fn_params f ++ fn_vars f) e m1
+  H1 : bind_parameters ge e m1 (fn_params f) vargs m2
+  ============================
+  allowed f /\ unshadowed e /\ closed_stmt e (fn_body f) /\ closed_cont e k
+
+goal 2 is:
+ allowed f /\
+ unshadowed e /\ closed_expr e (C (Eval v ty)) /\ closed_cont e k

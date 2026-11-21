@@ -1,0 +1,452 @@
+# FIVE 共享案例目录与阶段交接契约
+
+## Gold-standard authority and layout
+
+[Examples index](../../../../examples/README.md), [sum3](../../../../examples/models/sum3/README.md), [sum2](../../../../examples/models/sum2/README.md), and [cross-model relations](../../../../examples/relations/) are the normative, maintained artifact examples for all future FIVE verification work. Read the relevant concrete reference before creating artifacts. Their format is authoritative; their particular inputs, preconditions and outcomes do not constrain another user's problem.
+
+The outer case location is project-selected. Its internal C workflow has exactly four stage output directories, in dependency order:
+
+```text
+<case>/
+  prepare/{source/,report/,handoff.json}
+  cbmc/{harness.c,report/,handoff.json}   # actual harness/log filenames follow the examples
+  align/{model/,report/,handoff.json}   # generated declarations remain model artifacts
+  rocq/{support/,report/,handoff.json,spec-recheck.json}
+    no_error/{problem/,attempts/001/}
+    termination/{problem/,attempts/001/}
+    cbmc_recheck/{problem/,attempts/001/}
+<examples-or-project>/relations/<relation>/{problem/,attempts/001/}
+```
+
+Each stage has `report/report.md`, `report/costs.json` and `handoff.json`; the handoff binds input/output roles, paths and SHA-256. Preserve tool manifests where actually produced. Paths below such as `source/`, `model/` and generated `proof/` are relative to their owning stage: prepared source is `prepare/source/`, generated AST is `align/model/Source.v`, and generated obligation scaffolding is `align/model/proof/`. Actual proofs belong under `rocq/<problem>/attempts/`, never in place of the immutable generated model. Shared evidence may live elsewhere if a resolvable hash-bound reference identifies it.
+
+For a complete C workflow, freeze source, dependencies, verification request, requested properties/conditions/bounds and target before checking; preserve every actual emitted property ID in the CBMC handoff before mapping. `prepare/handoff.json` is CBMC input; `cbmc/handoff.json` is align input; `align/handoff.json` is Rocq input. Each next stage verifies status and hashes of all transitive artifacts it consumes. The prepared C and bindings are identical throughout. Missing request/input or changed hashes block dependent work instead of silently substituting inputs. Pure model generation and pure Rocq requests run only the applicable stages; record others `not_run` or `not_applicable`, without fabricating source, CBMC runs or proofs. Standalone align may generate a model without CBMC, recording mapping as not applicable.
+
+Status describes evidence: `not_run`, `not_applicable`, `blocked`, `pending`, `failed`, `proved` or `refuted` as applicable. A generation stage can finish with explicitly pending proofs when generation alone was requested. A real counterexample with checked replay can complete a requested refutation; this is never program correctness. Do not claim whole-task `COMPLETE` while any requested goal, actual CBMC property ID or required independent receipt remains open. Report the actual result and remaining items; unobserved cost figures are `null`, with reasons, and observed figures are `recorded`. Do not label a user-facing result summary `partial`; raw telemetry status is preserved unchanged.
+
+## 固定交接接口
+
+每个阶段读取当前 case 中前序阶段的 handoff 与自身阶段的 `report/report.md`、`report/costs.json`（首次调用时建立），在启动前核对直接输入的路径、hash、目标配置和前一阶段状态；有缺失、内容变化或依赖不可用时停止依赖该输入的步骤，登记原因，不静默替代。执行完成后仅增量更新自己的阶段状态、输入/输出路径与 SHA-256、工具版本/选项和成本引用。路径均以 case 目录为基准，允许指向存在的共享文件。状态只能表示实际证据支持的程度。报告生成/类型检查、证明、成本审核分别记状态。
+
+| skill | 必需输入 | 写入与交给下游 |
+|---|---|---|
+| five-prepare | 原 C、入口、目标语义、依赖及用户要求；输入可来自案例外 | `prepare/source/<entry>.c`、实际依赖和 `prepare/source/bindings.json`；在报告/handoff 固定准备结果和限制，供 CBMC 与 align 消费 |
+| five-cbmc | 已准备的 `prepare/source/`、bindings、入口和用户指定检查性质/界限 | `cbmc/` 的 harness、命令、属性、假设、范围、结果及实际反例，handoff 索引并标明状态；交给 align |
+| five-align | 已准备的 `prepare/source/` 和 bindings；若映射 CBMC 规约，还需实际 `cbmc/` 属性与范围 | `align/model/preprocessed.i`、`align/model/Source.v`、`align/model/Execution.v`、生成的三个 `align/model/proof/*.v`、来源审计及适用时由 handoff 的 spec-map 角色绑定的属性映射，供 rocq 使用；未运行 CBMC 不阻塞模型生成 |
+| five-rocq | 一个或多个已有 Rocq 模型及用户目标；CompCert 任务还读 align 的模型、义务和映射 | 前条件、规约、证明和假设、内核证据及适用时 `rocq/spec-recheck.json`，交给 verify；纯 Rocq 无需 C 或 CBMC |
+| five-verify | 用户目标和案例清单；分别读取所请求阶段的实际交付 | 调度与接口检查，引用四阶段 `report/` 并更新案例汇总（不新增第五个阶段目录）、未完成项及去重后的成本；不将生成当证明 |
+
+`prepare/source/bindings.json` 至少登记：原始源文件与准备后的源文件路径及 SHA-256、实际依赖与版本或 hash、入口、C 方言和目标 ABI/端序/浮点与舍入、预处理和编译选项、外部调用原绑定与实际绑定、重定向实现及其来源/哈希、尚需证明的对应关系。未知或不可恢复字段写 `null` 并说明原因；不得猜测未发生重定向。准备后的程序是两个分支的相同输入；改回原库绑定的性质迁移必须另有对应性证据。
+
+每个实际阶段在 `<stage>/handoff.json` 使用 `schema: "five-stage-handoff/1"`，包含 `case_id`、`stage`、`status`、`target`、`paths_relative_to`、`outputs`、`limitations` 及适用的 `next_stage`。`outputs` 每项含 `role`、case 相对 `path` 和小写 SHA-256 `sha256`，包括供下游使用的传递输入。阶段报告和成本分别为 `<stage>/report/report.md`、`<stage>/report/costs.json`。补充 manifest 仅在实际工具或案例使用时保留并 hash 绑定，不要求案例根目录另建 `report/` 或虚构第五个阶段目录。先读取真实 handoff 的 role/path 再解析文件，不从历史默认文件名猜输入。生成的 CompCert manifest 保持工具原 schema，不能改成 handoff schema。
+
+未知数值为 `null` 和原因，不能用 0 或估算。失败、重试及准备阶段均计入；案例独立边界需在开始前采集，批次共享消耗单列并引用，不能伪造逐案例实测或重复相加。每个实际执行阶段通过 `scripts/audit-costs.py --run RUN_DIR` 核查计量证据；审计完整性与验证结果独立陈述。
+
+`report/costs.json` 使用 `schema: "five-stage-costs/1"`，以 `records` 数组保存本阶段及适用的历史或共享记录。每条记录有 `stage`、`run`、`status`、`evidence` 和三组实测字段：
+
+- `time.wall_seconds`、`time.tool_cpu_seconds`
+- `token.input`、`token.output`、`token.total`、`token.cached_input`、`token.reasoning_output`
+- `memory.tool_peak_rss_bytes`（采样峰值）
+
+保留计量范围及证据引用；无观测的字段为 `null`。缓存和推理 token 分别是输入和输出的子集。原始 `metrics.json` 保留工具生成的格式。共享成本使用同一份证据，避免重复归属。
+
+工具可能先把 CompCert 产物写入自身输出目录；align 必须保留原始导出/审计证据，再将经核对的预处理输入、原始 AST、执行包装和目标安装到上述案例路径，记录源路径及 hash。不能假定原工具默认输出路径已经符合共享接口。
+
+## Problem and attempt contract
+
+Each named problem has one canonical question in `problem/Spec.v`, `problem/report.md`, and `problem/status.json`. The report states the exact proposition, quantifiers, entry, preconditions, observation semantics, requested goals and pending goals. `status.json` uses `schema: "five-proof-problem/1"`, `status`, `active_attempt` (relative to `problem/`), `specification: "Spec.v"`, and `requested_goals`; it points explicitly to the current attempt. Additional helper modules may be imported by this canonical question; they do not replace it. Each attempt binds its actual checked specification snapshot and hash, so later canonical-question extension cannot retroactively change a historical claim. Cross-model problems use the same contract under `relations/<name>/` and bind every participating model.
+
+Each real attempt uses a fresh numbered `attempts/<number>/` containing `Proof.v`, `check.py`, `report.md`, `costs.json`, and the referenced evidence. Its readable report records:
+
+- exact target, conditions and specification version; what was proved/refuted and what remains pending;
+- model identity, source/model/specification hashes, actual imports, entry/ABI/endianness/float and byte-observation semantics, external bindings, tool versions and inherited assumptions;
+- actual LLM model, requested and observed reasoning effort, with runtime receipt (unknown observations remain `null`);
+- commands and successful independent kernel-check receipts for claimed theorems, dependency/statement snapshots, assumptions output and reproducible checker;
+- measured time, tokens and tool memory, measurement boundaries, raw receipts and shared-cost references.
+
+All new reference proof workers use actual `gpt-6.1-sol` with `medium` reasoning effort, evidenced by runtime metadata; do not relabel a differently configured historical run. Keep historical actual attempts, including failures, immutable and visible. A new active attempt does not erase their cost or evidence; a failed superseded attempt does not make a now-proved current goal pending. Add clarification outside the historical attempt when necessary.
+
+`costs.json` uses `five-stage-costs/1` and the `time`, `token`, `memory` groups above. Start a real CLI `--session` skill-session boundary before substantive work, finish that run on every outcome, and retain audit evidence. Count shared event IDs once. Per-attempt unobserved allocation is `null` plus a link to the shared record, never an invented split. Preserve raw telemetry; normalize measured figures in the report with scope, not by rewriting raw statuses.
+
+Safety quantifies all reachable original Csem states; termination covers all possible successors (for example `Acc`), never merely bounded execution or an existing return path. Byte observations must state representation/endian, `Mem.loadbytes`/`memval` interpretation, output/write-prefix and frame scope; unknown bytes stay unknown. Generated models, compiled declarations and matching function names are not proofs. See [proof evidence](proof-evidence.md) for actual CBMC coverage and independent receipt requirements.
+
+Closed active reference attempts additionally retain `evidence/goal-validation.json` (`five-proof-validation/1`). It binds the original input index, all current consumed sources, the exact compiled source snapshots and canonical kernel receipts. Exhaustive `goal_bindings` associate each requested goal with a fully qualified theorem and its expected Rocq type. A deterministic `GoalBinding.v` instantiates those types with the claimed theorems; retain its actual successful compilation, `Print Assumptions` output and independent kernel check. A nonempty goal list or an unrelated successful kernel command is insufficient. Reference full-compilation receipts allow load-path options (`-Q`, `-R`, `-I`), harmless `-q`/`-quiet`/`-time`, and exactly one `.v` source; output/module overrides, quick/skip/help modes and unsupported options fail closed. The validator supports the published unversioned `inputs` (repository-relative), unversioned `artifacts` (attempt-relative), `five-proof-attempt-provenance/1.files`, `five-proof-provenance/1.inputs` (case-relative) plus `shared_inputs` (repository-relative), and `five-proof-inputs/1.dependency_sha256` (repository-relative, with pinned external semantic hashes) indexes explicitly; missing, malformed or unknown layouts fail. Historical input/configuration receipts stay immutable; fresh current bindings govern the active verification.
+
+Run `python3 scripts/check-example-artifacts.py` for reference metadata validation; `--compile` additionally reruns only active proof checkers. This complements semantic review and kernel checking; metadata validation cannot prove proposition adequacy.
+---
+name: five-prepare
+description: Prepare and freeze a C case, its dependencies, target configuration and explicit external-call bindings for the FIVE CBMC and CompCert stages.
+---
+
+# FIVE 案例准备
+
+将用户选定的 C 程序和入口整理为一个可追溯、可被 CBMC 与 CompCert 共同消费的案例。调用本 skill 不等于运行验证或证明。外层案例路径由项目决定。
+
+## 输入、输出和交接
+
+输入：原始 C 源码、入口、目标平台/编译语义、实际依赖和用户指定的检查或替代实现；缺失但必要的信息应登记为阻塞，不能猜造。输出：同一个案例目录的 `prepare/source/<entry>.c`、实际需要的头文件与依赖、适用许可证、`prepare/source/bindings.json`，以及 `report/report.md`、`report/manifest.json`、`report/costs.json` 中本阶段记录。完整目录、状态、hash、成本与后续阶段接口必须遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)。建立该契约规定的目录；下游未运行文件不得用空文件伪造。
+
+## 入口与依赖闭包
+
+每个 C case 必须明确一个用户选定的验证入口函数 `entry`；准备后的入口源码文件命名为 `<entry>.c`，例如 `sum3` 对应 `sum3.c`。入口不要求是 C `main`；验证 harness 由后续 CBMC 阶段另建。`bindings.json` 和 handoff 必须记录入口名、入口文件、签名、源码哈希和依赖闭包。
+
+从入口沿调用关系保留所有可达 callee 及其必需的声明、类型、宏、头文件、全局变量、初始化和编译条件；排除没有依赖关系的其他示例函数。保留原始源码快照及其 hash 以便追溯，快照不得混入实际编译输入。记录保留和移除的内容、依赖来源和实际绑定。函数指针、条件编译、外部链接或缺失头文件造成闭包不确定时明确记录未解决项，不能声称闭包完整；需保持原始构建行为时保留可影响入口行为的符号和初始化。抽取后的程序对应原程序的范围及待证关系须明确；不能把语法检查当作语义等价证明。
+
+## 准备方法
+
+1. 固定原始源及依赖版本/hash、选定入口、C 方言、目标 ABI、字节序、浮点格式和舍入、实际预处理/编译选项；保留源文件和依赖的可追溯引用。
+2. 按用户目标处理依赖，必要时将明确的外部调用绑定到给定 C 实现，记录调用点、原绑定、替代实现、两者的来源与 hash；把实际实现纳入准备后的程序。不得把测试桩或替代实现伪装成原始库实现。
+3. 在 `prepare/source/bindings.json` 固定实际准备结果、未知项、外部环境和待证对应。CBMC 和 CompCert 消费相同的准备后程序；对原始库绑定的性质迁移须由 five-rocq 另行证明，不得声称自动成立。
+4. 缺失生成头文件、目标不受支持或依赖不可取得时记录 limitation 和 blocked，保留真实输入及失败日志；不得虚构配置。只为准备所需执行最小检查，不自行运行 CBMC 或证明。
+
+## 成本和交付
+
+每个案例必须有 `report/costs.json`，对本阶段记录实际 input/output/total token、墙钟时间、工具 CPU、工具进程内存峰值及原始证据；失败和重试计入。遵循 [运行与成本契约](../five-verify/references/run-contract.md)：分析或修改前建立带当前 session 的 `five-prepare` 运行，用计量器执行工具，结束后调用 `python3 scripts/audit-costs.py --run RUN_DIR`。数值无法获得时记 `null` 和原因，报告已观测数值，批次成本独立保存并引用，不伪造逐案例费用。交付准备状态、输入/输出、绑定、限制和未完成事项。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+---
+name: five-cbmc
+description: Use CBMC to verify floating-point C implementations, memory safety, and scoped implementation-level properties in FIVE.
+---
+
+# C 实现层验证
+
+本阶段明确使用 **传统符号执行与有界模型检查（BMC）的 CBMC**：对准备后的实际函数/循环体生成 SAT/SMT 约束，使用 harness 中的 assume/assert 和显式展开界。不是霍尔逻辑/契约替换路线；不启用将函数或循环体替换为契约假设的模式。CBMC 运行命令和既有实现端检查保持原样，结论不作为 Rocq 公理。属性、范围和真实反例交给 five-align 映射为模型侧待证任务，再由 five-rocq 独立重验/反驳；five-verify 汇总证据。
+
+输入可以是一个或多个 C 函数、调用链、验证入口和局部性质。先读取项目已有的目标语义及范围；缺失时根据实际目标明确写出，不把宿主机默认行为当作规约。
+
+- 固定 C 方言、目标 ABI、字节序、浮点格式、舍入模式和相关编译选项。区分语言未定义行为与确定的目标平台行为。
+- 为待验证性质构造 harness，记录输入假设、数组/内存范围、程序位置、函数调用和循环展开界；有循环时检查展开是否足够。可把局部规约或不变式作为待检查断言；不以它们替换原始函数/循环体。
+- 使用准备后实际要验证的 C 实现，并记录它与原始源码及外部绑定的关系。优先用 memcpy 表达合法的浮点与整数位观察，除非项目明确验证其他访问方式。
+- 运行内存与局部功能检查。失败时保留反例；超时和 unknown 都不是通过。只在对应范围内陈述结论。
+- 保存完整命令、版本、源码与输入摘要、日志、断言结果和求解范围。前置条件必须能被翻译/对齐阶段引用。
+
+输入假设和展开界仅属于本次性质验证；不得要求 five-align 按这些假设裁剪执行模型或对齐范围。验证可以限定非 NaN、数组长度或内存条件，但模型必须保留这些条件之外的相关执行行为。
+
+参考表若来自 Rocq 模型，核对它与本次实现、目标语义和输入域匹配。CBMC 输出是外部工具证据；除非确实检查了证明证书，不称其为 Rocq 内核检查的定理。
+
+在当前 FIVE 项目中先 `source scripts/env.sh`。使用传统 CBMC 对选定 C 文件和验证入口直接执行有界模型检查；历史案例测试入口已清理，不引用旧有限参考表。保留的案例在同一文件夹内按共享契约组织 `prepare/`、`cbmc/`、`align/` 和 `rocq/`。
+
+交付：实现层结论、适用前置条件、范围与证据路径。模型生成和属性映射交给 [five-align](../five-align/SKILL.md)，实际规约/语义对应证明交给 [five-rocq](../five-rocq/SKILL.md)，端到端调度交给 [five-verify](../five-verify/SKILL.md)。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段从 `prepare/source/<entry>.c` 与 `prepare/source/bindings.json` 读取同一份准备结果，将 harness、属性、范围、日志及真实反例写入 `cbmc/`，并更新 `report/`；详见共享契约。
+
+## 计量及产物
+
+遵循 [最小产物契约](references/run-contract.md)。必须有原C/入口/harness、输入约束与界限、目标配置、属性结果、原始求解日志；失败时保留实际trace与对应输入，成功时反例项明确not_applicable。输出比较完整位模式；涉及写内存时逐字节比较预期结果和实际修改集合，并检查写区外frame不变，不用浮点==或容差冒充位等价。
+
+本skill必须在开始模型工作前依照产物契约建立带`--session`的skill-session记录，并在结束时采集日志边界差额；不要仅用脚本回放记录代替本阶段的模型token消耗。
+
+本阶段结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验：实际 token、墙钟、工具 CPU 和工具内存峰值分别有证据。费用记录不完整时保留已有验证结果，但不能宣称本阶段成本统计完整；失败/超时的成本同样保留。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+---
+name: five-align
+description: Generate CompCert Csyntax/Cexec models and unproved Rocq obligations, audit their source provenance, and map C/CBMC specifications to model-side propositions. Actual proofs belong to five-rocq.
+---
+
+# CompCert 模型与待证目标生成
+
+本阶段负责**模型生成、来源检查、待证目标生成和规约映射**。具体前条件构造、无错误/终止性证明、语义对应证明以及 CBMC 规约的 Rocq 重验均交给 [five-rocq](../five-rocq/SKILL.md)；[five-verify](../five-verify/SKILL.md) 负责调度和最终证据验收。单独调用本 skill 时止于模型和待证任务交付，不自动进入证明阶段。
+
+## 模型生成与来源
+
+- 执行模型来自 **准备后的 C → CompCert `clightgen -csyntax` → 原始 `Cexec`**。不由大模型逐行翻译或替换浮点、整数、内存语义；导出失败时报告缺口，不回退到手写模型。
+- 固定源码/request/hash、CompCert 版本与安装配置、预处理与头文件、架构/ABI/大小端、浮点格式、舍入和 NaN 策略。共同标准是指定 CompCert Csem/Cexec，不能自动推广到 GCC 或宿主硬件。
+- 进入项目后 `source scripts/env.sh`，用 `scripts/compcert-align.py export` 导出，`audit` 重新预处理/导出并核对来源、AST、包装和依赖。命令和交接格式见 [生成与映射契约](references/compcert-alignment.md)。不手改 Source.v。
+- 入口接受任意机器参数和 `Mem.mem`；不使用 non-NaN、指针有效性、初始化或合法长度等证明前条件裁剪模型。保留原始 Cexec 全部后继、控制/求值次序、事件轨迹、输出位模式和实际内存字节修改。
+- 使用原始 block+offset、权限、初始化和生命周期。函数 error 是非正常返回且无合法 Csem 后继；仅检查 Stuckstate 不充分。NaN/Inf/浮点溢出不自动是错误；Vundef、访问失败、未实现接口、fuel 耗尽分别记录，保留出错前的实际写入。
+- 清点外部调用、builtins、inline assembly、volatile/I/O 和所需环境。列出接口、已有对应证据与未完成的覆盖义务；回调 None 或缺失环境不能冒充 C 错误。若需要新的适配器正确性或完整执行对应证明，写成待证目标交给 five-rocq。缺口未解决时不能声称完整语义覆盖。
+
+## 自动目标与前条件接口
+
+每个模型/选定入口必须由 `scripts/generate-obligations.py` 生成一套目标；`compcert-align.py export` 已自动调用：
+
+- `proof/Precondition.v`：`list val -> mem -> Prop` 接口，具体前条件待大模型在证明阶段填写。
+- `proof/Obligations.v`：以显式前条件参数构造无错误和终止性命题。
+- `proof/Proofs.v`：后续证明填写位置，默认没有已证明定理。
+
+无错误量化原始 Csem 的所有可达状态；终止性使用后继关系的 `Acc`，涵盖全部执行分支和轨迹，无固定展开界。前条件缺失时保持参数化，不用 True、False、Axiom 或 Admitted 填补。重复生成保留已填写的前条件和证明；模型变化后重新检查，旧证明不得自动继承有效状态。
+
+只做生成、编译/类型检查、来源审计；必要的独立 kernel check 检查当前声明，不能计作待证目标已证明。模型直接 vm_compute、抽取 OCaml 执行均不是该阶段必需条件。可执行性受阻不妨碍交付基于原始 Csem 的待证命题。
+
+## CBMC 规约映射
+
+接收 five-cbmc 的实际 harness、属性 ID、前条件、程序位置、访问区域、调用/展开范围、观察方式及真实反例。逐项或按明确覆盖关系整理模型侧命题与状态对应，记录在 `spec-map.json`；详细字段见生成与映射契约。忠实保留已有 CBMC 条件，不在此阶段推断新安全前条件。
+
+每项绑定输入与模型 hash、原属性和 Rocq 命题，状态为 mapped/pending-proof 或明确 mapping-gap；CBMC 通过不能直接把 Rocq 状态标为 proved。CBMC 与 CompCert 的浮点/整数/内存/UB 差异显式列为侧条件或待证问题。无 CBMC 输入时记 not_applicable，模型生成不依赖先跑 CBMC。
+
+真实反例的位模式、内存状态、出错操作和写入前缀保留原始来源并交接给 five-rocq；重验、反驳和对应性证明在证明阶段完成。未知字节保持未知，synthetic 变体与原反例分开。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段从 `prepare/source/<entry>.c`、`prepare/source/bindings.json` 和适用的 `cbmc/` 属性读取输入，生成 `align/model/preprocessed.i`、`align/model/` 与 `align/model/proof/` 的规定文件，并更新 `align/report/`；详见共享契约。
+
+## 交付与计量
+
+align 为单 agent，不要求 A/B agent 或独立审批。修复本阶段发现的生成/映射实现问题并记录真实发现、解决、未解决数。证明任务留为显式 pending，不混入“生成失败”，也不冒充已完成证明。无法映射的属性或缺失环境如实列缺口。
+
+保留原 C/预处理、自动 AST、原始解释器包装、manifest/来源审计、外部环境清单、待证文件及适用的 spec-map。报告区分生成完成、映射完成、覆盖待证和程序性质未证明。冻结的 execution-translation 请求保持不变；“生成阶段完成”不等于最终已验证交付。最终证明验收由 five-verify 进行。
+
+遵循 [最小产物契约](references/run-contract.md)：开始工作前建立带 `--session` 的 five-align 记录，记录实际 token、时间、内存；结束采集事件差额。历史证明和费用不重签、不覆盖。
+
+结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验；实际 token、墙钟、工具 CPU 和工具内存峰值逐项有证据。缺失数据记 null 并说明原因，不得用 0 或估计补齐，也不能把后续 rocq 证明消耗计入 align。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+---
+name: five-rocq
+description: Construct explicit preconditions and specifications and prove requested theorems entirely in Rocq, including CompCert safety, termination, semantic correspondence and mapped CBMC properties. Accepts one or many Rocq models without requiring C or CBMC.
+---
+
+# 纯 Rocq 规约与证明
+
+本阶段负责**前条件构造、功能规约和实际定理证明**。接收一个或多个 Rocq 实现、模型、定义、待证目标或需求；不强制来自某个 C 函数，也不要求 C 或 CBMC。CompCert 模型和初步属性映射由 [five-align](../five-align/SKILL.md) 提供，完整工作流的调度与证据汇总由 [five-verify](../five-verify/SKILL.md) 负责。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段读取一个或多个 Rocq 模型、用户目标与适用的 `align/model/proof/` 和属性映射，写入 `rocq/<problem>/problem/`、`rocq/<problem>/attempts/<编号>/`、证明证据与 `rocq/report/`；纯 Rocq 情形无需 C/CBMC，详见共享契约。
+
+## 前条件与证明
+
+- 读取输入定义和依赖，明确目标量词、前条件、观察方式及语义范围。可证明无错误、终止性、功能关系、跨函数组合、跨周期不变量、语义对应或用户指定的其他定理。
+- 对 CompCert 模型接收脚本生成的 `Precondition.v`、`Obligations.v`、`Proofs.v`。用户仅要求生成时保持 pending，不开始填写或证明；用户进入证明阶段后，由大模型在独立前条件文件列明调用类型、内存、数值及环境要求，说明其范围和可满足性，再在证明文件完成相应实例。
+- 不把结论自身或空输入域作为前条件来完成任务，不悄悄加强用户已经给定的前条件。性质不成立时报告反例及可以成立的条件，不修改执行语义掩盖错误。
+- 无错误针对原始 Csem 所有可达状态；终止性针对所有可能后继。不要用有限展开、一个执行样例或“存在一条返回路径”代替。长期运行循环的整体终止命题可能不成立，应说明并按实际请求区分单周期终止与主循环安全。
+- 将规约与实现分开，用递归定义、归纳不变量、辅助引理和适当自动化证明。只有涉及浮点时才要求相应 Flocq 支持；区分位相等、IEEE 比较、数值相等和误差界。实际内存观察按字节与 frame 陈述。
+- Cexec/Csem 全执行对应、外部适配器/环境覆盖、抽象功能模型与执行层的连接，凡需新增形式证明都在本阶段完成。引用原始 CompCert 定理或已检查的依赖，保留前端与外部环境可信边界。生成 Csyntax 本身不能代替这些证明。
+
+## 映射后的 CBMC 属性
+
+有 `spec-map.json` 时，按真实属性 ID、原输入条件、位置、内存区域、调用/展开范围及观察逐项独立重验，必要时先补足命题/状态对应。CBMC 成功不是 Rocq 的公理；纯功能模型上的相似断言需要执行层衔接证明。
+
+重验/反驳结果写 `spec-recheck.json`，保留映射输入与真实 proof run 的绑定。若存在实际反例，重建输入位模式、内存状态、出错操作和已发生的写入前缀，并证明所声称的反例性质。未知字节保持未知；直接求值并非必需，可用执行关系证明复现。不能用 synthetic 变体冒充原 CBMC 反例。无法重验或两套语义存在尚未解决的差异时记 pending/gap，不强行标为 proved/refuted。证据格式见 [证明证据与验收](../five-verify/references/proof-evidence.md)。
+
+## 检查与交付
+
+编译修改模块及受影响依赖，对交付定理运行 `Print Assumptions` 并记录实际继承假设，执行独立 `rocq check`。不使用 Admitted、admit 或为目标新增未证明 Axiom。声明通过检查不等于存在证明；证明实际覆盖的条件、外部假设和未完成项独立列出。
+
+输出前条件、精确规约/命题、证明源码、依赖与假设、编译/内核证据、实际反例以及 pending 义务。证明止于所声明的 Rocq/CompCert 语义；映射回 C 所需的形式衔接也由本阶段证明，five-verify 检查这些证据能否支撑最终结论。
+
+当前项目可先 `source scripts/env.sh`，通用构建入口 `python3 scripts/prove-rocq.py --namespace NAME file1.v file2.v ...` 只构建/检查现有源码，不自动构造证明。已有项目优先使用自身构建配置。
+
+遵循 [最小产物契约](references/run-contract.md)。工作前建立带 `--session` 的 five-rocq 记录，统计实际 token、时间、内存，结束采集事件差额。纯 Rocq 输入无需 C/CBMC 产物，未证明义务单列。
+
+结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验。计入规约/前条件构造、证明尝试、修复、失败与超时，不能只统计最后一次编译。模型 token 与工具 CPU/RSS 分别记录；缺失指标记 null 并说明原因，不以估计或 0 替代。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+# FIVE reference examples — artifact standard
+
+**Current requested proofs: COMPLETE.** Sum2 and sum3 no-error and all-successor termination goals are proved. Every property actually emitted by the unchanged recorded harnesses is independently rechecked: sum2 1/1, sum3 10/10. The cross-model theorem proves its stated equality conditional on three normal returns; single-model proofs separately establish safety, termination and return existence.
+
+This index, the [sum3 case](models/sum3/README.md), the [sum2 case](models/sum2/README.md) and the [relation problem](relations/sum2_sum3/problem/Spec.v) define the format for future FIVE artifacts. Apply only requested stages and goals. A model-generation request ends with explicit unproved declarations; generation and type-checking never count as solving the problem.
+
+## Find the question and its solution
+
+| Question — exact problem/Spec.v | Current proof report | Established scope |
+| --- | --- | --- |
+| [Sum3 no error](models/sum3/rocq/no_error/problem/Spec.v) | [001](models/sum3/rocq/no_error/attempts/001/report.md) | Every reachable original Csem state |
+| [Sum3 termination](models/sum3/rocq/termination/problem/Spec.v) | [001](models/sum3/rocq/termination/attempts/001/report.md) | Acc over every Csem successor |
+| [Sum3 full CBMC recheck](models/sum3/rocq/cbmc_recheck/problem/Spec.v) | [002](models/sum3/rocq/cbmc_recheck/attempts/002/report.md) | All ten original memcpy-harness IDs, bytes and Csem assertion |
+| [Sum2 no error](models/sum2/rocq/no_error/problem/Spec.v) | [001](models/sum2/rocq/no_error/attempts/001/report.md) | Every reachable original Csem state |
+| [Sum2 termination](models/sum2/rocq/termination/problem/Spec.v) | [001](models/sum2/rocq/termination/attempts/001/report.md) | Acc over every Csem successor |
+| [Sum2 full CBMC recheck](models/sum2/rocq/cbmc_recheck/problem/Spec.v) | [001](models/sum2/rocq/cbmc_recheck/attempts/001/report.md) | Entire actual scalar-harness property set |
+| [Sum2 / sum3 relation](relations/sum2_sum3/problem/Spec.v) | [001](relations/sum2_sum3/attempts/001/report.md) | Conditional normal-return bit equality |
+
+Each report links its generated Proof.v, actual model/specification hashes, checker, independent kernel receipts, inherited assumptions and costs. [Sum3 recheck 001](models/sum3/rocq/cbmc_recheck/attempts/001/report.md) remains an incomplete historical attempt that proved only returned-value bits. Its original ResultBitsGoal is retained verbatim in the expanded canonical Spec.v. Attempt 002 is current; history is never silently rewritten into success.
+
+## Canonical layout
+
+```text
+examples/
+  README.md
+  models/<case>/
+    README.md
+    prepare/
+      source/<entry>.c        # frozen selected C and real dependencies
+      source/bindings.json   # source hashes, entry, target, actual call bindings
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+    cbmc/
+      harness.c              # actual traditional-BMC input
+      properties.json        # actual emitted IDs/results, if separately indexed
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+    align/
+      model/Source.v         # automatic original CompCert Csyntax export
+      model/Execution.v      # original Csem/Cexec wrapper
+      model/compcert-manifest.json
+      model/proof/           # generated parameterized obligation scaffolding
+      spec-map.json          # or model/spec-map.json, fixed by handoff
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+    rocq/
+      <problem>/
+        problem/{Spec.v,report.md,status.json}
+        attempts/<number>/{Proof.v,check.py,report.md,costs.json,evidence/}
+      support/               # helper lemmas, not extra user questions
+      spec-recheck.json
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+  relations/<name>/
+    problem/{Spec.v,report.md,status.json}
+    attempts/<number>/{Proof.v,check.py,report.md,costs.json,evidence/}
+```
+
+Keep one useful report per stage/problem/attempt. Auxiliary snapshots, provenance and raw measurements belong in evidence. Existing input/provenance receipts may be named inputs.json or provenance.json; they bind the exact sources actually compiled. Empty placeholders and duplicate summaries do not count as evidence.
+
+The four stages hand off in order through case-relative paths and SHA-256 hashes. Pure Rocq tasks need only applicable problem/attempt/evidence artifacts; C/CBMC stages are explicitly not applicable. A status.json uses schema five-proof-problem/1, names the active numbered attempt and canonical Spec.v, records requested goals and their actual status. FullSpec.v, where present, is a compatibility helper rather than the user question.
+
+## Acceptance and semantic scope
+
+Every actual proof attempt records requested and runtime-observed model/effort, exact imported model configuration and source/spec/proof hashes, an outcome for every requested goal, compilation, Print Assumptions and an independent Rocq kernel check. Current proof workers use GPT-6.1 Sol medium. No admitted proof or new unproved axiom completes a goal. Generated align/model/proof scaffolding is separate.
+
+For these cases, proof inputs are typed binary32 arguments and arbitrary CompCert memory. No-error quantifies every original Csem reachable state. Termination is accessibility of the full successor relation, not a fuel bound or selected path. CBMC assertions are independently proved, never imported as axioms. Return-existence lemmas make harness observation premises nonvacuous.
+
+Sum3 checks four-byte caller objects allocated before both calls, preserved frames, copied binary32 bytes, uint32 load and Csem assertion evaluation. CBMC builtin guards short-circuit on distinct objects; their mapping never asserts undefined cross-object C pointer ordering. Both cases use an explicit property-by-property harness adapter rather than claiming a generated whole-main execution trace.
+
+Target: CompCert 3.17 Csem/Cexec, x86-64 Linux standard ABI, little endian, binary32 nearest ties to even with recorded NaN policy. The trust boundary includes the recorded frontend and inherited library assumptions. These proofs do not assert GCC/native-hardware equivalence or universal cross-tool NaN-payload equality.
+
+## Costs and reproducibility
+
+Stage report/costs.json and every attempt/costs.json use five-stage-costs/1 with time, token and memory groups. Times are seconds, tool RSS is bytes; cache and reasoning tokens are subsets. Retain failures and retries. Record observed values with scope and evidence; unknown historical values remain null. A genuinely new measured replay/reconstruction has its own record and does not recover missing past expense.
+
+Shared authoring/verification sessions are referenced once. Per-attempt checker resources are subsets, not additional stage costs; per-attempt model tokens are null when no separate boundary existed. Token aggregates use event-ID union. End-to-end wall time is measured directly, never summed across overlapping stages. Sampled tool-tree RSS can miss peaks and count shared pages twice; it excludes model-server/desktop memory.
+
+| Case | Prepare costs | CBMC costs | Align costs | Rocq and verification costs |
+| --- | --- | --- | --- | --- |
+| Sum2 | [record](models/sum2/prepare/report/costs.json) | [record](models/sum2/cbmc/report/costs.json) | [record](models/sum2/align/report/costs.json) | [record](models/sum2/rocq/report/costs.json) |
+| Sum3 | [record](models/sum3/prepare/report/costs.json) | [record](models/sum3/cbmc/report/costs.json) | [record](models/sum3/align/report/costs.json) | [record](models/sum3/rocq/report/costs.json) |
+
+[Relation costs](relations/sum2_sum3/attempts/001/costs.json) retain the cross-model attempt and reference its fresh verification subset. Historical incomplete attempts, interrupted runs and unmeasured expenses remain honestly scoped alongside complete current proofs.
+
+From repository root:
+
+```sh
+source scripts/env.sh
+python3 scripts/check-example-artifacts.py             # active pointers, hashes, metadata and canonical receipts
+python3 scripts/check-example-artifacts.py --compile   # also rebuild every active proof attempt
+python3 scripts/audit-costs.py --run <recorded-run>     # independent cost audit
+```
+
+The metadata validator does not replace semantic review. A model export, proof build, kernel check and cost receipt are distinct facts and are reported separately.
+# sum3
+
+**Complete:** no error, all-successor termination and all ten properties of the unchanged original memcpy harness. [Rocq summary](rocq/report/report.md). The [examples index](../../README.md) is the authority for future artifact format.
+
+| Stage | Frozen input and outputs | Report and observed costs |
+| --- | --- | --- |
+| prepare | [source](prepare/source/sum3.c), [bindings](prepare/source/bindings.json), [handoff](prepare/handoff.json) | [report](prepare/report/report.md), [costs](prepare/report/costs.json) |
+| cbmc | [original harness](cbmc/harness.c), [actual ten properties](cbmc/properties.json), [handoff](cbmc/handoff.json) | [report](cbmc/report/report.md), [costs](cbmc/report/costs.json) |
+| align | [original Source.v](align/model/Source.v), [Execution.v](align/model/Execution.v), [manifest](align/model/compcert-manifest.json), [mapping](align/spec-map.json), [handoff](align/handoff.json) | [report](align/report/report.md), [costs](align/report/costs.json) |
+| rocq | [problem/attempt index](rocq/report/report.md), [canonical recheck](rocq/spec-recheck.json), [handoff](rocq/handoff.json) | [report](rocq/report/report.md), [costs](rocq/report/costs.json) |
+
+The current recheck is [attempt 002](rocq/cbmc_recheck/attempts/002/report.md). [Attempt 001](rocq/cbmc_recheck/attempts/001/report.md) is preserved as incomplete historical evidence. All problems use problem/Spec.v as the question and numbered attempts/Proof.v as the solution; support modules are auxiliary lemmas.
+
+Run `source scripts/env.sh && python3 scripts/check-example-artifacts.py` from repository root for current metadata, provenance hashes and canonical receipt checks. Add `--compile` to rebuild active attempts. Internal CBMC object guards are mapped explicitly to CompCert block separation; no C order between unrelated pointers is asserted.
+paparazzi/report/lowpass_update_readback/review-report.zh-CN.md
+paparazzi/report/lowpass_update_readback/costs.json
+paparazzi/report/lowpass_update_readback/check_all.py
+paparazzi/report/lowpass_update_readback/support/publish-final.py
+paparazzi/report/lowpass_update_readback/support/update-costs.py
+paparazzi/report/lowpass_update_readback/README.md
+paparazzi/report/lowpass_update_readback/evidence/core-candidate.json
+paparazzi/report/lowpass_update_readback/evidence/core-candidate-001.json
+paparazzi/report/lowpass_update_readback/evidence/local-delivery-gate.json
+paparazzi/report/lowpass_update_readback/evidence/stage-cost-audits.json
+paparazzi/report/lowpass_update_readback/evidence/runtime-config.json
+paparazzi/report/lowpass_update_readback/evidence/parent-final-review.json
+paparazzi/report/lowpass_update_readback/evidence/cost-run-index.json
+paparazzi/report/lowpass_update_readback/evidence/task-token-union.json
+paparazzi/report/lowpass_update_readback/evidence/core-candidate-002.json
+paparazzi/report/lowpass_update_readback/evidence/development-history.json
+paparazzi/report/lowpass_update_readback/publication-manifest.json
+paparazzi/report/relation-discovery/costs.json
+paparazzi/report/relation-discovery/evidence/source-index.json
+paparazzi/report/parameter_order/zeta-canonical-cbmc-replay.json
+paparazzi/report/parameter_order/repository.md
+paparazzi/report/parameter_order/prepare_exact_slices.py
+paparazzi/report/parameter_order/costs.json
+paparazzi/report/parameter_order/check_all.py
+paparazzi/report/parameter_order/independent-review/problem-index.json
+paparazzi/report/parameter_order/independent-review/costs.json
+paparazzi/report/parameter_order/independent-review/report.md
+paparazzi/report/parameter_order/scope.json
+paparazzi/report/parameter_order/evidence/wrapper-cost-audit.json
+paparazzi/report/parameter_order/evidence/setup-usage.json
+paparazzi/report/parameter_order/evidence/observed-session-usage.json
+paparazzi/report/parameter_order/evidence/authoring-tooling-index.json
+paparazzi/report/parameter_order/report.md
+paparazzi/report/quat_rotation_paths/proof_setup.py
+paparazzi/report/quat_rotation_paths/direct-proof-costs.json
+paparazzi/report/quat_rotation_paths/publish_gate.py
+paparazzi/report/quat_rotation_paths/check_structure.py
+paparazzi/report/quat_rotation_paths/align-costs.json
+paparazzi/report/quat_rotation_paths/matrix-proof-costs.json
+paparazzi/report/quat_rotation_paths/prepare-costs.json
+paparazzi/report/quat_rotation_paths/ofquat-delivery.json
+paparazzi/report/quat_rotation_paths/compile.py
+paparazzi/report/quat_rotation_paths/runtime-configuration.json
+paparazzi/report/quat_rotation_paths/finalize.py
+paparazzi/report/quat_rotation_paths/initial_compile.py
+paparazzi/report/quat_rotation_paths/cbmc/counterexample-trace.json
+paparazzi/report/quat_rotation_paths/cbmc/harness.c
+paparazzi/report/quat_rotation_paths/cbmc/native.c
+paparazzi/report/quat_rotation_paths/cbmc/native-trace.c
+paparazzi/report/quat_rotation_paths/cbmc/properties.json
+paparazzi/report/quat_rotation_paths/ofquat-costs.json
+paparazzi/report/quat_rotation_paths/initial_alloc.py
+paparazzi/report/quat_rotation_paths/report.zh-CN.md
+paparazzi/report/quat_rotation_paths/ofquat_recheck.py
+paparazzi/report/quat_rotation_paths/ofquat_output.py
+paparazzi/report/quat_rotation_paths/finish_align.py
+paparazzi/report/quat_rotation_paths/assertion_check.py
+paparazzi/report/quat_rotation_paths/__pycache__/evidence_tools.cpython-310.pyc
+paparazzi/report/quat_rotation_paths/__pycache__/publish_gate.cpython-310.pyc
+paparazzi/report/quat_rotation_paths/check_all.py
+paparazzi/report/quat_rotation_paths/ofquat_finish.py
+paparazzi/report/quat_rotation_paths/rocq-costs.json
+paparazzi/report/quat_rotation_paths/ofquat_compile.py
+paparazzi/report/quat_rotation_paths/evidence_tools.py
+paparazzi/report/quat_rotation_paths/initial_kernel.py
+paparazzi/report/quat_rotation_paths/cbmc.py
+paparazzi/report/quat_rotation_paths/align.py
+paparazzi/report/quat_rotation_paths/matrix_access-kernel-evidence.json
+paparazzi/report/quat_rotation_paths/matrix_memcpy-kernel-evidence.json
+paparazzi/report/quat_rotation_paths/prepare-correction-costs.json
+paparazzi/report/quat_rotation_paths/initial-support-costs.json
+paparazzi/report/quat_rotation_paths/mappings.json
+paparazzi/report/quat_rotation_paths/ofquat_generate.py
+paparazzi/report/quat_rotation_paths/cbmc-costs.json
+paparazzi/report/quat_rotation_paths/final_checks.py
+paparazzi/report/quat_rotation_paths/ofquat_receipts.py
+paparazzi/report/quat_rotation_paths/correct_provenance.py
+paparazzi/report/quat_rotation_paths/ofquat_body.py
+paparazzi/report/quat_rotation_paths/check_relation.py
+paparazzi/report/quat_rotation_paths/prepare.py
+__pycache__
+ast_library_audit.py
+audit-costs.py
+check-example-artifacts.py
+check-models.py
+codex_usage.py
+compcert-align.py
+compcert-verify.py
+compcert_backend.py
+compcert_gate.py
+cost_audit.py
+env.sh
+example_proof_gate.py
+execution_contract.py
+five_telemetry.py
+generate-obligations.md
+generate-obligations.py
+prove-rocq.py
+tests

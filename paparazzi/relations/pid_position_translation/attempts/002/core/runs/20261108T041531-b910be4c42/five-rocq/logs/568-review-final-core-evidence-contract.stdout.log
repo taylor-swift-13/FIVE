@@ -1,0 +1,104 @@
+
+FILE .agents/skills/five-rocq/SKILL.md
+---
+name: five-rocq
+description: Construct explicit preconditions and specifications and prove requested theorems entirely in Rocq, including CompCert safety, termination, semantic correspondence and mapped CBMC properties. Accepts one or many Rocq models without requiring C or CBMC.
+---
+
+# 纯 Rocq 规约与证明
+
+本阶段负责**前条件构造、功能规约和实际定理证明**。接收一个或多个 Rocq 实现、模型、定义、待证目标或需求；不强制来自某个 C 函数，也不要求 C 或 CBMC。CompCert 模型和初步属性映射由 [five-align](../five-align/SKILL.md) 提供，完整工作流的调度与证据汇总由 [five-verify](../five-verify/SKILL.md) 负责。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段读取一个或多个 Rocq 模型、用户目标与适用的 `align/model/proof/` 和属性映射，写入 `rocq/<problem>/problem/`、`rocq/<problem>/attempts/<编号>/`、证明证据与 `rocq/report/`；纯 Rocq 情形无需 C/CBMC，详见共享契约。
+
+## 前条件与证明
+
+- 读取输入定义和依赖，明确目标量词、前条件、观察方式及语义范围。可证明无错误、终止性、功能关系、跨函数组合、跨周期不变量、语义对应或用户指定的其他定理。
+- 对 CompCert 模型接收脚本生成的 `Precondition.v`、`Obligations.v`、`Proofs.v`。用户仅要求生成时保持 pending，不开始填写或证明；用户进入证明阶段后，由大模型在独立前条件文件列明调用类型、内存、数值及环境要求，说明其范围和可满足性，再在证明文件完成相应实例。
+- 不把结论自身或空输入域作为前条件来完成任务，不悄悄加强用户已经给定的前条件。性质不成立时报告反例及可以成立的条件，不修改执行语义掩盖错误。
+- 无错误针对原始 Csem 所有可达状态；终止性针对所有可能后继。不要用有限展开、一个执行样例或“存在一条返回路径”代替。长期运行循环的整体终止命题可能不成立，应说明并按实际请求区分单周期终止与主循环安全。
+- 将规约与实现分开，用递归定义、归纳不变量、辅助引理和适当自动化证明。只有涉及浮点时才要求相应 Flocq 支持；区分位相等、IEEE 比较、数值相等和误差界。实际内存观察按字节与 frame 陈述。
+- Cexec/Csem 全执行对应、外部适配器/环境覆盖、抽象功能模型与执行层的连接，凡需新增形式证明都在本阶段完成。引用原始 CompCert 定理或已检查的依赖，保留前端与外部环境可信边界。生成 Csyntax 本身不能代替这些证明。
+
+## 映射后的 CBMC 属性
+
+有 `spec-map.json` 时，按真实属性 ID、原输入条件、位置、内存区域、调用/展开范围及观察逐项独立重验，必要时先补足命题/状态对应。CBMC 成功不是 Rocq 的公理；纯功能模型上的相似断言需要执行层衔接证明。
+
+重验/反驳结果写 `spec-recheck.json`，保留映射输入与真实 proof run 的绑定。若存在实际反例，重建输入位模式、内存状态、出错操作和已发生的写入前缀，并证明所声称的反例性质。未知字节保持未知；直接求值并非必需，可用执行关系证明复现。不能用 synthetic 变体冒充原 CBMC 反例。无法重验或两套语义存在尚未解决的差异时记 pending/gap，不强行标为 proved/refuted。证据格式见 [证明证据与验收](../five-verify/references/proof-evidence.md)。
+
+## 检查与交付
+
+编译修改模块及受影响依赖，对交付定理运行 `Print Assumptions` 并记录实际继承假设，执行独立 `rocq check`。不使用 Admitted、admit 或为目标新增未证明 Axiom。声明通过检查不等于存在证明；证明实际覆盖的条件、外部假设和未完成项独立列出。
+
+输出前条件、精确规约/命题、证明源码、依赖与假设、编译/内核证据、实际反例以及 pending 义务。证明止于所声明的 Rocq/CompCert 语义；映射回 C 所需的形式衔接也由本阶段证明，five-verify 检查这些证据能否支撑最终结论。
+
+当前项目可先 `source scripts/env.sh`，通用构建入口 `python3 scripts/prove-rocq.py --namespace NAME file1.v file2.v ...` 只构建/检查现有源码，不自动构造证明。已有项目优先使用自身构建配置。
+
+遵循 [最小产物契约](references/run-contract.md)。工作前建立带 `--session` 的 five-rocq 记录，统计实际 token、时间、内存，结束采集事件差额。纯 Rocq 输入无需 C/CBMC 产物，未证明义务单列。
+
+结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验。计入规约/前条件构造、证明尝试、修复、失败与超时，不能只统计最后一次编译。模型 token 与工具 CPU/RSS 分别记录；缺失指标记 null 并说明原因，不以估计或 0 替代。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+
+
+FILE .agents/skills/five-rocq/references/run-contract.md
+# 最小运行与产物契约
+
+每次 skill 调用创建唯一运行目录（FIVE 默认 `runs/<run-id>/<skill>/`），保留失败、超时和中断状态，不覆盖旧结论。一次输入变化对应一次新运行。
+
+只保留三份入口文件及支撑结论的证据：
+
+| 产物 | 内容 |
+| --- | --- |
+| `report.md` | 简短结论、范围、未完成项、资源数字；align记录本阶段真实问题的发现/解决/未解决数及最终结论 |
+| `metrics.json` | 模型token、墙钟时间、工具CPU时间、内存峰值、采集方法、口径和可用状态 |
+| `run.json` | 输入/输出清单与hash、语义/前置条件、工具版本与命令、结果、必要证据索引；不另存多份同义摘要 |
+| `inputs/`、`evidence/`、`logs/` | 必要源码快照、证明/反例/测试和原始工具输出。相同证据引用一次，不堆叠复制报告 |
+
+时间使用秒，内存使用bytes，token使用token数。墙钟从本次调用开始到结束；CPU仅统计执行工具。GNU time最大RSS是单进程最大值，不是并发进程总和；`/proc`进程树RSS采样峰值会注明间隔、共享页可能重复计数和可能漏掉短峰值。模型服务器/桌面agent内存不能冒充工具内存。
+
+token记录input、output、cached-input及可取得的reasoning-output，后两者是子集，不重复加进total。只导入供应商usage或明确标识的Codex session事件；按event_id对实际阶段与端到端汇总去重。没有可靠接口则值为null并记unavailable+原因，不用日志字数估计，不把未知记0；此时计量状态是partial，不能宣称指标齐全。保留必要usage回执即可，不保存模型思维过程或完整无关聊天。
+
+当前 align 为单 agent，不要求子 agent 或独立审批。实际另有授权子任务时，才分别记录其指标和证据。端到端墙钟直接计时，不能相加子阶段墙钟；串行阶段峰值取最大，无法测量并发总峰值时明确不可用。启动子agent前记录调用时间和输入版本；资源回放不能冒充此前agent思考时间。
+
+开始工作时建立记录，外部命令通过 `scripts/five_telemetry.py` 的 Run.command 或CLI执行；在成功、失败和超时路径均finish。模型usage可经 `python3 scripts/five_telemetry.py tokens --run RUN_DIR --receipt usage.json` 导入。通用CLI提供start/exec/finish；现有a+b与纯Rocq入口已接入。对已有项目复用其构建命令，不强迫改项目结构。
+
+完整产物意味着结论可检查、可重跑；未生成的必需证据列原因及缺项。验证passed、产物完整性、指标完整性是三个不同状态。
+
+## 三阶段模型 token 的实际采集
+
+CBMC、align、Rocq分别建立skill-session记录；不能把主聊天总量直接分摊给它们，也不能只统计执行脚本时段。先识别本次CODEX_THREAD_ID与对应session JSONL，在读取/分析实现、编写模型或证明之前运行：
+
+```bash
+python3 scripts/five_telemetry.py start --base runs --skill five-cbmc \
+  --scope scope.json --session /path/to/current-session.jsonl
+```
+
+另两阶段分别使用five-align/five-rocq。保存返回的RUN目录；该阶段完成后用finish结束同一记录。start和finish自动采集token_count累计事件边界，提取实际input/output/cache/reasoning计数；缓存与reasoning为子集。工具执行作为该记录的exec命令，必要证据由finish的outputs传入。最终面向用户的总汇报可计入five-verify，不倒灌进已经结束的阶段。
+
+align 当前只记录主 agent 自身的阶段 session，不再要求 A/B session、问题计数或审批。若用户另外授权实际子任务，才记录各自 session 并按 parent/event_id 去重；不创建虚构子任务或把一个 session 冒充另一个。只有确实观测为空的边界区间可记0，缺失数据为null。
+
+`scripts/codex_usage.py`可按本聊天父子session身份提取实际用量（不导出聊天或推理内容），也提供snapshot/receipt边界命令。已有历史session累计用量可准确提取；历史主agent没有阶段边界时保留unattributed，不作事后精确分摊。纯脚本回放计量不等于skill的模型工作计量。
+
+## 逐阶段严格成本验收
+
+CBMC、align、Rocq 以及实际调用的 verify 各自建立独立 skill-session。边界从该阶段开始分析/构造/修复前建立，到阶段工作完成时结束；重试、失败、超时同样计入。工具回放不能代替阶段大模型消耗。切换职责时结束或明确暂停归属，不能给同一阶段工作事后分摊名称。
+
+每个阶段必须记录实际 input/output/total token，缓存与 reasoning 为子集；直接计墙钟；工具 CPU 以 GNU time 为证据；内存同时保留单进程最大 RSS 与工具进程树采样峰值及采样间隔。模型服务端/桌面 agent 内存不在可见范围，不包含在工具 RSS 中。采样峰值可能漏峰、共享页可能重复计数，不能称为精确的系统总内存峰值。
+
+`Run.finish` 自动记录 `cost_audit`，核查 session 用量边界、原始 receipt、事件去重、GNU time 记录、采样数据与汇总口径。结束后还可运行：
+
+```sh
+python3 scripts/audit-costs.py --run RUN_DIR
+```
+
+返回 0 才表示该阶段成本证据完整；非 0 明确列缺项。验证结果与成本状态独立：证明通过不能掩盖成本缺失，失败的证明也必须统计消耗。未知值为 null/partial，禁止用 0、字数估计、脚本耗时代替；没有可靠用量接口时如实报告不完整，不制造记录。
+
+端到端 token 按事件 ID 并集去重；verify 自身 token 排除已归属子阶段的事件，不把含子阶段的包裹区间再次当作自身消耗。端到端墙钟直接测量。工具计时若已经包裹了整个子阶段，不能再把子阶段 CPU 累加一次；脚本成本审计会拒绝这种重叠。顺序执行内存峰值取有证据的最大值，并行联合峰值缺失则保持未知。最终报告逐阶段列状态/指标，再列去重汇总。
+
+FILE .agents/skills/five-rocq/references/proof-evidence.md
+MISSING

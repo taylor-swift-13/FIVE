@@ -1,0 +1,812 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition writable12(m:mem)(b:block)(p:ptrofs):Prop :=
+ (4 | Ptrofs.unsigned p) /\ Ptrofs.unsigned p+12<=Ptrofs.modulus /\
+ Mem.range_perm m b (Ptrofs.unsigned p)(Ptrofs.unsigned p+12) Cur Writable.
+Lemma field_pointer:forall m b p delta,writable12 m b p -> In delta[0;4;8] ->
+ Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr delta))=Ptrofs.unsigned p+delta.
+Proof.
+ intros m b p delta[AL[NW RP]]D;rewrite Ptrofs.add_unsigned.
+ assert(DR:0<=delta<=Ptrofs.max_unsigned)by(change(0<=delta<=18446744073709551615);destruct D as[<-|[<-|[<-|[]]]];lia).
+ rewrite (Ptrofs.unsigned_repr delta DR).
+ apply Ptrofs.unsigned_repr;pose proof(Ptrofs.unsigned_range p).
+ unfold Ptrofs.max_unsigned;destruct D as[<-|[<-|[<-|[]]]];lia.
+Qed.
+Lemma field_access:forall m b p delta,writable12 m b p -> In delta[0;4;8] ->
+ Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+delta)Writable.
+Proof.
+ intros m b p delta[AL[NW RP]]D;split.
+ - intros ofs RANGE;apply RP;cbn[size_chunk]in RANGE;destruct D as[<-|[<-|[<-|[]]]];lia.
+ - change(4|Ptrofs.unsigned p+delta);destruct AL as[k K];destruct D as[<-|[<-|[<-|[]]]];
+   [exists k|exists(k+1)|exists(k+2)];lia.
+Qed.
+Lemma field_store:forall m b p delta v,writable12 m b p -> In delta[0;4;8] ->
+ exists mf,Mem.store Mfloat32 m b(Ptrofs.unsigned p+delta)(Vsingle v)=Some mf.
+Proof. intros m b p delta v P D;destruct(Mem.valid_access_store m Mfloat32 b(Ptrofs.unsigned p+delta)(Vsingle v)(field_access m b p delta P D))as[mf ST];exists mf;exact ST. Qed.
+Lemma store_preserves_writable12:forall m b p ch block ofs v mf,
+ writable12 m b p -> Mem.store ch m block ofs v=Some mf -> writable12 mf b p.
+Proof.
+ intros m b p ch blk ofs v mf[AL[NW RP]]ST;repeat split;auto.
+ intros z H;eapply Mem.perm_store_1;[exact ST|apply RP;exact H].
+Qed.
+Definition byte_frame(m mf:mem)(b:block)(p:ptrofs):Prop :=
+ forall block ofs n,block<>b \/ ofs+n<=Ptrofs.unsigned p \/ Ptrofs.unsigned p+12<=ofs ->
+ Mem.loadbytes mf block ofs n=Mem.loadbytes m block ofs n.
+Lemma field_store_frame:forall m b p delta v mf,
+ In delta[0;4;8] -> Mem.store Mfloat32 m b(Ptrofs.unsigned p+delta)(Vsingle v)=Some mf ->
+ byte_frame m mf b p.
+Proof.
+ intros m b p delta v mf D ST block ofs n OUT.
+ eapply Mem.loadbytes_store_other;[exact ST|].
+ cbn[size_chunk];destruct D as[<-|[<-|[<-|[]]]];destruct OUT as[B|[L|R]];intuition lia.
+Qed.
+Lemma byte_frame_trans:forall m m1 mf b p,byte_frame m m1 b p->byte_frame m1 mf b p->byte_frame m mf b p.
+Proof. intros m m1 mf b p A B block ofs n OUT;rewrite B by exact OUT;apply A;exact OUT. Qed.
+Lemma field_store_load:forall m b base delta v mf,
+ Mem.store Mfloat32 m b(base+delta)(Vsingle v)=Some mf ->
+ Mem.load Mfloat32 mf b(base+delta)=Some(Vsingle v).
+Proof. intros;exact(Mem.load_store_same _ _ _ _ _ _ H). Qed.
+Definition three_stores(m:mem)(b:block)(p:ptrofs)(tc vi vo:float32)(mf:mem):Prop :=
+ exists m1 m2,Mem.store Mfloat32 m b(Ptrofs.unsigned p+0)(Vsingle tc)=Some m1 /\
+ Mem.store Mfloat32 m1 b(Ptrofs.unsigned p+4)(Vsingle vi)=Some m2 /\
+ Mem.store Mfloat32 m2 b(Ptrofs.unsigned p+8)(Vsingle vo)=Some mf.
+Lemma three_stores_exist:forall m b p tc vi vo,writable12 m b p->exists mf,three_stores m b p tc vi vo mf.
+Proof.
+ intros m b p tc vi vo P.
+ destruct(field_store m b p 0 tc P ltac:(simpl;auto))as[m1 S1].
+ pose proof(store_preserves_writable12 _ _ _ _ _ _ _ _ P S1)as P1.
+ destruct(field_store m1 b p 4 vi P1 ltac:(simpl;auto))as[m2 S2].
+ pose proof(store_preserves_writable12 _ _ _ _ _ _ _ _ P1 S2)as P2.
+ destruct(field_store m2 b p 8 vo P2 ltac:(simpl;auto))as[mf S3].
+ exists mf,m1,m2;auto.
+Qed.
+Lemma three_stores_bytes:forall m b p tc vi vo mf,three_stores m b p tc vi vo mf ->
+ Mem.loadbytes mf b(Ptrofs.unsigned p)12=
+ Some(encode_val Mfloat32(Vsingle tc)++encode_val Mfloat32(Vsingle vi)++encode_val Mfloat32(Vsingle vo)).
+Proof.
+ intros m b p tc vi vo mf[m1[m2[S1[S2 S3]]]].
+ assert(L0:Mem.loadbytes mf b(Ptrofs.unsigned p)4=Some(encode_val Mfloat32(Vsingle tc))).
+ { erewrite Mem.loadbytes_store_other by(exact S3||(cbn[size_chunk];lia)).
+   erewrite Mem.loadbytes_store_other by(exact S2||(cbn[size_chunk];lia)).
+   replace(Ptrofs.unsigned p)with(Ptrofs.unsigned p+0)by lia.
+   exact(Mem.loadbytes_store_same _ _ _ _ _ _ S1). }
+ assert(L4:Mem.loadbytes mf b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle vi))).
+ { erewrite Mem.loadbytes_store_other by(exact S3||(cbn[size_chunk];lia)).
+   exact(Mem.loadbytes_store_same _ _ _ _ _ _ S2). }
+ assert(L8:Mem.loadbytes mf b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle vo)))by exact(Mem.loadbytes_store_same _ _ _ _ _ _ S3).
+ assert(L48:Mem.loadbytes mf b(Ptrofs.unsigned p+4)8=Some(encode_val Mfloat32(Vsingle vi)++encode_val Mfloat32(Vsingle vo))).
+ { replace 8 with(4+4)by lia;eapply Mem.loadbytes_concat;try exact L4;try lia.
+   replace(Ptrofs.unsigned p+4+4)with(Ptrofs.unsigned p+8)by lia;exact L8. }
+ replace 12 with(4+8)by lia;eapply Mem.loadbytes_concat;eauto;lia.
+Qed.
+Lemma three_stores_frame:forall m b p tc vi vo mf,three_stores m b p tc vi vo mf ->byte_frame m mf b p.
+Proof.
+ intros m b p tc vi vo mf[m1[m2[S1[S2 S3]]]].
+ eapply byte_frame_trans;[exact(field_store_frame m b p 0 tc m1 ltac:(simpl;auto) S1)|].
+ eapply byte_frame_trans;[exact(field_store_frame m1 b p 4 vi m2 ltac:(simpl;auto) S2)|].
+ exact(field_store_frame m2 b p 8 vo mf ltac:(simpl;auto) S3).
+Qed.
+Print Assumptions field_pointer.
+Print Assumptions three_stores_bytes.
+Print Assumptions three_stores_frame.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation.
+Local Open Scope Z_scope.
+Lemma float_variable:forall ge e m id bx x,
+ e!id=Some(bx,tfloat)->Mem.load Mfloat32 m bx 0=Some(Vsingle x)->
+ pure_rval ge e m(Evalof(Evar id tfloat)tfloat)=Some(Vsingle x).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(4<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma pointer_variable:forall ge e m id bx b p ty,
+ e!id=Some(bx,tptr ty)->Mem.load Mptr m bx 0=Some(Vptr b p)->
+ pure_rval ge e m(Evalof(Evar id(tptr ty))(tptr ty))=Some(Vptr b p).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tptr noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(8<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma struct_field:forall ge e m ptr sid fid b p delta co,
+ pure_rval ge e m ptr=Some(Vptr b p)->
+ (genv_cenv ge)!sid=Some co->field_offset ge fid(co_members co)=OK(delta,Full)->
+ pure_lval ge e m(Efield(Evalof(Ederef ptr(Tstruct sid noattr))(Tstruct sid noattr))fid tfloat)=Some(b,Ptrofs.add p(Ptrofs.repr delta),Full).
+Proof.
+ intros;cbn[pure_lval pure_rval];rewrite ?dec_eq_true;cbn;fold(pure_rval ge e m ptr);rewrite H.
+ cbv[Cexec.do_deref_loc access_mode];cbn;rewrite H0,H1;reflexivity.
+Qed.
+Lemma assign_float:forall ge e m l r b p x mf,
+ typeof l=tfloat->typeof r=tfloat->
+ pure_lval ge e m l=Some(b,p,Full)->pure_rval ge e m r=Some(Vsingle x)->
+ Ptrofs.unsigned p+4<=Ptrofs.modulus->
+ Mem.store Mfloat32 m b(Ptrofs.unsigned p)(Vsingle x)=Some mf->
+ atomic_eval ge e m(Eassign l r tfloat)=Some(Vsingle x,mf).
+Proof.
+ intros ge e m l r b p x mf TL TR LL RR B ST.
+ cbn[atomic_eval];rewrite TL,dec_eq_true,LL,RR.
+ unfold commit;rewrite TR;cbv[sem_cast classify_cast Cexec.do_assign_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.storev].
+ rewrite zle_true by exact B;rewrite ST;reflexivity.
+Qed.
+Print Assumptions assign_float.
+From Stdlib Require Import Bool List.
+From compcert Require Import Values Memory Events Ctypes Csyntax Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceSemantics Require Import WeightedTermination.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+
+Lemma normal_stmt_finite: forall s,
+ normal_stmt s=true -> finite_statement s=true.
+Proof. induction s;simpl;intros H;core_unpack;try discriminate;core_build;auto. Qed.
+Lemma normal_cont_finite: forall k,
+ normal_cont k=true -> finite_continuation k.
+Proof.
+ induction k;simpl;intros H;core_unpack;try discriminate;constructor;auto using normal_stmt_finite.
+Qed.
+Lemma normal_state_finite: forall s,
+ normal_state s=true -> finite_state s.
+Proof.
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];simpl;intros H;core_unpack;try discriminate;
+ try (split;auto using normal_stmt_finite,normal_cont_finite).
+ - destruct k;simpl in H;core_unpack;try discriminate;constructor;auto using normal_cont_finite,normal_stmt_finite.
+ - destruct fd;destruct k;try discriminate;constructor.
+ - destruct k;try discriminate;constructor.
+Qed.
+Lemma normal_calls_budget: forall ge s,
+ normal_state s=true -> calls_within_budget (fun _=>0) ge s.
+Proof.
+ destruct s;cbn[calls_within_budget];intros N;try exact I.
+ intros C sub fd args ty CT EQ CR;exfalso.
+ eapply normal_no_callred;[exact N|exact CT|exact EQ|exact CR].
+Qed.
+Theorem normal_all_successors_terminate: forall ge s,
+ normal_state s=true -> Acc(successor ge)s.
+Proof.
+ intros ge;eapply(all_successors_accessible (fun _=>0) ge (fun s=>normal_state s=true)).
+ - exact normal_state_finite.
+ - exact(normal_calls_budget ge).
+ - intros s t next N [ES|SS].
+   + destruct s;inversion ES;subst;eapply normal_estep_backward in ES;eauto;exact(proj1 ES).
+   + eapply normal_sstep_preserved;eauto.
+Qed.
+Theorem defined_evaluator_no_error: forall ge initial result,
+ normal_state initial=true -> call_names initial ->
+ state_eval ge initial=Some result -> no_error ge initial.
+Proof.
+ intros ge initial result N CN EV t reached PATH [BAD STOP].
+ assert(INV:execution_invariant ge initial)by(repeat split;auto;exists result;exact EV).
+ destruct(invariant_progress ge reached (reachable_invariant ge initial t reached INV PATH))as[RET|[tr[next STEP]]].
+ - apply BAD;exact RET.
+ - exact(STOP tr next STEP).
+Qed.
+Theorem defined_evaluator_exact_return: forall ge initial v mf t v' mf',
+ normal_state initial=true -> state_eval ge initial=Some(v,mf) ->
+ star Csem.step ge initial t(Returnstate v' Kstop mf') -> v'=v /\ mf'=mf.
+Proof.
+ intros ge initial v mf t v' mf' N EV PATH.
+ pose proof(all_order_normal_correspondence ge initial t v' mf' N PATH)as EQ.
+ rewrite EV in EQ;inversion EQ;auto.
+Qed.
+Theorem defined_evaluator_safe_termination: forall ge initial result,
+ normal_state initial=true -> call_names initial ->
+ state_eval ge initial=Some result -> safe_termination ge initial.
+Proof.
+ intros;split;[eapply defined_evaluator_no_error;eauto|apply normal_all_successors_terminate;auto].
+Qed.
+Theorem defined_evaluator_return_exists: forall ge initial v mf,
+ normal_state initial=true -> call_names initial ->
+ state_eval ge initial=Some(v,mf) ->
+ exists t,star Csem.step ge initial t(Returnstate v Kstop mf).
+Proof.
+ intros ge initial v mf N CN EV.
+ pose proof(normal_all_successors_terminate ge initial N)as AC.
+ assert(INV:execution_invariant ge initial)by(repeat split;auto;exists(v,mf);exact EV).
+ revert INV N EV;induction AC as[s AC IH];intros INV N EV.
+ destruct(invariant_progress ge s INV)as[[v'[mf' EQ]]|[tr[next STEP]]].
+ - subst s;cbn[state_eval]in EV;inversion EV;subst;exists E0;constructor.
+ - destruct(normal_step_forward ge s tr next (v,mf) N EV STEP)as[NN EN].
+   destruct(IH next ltac:(exists tr;exact STEP)(normal_step_names ge s tr next N CN STEP)(invariant_preserved ge s tr next INV STEP)NN EN)as[tail PATH].
+   exists(tr**tail);eapply star_step;eauto.
+Qed.
+Print Assumptions normal_all_successors_terminate.
+Print Assumptions defined_evaluator_safe_termination.
+Print Assumptions defined_evaluator_return_exists.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassUpdateCase Require Import Contract UpdateCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NormalCompletion:Prop:=forall m b p tc li lo value,Initialized m b p tc li lo->exists t mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p value)m)t(Returnstate(Vsingle(output tc li lo value))Kstop mf) /\Post m mf b p tc li lo value.
+Definition AllReturns:Prop:=forall m b p tc li lo value,Initialized m b p tc li lo->forall t result mf,
+ star Csem.step Execution.ge(Execution.entry(Args b p value)m)t(Returnstate result Kstop mf)->result=Vsingle(output tc li lo value) /\Post m mf b p tc li lo value.
+
+Definition Nonvacuity:Prop:=forall tc li lo:float32,exists m b p,Initialized m b p tc li lo.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassUpdateCase Require Import Contract UpdateCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+From FiveLowpassUpdateFunctional Require Import Spec.
+Theorem normal_completion:Spec.NormalCompletion.
+Proof. unfold Spec.NormalCompletion;intros m b p tc li lo value P.
+ destruct(update_call_summary m b p tc li lo value P)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args b p value)m)=true)by(vm_compute;reflexivity).
+ assert(CN:call_names(Execution.entry(Args b p value)m))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ destruct(defined_evaluator_return_exists Execution.ge _ _ _ N CN EV)as[t PATH];exists t,mf;auto. Qed.
+Theorem all_returns:Spec.AllReturns.
+Proof. unfold Spec.AllReturns;intros m b p tc li lo value P t result after PATH.
+ destruct(update_call_summary m b p tc li lo value P)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args b p value)m)=true)by(vm_compute;reflexivity).
+ assert(CN:call_names(Execution.entry(Args b p value)m))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ destruct(defined_evaluator_exact_return Execution.ge _ _ _ _ _ _ N EV PATH)as[VR MR];subst result after;auto. Qed.
+Print Assumptions normal_completion.
+Print Assumptions all_returns.
+
+From FiveLowpassUpdateCase Require Import Witness.
+Theorem nonvacuity:Spec.Nonvacuity.
+Proof. intros tc li lo;destruct(initialized_inhabited tc li lo)as[m[b P]];exists m,b,Ptrofs.zero;exact P. Qed.
+Print Assumptions nonvacuity.
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Values Memory Events Ctypes Csyntax Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveLowpassUpdateExecutionCorrespondence Require Import Closure.
+Import ListNotations.
+Definition source_state := Closure.SS.
+Definition closed_step := Closure.closed_step.
+Definition domain_preservation_goal:Prop := forall args m,
+ Execution.entry args m=Callstate(Internal Source.f_update_first_order_low_pass)args Kstop m /\ source_state(Execution.entry args m).
+Definition reachable_step_goal:Prop := forall args m t reached tr next,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (closed_step tt reached tr next <-> Csem.step Execution.ge reached tr next).
+Definition floating_point_correspondence_goal := reachable_step_goal.
+Definition machine_integer_correspondence_goal := reachable_step_goal.
+Definition memory_access_correspondence_goal := reachable_step_goal.
+Definition control_and_exhaustion_correspondence_goal:Prop := forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step Execution.ge(Execution.entry args m)t final.
+Definition normal_result_and_memory_correspondence_goal:Prop := forall args m t v mf b ofs n,
+ (star closed_step tt(Execution.entry args m)t(Returnstate v Kstop mf) <->
+ star Csem.step Execution.ge(Execution.entry args m)t(Returnstate v Kstop mf)) /\
+ Execution.observe_bytes mf b ofs n=Mem.loadbytes mf b ofs n.
+Definition invalid_operation_correspondence_goal:Prop := forall args m t reached,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <-> ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Definition whole_execution_correspondence_goal := control_and_exhaustion_correspondence_goal.
+From Stdlib Require Import List Bool.
+From compcert Require Import AST Values Memory Events Globalenvs Ctypes Csyntax Csem Cexec Smallstep.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition allowed (fd:Csyntax.fundef):Prop := fd=Internal Source.f_update_first_order_low_pass.
+Definition budget (_:type)(_:Csyntax.fundef):Prop := True.
+Definition SS := SourceClosure.source_state ge allowed budget.
+Lemma entry_body_core:SourceClosure.core_stmt ge allowed budget(fn_body Source.f_update_first_order_low_pass).
+Proof. cbn [fn_body Source.f_update_first_order_low_pass SourceClosure.core_stmt SourceClosure.core_expr SourceClosure.core_exprlist SourceClosure.nv];repeat split;reflexivity. Qed.
+Lemma internal_body:forall f,allowed(Internal f) -> SourceClosure.core_stmt ge allowed budget(fn_body f).
+Proof. intros f H;unfold allowed in H;inversion H;subst;apply entry_body_core. Qed.
+Lemma external_supported:forall ef args ret cc,allowed(External ef args ret cc) -> executable_builtin ef=true.
+Proof. intros;unfold allowed in H;discriminate. Qed.
+Theorem entry_source:forall args m,SS(Execution.entry args m).
+Proof. intros;split;[reflexivity|constructor]. Qed.
+Theorem source_step_invariant:forall s t s',SS s -> Csem.step ge s t s' -> t=E0 /\ SS s'.
+Proof. exact(SourceClosure.source_step_invariant ge allowed budget internal_body external_supported). Qed.
+Theorem one_step_correspondence:forall cb asm w s t s',SS s ->
+ ((exists rule,In(TR rule t s')(Cexec.do_step ge cb asm w s)) <-> Csem.step ge s t s').
+Proof. exact(SourceClosure.source_do_step_exact ge allowed budget internal_body external_supported). Qed.
+Definition closed_step := Execution.model_step Execution.no_external Execution.no_external Execution.quiet_world.
+Theorem source_reachable:forall args m t reached,
+ star Csem.step ge(Execution.entry args m)t reached -> SS reached.
+Proof.
+ intros args m t reached PATH.
+ pose proof(entry_source args m) as INIT.
+ induction PATH;auto;apply IHPATH;exact(proj2(source_step_invariant _ _ _ INIT H)).
+Qed.
+Theorem whole_execution_correspondence:forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step ge(Execution.entry args m)t final.
+Proof.
+ intros args m t final;split;intro PATH;
+ pose proof(entry_source args m) as INIT;
+ revert INIT;induction PATH;intros INV;[constructor| |constructor|].
+ - pose proof(proj1(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV)H)as STEP.
+   eapply star_step;[exact STEP|apply IHPATH;exact(proj2(source_step_invariant _ _ _ INV STEP))|assumption].
+ - eapply star_step.
+   + apply(proj2(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact H.
+   + apply IHPATH;exact(proj2(source_step_invariant _ _ _ INV H)).
+   + assumption.
+Qed.
+Theorem invalid_operation_correspondence:forall args m t reached,
+ star Csem.step ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <->
+ ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Proof.
+ intros args m t reached PATH.
+ pose proof(source_reachable _ _ _ _ PATH)as INV.
+ unfold Execution.source_error;split;intros[N STOP];split;auto;intros tr nxt STEP;apply(STOP tr nxt).
+ - apply(proj1(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact STEP.
+ - apply(proj2(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact STEP.
+Qed.
+Print Assumptions one_step_correspondence.
+Print Assumptions whole_execution_correspondence.
+Print Assumptions invalid_operation_correspondence.
+From FiveLowpassUpdateExecutionCorrespondence Require Import Spec.
+From FiveLowpassUpdateExecutionCorrespondence Require Import Closure.
+Theorem domain_preservation:Spec.domain_preservation_goal.
+Proof. intros;split;[reflexivity|apply Closure.entry_source]. Qed.
+Lemma reachable_step:Spec.reachable_step_goal.
+Proof.
+ intros args m t reached tr next PATH.
+ apply (Closure.one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world).
+ eapply Closure.source_reachable;eauto.
+Qed.
+Theorem floating_point_correspondence:Spec.floating_point_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem machine_integer_correspondence:Spec.machine_integer_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem memory_access_correspondence:Spec.memory_access_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem control_and_exhaustion_correspondence:Spec.control_and_exhaustion_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Theorem normal_result_and_memory_correspondence:Spec.normal_result_and_memory_correspondence_goal.
+Proof. intros;split;[apply Closure.whole_execution_correspondence|reflexivity]. Qed.
+Theorem invalid_operation_correspondence:Spec.invalid_operation_correspondence_goal.
+Proof. exact Closure.invalid_operation_correspondence. Qed.
+Theorem whole_execution_correspondence:Spec.whole_execution_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Print Assumptions domain_preservation.
+Print Assumptions floating_point_correspondence.
+Print Assumptions machine_integer_correspondence.
+Print Assumptions memory_access_correspondence.
+Print Assumptions control_and_exhaustion_correspondence.
+Print Assumptions normal_result_and_memory_correspondence.
+Print Assumptions invalid_operation_correspondence.
+Print Assumptions whole_execution_correspondence.
+From compcert Require Import Values Memory.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Execution.
+Definition AllSuccessorsTerminate : Prop := forall args m,Acc(successor Execution.ge)(Execution.entry args m).
+paparazzi/relations/guidance_mode/support/allocation/StackAllocation.v
+paparazzi/relations/guidance_mode/support/allocation/StackWrapper.v
+paparazzi/relations/guidance_mode/support/allocation/Allocation.v
+paparazzi/relations/guidance_mode/support/semantics/SemanticsSupport.v
+paparazzi/relations/guidance_mode/support/semantics/SourceClosure.v
+paparazzi/relations/guidance_mode/support/semantics/ExpressionRank.v
+paparazzi/relations/guidance_mode/support/semantics/SourceTermination.v
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v
+paparazzi/relations/guidance_mode/support/semantics/TableSupport.v
+paparazzi/relations/guidance_mode/support/semantics/WeightedTermination.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/SaturationAccess.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/BitsAdapter.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/ManualAssertions.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/MemoryGuards.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/GuardedPhases.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/ByteAssertions.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/GuardedSpeedPrefix.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/CanonicalCallScope.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/SpeedPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/AccelPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/SaturationPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/GuardedEntryFlowAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/CallScope.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/CanonicalInputWitness.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/CanonicalCalls.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/GuardedEntryFlowSpeed.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/ActualPointerSites.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/ValueSound.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/GuardTrace.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/LocalMemory.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/SourceCertificate.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/ValueStatementSound.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/FunctionEntry.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/FlatStatements.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/ValueEvaluator.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/NumericOps.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/AssignmentSound.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSoftwareProof/ValueChecker.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/SaturationAccess.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/BitsAdapter.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/ManualAssertions.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/MemoryGuards.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/ByteAssertions.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/GoalBinding.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/SpeedPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/AccelPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/SaturationPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/CanonicalCalls.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/ActualPointerSites.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/NumericGuards.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/NormReadSites.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceCbmcAdapters/Adapters.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveShared/compcert_libc/Library.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveShared/verification/Obligations.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceMode/Spec.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllocation/StackAllocation.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllocation/StackWrapper.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllocation/Allocation.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSemantics/SemanticsSupport.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSemantics/SourceClosure.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSemantics/SourceTermination.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSemantics/AccelSource.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSemantics/SpeedSource.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSemantics/TableSupport.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceSemantics/WeightedTermination.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGhSpeed/Source.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGhSpeed/Execution.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGhAccel/Source.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGhAccel/Execution.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FivePaparazziState/MemorySupport.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FivePaparazziState/State.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/StandaloneCallShell.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/PureIfShell.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/EntrySafety.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/AtomicDenotation.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/SpeedExecution.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/SaturationFunction.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/EntryCorollaries.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/SaturationFunctionAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/FactorInstanceAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/CallInstances.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/ConcretePhases.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/FactorInstance.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/AccelExecution.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/CallfreeExecution.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/FactorShell.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/CallInstancesAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/BlockExecution.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/PhaseComposition.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/SpeedPrefixPhases.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/ContinuationLift.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/SaturationPhasesAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/AtomicProgress.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/PureSyntax.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/Unconditional.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/PureDenotation.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/LeafInstances.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/SaturationPhases.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/PhaseWiring.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceAllOrder/PureProgress.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/EntryPrelimit.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/FinalCopyAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/ConditionalCompletion.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/AccelEntry.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/SpeedEntry.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/FinalCopy.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/StackCleanup.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/PrelimitExact.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/SymbolicPrefix.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/SaturationEntryAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/EffectfulSupport.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/BigstepSupport.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/Entry.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/SaturationBodyAccel.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/AccelPrefix.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/FunctionAllocation.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/SaturationEntry.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/SaturationBody.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/checked-001/FiveGuidanceEntry/PrelimitBody.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/evidence/library-support/FiveShared/compcert_libc/Library.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/NumericGuards.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/SaturationCallScope.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/NormReadSites.v
+paparazzi/relations/guidance_mode/support/cbmc_adapters/Adapters.v
+paparazzi/relations/guidance_mode/support/entry/EntryPrelimit.v
+paparazzi/relations/guidance_mode/support/entry/SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/entry/FinalCopyAccel.v
+paparazzi/relations/guidance_mode/support/entry/ConditionalCompletion.v
+paparazzi/relations/guidance_mode/support/entry/AccelEntry.v
+paparazzi/relations/guidance_mode/support/entry/SpeedEntry.v
+paparazzi/relations/guidance_mode/support/entry/FinalCopy.v
+paparazzi/relations/guidance_mode/support/entry/StackCleanup.v
+paparazzi/relations/guidance_mode/support/entry/PrelimitExact.v
+paparazzi/relations/guidance_mode/support/entry/evidence/old-speed-model/Source.v
+paparazzi/relations/guidance_mode/support/entry/evidence/old-speed-model/Execution.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FiveGhSpeed/Source.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FiveGhSpeed/Execution.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FivePaparazziState/MemorySupport.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FivePaparazziState/State.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FiveGuidanceEntry/SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FiveGuidanceEntry/SymbolicPrefix.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FiveGuidanceEntry/BigstepSupport.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FiveGuidanceEntry/Entry.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-001/FiveGuidanceEntry/PrelimitBody.v
+paparazzi/relations/guidance_mode/support/entry/evidence/former-word-denotation-v2/SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/entry/evidence/abandoned-prefix-execution/PrefixWitness.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/009-SymbolicPrefix.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/027-Spec.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/011-EffectfulSupport.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/015-AccelPrefix.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/019-PrelimitBody.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/016-FunctionAllocation.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/017-SaturationEntry.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/005-SpeedEntry.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/012-BigstepSupport.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/023-Execution.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/004-AccelEntry.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/001-SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/000-EntryPrelimit.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/024-StackAllocation.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/014-SaturationBodyAccel.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/006-FinalCopy.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/018-SaturationBody.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/021-Execution.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/025-StackWrapper.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/008-PrelimitExact.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/003-ConditionalCompletion.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/002-FinalCopyAccel.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/028-State.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/007-StackCleanup.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/013-Entry.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/029-MemorySupport.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/010-SaturationEntryAccel.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/020-Source.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/026-Allocation.v
+paparazzi/relations/guidance_mode/support/entry/evidence/modular-normal-001/022-Source.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceMode/Spec.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceAllocation/StackAllocation.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceAllocation/StackWrapper.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceAllocation/Allocation.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGhSpeed/Source.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGhSpeed/Execution.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGhAccel/Source.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGhAccel/Execution.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FivePaparazziState/MemorySupport.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FivePaparazziState/State.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceEntry/EntryPrelimit.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceEntry/SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceEntry/GoalBinding.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceEntry/SymbolicPrefix.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceEntry/BigstepSupport.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceEntry/Entry.v
+paparazzi/relations/guidance_mode/support/entry/evidence/checked-002/FiveGuidanceEntry/PrelimitBody.v
+paparazzi/relations/guidance_mode/support/entry/SymbolicPrefix.v
+paparazzi/relations/guidance_mode/support/entry/SaturationEntryAccel.v
+paparazzi/relations/guidance_mode/support/entry/EffectfulSupport.v
+paparazzi/relations/guidance_mode/support/entry/BigstepSupport.v
+paparazzi/relations/guidance_mode/support/entry/Entry.v
+paparazzi/relations/guidance_mode/support/entry/SaturationBodyAccel.v
+paparazzi/relations/guidance_mode/support/entry/AccelPrefix.v
+paparazzi/relations/guidance_mode/support/entry/FunctionAllocation.v
+paparazzi/relations/guidance_mode/support/entry/SaturationEntry.v
+paparazzi/relations/guidance_mode/support/entry/SaturationBody.v
+paparazzi/relations/guidance_mode/support/entry/PrelimitBody.v
+paparazzi/relations/guidance_mode/support/relation/Witnesses.v
+paparazzi/relations/guidance_mode/support/relation/RelationSupport.v
+paparazzi/relations/guidance_mode/support/relation/Initialization.v
+paparazzi/relations/guidance_mode/support/software/ValueSound.v
+paparazzi/relations/guidance_mode/support/software/GuardTrace.v
+paparazzi/relations/guidance_mode/support/software/LocalMemory.v
+paparazzi/relations/guidance_mode/support/software/SourceCertificate.v
+paparazzi/relations/guidance_mode/support/software/ValueStatementSound.v
+paparazzi/relations/guidance_mode/support/software/GuardSiteMap.v
+paparazzi/relations/guidance_mode/support/software/FunctionEntry.v
+paparazzi/relations/guidance_mode/support/software/FlatStatements.v
+paparazzi/relations/guidance_mode/support/software/ValueEvaluator.v
+paparazzi/relations/guidance_mode/support/software/evidence/numeric-check-002/GoalBinding.v
+paparazzi/relations/guidance_mode/support/software/evidence/numeric-check-002/NumericOps.v
+paparazzi/relations/guidance_mode/support/software/evidence/numeric-check-001/NumericOps.v
+paparazzi/relations/guidance_mode/support/software/NumericOps.v
+paparazzi/relations/guidance_mode/support/software/GuardExecution.v
+paparazzi/relations/guidance_mode/support/software/AssignmentSound.v
+paparazzi/relations/guidance_mode/support/software/GuardMemorySound.v
+paparazzi/relations/guidance_mode/support/software/ValueChecker.v
+paparazzi/relations/guidance_mode/support/allorder/StandaloneCallShell.v
+paparazzi/relations/guidance_mode/support/allorder/PureIfShell.v
+paparazzi/relations/guidance_mode/support/allorder/EntrySafety.v
+paparazzi/relations/guidance_mode/support/allorder/AtomicDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/SpeedExecution.v
+paparazzi/relations/guidance_mode/support/allorder/SaturationFunction.v
+paparazzi/relations/guidance_mode/support/allorder/EntryCorollaries.v
+paparazzi/relations/guidance_mode/support/allorder/SaturationFunctionAccel.v
+paparazzi/relations/guidance_mode/support/allorder/FactorInstanceAccel.v
+paparazzi/relations/guidance_mode/support/allorder/CallInstances.v
+paparazzi/relations/guidance_mode/support/allorder/ConcretePhases.v
+paparazzi/relations/guidance_mode/support/allorder/FactorInstance.v
+paparazzi/relations/guidance_mode/support/allorder/AccelExecution.v
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v
+paparazzi/relations/guidance_mode/support/allorder/FactorShell.v
+paparazzi/relations/guidance_mode/support/allorder/CallInstancesAccel.v
+paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v
+paparazzi/relations/guidance_mode/support/allorder/PhaseComposition.v
+paparazzi/relations/guidance_mode/support/allorder/SpeedPrefixPhases.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/ValueSound.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/LocalMemory.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/SourceCertificate.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/ValueStatementSound.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/FunctionEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/FlatStatements.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/ValueEvaluator.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/NumericOps.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/AssignmentSound.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSoftwareProof/ValueChecker.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveShared/verification/Obligations.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceMode/Spec.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllocation/StackAllocation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllocation/StackWrapper.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllocation/Allocation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSemantics/SemanticsSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSemantics/SourceClosure.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSemantics/SourceTermination.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSemantics/AccelSource.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSemantics/SpeedSource.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSemantics/TableSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceSemantics/WeightedTermination.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGhSpeed/Source.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGhSpeed/Execution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGhAccel/Source.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGhAccel/Execution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FivePaparazziState/MemorySupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FivePaparazziState/State.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/StandaloneCallShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/PureIfShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/EntrySafety.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/AtomicDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/SpeedExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/SaturationFunction.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/EntryCorollaries.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/SaturationFunctionAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/FactorInstanceAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/CallInstances.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/ConcretePhases.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/GoalBinding.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/FactorInstance.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/AccelExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/CallfreeExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/FactorShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/CallInstancesAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/BlockExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/PhaseComposition.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/SpeedPrefixPhases.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/ContinuationLift.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/SaturationPhasesAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/AtomicProgress.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/PureSyntax.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/Unconditional.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/PureDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/LeafInstances.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/SaturationPhases.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/PhaseWiring.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceAllOrder/PureProgress.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/EntryPrelimit.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/FinalCopyAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/ConditionalCompletion.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/AccelEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/SpeedEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/FinalCopy.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/StackCleanup.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/PrelimitExact.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/SymbolicPrefix.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/SaturationEntryAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/EffectfulSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/BigstepSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/Entry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/SaturationBodyAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/AccelPrefix.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/FunctionAllocation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/SaturationEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/SaturationBody.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-002/FiveGuidanceEntry/PrelimitBody.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/ValueSound.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/LocalMemory.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/SourceCertificate.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/ValueStatementSound.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/FunctionEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/FlatStatements.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/ValueEvaluator.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/NumericOps.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/AssignmentSound.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSoftwareProof/ValueChecker.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveShared/verification/Obligations.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceMode/Spec.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllocation/StackAllocation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllocation/StackWrapper.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllocation/Allocation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSemantics/SemanticsSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSemantics/SourceClosure.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSemantics/SourceTermination.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSemantics/AccelSource.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSemantics/SpeedSource.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSemantics/TableSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceSemantics/WeightedTermination.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGhSpeed/Source.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGhSpeed/Execution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGhAccel/Source.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGhAccel/Execution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FivePaparazziState/MemorySupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FivePaparazziState/State.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/StandaloneCallShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/PureIfShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/EntrySafety.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/AtomicDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/SpeedExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/SaturationFunction.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/EntryCorollaries.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/SaturationFunctionAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/FactorInstanceAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/CallInstances.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/ConcretePhases.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/FactorInstance.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/AccelExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/CallfreeExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/FactorShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/CallInstancesAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/BlockExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/PhaseComposition.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/SpeedPrefixPhases.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/ContinuationLift.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/SaturationPhasesAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/AtomicProgress.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/PureSyntax.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/Unconditional.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/PureDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/LeafInstances.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/SaturationPhases.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/PhaseWiring.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceAllOrder/PureProgress.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/EntryPrelimit.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/SoftwareSqrt.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/FinalCopyAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/ConditionalCompletion.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/AccelEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/SpeedEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/FinalCopy.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/StackCleanup.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/PrelimitExact.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/SymbolicPrefix.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/SaturationEntryAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/EffectfulSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/BigstepSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/Entry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/SaturationBodyAccel.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/AccelPrefix.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/FunctionAllocation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/SaturationEntry.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/SaturationBody.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/concrete-checked-001/FiveGuidanceEntry/PrelimitBody.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-001/FiveGuidanceSemantics/SemanticsSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-001/FiveGuidanceAllOrder/AtomicDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-001/FiveGuidanceAllOrder/CallfreeExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-001/FiveGuidanceAllOrder/AtomicProgress.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-001/FiveGuidanceAllOrder/PureSyntax.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-001/FiveGuidanceAllOrder/PureDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-001/FiveGuidanceAllOrder/PureProgress.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceSemantics/SemanticsSupport.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceSemantics/SourceClosure.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/StandaloneCallShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/AtomicDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/CallfreeExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/FactorShell.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/BlockExecution.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/PhaseComposition.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/ContinuationLift.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/AtomicProgress.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/PureSyntax.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/PureDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/evidence/checked-002/FiveGuidanceAllOrder/PureProgress.v
+paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v
+paparazzi/relations/guidance_mode/support/allorder/SaturationPhasesAccel.v
+paparazzi/relations/guidance_mode/support/allorder/AtomicProgress.v
+paparazzi/relations/guidance_mode/support/allorder/PureSyntax.v
+paparazzi/relations/guidance_mode/support/allorder/Unconditional.v
+paparazzi/relations/guidance_mode/support/allorder/PureDenotation.v
+paparazzi/relations/guidance_mode/support/allorder/LeafInstances.v
+paparazzi/relations/guidance_mode/support/allorder/SaturationPhases.v
+paparazzi/relations/guidance_mode/support/allorder/PhaseWiring.v
+paparazzi/relations/guidance_mode/support/allorder/PureProgress.v

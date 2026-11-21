@@ -1,0 +1,181 @@
+[
+  {
+    "type": "session_meta",
+    "timestamp": "2026-11-08T04:14:25.855Z",
+    "model": null,
+    "effort": null,
+    "reasoning_effort": null,
+    "source": {
+      "subagent": {
+        "thread_spawn": {
+          "parent_thread_id": "01a1a068-b2f7-7500-a3c6-86e0924879f5",
+          "depth": 1,
+          "agent_path": "/root/pid_core_ultra",
+          "agent_nickname": "Goodall",
+          "agent_role": null
+        }
+      }
+    },
+    "id": "01a1b95d-5be8-7542-aa7a-d78e5d2f45f4"
+  },
+  {
+    "type": "turn_context",
+    "timestamp": "2026-11-08T04:14:27.354Z",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "reasoning_effort": null,
+    "source": null,
+    "id": null
+  }
+]
+  /** input thrust setpoint.
+   *  valid range 0 : #MAX_PPRZ
+   */
+  int32_t th_sp;
+
+  /** Final thrust setpoint
+   *  summation of feed-forward and feed-back commands,
+   *  can be a total thrust or increment, float or int
+   */
+  struct ThrustSetpoint thrust; // FIXME maybe not needed to store the value ?
+
+  /** nominal throttle for hover.
+   * This is only used if #GUIDANCE_V_NOMINAL_HOVER_THROTTLE is defined!
+   * Unit: factor of #MAX_PPRZ with range 0.1 : 0.9
+   */
+  float nominal_throttle;
+
+  int32_t thrust_coeff;
+};
+
+struct GuidancePID guidance_pid;
+struct Int32Vect2 guidance_pid_pos_err, guidance_pid_speed_err, guidance_pid_trim_att_integrator;
+struct HorizontalGuidance guidance_h;
+struct VerticalGuidance guidance_v;
+struct Stabilization stabilization;
+struct State state;
+extern void stateCalcPositionNed_i(void);
+extern void stateCalcSpeedNed_i(void);
+
+static inline struct NedCoor_i *stateGetPositionNed_i(void)
+{
+  if (!bit_is_set(state.pos_status, POS_NED_I)) {
+    stateCalcPositionNed_i();
+  }
+  return &state.ned_pos_i;
+}
+
+static inline struct NedCoor_i *stateGetSpeedNed_i(void)
+{
+  if (!bit_is_set(state.speed_status, SPEED_NED_I)) {
+    stateCalcSpeedNed_i();
+  }
+  return &state.ned_speed_i;
+}
+
+struct StabilizationSetpoint stab_sp_from_ltp_i(struct Int32Vect2 *vect, int32_t heading)
+{
+  struct StabilizationSetpoint sp = {
+    .type = STAB_SP_LTP,
+    .format = STAB_SP_INT,
+    .sp.ltp_i.vect = *vect,
+    .sp.ltp_i.heading = heading
+  };
+  return sp;
+}
+
+static struct StabilizationSetpoint guidance_pid_h_run(bool in_flight, struct HorizontalGuidance *gh)
+{
+  /* maximum bank angle: default 20 deg, max 40 deg*/
+  static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
+                                       BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
+  static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
+
+  /* run PID */
+  int32_t pd_x =
+    ((guidance_pid.kp * guidance_pid_pos_err.x) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+    ((guidance_pid.kd * (guidance_pid_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+  int32_t pd_y =
+    ((guidance_pid.kp * guidance_pid_pos_err.y) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+    ((guidance_pid.kd * (guidance_pid_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+  guidance_pid.cmd_earth.x = pd_x +
+                           ((guidance_pid.kv * gh->ref.speed.x) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE)) + /* speed feedforward gain */
+                           ((guidance_pid.ka * gh->ref.accel.x) >> (INT32_ACCEL_FRAC - GH_GAIN_SCALE));  /* acceleration feedforward gain */
+  guidance_pid.cmd_earth.y = pd_y +
+                           ((guidance_pid.kv * gh->ref.speed.y) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE)) + /* speed feedforward gain */
+                           ((guidance_pid.ka * gh->ref.accel.y) >> (INT32_ACCEL_FRAC - GH_GAIN_SCALE));  /* acceleration feedforward gain */
+
+  /* trim max bank angle from PD */
+  VECT2_STRIM(guidance_pid.cmd_earth, -traj_max_bank, traj_max_bank);
+
+  /* Update pos & speed error integral, zero it if not in_flight.
+   * Integrate twice as fast when not only POS but also SPEED are wrong,
+   * but do not integrate POS errors when the SPEED is already catching up.
+   */
+  if (in_flight) {
+    /* ANGLE_FRAC (12) * GAIN (8) * LOOP_FREQ (9) -> INTEGRATOR HIGH RES ANGLE_FRAX (28) */
+    guidance_pid_trim_att_integrator.x += (guidance_pid.ki * pd_x);
+    guidance_pid_trim_att_integrator.y += (guidance_pid.ki * pd_y);
+    /* saturate it  */
+    VECT2_STRIM(guidance_pid_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
+                (traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
+    /* add it to the command */
+    guidance_pid.cmd_earth.x += (guidance_pid_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+    guidance_pid.cmd_earth.y += (guidance_pid_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+  } else {
+    INT_VECT2_ZERO(guidance_pid_trim_att_integrator);
+  }
+
+  /* compute a better approximation of force commands by taking thrust into account */
+  if (guidance_pid.approx_force_by_thrust && in_flight) {
+    static int32_t thrust_cmd_filt;
+    // FIXME strong coupling with guidance_v here !!!
+    int32_t vertical_thrust = (stabilization.cmd[COMMAND_THRUST] * guidance_v.thrust_coeff) >> INT32_TRIG_FRAC;
+    thrust_cmd_filt = (thrust_cmd_filt * GUIDANCE_H_THRUST_CMD_FILTER + vertical_thrust) /
+                      (GUIDANCE_H_THRUST_CMD_FILTER + 1);
+    guidance_pid.cmd_earth.x = ANGLE_BFP_OF_REAL(atan2f((guidance_pid.cmd_earth.x * MAX_PPRZ / INT32_ANGLE_PI_2),
+                             thrust_cmd_filt));
+    guidance_pid.cmd_earth.y = ANGLE_BFP_OF_REAL(atan2f((guidance_pid.cmd_earth.y * MAX_PPRZ / INT32_ANGLE_PI_2),
+                             thrust_cmd_filt));
+  }
+
+  VECT2_STRIM(guidance_pid.cmd_earth, -total_max_bank, total_max_bank);
+
+  return stab_sp_from_ltp_i(&guidance_pid.cmd_earth, ANGLE_BFP_OF_REAL(guidance_h.sp.heading));
+}
+
+struct StabilizationSetpoint guidance_pid_h_run_pos(bool in_flight, struct HorizontalGuidance *gh)
+{
+  /* compute position error    */
+  VECT2_DIFF(guidance_pid_pos_err, gh->ref.pos, *stateGetPositionNed_i());
+  /* saturate it               */
+  VECT2_STRIM(guidance_pid_pos_err, -MAX_POS_ERR, MAX_POS_ERR);
+
+  /* compute speed error    */
+  VECT2_DIFF(guidance_pid_speed_err, gh->ref.speed, *stateGetSpeedNed_i());
+  /* saturate it               */
+  VECT2_STRIM(guidance_pid_speed_err, -MAX_SPEED_ERR, MAX_SPEED_ERR);
+
+  /* run PID */
+  return guidance_pid_h_run(in_flight, gh);
+}
+GetterSemantics.glob
+GetterSemantics.v
+GetterSemantics.vo
+MemoryLayout.glob
+MemoryLayout.v
+MemoryLayout.vo
+QuietWalk.glob
+QuietWalk.v
+QuietWalk.vo
+RawWitness.glob
+RawWitness.v
+RawWitness.vo
+SymbolicGetter.glob
+SymbolicGetter.v
+TranslationArithmetic.glob
+TranslationArithmetic.v
+TranslationArithmetic.vo
+WitnessSetup.glob
+WitnessSetup.v
+WitnessSetup.vo

@@ -1,0 +1,47 @@
+GetterAllOrder.v From Stdlib Require Import List ZArith.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation CallfreeExecution PhaseComposition.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import GetterSemantics MemoryLayout.
+From PidPositionSafety Require Import PureSound GuardedCallee.
+Import ListNotations.
+Open Scope Z_scope.
+Module G:=GetterSemantics.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Opaque E.ge.
+Lemma getter_tail_normal:forall f m field b delta,
+ fn_r
+| ctx_condition: forall k C r2 r3 ty,
+      context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+  | ctx_assign_left: forall k C e2 ty,
+      context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+  | ctx_assign_right: forall k C e1 ty,
+      context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+  | ctx_assignop_left: forall k C op e2 tyres ty,
+      context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+  | ctx_assignop_right: forall k C op e1 tyres ty,
+      context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+  | ctx_postincr: forall k C id ty,
+      context k LV C -> context k RV (fun x => Epostincr id (C x) ty)
+  | ctx_call_left: forall k C el ty,
+      context k RV C -> context k RV (fun x => Ecall (C x) el ty)
+  | ctx_call_right: forall k C e1 ty,
+      contextlist k C -> context k RV (fun x => Ecall e1 (C x) ty)
+  | ctx_builtin: forall k C ef tyargs ty,
+      contextlist k C -> context k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+  | ctx_comma: forall k C e2 ty,
+      context k RV C -> context k RV (fun x => Ecomma (C x) e2 ty)
+  | ctx_paren: forall k C tycast ty,
+      context k RV C -> context k RV (fun x => Eparen (C x) tycast ty)
+
+with contextlist: kind -> (expr -> exprlist) -> Prop :=
+  | ctx_list_head: forall k C el,
+      context k RV C -> contextlist k (fun x => Econs (C x) el)
+  | ctx_list_tail: forall k C e1,
+      contextlist k C -> contextlist k (fun x => Econs e1 (C x)).
+
+(** In a nondeterministic semantics, expressions can go wrong according
+  to one reduction order while being defined according to another.
+  Consider for instance [(x = 1) + (10 / x)] where [x] is initially [0].
+  This expression goes wrong if evaluated right-to-left

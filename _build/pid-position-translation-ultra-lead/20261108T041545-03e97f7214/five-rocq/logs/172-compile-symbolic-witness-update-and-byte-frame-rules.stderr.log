@@ -1,0 +1,46 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/WitnessMemory.v", line 46, characters 69-74:
+Error:
+In environment
+m : mem
+ma : Mem.mem'
+fresh : block
+lo, hi : Z
+init : mem
+INIT : Genv.init_mem Source.prog = Some init
+GLOBAL :
+  forall (b : block) (gv : globvar type),
+  Genv.find_var_info Execution.ge b = Some gv ->
+  Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Readable /\
+  (gvar_readonly gv = true ->
+   forall ofs : Z,
+   0 <= ofs < sizeof ce (gvar_info gv) ->
+   Mem.loadbytes m b ofs 1 = Mem.loadbytes init b ofs 1)
+VALID :
+  forall (b : block) (gv : globvar type),
+  Genv.find_var_info Execution.ge b = Some gv -> Mem.valid_block m b
+ALLOC : Mem.alloc m lo hi = (ma, fresh)
+b : block
+gv : globvar type
+VAR : Genv.find_var_info Execution.ge b = Some gv
+RP : Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Readable
+BY :
+  gvar_readonly gv = true ->
+  forall ofs : Z,
+  0 <= ofs < sizeof ce (gvar_info gv) ->
+  Mem.loadbytes m b ofs 1 = Mem.loadbytes init b ofs 1
+RO : gvar_readonly gv = true
+ofs : Z
+R : 0 <= ofs < sizeof ce (gvar_info gv)
+The term "ALLOC" has type "Mem.alloc m lo hi = (ma, fresh)"
+while it is expected to have type "block".
+

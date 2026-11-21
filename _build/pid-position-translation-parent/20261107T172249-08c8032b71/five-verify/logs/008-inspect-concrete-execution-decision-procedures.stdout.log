@@ -1,0 +1,91 @@
+ hi Max p.
+Proof.
+  unfold range_perm; intros; eauto with mem.
+Qed.
+
+Local Hint Resolve range_perm_implies range_perm_cur range_perm_max: mem.
+
+Lemma range_perm_dec:
+  forall m b lo hi k p, {range_perm m b lo hi k p} + {~ range_perm m b lo hi k p}.
+Proof.
+  intros.
+  induction lo using (well_founded_induction_type (Zwf_up_well_founded hi)).
+  destruct (zlt lo hi).
+  destruct (perm_dec m b lo k p).
+  destruct (H (lo + 1)). red. lia.
+  left; red; intros. destruct (zeq lo ofs). congruence. apply r. lia.
+  right; red; intros. elim n. red; intros; apply H0; lia.
+  right; red; intros. elim n. apply H0. lia.
+  left; red; intros. extlia.
+Defined.
+
+(** [valid_access m chunk b ofs p] holds if a memory access
+    of the given chunk is possible in [m] at address [b, ofs]
+    with current permissions [p].
+    This means:
+- The range of bytes accessed all have current permission [p].
+- The offset [ofs] is aligned.
+*)
+
+Definition valid_access (m: mem) (chunk: memory_chunk) (b: block) (ofs: Z) (p: permission): Prop :=
+  range_perm m b ofs (ofs + size_chunk chunk) Cur p
+  /\ (align_chunk chunk | ofs).
+
+Theorem valid_access_implies:
+  forall m chunk b ofs p1 p2,
+  valid_access m chunk b ofs p1 -> perm_order p1 p2 ->
+  valid_access m chunk b ofs p2.
+Proof.
+  intros. inv H. constructor; eauto with mem.
+Qed.
+
+Theorem valid_access_freeable_any:
+  forall m chunk b ofs p,
+  valid_access m chunk b ofs Freeable ->
+  valid_access m chunk b ofs p.
+Proof.
+nk2 b ofs p.
+Proof.
+  intros. inv H1. rewrite H in H2. constructor; auto.
+  eapply Z.divide_trans; eauto. eapply align_le_divides; eauto.
+Qed.
+
+Lemma valid_access_dec:
+  forall m chunk b ofs p,
+  {valid_access m chunk b ofs p} + {~ valid_access m chunk b ofs p}.
+Proof.
+  intros.
+  destruct (range_perm_dec m b ofs (ofs + size_chunk chunk) Cur p).
+  destruct (Zdivide_dec (align_chunk chunk) ofs).
+  left; constructor; auto.
+  right; red; intro V; inv V; contradiction.
+  right; red; intro V; inv V; contradiction.
+Defined.
+
+(** [valid_pointer m b ofs] returns [true] if the address [b, ofs]
+  is nonempty in [m] and [false] if it is empty. *)
+Definition valid_pointer (m: mem) (b: block) (ofs: Z): bool :=
+  perm_dec m b ofs Cur Nonempty.
+
+Theorem valid_pointer_nonempty_perm:
+  forall m b ofs,
+  valid_pointer m b ofs = true <-> perm m b ofs Cur Nonempty.
+Proof.
+  intros. unfold valid_pointer.
+  destruct (perm_dec m b ofs Cur Nonempty); simpl;
+  intuition congruence.
+Qed.
+
+Theorem valid_pointer_valid_access:
+  forall m b ofs,
+  valid_pointer m b ofs = true <-> valid_access m Mint8unsigned b ofs Nonempty.
+Proof.
+  intros. rewrite valid_pointer_nonempty_perm.
+  split; intros.
+  split. simpl; red; intros. replace ofs0 with ofs by lia. auto.
+  simpl. apply Z.divide_1_l.
+  destruct H. apply H. simpl. lia.
+Qed.
+
+(** C allows pointers one past the last element of an array.  These are not
+  valid according to the previously defined [valid_point

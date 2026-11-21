@@ -1,0 +1,37 @@
+(match
+   match
+     match remove_attributes (Tint I32 Signed noattr) with
+     | Tpointer ty _ => add_case_ip Signed ty
+     | _ => add_default
+     end
+   with
+   | add_case_pi ty si =>
+       sem_add_ptr_int ge ty si (Vint (Int.repr v)) (Vint (Int.repr d))
+   | add_case_pl ty =>
+       sem_add_ptr_long ge ty (Vint (Int.repr v)) (Vint (Int.repr d))
+   | add_case_ip si ty =>
+       sem_add_ptr_int ge ty si (Vint (Int.repr d)) (Vint (Int.repr v))
+   | add_case_lp ty =>
+       sem_add_ptr_long ge ty (Vint (Int.repr d)) (Vint (Int.repr v))
+   | add_default => Some (Vint (Int.repr (v + d)))
+   end
+ with
+ | Some v3 =>
+     match
+       match v3 with
+       | Vint i => Some (Vint (Int.sign_ext 16 i))
+       | _ => None
+       end
+     with
+     | Some v4 =>
+         match
+           do_assign_loc ge quiet_world (Tint I16 Signed noattr) m b
+             Ptrofs.zero Full v4
+         with
+         | Some (_, _, m', v') => Some (v', m')
+         | None => None
+         end
+     | None => None
+     end
+ | None => None
+ end = Some (Vint (Int.repr (v + d)), mf))

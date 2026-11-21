@@ -1,0 +1,38 @@
+1 goal
+  
+  ge : genv
+  f : function
+  e : env
+  k : cont
+  m, mf : mem
+  ty, rty : type
+  b : block
+  ofs : ptrofs
+  bf : bitfield
+  vr, vc, vout : val
+  nonvolatile : nv ty = true
+  cast_result : sem_cast vr rty ty m = Some vc
+  store_result :
+    do_assign_loc ge quiet_world ty m b ofs bf vc =
+    Some (quiet_world, E0, mf, vout)
+  l, r : expr
+  SL : simple l = true
+  TL : typeof l = ty
+  LVAL : pure_lval ge e m l = Some (b, ofs, bf)
+  TR : typeof r = rty
+  CV : conditional_value ge e m r vr
+  C : expr -> expr
+  a' : expr
+  m' : mem
+  STEP :
+    Csem.estep ge (ExprState f (Eassign l r ty) k e m) E0
+      (ExprState f (C a') k e m')
+  a : expr
+  H6 : lred ge e a m a' m'
+  H7 : context LV RV C
+  H0 : C a = Eassign l r ty
+  ============================
+  (exists l' r' : expr,
+     ExprState f (C a') k e m' = ExprState f (Eassign l' r' ty) k e m /\
+     E0 = E0 /\ pending l' r') \/
+  ExprState f (C a') k e m' = ExprState f (Eval vout ty) k e mf /\ E0 = E0

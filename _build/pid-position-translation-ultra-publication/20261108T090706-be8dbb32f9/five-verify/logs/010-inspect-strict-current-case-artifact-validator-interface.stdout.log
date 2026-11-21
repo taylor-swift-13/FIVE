@@ -1,0 +1,14 @@
+VALIDATOR (root, allowed_proof_efforts=None)
+METHODS {'require': '(self, ok, message)', 'read': '(self, path)', 'file': '(self, path)', 'bound': '(self, base, rows)', 'links': '(self, report)', 'costs': '(self, path, proof=False)', 'proof_problem': '(self, problem)', 'case': '(self, case)', 'run': '(self, compile_checks=False)'}
+CLI def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument('--compile', action='store_true', help='rerun active checkers after metadata passes')
+    parser.add_argument('--allow-proof-effort', action='append',
+                        choices=('low', 'medium', 'high', 'xhigh', 'max', 'ultra'),
+                        help='explicit allowed requested proof effort; repeat for mixed histories; default medium')
+    args = parser.parse_args()
+    result = Validator(args.root, args.allow_proof_effort).run(args.compile)
+    print(json.dumps(result, indent=2))
+    return int(bool(result['errors']))
+

@@ -1,0 +1,620 @@
+FILE core/cbmc/ArithmeticTree.v
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Maps AST Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation AtomicDenotation.
+From CoreCBMC Require Import NumericBounds.
+Open Scope Z_scope.
+Definition binary_safe(op:binary_operation)(ta tb:type)(va vb:val):Prop:=
+ match va,vb with
+ | Vint a,Vint b=>
+   match op with
+   | Oadd=>if Ctypes.type_eq ta tint then signed32(Int.signed a+Int.signed b)else True
+   | Osub=>if Ctypes.type_eq ta tint then signed32(Int.signed a-Int.signed b)else True
+   | Omul=>if Ctypes.type_eq ta tint then signed32(Int.signed a*Int.signed b)else True
+   | Oshl=>Int.unsigned b<32 /\
+      (if Ctypes.type_eq ta tint then 0<=Int.signed a /\signed32(Int.signed a*two_p(Int.unsigned b))else True)
+   | Oshr=>Int.unsigned b<32
+   | _=>True end
+ | _,_=>True end.
+Definition unary_safe(op:unary_operation)(ta:type)(va:val):Prop:=
+ match op,va with Oneg,Vint a=>if Ctypes.type_eq ta tint then Int.signed a<> -2147483648 else True|_,_=>True end.
+Definition binary_condition(ge:genv)(e:env)(m:mem)(op:binary_operation)(a b:expr):Prop:=
+ match pure_rval ge e m a,pure_rval ge e m b with
+ | Some va,Some vb=>binary_safe op(typeof a)(typeof b)va vb
+ | _,_=>True end.
+Definition unary_condition(ge:genv)(e:env)(m:mem)(op:unary_operation)(a:expr):Prop:=
+ match pure_rval ge e m a with Some va=>unary_safe op(typeof a)va|None=>True end.
+Definition assignop_condition(ge:genv)(e:env)(m:mem)(op:binary_operation)(l r:expr):Prop:=
+ match pure_lval ge e m l,pure_rval ge e m r with
+ | Some(b,ofs,bf),Some vr=>
+   match Cexec.do_deref_loc ge quiet_world(typeof l)m b ofs bf with
+   | Some(_,_,vl)=>binary_safe op(typeof l)(typeof r)vl vr
+   | None=>True end
+ | _,_=>True end.
+Fixpoint arithmetic_tree(ge:genv)(e:env)(m:mem)(a:expr):Prop:=
+ match a with
+ | Eval _ _|Evar _ _|Eloc _ _ _ _|Esizeof _ _|Ealignof _ _=>True
+ | Evalof a _|Eaddrof a _|Ederef a _|Efield a _ _|Ecast a _|Eparen a _ _=>arithmetic_tree ge e m a
+ | Eunop op a _=>arithmetic_tree ge e m a /\unary_condition ge e m op a
+ | Ebinop op a b _=>arithmetic_tree ge e m a /\arithmetic_tree ge e m b /\binary_condition ge e m op a b
+ | Eassign a b _|Eseqand a b _|Eseqor a b _|Ecomma a b _=>arithmetic_tree ge e m a /\arithmetic_tree ge e m b
+ | Econdition c a b _=>arithmetic_tree ge e m c /\arithmetic_tree ge e m a /\arithmetic_tree ge e m b
+ | Eassignop op l r _ _=>arithmetic_tree ge e m l /\arithmetic_tree ge e m r /\nv(typeof l)=true /\assignop_condition ge e m op l r
+ | _=>False end.
+
+Lemma arithmetic_context_congr:forall ge e m from to C,
+ context from to C ->forall a b,
+ typeof a=typeof b ->pure_eq ge e m from a b ->
+ arithmetic_tree ge e m(C a) ->arithmetic_tree ge e m b ->
+ arithmetic_tree ge e m(C b).
+Proof.
+ intros ge e m from to C CT;induction CT;intros a b TY VALUE TREE NEW;
+ cbn[arithmetic_tree]in *;try contradiction;try tauto.
+ all:repeat match goal with H:_ /\ _|-_=>destruct H end.
+ all:try solve[eapply IHCT;eauto].
+ all:repeat split;try assumption;try solve[eapply IHCT;eauto].
+ all:try solve[
+  unfold unary_condition,binary_condition,assignop_condition in *;
+  pose proof(context_type_eq _ _ _ CT a b TY)as CTY;
+  pose proof(pure_context_congr ge e m _ _ _ CT a b TY VALUE)as CE;
+  cbn[pure_eq]in CE;
+  rewrite <-CTY,<-CE;assumption].
+ all:rewrite <-(context_type_eq _ _ _ CT a b TY);assumption.
+Qed.
+
+Lemma arithmetic_context_hole:forall ge e m from to C,
+ context from to C ->forall a,
+ arithmetic_tree ge e m(C a) ->arithmetic_tree ge e m a.
+Proof.
+ intros ge e m from to C CT;induction CT;intros a TREE;
+ cbn[arithmetic_tree]in TREE;try contradiction;try exact TREE;
+ repeat match goal with H:_ /\ _|-_=>destruct H end;
+ eapply IHCT;eassumption.
+Qed.
+Lemma arithmetic_lred:forall ge e m a a' mf,
+ lred ge e a m a' mf ->arithmetic_tree ge e mf a'.
+Proof. intros;inversion H;subst;constructor. Qed.
+Lemma arithmetic_rred:forall ge e m a t a' mf,
+ arithmetic_tree ge e m a ->rred ge a m t a' mf ->
+ arithmetic_tree ge e mf a'.
+Proof.
+ intros ge e m a t a' mf TREE RED;inversion RED;subst;cbn[arithmetic_tree]in *;try contradiction;try tauto;try solve[constructor].
+ all:try solve[destruct b;tauto].
+ - repeat match goal with H:_ /\ _|-_=>destruct H end.
+   repeat split;try constructor.
+   unfold assignop_condition,binary_condition in *;cbn[pure_lval pure_rval typeof]in *.
+   lazymatch goal with DR:deref_loc ge ?ty ?mm ?b ?ofs ?bf ?tr ?vl,NV:nv ?ty=true|-_ =>
+    assert(TT:tr=E0)by(eapply deref_loc_silent;eauto);subst tr;
+    pose proof(Cexec.do_deref_loc_complete ge quiet_world _ _ _ _ _ quiet_world E0 _ DR(possible_trace_nil _))as D;
+    rewrite D in *;assumption end.
+Qed.
+Lemma arithmetic_binary_head:forall ge e m op va ta vb tb ty,
+ arithmetic_tree ge e m(Ebinop op(Eval va ta)(Eval vb tb)ty) ->
+ binary_safe op ta tb va vb.
+Proof. intros;cbn[arithmetic_tree binary_condition pure_rval typeof]in H;tauto. Qed.
+Lemma arithmetic_unary_head:forall ge e m op va ta ty,
+ arithmetic_tree ge e m(Eunop op(Eval va ta)ty) ->
+ unary_safe op ta va.
+Proof. intros;cbn[arithmetic_tree unary_condition pure_rval typeof]in H;tauto. Qed.
+Print Assumptions arithmetic_context_congr.
+Print Assumptions arithmetic_rred.
+
+
+Lemma arithmetic_atomic_estep:forall ge f a k e m t next,
+ atomic_expr a=true ->arithmetic_tree ge e m a ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ next=Stuckstate \/exists a' mf,
+ next=ExprState f a' k e mf /\atomic_expr a'=true /\arithmetic_tree ge e mf a'.
+Proof.
+ intros ge f a k e m t next AT TREE STEP.
+ destruct(atomic_estep ge f a k e m t next AT STEP)as[BAD|[a'[mf[EQ[TT[SY DEN]]]]]];[left;exact BAD|].
+ right;exists a',mf;split;[exact EQ|];split;[exact SY|].
+ subst next;inversion STEP;subst.
+ - lazymatch goal with LR:lred ge e ?sub m ?sub' ?mm,CT:Csem.context LV RV ?C|-_ =>
+   destruct(pure_lred ge e sub m sub' mm LR)as[MM[TY[SS EE]]];subst mm;
+   eapply arithmetic_context_congr;[exact CT|symmetry;exact TY|exact EE|exact TREE|];
+   eapply arithmetic_lred;exact LR end.
+ - lazymatch goal with RR:rred ge ?sub m ?tr ?sub' ?mm,CT:Csem.context RV RV ?C|-_ =>
+   destruct(simple sub)eqn:SA;
+   [destruct(pure_rred ge e sub m tr sub' mm SA RR)as[MM[TT0[TY[SS EE]]]];subst mm;
+    eapply arithmetic_context_congr;[exact CT|symmetry;exact TY|exact EE|exact TREE|];
+    eapply arithmetic_rred;[eapply arithmetic_context_hole;[exact CT|exact TREE]|exact RR]
+   |pose proof(atomic_effect_root C CT sub AT SA)as ID;
+    repeat rewrite ID in TREE|-*;eapply arithmetic_rred;[exact TREE|exact RR]]end.
+Qed.
+
+Lemma arithmetic_observed_binary:forall ge e m from C op va ta vb tb ty,
+ context from RV C ->from=RV ->
+ arithmetic_tree ge e m(C(Ebinop op(Eval va ta)(Eval vb tb)ty)) ->
+ binary_safe op ta tb va vb.
+Proof.
+ intros ge e m from C op va ta vb tb ty CT KIND TREE;subst from.
+ eapply arithmetic_binary_head;eapply arithmetic_context_hole;[exact CT|exact TREE].
+Qed.
+Lemma arithmetic_observed_unary:forall ge e m from C op va ta ty,
+ context from RV C ->from=RV ->
+ arithmetic_tree ge e m(C(Eunop op(Eval va ta)ty)) ->
+ unary_safe op ta va.
+Proof.
+ intros ge e m from C op va ta ty CT KIND TREE;subst from.
+ eapply arithmetic_unary_head;eapply arithmetic_context_hole;[exact CT|exact TREE].
+Qed.
+Print Assumptions arithmetic_atomic_estep.
+
+FILE core/cbmc/NumericBounds.v
+From Stdlib Require Import ZArith Lia.
+From compcert Require Import Coqlib Integers.
+From PidPositionTranslationCore Require Import CoreSemantics ClampSemantics FlightSemantics ControllerPrefix.
+Open Scope Z_scope.
+Definition signed32(z:Z):Prop:=-2147483648<=z<=2147483647.
+Definition int_bound(x:int)(bound:Z):Prop:=-bound<=Int.signed x<=bound.
+Lemma signed_mul_exact:forall a b,
+ signed32(Int.signed a*Int.signed b) ->
+ Int.signed(Int.mul a b)=Int.signed a*Int.signed b.
+Proof. intros;rewrite Int.mul_signed,Int.signed_repr;[reflexivity|exact H]. Qed.
+Lemma signed_add_exact:forall a b,
+ signed32(Int.signed a+Int.signed b) ->
+ Int.signed(Int.add a b)=Int.signed a+Int.signed b.
+Proof. intros;rewrite Int.add_signed,Int.signed_repr;[reflexivity|exact H]. Qed.
+Lemma signed_shift_exact:forall x sh d,
+ 0<d ->two_p(Int.unsigned sh)=d ->
+ Int.signed(Int.shr x sh)=Int.signed x/d.
+Proof.
+ intros x sh d POS POWER;rewrite Int.shr_div_two_p,POWER,Int.signed_repr;[reflexivity|].
+ pose proof(Int.signed_range x)as XR;change(-2147483648<=Int.signed x<=2147483647)in XR.
+ change(-2147483648<=Int.signed x/d<=2147483647);split.
+ - apply Z.div_le_lower_bound;nia.
+ - apply Z.div_le_upper_bound;nia.
+Qed.
+Lemma shift_bound:forall x sh d bound out,
+ int_bound x bound ->0<d ->two_p(Int.unsigned sh)=d ->
+ -out<=(-bound)/d ->bound/d<=out ->
+ int_bound(Int.shr x sh)out.
+Proof.
+ intros x sh d bound out B POS POWER LOW HIGH;unfold int_bound in *.
+ rewrite(signed_shift_exact x sh d POS POWER);split.
+ - eapply Z.le_trans with(m:=(-bound)/d);[lia|apply Z.div_le_mono;lia].
+ - eapply Z.le_trans with(m:=bound/d);[apply Z.div_le_mono;lia|exact HIGH].
+Qed.
+Lemma clamp_bound:forall v maximum,
+ 0<=maximum<=2147483647 ->
+ int_bound(clip_bits v(Int.repr maximum))maximum.
+Proof.
+ intros v maximum RANGE;unfold clip_bits,int_bound.
+ assert(SP:Int.signed(Int.repr maximum)=maximum)by(apply Int.signed_repr;change(-2147483648<=maximum<=2147483647);lia).
+ assert(SN:Int.signed(Int.neg(Int.repr maximum))= -maximum).
+ { rewrite Int.neg_repr,Int.signed_repr;[reflexivity|change(-2147483648<= -maximum<=2147483647);lia]. }
+ destruct(Int.lt v(Int.neg(Int.repr maximum)))eqn:LOW.
+ - rewrite SN;lia.
+ - destruct(Int.lt(Int.repr maximum)v)eqn:HIGH.
+   + rewrite SP;lia.
+   + unfold Int.lt in LOW,HIGH;rewrite SN in LOW;rewrite SP in HIGH.
+     destruct(zlt(Int.signed v)(-maximum));try discriminate.
+     destruct(zlt maximum(Int.signed v));try discriminate;lia.
+Qed.
+Lemma gain_product_bound:forall gain x bound,
+ 0<=Int.signed gain<=100 ->int_bound x bound ->0<=bound ->
+ 100*bound<=2147483647 ->
+ int_bound(Int.mul gain x)(100*bound) /\signed32(Int.signed gain*Int.signed x).
+Proof.
+ intros gain x bound G X B CAP;unfold int_bound,signed32 in *.
+ assert(R:-100*bound<=Int.signed gain*Int.signed x<=100*bound)by nia.
+ assert(SAFE:signed32(Int.signed gain*Int.signed x))by(unfold signed32;lia).
+ split;[rewrite(signed_mul_exact gain x SAFE);lia|exact SAFE].
+Qed.
+Lemma bounded_sum:forall a b ba bb,
+ int_bound a ba ->int_bound b bb ->0<=ba ->0<=bb ->ba+bb<=2147483647 ->
+ int_bound(Int.add a b)(ba+bb) /\signed32(Int.signed a+Int.signed b).
+Proof.
+ intros a b ba bb A B PA PB CAP;unfold int_bound,signed32 in *.
+ assert(SAFE:signed32(Int.signed a+Int.signed b))by(unfold signed32;lia).
+ split;[rewrite(signed_add_exact a b SAFE);lia|exact SAFE].
+Qed.
+Lemma trajectory_high_resolution:
+ Int.shl(Int.repr 1429)(Int.repr 16)=Int.repr 93650944.
+Proof. reflexivity. Qed.
+
+Record axis_bounds(kp kd ki kv ka pe se rs ra initial_i:int):Prop:={
+ bound_kp:0<=Int.signed kp<=100;bound_kd:0<=Int.signed kd<=100;
+ bound_ki:0<=Int.signed ki<=100;bound_kv:0<=Int.signed kv<=100;bound_ka:0<=Int.signed ka<=100;
+ bound_pe:int_bound pe 4096;bound_se:int_bound se 8388608;
+ bound_rs:int_bound rs 10000;bound_ra:int_bound ra 10000;bound_initial_i:int_bound initial_i 100000000
+}.
+Definition pd_stage(kp kd pe se:int):int:=pd_bits kp kd pe se.
+Definition velocity_stage(kp kd kv pe se rs:int):int:=
+ Int.add(pd_stage kp kd pe se)(Int.shr(Int.mul kv rs)(Int.repr 17)).
+Definition feedforward_stage(kp kd kv ka pe se rs ra:int):int:=
+ feedforward_bits(pd_stage kp kd pe se)kv rs ka ra.
+Definition integral_sum(kp kd ki pe se initial_i:int):int:=
+ Int.add initial_i(Int.mul ki(pd_stage kp kd pe se)).
+Definition integral_trim(kp kd ki pe se initial_i:int):int:=
+ clip_bits(integral_sum kp kd ki pe se initial_i)(Int.shl(Int.repr 1429)(Int.repr 16)).
+Definition command_before_total(kp kd ki kv ka pe se rs ra initial_i:int):int:=
+ Int.add(clip_bits(feedforward_stage kp kd kv ka pe se rs ra)(Int.repr 1429))
+ (Int.shr(integral_trim kp kd ki pe se initial_i)(Int.repr 16)).
+
+Theorem original_axis_intermediate_bounds:forall kp kd ki kv ka pe se rs ra initial_i,
+ axis_bounds kp kd ki kv ka pe se rs ra initial_i ->
+ int_bound(pd_stage kp kd pe se)12800 /\
+ int_bound(velocity_stage kp kd kv pe se rs)12808 /\
+ int_bound(feedforward_stage kp kd kv ka pe se rs ra)16715 /\
+ int_bound(integral_sum kp kd ki pe se initial_i)101280000 /\
+ int_bound(integral_trim kp kd ki pe se initial_i)93650944 /\
+ int_bound(command_before_total kp kd ki kv ka pe se rs ra initial_i)2858.
+Proof.
+ intros kp kd ki kv ka pe se rs ra initial_i D;destruct D as[KP KD KI KV KA PE SE RS RA II].
+ destruct(gain_product_bound kp pe 4096 KP PE ltac:(lia)ltac:(lia))as[PM PMOK].
+ assert(PS:int_bound(Int.shr(Int.mul kp pe)(Int.repr 6))6400).
+ { eapply shift_bound with(d:=64)(bound:=409600);[exact PM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ assert(SS:int_bound(Int.shr se(Int.repr 2))2097152).
+ { eapply shift_bound with(d:=4)(bound:=8388608);[exact SE|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(gain_product_bound kd _ 2097152 KD SS ltac:(lia)ltac:(lia))as[DM DMOK].
+ assert(DS:int_bound(Int.shr(Int.mul kd(Int.shr se(Int.repr 2)))(Int.repr 15))6400).
+ { eapply shift_bound with(d:=32768)(bound:=209715200);[exact DM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(bounded_sum _ _ 6400 6400 PS DS ltac:(lia)ltac:(lia)ltac:(lia))as[PD PDOK].
+ change(int_bound(pd_stage kp kd pe se)12800)in PD.
+ destruct(gain_product_bound kv rs 10000 KV RS ltac:(lia)ltac:(lia))as[VM VMOK].
+ assert(VS:int_bound(Int.shr(Int.mul kv rs)(Int.repr 17))8).
+ { eapply shift_bound with(d:=131072)(bound:=1000000);[exact VM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(bounded_sum _ _ 12800 8 PD VS ltac:(lia)ltac:(lia)ltac:(lia))as[PV PVOK].
+ change(int_bound(velocity_stage kp kd kv pe se rs)12808)in PV.
+ destruct(gain_product_bound ka ra 10000 KA RA ltac:(lia)ltac:(lia))as[AM AMOK].
+ assert(AS:int_bound(Int.shr(Int.mul ka ra)(Int.repr 8))3907).
+ { eapply shift_bound with(d:=256)(bound:=1000000);[exact AM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(bounded_sum _ _ 12808 3907 PV AS ltac:(lia)ltac:(lia)ltac:(lia))as[FF FFOK].
+ change(int_bound(feedforward_stage kp kd kv ka pe se rs ra)16715)in FF.
+ destruct(gain_product_bound ki _ 12800 KI PD ltac:(lia)ltac:(lia))as[IM IMOK].
+ destruct(bounded_sum _ _ 100000000 1280000 II IM ltac:(lia)ltac:(lia)ltac:(lia))as[IS ISOK].
+ change(int_bound(integral_sum kp kd ki pe se initial_i)101280000)in IS.
+ assert(IT:int_bound(integral_trim kp kd ki pe se initial_i)93650944).
+ { unfold integral_trim;rewrite trajectory_high_resolution;apply clamp_bound;lia. }
+ assert(ISH:int_bound(Int.shr(integral_trim kp kd ki pe se initial_i)(Int.repr 16))1429).
+ { eapply shift_bound with(d:=65536)(bound:=93650944);[exact IT|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ assert(TR:int_bound(clip_bits(feedforward_stage kp kd kv ka pe se rs ra)(Int.repr 1429))1429)
+ by(apply clamp_bound;lia).
+ destruct(bounded_sum _ _ 1429 1429 TR ISH ltac:(lia)ltac:(lia)ltac:(lia))as[OUT OUTOK].
+ change(int_bound(command_before_total kp kd ki kv ka pe se rs ra initial_i)2858)in OUT.
+ split;[exact PD|];split;[exact PV|];split;[exact FF|];split;[exact IS|];split;[exact IT|exact OUT].
+Qed.
+Print Assumptions original_axis_intermediate_bounds.
+
+Record axis_arithmetic_safe(kp kd ki kv ka pe se rs ra initial_i:int):Prop:={
+ safe_kp_product:signed32(Int.signed kp*Int.signed pe);
+ safe_kd_product:signed32(Int.signed kd*Int.signed(Int.shr se(Int.repr 2)));
+ safe_pd_add:signed32(Int.signed(Int.shr(Int.mul kp pe)(Int.repr 6))+
+  Int.signed(Int.shr(Int.mul kd(Int.shr se(Int.repr 2)))(Int.repr 15)));
+ safe_kv_product:signed32(Int.signed kv*Int.signed rs);
+ safe_velocity_add:signed32(Int.signed(pd_stage kp kd pe se)+Int.signed(Int.shr(Int.mul kv rs)(Int.repr 17)));
+ safe_ka_product:signed32(Int.signed ka*Int.signed ra);
+ safe_feedforward_add:signed32(Int.signed(velocity_stage kp kd kv pe se rs)+Int.signed(Int.shr(Int.mul ka ra)(Int.repr 8)));
+ safe_ki_product:signed32(Int.signed ki*Int.signed(pd_stage kp kd pe se));
+ safe_integral_add:signed32(Int.signed initial_i+Int.signed(Int.mul ki(pd_stage kp kd pe se)));
+ safe_command_add:signed32(Int.signed(clip_bits(feedforward_stage kp kd kv ka pe se rs ra)(Int.repr 1429))+
+  Int.signed(Int.shr(integral_trim kp kd ki pe se initial_i)(Int.repr 16)))
+}.
+Theorem original_axis_arithmetic_safe:forall kp kd ki kv ka pe se rs ra initial_i,
+ axis_bounds kp kd ki kv ka pe se rs ra initial_i ->
+ axis_arithmetic_safe kp kd ki kv ka pe se rs ra initial_i.
+Proof.
+ intros kp kd ki kv ka pe se rs ra initial_i D;destruct D as[KP KD KI KV KA PE SE RS RA II].
+ destruct(gain_product_bound kp pe 4096 KP PE ltac:(lia)ltac:(lia))as[PM PMOK].
+ assert(PS:int_bound(Int.shr(Int.mul kp pe)(Int.repr 6))6400).
+ { eapply shift_bound with(d:=64)(bound:=409600);[exact PM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ assert(SS:int_bound(Int.shr se(Int.repr 2))2097152).
+ { eapply shift_bound with(d:=4)(bound:=8388608);[exact SE|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(gain_product_bound kd _ 2097152 KD SS ltac:(lia)ltac:(lia))as[DM DMOK].
+ assert(DS:int_bound(Int.shr(Int.mul kd(Int.shr se(Int.repr 2)))(Int.repr 15))6400).
+ { eapply shift_bound with(d:=32768)(bound:=209715200);[exact DM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(bounded_sum _ _ 6400 6400 PS DS ltac:(lia)ltac:(lia)ltac:(lia))as[PD PDOK].
+ change(int_bound(pd_stage kp kd pe se)12800)in PD.
+ destruct(gain_product_bound kv rs 10000 KV RS ltac:(lia)ltac:(lia))as[VM VMOK].
+ assert(VS:int_bound(Int.shr(Int.mul kv rs)(Int.repr 17))8).
+ { eapply shift_bound with(d:=131072)(bound:=1000000);[exact VM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(bounded_sum _ _ 12800 8 PD VS ltac:(lia)ltac:(lia)ltac:(lia))as[PV PVOK].
+ change(int_bound(velocity_stage kp kd kv pe se rs)12808)in PV.
+ destruct(gain_product_bound ka ra 10000 KA RA ltac:(lia)ltac:(lia))as[AM AMOK].
+ assert(AS:int_bound(Int.shr(Int.mul ka ra)(Int.repr 8))3907).
+ { eapply shift_bound with(d:=256)(bound:=1000000);[exact AM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(bounded_sum _ _ 12808 3907 PV AS ltac:(lia)ltac:(lia)ltac:(lia))as[FF FFOK].
+ change(int_bound(feedforward_stage kp kd kv ka pe se rs ra)16715)in FF.
+ destruct(gain_product_bound ki _ 12800 KI PD ltac:(lia)ltac:(lia))as[IM IMOK].
+ destruct(bounded_sum _ _ 100000000 1280000 II IM ltac:(lia)ltac:(lia)ltac:(lia))as[IS ISOK].
+ change(int_bound(integral_sum kp kd ki pe se initial_i)101280000)in IS.
+ assert(IT:int_bound(integral_trim kp kd ki pe se initial_i)93650944).
+ { unfold integral_trim;rewrite trajectory_high_resolution;apply clamp_bound;lia. }
+ assert(ISH:int_bound(Int.shr(integral_trim kp kd ki pe se initial_i)(Int.repr 16))1429).
+ { eapply shift_bound with(d:=65536)(bound:=93650944);[exact IT|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ assert(TR:int_bound(clip_bits(feedforward_stage kp kd kv ka pe se rs ra)(Int.repr 1429))1429)
+ by(apply clamp_bound;lia).
+ destruct(bounded_sum _ _ 1429 1429 TR ISH ltac:(lia)ltac:(lia)ltac:(lia))as[OUT OUTOK].
+ change(int_bound(command_before_total kp kd ki kv ka pe se rs ra initial_i)2858)in OUT.
+ constructor;[exact PMOK|exact DMOK|exact PDOK|exact VMOK|exact PVOK|
+ exact AMOK|exact FFOK|exact IMOK|exact ISOK|exact OUTOK].
+Qed.
+Print Assumptions original_axis_arithmetic_safe.
+
+FILE core/cbmc/CanonicalDomain.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Maps AST Integers Values Memory Globalenvs Ctypes Csyntax Csyntaxdefs.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationAttempt002 Require Import CoreInputs ClampSemantics.
+From CoreCBMC Require Import NumericBounds FloatBounds.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Lemma bounded_path_value:forall m b ty path lo hi value,
+ bounded_path m b ty path lo hi ->load_path Mint32 m b ty path=Some(Vint value) ->
+ lo<=Int.signed value<=hi.
+Proof. intros m b ty path lo hi value[n[LOAD BOUND]]READ;rewrite READ in LOAD;injection LOAD as EQ;subst n;exact BOUND. Qed.
+Lemma bounded_global_value:forall m id ty path lo hi value,
+ bounded_global m id ty path lo hi ->load_global Mint32 m id ty path=Some(Vint value) ->
+ lo<=Int.signed value<=hi.
+Proof. intros m id ty path lo hi value[n[LOAD BOUND]]READ;rewrite READ in LOAD;injection LOAD as EQ;subst n;exact BOUND. Qed.
+Theorem inputgood_gain_bounds:forall m gh ret(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ 0<=Int.signed(cid_kp _ _ D)<=100 /\0<=Int.signed(cid_kd _ _ D)<=100 /\
+ 0<=Int.signed(cid_ki _ _ D)<=100 /\0<=Int.signed(cid_kv _ _ D)<=100 /\
+ 0<=Int.signed(cid_ka _ _ D)<=100.
+Proof.
+ intros m gh ret D GOOD;pose proof(proj1 GOOD)as LEG.
+ assert(GAIN:forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka]->
+ bounded_global m S._guidance_pid pid_type[gain]0 100)
+ by(unfold InputGoodLegacy in LEG;tauto).
+ assert(P:0<=Int.signed(cid_kp _ _ D)<=100).
+ { destruct(GAIN S._kp ltac:(cbn;intuition congruence))as[n[LOAD BOUND]].
+   unfold load_global in LOAD;rewrite(cid_pid_symbol _ _ D)in LOAD.
+   change(Mem.load Mint32 m(cid_pid _ _ D)0=Some(Vint n))in LOAD.
+   rewrite(cid_gain_p _ _ D)in LOAD;injection LOAD as EQ;subst n;exact BOUND. }
+ assert(Q:0<=Int.signed(cid_kd _ _ D)<=100).
+ { destruct(GAIN S._kd ltac:(cbn;intuition congruence))as[n[LOAD BOUND]].
+   unfold load_global in LOAD;rewrite(cid_pid_symbol _ _ D)in LOAD.
+   change(Mem.load Mint32 m(cid_pid _ _ D)4=Some(Vint n))in LOAD.
+   rewrite(cid_gain_d _ _ D)in LOAD;injection LOAD as EQ;subst n;exact BOUND. }
+ assert(R:0<=Int.signed(cid_ki _ _ D)<=100).
+ { destruct(GAIN S._ki ltac:(cbn;intuition congruence))as[n[LOAD BOUND]].
+   unfold load_global in LOAD;rewrite(cid_pid_symbol _ _ D)in LOAD.
+   change(Mem.load Mint32 m(cid_pid _ _ D)8=Some(Vint n))in LOAD.
+   rewrite(cid_gain_i _ _ D)in LOAD;injection LOAD as EQ;subst n;exact BOUND. }
+ assert(T:0<=Int.signed(cid_kv _ _ D)<=100).
+ { destruct(GAIN S._kv ltac:(cbn;intuition congruence))as[n[LOAD BOUND]].
+   unfold load_global in LOAD;rewrite(cid_pid_symbol _ _ D)in LOAD.
+   change(Mem.load Mint32 m(cid_pid _ _ D)12=Some(Vint n))in LOAD.
+   rewrite(cid_gain_v _ _ D)in LOAD;injection LOAD as EQ;subst n;exact BOUND. }
+ assert(U:0<=Int.signed(cid_ka _ _ D)<=100).
+ { destruct(GAIN S._ka ltac:(cbn;intuition congruence))as[n[LOAD BOUND]].
+   unfold load_global in LOAD;rewrite(cid_pid_symbol _ _ D)in LOAD.
+   change(Mem.load Mint32 m(cid_pid _ _ D)16=Some(Vint n))in LOAD.
+   rewrite(cid_gain_a _ _ D)in LOAD;injection LOAD as EQ;subst n;exact BOUND. }
+ tauto.
+Qed.
+Theorem inputgood_axis_bounds:forall m gh ret(D:core_initial_data m gh)axis r p speed measured accel integral,
+ InputGood m gh ret ->In axis[S._x;S._y] ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;axis]=Some(Vint speed) ->
+ load_path Mint32 m gh gh_type[S._ref;S._accel;axis]=Some(Vint accel) ->
+ load_global Mint32 m S._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint integral) ->
+ axis_bounds(cid_kp _ _ D)(cid_kd _ _ D)(cid_ki _ _ D)(cid_kv _ _ D)(cid_ka _ _ D)
+ (clamp_bits(Int.sub r p)(Int.repr 4096))
+ (clamp_bits(Int.sub speed measured)(Int.repr 8388608))speed accel integral.
+Proof.
+ intros m gh ret D axis r p speed measured accel integral GOOD AX SPEED ACCEL INTEGRAL.
+ destruct(inputgood_gain_bounds m gh ret D GOOD)as[P[Q[R[T U]]]].
+ pose proof(proj1 GOOD)as LEG.
+ assert(XY:bounded_global m S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+ bounded_path m gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+ bounded_path m gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+ bounded_global m S._state state_type[S._ned_speed_i;axis](-10000)10000).
+ { unfold InputGoodLegacy in LEG;decompose[and]LEG.
+   match goal with H:forall a,In a[S._x;S._y]->_|-_=>exact(H axis AX)end. }
+ destruct XY as[IB[SB[AB MB]]].
+ constructor;try assumption.
+ - apply original_front_clamp_bound;lia.
+ - apply original_front_clamp_bound;lia.
+ - unfold int_bound;eapply bounded_path_value;[exact SB|exact SPEED].
+ - unfold int_bound;eapply bounded_path_value;[exact AB|exact ACCEL].
+ - unfold int_bound;eapply bounded_global_value;[exact IB|exact INTEGRAL].
+Qed.
+Print Assumptions inputgood_axis_bounds.
+
+FILE core/cbmc/ArithmeticAtomic.v
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress CallfreeExecution PhaseComposition StandaloneCallShell.
+From CoreCBMC Require Import ArithmeticTree.
+Section ARITHMETIC_ATOMIC.
+Variable ge:genv.
+Variable f:function.
+Variable e:env.
+Variable k:cont.
+Variable m mf:mem.
+Variable original:expr.
+Variable result:val.
+Hypothesis syntax:atomic_expr original=true.
+Hypothesis evaluation:atomic_eval ge e m original=Some(result,mf).
+Hypothesis annotated:arithmetic_tree ge e m original.
+Definition arithmetic_atomic_invariant(s:Csem.state):Prop:=
+ s=State f Sskip k e mf \/
+ exists a ma,s=ExprState f a(Kdo k)e ma /\atomic_expr a=true /\
+ atomic_eval ge e ma a=Some(result,mf) /\arithmetic_tree ge e ma a.
+Lemma arithmetic_atomic_successors:forall s t next,
+ arithmetic_atomic_invariant s ->s<>State f Sskip k e mf ->
+ Csem.step ge s t next ->arithmetic_atomic_invariant next.
+Proof.
+ intros s t next[DONE|[a[ma[EQ[AT[AE TREE]]]]]]NF STEP;[contradiction|subst s].
+ destruct STEP as[ES|SS].
+ - destruct(atomic_defined_estep ge f a(Kdo k)e ma t next result mf AT AE ES)
+   as[ar[mr[EQ[TT[SY DEN]]]]].
+   destruct(arithmetic_atomic_estep ge f a(Kdo k)e ma t next AT TREE ES)
+   as[BAD|[ar2[mr2[EQ2[SY2 TREE2]]]]];[congruence|].
+   rewrite EQ in EQ2;injection EQ2 as EX EM;subst ar2 mr2.
+   right;exists ar,mr;auto.
+ - inversion SS;subst;cbn[atomic_eval pure_rval]in AE;injection AE as VR MM;subst.
+   left;reflexivity.
+Qed.
+Lemma arithmetic_atomic_progress:forall s,
+ arithmetic_atomic_invariant s ->s=State f Sskip k e mf \/
+ exists t next,Csem.step ge s t next /\arithmetic_atomic_invariant next.
+Proof.
+ intros s[DONE|[a[ma[EQ[AT[AE TREE]]]]]];[left;exact DONE|subst s].
+ destruct(literal RV a)eqn:LIT.
+ - destruct(literal_r_inv a LIT)as[v[ty EQ]];subst a.
+   cbn[atomic_eval pure_rval]in AE;injection AE as VR MM;subst.
+   right;exists E0,(State f Sskip k e mf);split;[right;constructor|left;reflexivity].
+ - destruct(immediate_has_step ge f a(Kdo k)e ma LIT
+    ltac:(exact(atomic_not_stuck ge e ma a result mf AT AE RV(fun x=>x)a(ctx_top RV)eq_refl)))as[t[next STEP]].
+   right;exists t,next;split;[exact STEP|].
+   eapply arithmetic_atomic_successors;[right;exists a,ma;auto|discriminate|exact STEP].
+Qed.
+Theorem arithmetic_atomic_certificate:
+ certificate ge arithmetic_atomic_invariant(State f Sskip k e mf).
+Proof. split;[exact arithmetic_atomic_progress|exact arithmetic_atomic_successors]. Qed.
+Theorem arithmetic_atomic_initial:
+ arithmetic_atomic_invariant(ExprState f original(Kdo k)e m).
+Proof. right;exists original,m;auto. Qed.
+Theorem arithmetic_atomic_observation:forall f' a k' e' ma,
+ arithmetic_atomic_invariant(ExprState f' a k' e' ma) ->arithmetic_tree ge e' ma a.
+Proof.
+ intros f' a k' e' ma[DONE|[ar[mr[EQ REST]]]];[discriminate|].
+ injection EQ as FF AA KK EE MM;subst;tauto.
+Qed.
+End ARITHMETIC_ATOMIC.
+Print Assumptions arithmetic_atomic_certificate.
+
+FILE core/CoreSemantics.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory.
+Import ListNotations.
+Open Scope Z_scope.
+Eval vm_compute in (path_info gh_type [S._ref;S._speed;S._x],path_info gh_type [S._ref;S._accel;S._x],path_info pid_type [S._cmd_earth;S._x]).
+Ltac core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM :=
+ lazymatch goal with
+ | |- eval_simple_rvalue _ _ _ (Eval _ _) _=>constructor
+ | |- eval_simple_rvalue _ _ _ (Ebinop ?op _ _ _) _=>eapply esr_binop;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity]
+ | |- eval_simple_rvalue _ _ _ (Eunop _ _ _) _=>eapply esr_unop;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity]
+ | |- eval_simple_rvalue _ _ _ (Ecast _ _) _=>eapply esr_cast;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity]
+ | |- eval_simple_rvalue _ _ _ (Evalof ?l ?ty) _=>
+   let mode:=eval hnf in(access_mode ty)in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity|reflexivity|reflexivity|
+       lazymatch goal with|-Mem.loadv ?c ?mm(Vptr ?bb ?oo)=Some ?vv=>
+       let ox:=eval vm_compute in(Ptrofs.unsigned oo)in change(Mem.load c mm bb ox=Some vv);scalar_frame;first[eassumption|reflexivity] end]
+   end
+ | |- eval_simple_rvalue _ _ _ (Eaddrof _ _) _=>apply esr_addrof;core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM
+ end
+with core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM :=
+ lazymatch goal with
+ | |- eval_simple_lvalue _ _ _ (Evar ?id _) _ _ _=>
+   lazymatch id with
+   | S._pd_x=>eapply esl_var_local;exact EX
+   | S._pd_y=>eapply esl_var_local;exact EY
+   | S._gh=>eapply esl_var_local;exact EG
+   | S._guidance_pid=>eapply esl_var_global;[exact NP|exact SP]
+   | S._guidance_pid_pos_err=>eapply esl_var_global;[exact NE|exact SE]
+   | S._guidance_pid_trim_att_integrator=>eapply esl_var_global;[exact NI|exact SI]
+   | S._traj_max_bank=>eapply esl_var_global;[exact NM|exact SM]
+   | S._total_max_bank=>eapply esl_var_global;[exact NM|exact SM]
+   | S._guidance_pid_speed_err=>eapply esl_var_global;[exact NS|exact SS]
+   end
+ | |- eval_simple_lvalue _ _ _ (Ederef _ _) _ _ _=>eapply esl_deref;core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM
+ | |- eval_simple_lvalue _ _ _ (Efield ?r _ _) _ _ _=>
+   let rt:=eval cbv beta iota zeta delta[typeof]in(typeof r)in
+   lazymatch rt with
+   | Tstruct _ _=>eapply esl_field_struct;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity|cenv_lookup|cfield_lookup]
+   | Tunion _ _=>eapply esl_field_union;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity|idtac|cenv_lookup];cfield_lookup
+   end
+ end.
+Definition pd_bits(kp kd pe se:int):int:=
+ Int.add(Int.shr(Int.mul kp pe)(Int.repr 6))
+ (Int.shr(Int.mul kd(Int.shr se(Int.repr 2)))(Int.repr 15)).
+Definition feedforward_bits(pd kv rs ka ra:int):int:=
+ Int.add(Int.add pd(Int.shr(Int.mul kv rs)(Int.repr 17)))
+ (Int.shr(Int.mul ka ra)(Int.repr 8)).
+Fixpoint first_statements(n:nat)(s:statement):statement:=
+ match n with O=>Sskip|Datatypes.S n=>match s with Ssequence a b=>Ssequence a(first_statements n b)|_=>s end end.
+Definition core_first_four:=first_statements 4(fn_body S.f_guidance_pid_h_run).
+
+Definition first_four_updates(bx bpy bp:block)(kp kd kv ka pex pey sex sey rsx rsy rax ray:int):list scalar_update:=
+ [(Mint32,bx,0,Vint(pd_bits kp kd pex sex));(Mint32,bpy,0,Vint(pd_bits kp kd pey sey));
+ (Mint32,bp,32,Vint(feedforward_bits(pd_bits kp kd pex sex)kv rsx ka rax));
+ (Mint32,bp,36,Vint(feedforward_bits(pd_bits kp kd pey sey)kv rsy ka ray))].
+Theorem original_core_first_four:forall e m bp be bs gh bg bx bpy kp kd kv ka pex pey sex sey rsx rsy rax ray,
+ e!S._pd_x=Some(bx,tint) ->e!S._pd_y=Some(bpy,tint) ->
+ e!S._gh=Some(bg,tptr gh_type) ->
+ e!S._guidance_pid=None ->e!S._guidance_pid_pos_err=None ->e!S._guidance_pid_speed_err=None ->
+ Genv.find_symbol ge S._guidance_pid=Some bp ->
+ Genv.find_symbol ge S._guidance_pid_pos_err=Some be ->
+ Genv.find_symbol ge S._guidance_pid_speed_err=Some bs ->
+ NoDup[bx;bpy;bg;bp;be;bs;gh] ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint32 m bp 0=Some(Vint kp) ->
+ Mem.load Mint32 m bp 4=Some(Vint kd) ->
+ Mem.load Mint32 m bp 12=Some(Vint kv) ->
+ Mem.load Mint32 m bp 16=Some(Vint ka) ->
+ Mem.load Mint32 m be 0=Some(Vint pex) ->
+ Mem.load Mint32 m be 4=Some(Vint pey) ->
+ Mem.load Mint32 m bs 0=Some(Vint sex) ->
+ Mem.load Mint32 m bs 4=Some(Vint sey) ->
+ Mem.load Mint32 m gh 52=Some(Vint rsx) ->
+ Mem.load Mint32 m gh 56=Some(Vint rsy) ->
+ Mem.load Mint32 m gh 60=Some(Vint rax) ->
+ Mem.load Mint32 m gh 64=Some(Vint ray) ->
+ Mem.valid_access m Mint32 bx 0 Writable ->
+ Mem.valid_access m Mint32 bpy 0 Writable ->
+ Mem.valid_access m Mint32 bp 32 Writable ->
+ Mem.valid_access m Mint32 bp 36 Writable ->
+ exists mf,
+ Cstrategy.exec_stmt ge e m core_first_four E0 mf Out_normal /\
+ Mem.load Mint32 mf bx 0=Some(Vint(pd_bits kp kd pex sex)) /\
+ Mem.load Mint32 mf bpy 0=Some(Vint(pd_bits kp kd pey sey)) /\
+ Mem.load Mint32 mf bp 32=Some(Vint(feedforward_bits(pd_bits kp kd pex sex)kv rsx ka rax)) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(feedforward_bits(pd_bits kp kd pey sey)kv rsy ka ray)) /\
+ raw_writes(fun b=>b=bx\/b=bpy\/b=bp)m mf /\ replay_stores m(first_four_updates bx bpy bp kp kd kv ka pex pey sex sey rsx rsy rax ray)=Some mf.
+Proof.
+ intros e m bp be bs gh bg bx bpy kp kd kv ka pex pey sex sey rsx rsy rax ray
+ EX EY EG NP NE NS SP SE SS SEP GP
+ LKP LKD LKV LKA LPEX LPEY LSEX LSEY LRSX LRSY LRAX LRAY AX AY ACX ACY.
+ assert(DIST:bx<>bpy /\ bx<>bg /\ bx<>bp /\ bx<>be /\ bx<>bs /\ bx<>gh /\ bpy<>bg /\ bpy<>bp /\ bpy<>be /\ bpy<>bs /\ bpy<>gh /\ bg<>bp /\ bg<>be /\ bg<>bs /\ bg<>gh /\ bp<>be /\ bp<>bs /\ bp<>gh /\ be<>bs /\ be<>gh /\ bs<>gh).
+ { repeat rewrite NoDup_cons_iff in SEP;simpl in SEP;intuition congruence. }
+ destruct DIST as(D0&D1&D2&D3&D4&D5&D6&D7&D8&D9&D10&D11&D12&D13&D14&D15&D16&D17&D18&D19&D20).
+ destruct(Mem.valid_access_store m Mint32 bx 0(Vint(pd_bits kp kd pex sex))AX)as[m1 ST1].
+ assert(A2:Mem.valid_access m1 Mint32 bpy 0 Writable).
+ { eapply Mem.store_valid_access_1;[exact ST1|]. exact AY. }
+ destruct(Mem.valid_access_store m1 Mint32 bpy 0(Vint(pd_bits kp kd pey sey))A2)as[m2 ST2].
+ assert(A3:Mem.valid_access m2 Mint32 bp 32 Writable).
+ { eapply Mem.store_valid_access_1;[exact ST2|]. eapply Mem.store_valid_access_1;[exact ST1|]. exact ACX. }
+ destruct(Mem.valid_access_store m2 Mint32 bp 32(Vint(feedforward_bits(pd_bits kp kd pex sex)kv rsx ka rax))A3)as[m3 ST3].
+ assert(A4:Mem.valid_access m3 Mint32 bp 36 Writable).
+ { eapply Mem.store_valid_access_1;[exact ST3|]. eapply Mem.store_valid_access_1;[exact ST2|]. eapply Mem.store_valid_access_1;[exact ST1|]. exact ACY. }
+ destruct(Mem.valid_access_store m3 Mint32 bp 36(Vint(feedforward_bits(pd_bits kp kd pey sey)kv rsy ka ray))A4)as[mf ST4].
+ exists mf;split.
+ - unfold core_first_four;cbn[first_statements S.f_guidance_pid_h_run fn_body].
+   eapply sequence_normal;[eapply atomic_assign;
+     [core_lv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|core_rv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|reflexivity|
+      eapply assign_loc_value;[reflexivity|reflexivity|exact ST1]|reflexivity]|].
+   eapply sequence_normal;[eapply atomic_assign;
+     [core_lv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|core_rv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|reflexivity|
+      eapply assign_loc_value;[reflexivity|reflexivity|exact ST2]|reflexivity]|].
+   eapply sequence_normal;[eapply atomic_assign;
+     [core_lv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|core_rv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|reflexivity|
+      eapply assign_loc_value;[reflexivity|reflexivity|exact ST3]|reflexivity]|].
+   eapply sequence_normal;[eapply atomic_assign;
+     [core_lv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|core_rv EX EY EG NP NE NS SP SE SS I I I I|reflexivity|reflexivity|
+      eapply assign_loc_value;[reflexivity|reflexivity|exact ST4]|reflexivity]|].
+   constructor.
+ - repeat split;try(scalar_frame;reflexivity).
+   eapply raw_writes_store;[left;reflexivity|exact ST1|].
+   eapply raw_writes_store;[right;left;reflexivity|exact ST2|].
+   eapply raw_writes_store;[right;right;reflexivity|exact ST3|].
+   eapply raw_writes_store;[right;right;reflexivity|exact ST4|constructor].
+   cbv beta iota zeta delta[first_four_updates replay_stores];rewrite ST1,ST2,ST3,ST4;reflexivity.
+Qed.
+Print Assumptions original_core_first_four.
+

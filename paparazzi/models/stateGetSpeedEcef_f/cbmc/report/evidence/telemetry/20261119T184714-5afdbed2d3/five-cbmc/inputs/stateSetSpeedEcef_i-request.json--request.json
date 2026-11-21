@@ -1,0 +1,71 @@
+{
+  "schema": "five-execution-translation-request/1",
+  "purpose": "execution-translation",
+  "execution_backend": "compcert-csyntax-cexec",
+  "case_id": "stateSetSpeedEcef_i",
+  "entry": "stateSetSpeedEcef_i",
+  "source": "prepare/source/stateSetSpeedEcef_i.c",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "domain": {
+    "arguments": "all raw machine values",
+    "memory": "all CompCert memories",
+    "execution_filtering": false
+  },
+  "verification_method": "traditional-bounded-model-checking",
+  "model_domain": "All raw machine arguments and CompCert memories; no proof or harness restriction in the execution model.",
+  "user_goal": "Original accepted NED/ECEF speed setter protocol followed by original ECEF float getter; actual read-after-write/history-independence counterexample with full output bits and frame observations.",
+  "proof_scopes": {
+    "no_error": "All reachable original Csem states under explicit valid initialized memory/input preconditions.",
+    "termination": "Acc over all Csem successors under the same legal-call preconditions.",
+    "execution_correspondence": "All eight full raw-domain correspondence obligations; no proof-domain execution filtering.",
+    "cbmc_recheck": "All actually emitted property IDs independently proved/refuted under their original harness scope."
+  },
+  "protocol": {
+    "ordered_entries": [
+      "stateSetSpeedNed_i",
+      "stateSetSpeedEcef_i",
+      "stateGetSpeedEcef_f"
+    ],
+    "input_filter": "ANY=65535; sender read from filter, acceptance retained/proved",
+    "fixed_point_scale": 524288,
+    "N1": [
+      0,
+      0,
+      0
+    ],
+    "N2": [
+      524288,
+      0,
+      0
+    ],
+    "E": [
+      1048576,
+      0,
+      0
+    ],
+    "observations": "Immediate copy of all 3 float bit words after each getter, before next reset/call; actual getter pointer aliases state.",
+    "expected_float_bits": [
+      1073741824,
+      0,
+      0
+    ]
+  },
+  "limitations": [
+    "Entry static inline storage exposed for frontend export; exact original bodies and full State layout retained.",
+    "Explicit cross-model State/memory compatibility must be proved; program identity is not assumed.",
+    "No source fix, acceleration expansion, paper edit or upstream publish."
+  ]
+}

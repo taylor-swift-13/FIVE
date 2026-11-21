@@ -1,0 +1,124 @@
+Chars 0 - 51 [From~Stdlib~Require~Import~Boo...] 0.35 secs (0.222u,0.127s)
+Chars 52 - 207 [From~compcert~Require~Import~C...] 0.414 secs (0.289u,0.124s)
+Chars 208 - 279 [From~PprzTrigRelationSupport~R...] 0.003 secs (0.u,0.003s)
+Chars 280 - 340 [From~PprzTrigInitSupport~Requi...] 0.001 secs (0.001u,0.s)
+Chars 341 - 404 [From~FiveShared.pure_semantics...] 0. secs (0.u,0.s)
+Chars 405 - 476 [From~PprzTrigCBMC~Require~Impo...] 0.002 secs (0.002u,0.s)
+Chars 477 - 527 [Import~ListNotations~Csyntaxde...] 0. secs (0.u,0.s)
+Chars 528 - 558 [#[local]~Open~Scope~string_scope.] 0. secs (0.u,0.s)
+Chars 559 - 646 [Definition~negate_expr~(neg~:~...] 0. secs (0.u,0.s)
+Chars 647 - 722 [Definition~negate_int~(neg~:~b...] 0. secs (0.u,0.s)
+Chars 724 - 1226 [Lemma~quiet_successors_guarded...] 0.002 secs (0.002u,0.s)
+Chars 1227 - 1233 [Proof.] 0. secs (0.u,0.s)
+Chars 1236 - 1294 [intros~ge~Q~f~a~k~e~m~MATH~QUI...] 0. secs (0.u,0.s)
+Chars 1297 - 1352 [assert~(CB~:~callback_free_sta...] 0. secs (0.u,0.s)
+Chars 1355 - 1356 [{] 0. secs (0.u,0.s)
+Chars 1357 - 1393 [apply~quiet_no_builtin;~exact~...] 0. secs (0.u,0.s)
+Chars 1394 - 1395 [}] 0. secs (0.u,0.s)
+Chars 1398 - 1502 [assert~(SIL~:~silent_state~ge~...] 0. secs (0.u,0.s)
+Chars 1505 - 1540 [apply~guarded_next;~[~exact~MA...] 0. secs (0.u,0.s)
+Chars 1543 - 1544 [-] 0. secs (0.u,0.s)
+Chars 1545 - 1559 [exists~t,next.] 0. secs (0.u,0.s)
+Chars 1564 - 1702 [apply~~(proj1~~~~~(pure_do_ste...] 0. secs (0.u,0.s)
+Chars 1705 - 1706 [-] 0. secs (0.u,0.s)
+Chars 1707 - 1723 [intros~u~s~STEP.] 0. secs (0.u,0.s)
+Chars 1728 - 1860 [destruct~~(proj2~~~~~(pure_do_...] 0. secs (0.u,0.s)
+Chars 1865 - 1885 [eapply~ALL;~exact~R.] 0. secs (0.u,0.s)
+Chars 1886 - 1890 [Qed.] 0.002 secs (0.002u,0.s)
+Chars 1893 - 2822 [Lemma~read_call_guarded~:~~~fo...] 0.005 secs (0.005u,0.s)
+Chars 2823 - 2829 [Proof.] 0. secs (0.u,0.s)
+Chars 2831 - 2958 [intros~ge~Q~f~e~m~k~fnid~argid...] 0. secs (0.u,0.s)
+Chars 2960 - 3144 [assert~~(FADDR~:~~~Cexec.do_de...] 0.001 secs (0.001u,0.s)
+Chars 3146 - 3191 [destruct~neg;~cbn[negate_expr~...] 0. secs (0.u,0.s)
+Chars 3193 - 4648 [all:~~let~rec~dag~:=~~~~~~~~~~...] 4.693 secs (4.665u,0.027s)
+Chars 4649 - 4910 [all:~~cbn[BranchPure.branch_rv...] 0.096 secs (0.096u,0.s)
+9 goals
+  
+  ge : genv
+  Q : Csem.state -> Prop
+  f : function
+  e : PTree.tree (block * type)
+  m : mem
+  k : cont
+  fnid, argid : positive
+  targetty, returnty : type
+  target : function
+  funblock, argblock : block
+  a : int
+  castarg : val
+  EF : e ! fnid = None
+  EA : e ! argid = Some (argblock, tint)
+  SYM : Genv.find_symbol ge fnid = Some funblock
+  ARG :
+    do_deref_loc ge quiet tint m argblock Ptrofs.zero Full =
+    Some (quiet, E0, Vint a)
+  FUN :
+    Genv.find_funct ge (Vptr funblock Ptrofs.zero) = Some (Internal target)
+  TY :
+    type_of_fundef (Internal target) =
+    Tfunction [targetty] returnty cc_default
+  CAST : sem_cast (Vint (Int.neg a)) tint targetty m = Some castarg
+  NV : nv returnty = true
+  BOUND : signed32 (- Int.signed a)
+  END :
+    guarded_covers ge Q
+      (Callstate (Internal target) [castarg]
+         (Kcall f e (fun x : expr => Eunop Oneg x tint) returnty k) m)
+  FADDR :
+    do_deref_loc ge quiet (Tfunction [targetty] returnty cc_default) m
+      funblock Ptrofs.zero Full =
+    Some (quiet, E0, Vptr funblock Ptrofs.zero)
+  v : val
+  H :
+    match do_deref_loc ge branch_world tint m argblock Ptrofs.zero Full with
+    | Some (_, _, v) => Some v
+    | None => None
+    end = Some v
+  ============================
+  match v with
+  | Vint i => signed32 (- Int.signed i)
+  | _ => True
+  end
+
+goal 2 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+goal 3 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+goal 4 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+goal 5 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+goal 6 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+goal 7 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+goal 8 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+goal 9 is:
+ match v with
+ | Vint i => signed32 (- Int.signed i)
+ | _ => True
+ end
+Chars 4911 - 4916 [Show.] 0.002 secs (0.002u,0.s)
+Chars 4917 - 4921 [Qed.] 0. secs (0.u,0.s)

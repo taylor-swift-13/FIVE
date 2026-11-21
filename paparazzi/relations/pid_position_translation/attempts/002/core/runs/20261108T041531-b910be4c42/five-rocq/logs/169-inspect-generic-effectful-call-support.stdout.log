@@ -1,0 +1,54 @@
+From Stdlib Require Import List Bool.
+From compcert Require Import Coqlib AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy Smallstep Globalenvs.
+From FiveGuidanceEntry Require Import BigstepSupport.
+Import ListNotations.
+Fixpoint source_simple_list(al:exprlist):bool:=match al with Enil=>true|Econs a al=>source_simple a&&source_simple_list al end.
+Lemma simple_list_expr_refl:forall ge e m al tys vals,
+ Cstrategy.eval_simple_list ge e m al tys vals ->source_simple_list al=true ->
+ Cstrategy.eval_exprlist ge e m al E0 m al.
+Proof.
+ intros ge e m al tys vals H;induction H;intros SI;[constructor|].
+ cbn in SI;apply andb_true_iff in SI as[SA SL].
+ replace E0 with(E0**E0)by reflexivity;eapply Cstrategy.eval_cons.
+ - eapply(proj1(simple_eval_expr_refl ge e m));eauto.
+ - eauto.
+Qed.
+Lemma simple_call_expr:forall ge e m rf args ty vf vargs targs tres cc fd mf res,
+ Cstrategy.eval_simple_rvalue ge e m rf vf ->source_simple rf=true ->
+ Cstrategy.eval_simple_list ge e m args targs vargs ->source_simple_list args=true ->
+ classify_fun(typeof rf)=fun_case_f targs tres cc ->
+ Genv.find_funct ge vf=Some fd ->type_of_fundef fd=Tfunction targs tres cc ->
+ Cstrategy.eval_funcall ge m fd vargs E0 mf res ->
+ Cstrategy.eval_expr ge e m RV(Ecall rf args ty)E0 mf(Eval res ty).
+Proof.
+ intros ge e m rf args ty vf vargs targs tres cc fd mf res RF SR AR SA CLASS FIND TYPE CALL.
+ replace E0 with(E0**E0**E0)by reflexivity.
+ eapply Cstrategy.eval_call;
+ [eapply(proj1(simple_eval_expr_refl ge e m));eauto|
+ eapply simple_list_expr_refl;eauto|exact RF|exact AR|exact CLASS|exact FIND|exact TYPE|exact CALL].
+Qed.
+Lemma effectful_assign:forall ge e m l r ty mr r' b ofs bf v vc v' mf,
+ Cstrategy.eval_simple_lvalue ge e m l b ofs bf ->source_simple l=true ->
+ Cstrategy.eval_expr ge e m RV r E0 mr r' ->
+ Cstrategy.eval_simple_lvalue ge e mr l b ofs bf ->
+ Cstrategy.eval_simple_rvalue ge e mr r' v ->
+ sem_cast v(typeof r)(typeof l)mr=Some vc ->
+ assign_loc ge(typeof l)mr b ofs bf vc E0 mf v' ->ty=typeof l ->
+ Cstrategy.exec_stmt ge e m(Sdo(Eassign l r ty))E0 mf Out_normal.
+Proof.
+ intros ge e m l r ty mr r' b ofs bf v vc v' mf L0 SL ER L1 RV CAST STORE TY.
+ eapply Cstrategy.exec_Sdo.
+ eapply Cstrategy.eval_expression_intro with(a':=Eval v' ty);[|constructor].
+ replace E0 with(E0**E0**E0)by reflexivity.
+ eapply Cstrategy.eval_assign;
+ [eapply(proj2(simple_eval_expr_refl ge e m));eauto|exact ER|exact L1|exact RV|exact CAST|exact STORE|exact TY].
+Qed.
+Print Assumptions effectful_assign.
+Lemma stores_to_bytes_frame:forall P m mf,stores_to P m mf ->
+ forall b ofs n,~P b ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros P m mf H;induction H;intros bx offset nbytes OUT;[reflexivity|].
+ rewrite IHstores_to by exact OUT.
+ erewrite Mem.loadbytes_store_other by(exact H0||(left;intro EQ;subst bx;contradiction));reflexivity.
+Qed.
+

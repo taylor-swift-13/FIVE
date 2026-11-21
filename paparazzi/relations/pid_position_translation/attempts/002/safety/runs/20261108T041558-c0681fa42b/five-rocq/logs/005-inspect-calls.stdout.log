@@ -1,0 +1,561 @@
+From Stdlib Require Import List Bool Arith.
+From compcert Require Import AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem.
+From FiveGuidanceSemantics Require Import SourceClosure WeightedTermination SourceTermination SemanticsSupport.
+Import ListNotations.
+Definition allowed(defs:list(ident*globdef Csyntax.fundef type))(fd:Csyntax.fundef):Prop :=
+ match fd with
+ | Internal _=>exists id,In(id,Gfun fd)defs
+ | External ef _ _ _=>executable_builtin ef=true end.
+Definition check_fd(weight:type->nat)(signature:type)(result:type)(fd:Csyntax.fundef):bool :=
+ if type_eq(type_of_fundef fd)signature then
+ Nat.ltb(activation_rank weight fd + 2)(1+weight result) &&
+ match fd with Internal _=>true | External ef _ _ _=>executable_builtin ef end
+ else true.
+Definition check_global(weight:type->nat)(signature:type)(result:type)(idgd:ident*globdef Csyntax.fundef type):bool :=
+ match snd idgd with Gfun fd=>check_fd weight signature result fd | Gvar _=>true end.
+Lemma checked_call_closed:forall (ge:genv) defs weight,
+ (forall v fd,Genv.find_funct ge v=Some fd -> exists id,In(id,Gfun fd)defs) ->
+ forall params result cc ty,
+ forallb(check_global weight(Tfunction params result cc)ty)defs=true ->
+ SourceClosure.valid_call ge (allowed defs)(SourceTermination.static_budget weight)(Tfunction params result cc)ty.
+Proof.
+ intros ge defs weight LOOK params result cc ty CHECK vf fd tyargs tyres cc1 FIND CL TY.
+ simpl in CL;inversion CL;subst tyargs tyres cc1.
+ destruct(LOOK _ _ FIND) as [id IN].
+ apply forallb_forall with (x:=(id,Gfun fd)) in CHECK;[|exact IN].
+ unfold check_global,check_fd in CHECK;cbn [snd] in CHECK.
+ destruct(type_eq(type_of_fundef fd)(Tfunction params result cc));[|contradiction].
+ apply andb_true_iff in CHECK;destruct CHECK as [R SUP].
+ apply Nat.ltb_lt in R.
+ split;[destruct fd;cbn [allowed] in *;[exists id;exact IN|exact SUP]|exact R].
+Qed.
+Fixpoint internal_functions(defs:list(ident*globdef Csyntax.fundef type)):list function :=
+ match defs with
+ | []=>[]
+ | (_,Gfun(Internal f))::rest=>f::internal_functions rest
+ | _::rest=>internal_functions rest end.
+Lemma internal_functions_in:forall defs id f,
+ In(id,Gfun(Internal f))defs -> In f(internal_functions defs).
+Proof.
+ induction defs as [|[id0 gd]rest IH];simpl;intros id f IN;[contradiction|].
+ destruct IN as [EQ|IN].
+ - inversion EQ;subst;simpl;auto.
+ - destruct gd as [fd|gv];[destruct fd|];simpl;eauto.
+Qed.
+
+Lemma global_function_in:forall(p:Csyntax.program)v fd,
+ Genv.find_funct(Csem.globalenv p)v=Some fd ->
+ exists id,In(id,Gfun fd)(AST.prog_defs p).
+Proof. intros;exact(Genv.find_funct_inversion _ _ H). Qed.
+  gvar_info := (Tstruct _State noattr);
+  gvar_init := (Init_space 656 :: nil);
+  gvar_readonly := false;
+  gvar_volatile := false
+|}.
+
+Definition f_stateGetPositionNed_i := {|
+  fn_return := (tptr (Tstruct _NedCoor_i noattr));
+  fn_callconv := cc_default;
+  fn_params := nil;
+  fn_vars := nil;
+  fn_body :=
+(Ssequence
+  (Sifthenelse (Eunop Onotbool
+                 (Ebinop Oand
+                   (Ebinop Oshr
+                     (Evalof
+                       (Efield
+                         (Evalof (Evar _state (Tstruct _State noattr))
+                           (Tstruct _State noattr)) _pos_status tushort)
+                       tushort) (Eval (Vint (Int.repr 1)) tint) tint)
+                   (Eval (Vint (Int.repr 1)) tint) tint) tint)
+    (Sdo (Ecall
+           (Evalof
+             (Evar _stateCalcPositionNed_i (Tfunction nil tvoid cc_default))
+             (Tfunction nil tvoid cc_default)) Enil tvoid))
+    Sskip)
+  (Sreturn (Some (Eaddrof
+                   (Efield
+                     (Evalof (Evar _state (Tstruct _State noattr))
+                       (Tstruct _State noattr)) _ned_pos_i
+                     (Tstruct _NedCoor_i noattr))
+                   (tptr (Tstruct _NedCoor_i noattr))))))
+|}.
+
+Definition f_stateGetSpeedNed_i := {|
+  fn_return := (tptr (Tstruct _NedCoor_i noattr));
+  fn_callconv := cc_default;
+  fn_params := nil;
+  fn_vars := nil;
+  fn_body :=
+(Ssequence
+  (Sifthenelse (Eunop Onotbool
+                 (Ebinop Oand
+                   (Ebinop Oshr
+                     (Evalof
+                       (Efield
+                         (Evalof (Evar _state (Tstruct _State noattr))
+                           (Tstruct _State noattr)) _speed_status tushort)
+                       tushort) (Eval (Vint (Int.repr 1)) tint) tint)
+                   (Eval (Vint (Int.repr 1)) tint) tint) tint)
+    (Sdo (Ecall
+           (Evalof
+             (Evar _stateCalcSpeedNed_i (Tfunction nil tvoid cc_default))
+             (Tfunction nil tvoid cc_default)) Enil tvoid))
+    Sskip)
+  (Sreturn (Some (Eaddrof
+                   (Efield
+                     (Evalof (Evar _state (Tstruct _State noattr))
+                       (Tstruct _State noattr)) _ned_speed_i
+                     (Tstruct _NedCoor_i noattr))
+                   (tptr (Tstruct _NedCoor_i noattr))))))
+|}.
+
+Definition f_stab_sp_from_ltp_i := {|
+  fn_return := tvoid;
+  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
+  fn_params := ((__res, (tptr (Tstruct _StabilizationSetpoint noattr))) ::
+                (_vect, (tptr (Tstruct _Int32Vect2 noattr))) ::
+                (_heading, tint) :: nil);
+  fn_vars := ((_sp, (Tstruct _StabilizationSetpoint noattr)) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign
+         (Efield
+           (Evalof (Evar _sp (Tstruct _StabilizationSetpoint noattr))
+             (Tstruct _StabilizationSetpoint noattr)) _type tint)
+         (Eval (Vint (Int.repr 2)) tint) tint))
+  (Ssequence
+    (Sdo (Eassign
+           (Efield
+             (Evalof (Evar _sp (Tstruct _StabilizationSetpoint noattr))
+               (Tstruct _StabilizationSetpoint noattr)) _format tint)
+           (Eval (Vint (Int.repr 0)) tint) tint))
+    (Ssequence
+      (Sdo (Eassign
+Definition f_guidance_pid_h_run := {|
+  fn_return := tvoid;
+  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
+  fn_params := ((__res, (tptr (Tstruct _StabilizationSetpoint noattr))) ::
+                (_in_flight, tbool) ::
+                (_gh, (tptr (Tstruct _HorizontalGuidance noattr))) :: nil);
+  fn_vars := ((_pd_x, tint) :: (_pd_y, tint) :: (_vertical_thrust, tint) ::
+              (__res__1, (Tstruct _StabilizationSetpoint noattr)) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign (Evar _pd_x tint)
+         (Ebinop Oadd
+           (Ebinop Oshr
+             (Ebinop Omul
+               (Evalof
+                 (Efield
+                   (Evalof (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                     (Tstruct _GuidancePID noattr)) _kp tint) tint)
+               (Evalof
+                 (Efield
+                   (Evalof
+                     (Evar _guidance_pid_pos_err (Tstruct _Int32Vect2 noattr))
+                                 (Eval (Vint (Int.repr 10)) tint) tint)
+                               (Evalof (Evar _vertical_thrust tint) tint)
+                               tint)
+                             (Ebinop Oadd (Eval (Vint (Int.repr 10)) tint)
+                               (Eval (Vint (Int.repr 1)) tint) tint) tint)
+                           tint))
+                    (Ssequence
+                      (Sdo (Eassign
+                             (Efield
+                               (Evalof
+                                 (Efield
+                                   (Evalof
+                                     (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                     (Tstruct _GuidancePID noattr))
+                                   _cmd_earth (Tstruct _Int32Vect2 noattr))
+                                 (Tstruct _Int32Vect2 noattr)) _x tint)
+                             (Ebinop Omul
+                               (Ecall
+                                 (Evalof
+                                   (Evar _atan2f (Tfunction
+                                                   (tfloat :: tfloat :: nil)
+                                                   tfloat cc_default))
+                                   (Tfunction (tfloat :: tfloat :: nil)
+                                     tfloat cc_default))
+                                 (Econs
+                                   (Ebinop Odiv
+                                     (Ebinop Omul
+                                       (Evalof
+                                         (Efield
+                                           (Evalof
+                                             (Efield
+                                               (Evalof
+                                                 (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                                 (Tstruct _GuidancePID noattr))
+                                               _cmd_earth
+                                               (Tstruct _Int32Vect2 noattr))
+                                             (Tstruct _Int32Vect2 noattr)) _x
+                                           tint) tint)
+                                       (Eval (Vint (Int.repr 9600)) tint)
+                                       tint)
+                                     (Ecast
+                                       (Ebinop Omul
+                                         (Eval (Vfloat (Float.of_bits (Int64.repr 4609753056924675352))) tdouble)
+                                         (Ebinop Oshl
+                                           (Eval (Vint (Int.repr 1)) tint)
+                                           (Eval (Vint (Int.repr 12)) tint)
+                                           tint) tdouble) tint) tint)
+                                   (Econs
+                                     (Evalof (Evar _thrust_cmd_filt tint)
+                                       tint) Enil)) tfloat)
+                               (Ebinop Oshl (Eval (Vint (Int.repr 1)) tint)
+                                 (Eval (Vint (Int.repr 12)) tint) tint)
+                               tfloat) tint))
+                      (Sdo (Eassign
+                             (Efield
+                               (Evalof
+                                 (Efield
+                                   (Evalof
+                                     (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                     (Tstruct _GuidancePID noattr))
+                                   _cmd_earth (Tstruct _Int32Vect2 noattr))
+                                 (Tstruct _Int32Vect2 noattr)) _y tint)
+                             (Ebinop Omul
+                               (Ecall
+                                 (Evalof
+                                   (Evar _atan2f (Tfunction
+                                                   (tfloat :: tfloat :: nil)
+                                                   tfloat cc_default))
+                                   (Tfunction (tfloat :: tfloat :: nil)
+                                     tfloat cc_default))
+                                 (Econs
+                                   (Ebinop Odiv
+                                     (Ebinop Omul
+                                       (Evalof
+                                         (Efield
+                                           (Evalof
+                                             (Efield
+                                               (Evalof
+                                                 (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                                 (Tstruct _GuidancePID noattr))
+                                               _cmd_earth
+                                               (Tstruct _Int32Vect2 noattr))
+                                             (Tstruct _Int32Vect2 noattr)) _y
+                                           tint) tint)
+                                       (Eval (Vint (Int.repr 9600)) tint)
+                                       tint)
+                             (Evalof (Evar _total_max_bank tint) tint)
+                             (Evalof
+                               (Efield
+                                 (Evalof
+                                   (Efield
+                                     (Evalof
+                                       (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                       (Tstruct _GuidancePID noattr))
+                                     _cmd_earth (Tstruct _Int32Vect2 noattr))
+                                   (Tstruct _Int32Vect2 noattr)) _y tint)
+                               tint) tint) tint) tint)))
+                (Ssequence
+                  (Sdo (Eassign
+                         (Ederef
+                           (Evalof
+                             (Evar __res (tptr (Tstruct _StabilizationSetpoint noattr)))
+                             (tptr (Tstruct _StabilizationSetpoint noattr)))
+                           (Tstruct _StabilizationSetpoint noattr))
+                         (Ecomma
+                           (Ecall
+                             (Evalof
+                               (Evar _stab_sp_from_ltp_i (Tfunction
+                                                           ((tptr (Tstruct _StabilizationSetpoint noattr)) ::
+                                                            (tptr (Tstruct _Int32Vect2 noattr)) ::
+                                                            tint :: nil)
+                                                           tvoid
+                                                           {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
+                               (Tfunction
+                                 ((tptr (Tstruct _StabilizationSetpoint noattr)) ::
+                                  (tptr (Tstruct _Int32Vect2 noattr)) ::
+                                  tint :: nil) tvoid
+                                 {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
+                             (Econs
+                               (Eaddrof
+                                 (Evar __res__1 (Tstruct _StabilizationSetpoint noattr))
+                                 (tptr (Tstruct _StabilizationSetpoint noattr)))
+                               (Econs
+                                 (Eaddrof
+                                   (Efield
+                                     (Evalof
+                                       (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+Definition f_guidance_pid_h_run_pos := {|
+  fn_return := tvoid;
+  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
+  fn_params := ((__res, (tptr (Tstruct _StabilizationSetpoint noattr))) ::
+                (_in_flight, tbool) ::
+                (_gh, (tptr (Tstruct _HorizontalGuidance noattr))) :: nil);
+  fn_vars := ((__res__1, (Tstruct _StabilizationSetpoint noattr)) :: nil);
+  fn_body :=
+(Ssequence
+  (Ssequence
+    (Sdo (Eassign
+           (Efield
+             (Evalof
+               (Evar _guidance_pid_pos_err (Tstruct _Int32Vect2 noattr))
+               (Tstruct _Int32Vect2 noattr)) _x tint)
+           (Ebinop Osub
+             (Evalof
+               (Efield
+                 (Evalof
+                   (Efield
+                     (Evalof
+                       (Efield
+                         (Evalof
+                           (Ederef
+                             (Evalof
+                               (Evar _gh (tptr (Tstruct _HorizontalGuidance noattr)))
+                               (tptr (Tstruct _HorizontalGuidance noattr)))
+                             (Tstruct _HorizontalGuidance noattr))
+                           (Tstruct _HorizontalGuidance noattr)) _ref
+                         (Tstruct _HorizontalGuidanceReference noattr))
+                       (Tstruct _HorizontalGuidanceReference noattr)) _pos
+                     (Tstruct _Int32Vect2 noattr))
+                   (Tstruct _Int32Vect2 noattr)) _x tint) tint)
+             (Evalof
+               (Efield
+                 (Evalof
+                   (Ederef
+                     (Ecall
+                       (Evalof
+                         (Evar _stateGetPositionNed_i (Tfunction nil
+                                                        (tptr (Tstruct _NedCoor_i noattr))
+                                                        cc_default))
+                         (Tfunction nil (tptr (Tstruct _NedCoor_i noattr))
+                           cc_default)) Enil
+                       (tptr (Tstruct _NedCoor_i noattr)))
+                     (Tstruct _NedCoor_i noattr))
+                   (Tstruct _NedCoor_i noattr)) _x tint) tint) tint) tint))
+    (Sdo (Eassign
+           (Efield
+             (Evalof
+               (Evar _guidance_pid_pos_err (Tstruct _Int32Vect2 noattr))
+               (Tstruct _Int32Vect2 noattr)) _y tint)
+           (Ebinop Osub
+             (Evalof
+               (Efield
+                 (Evalof
+                   (Efield
+                     (Evalof
+                       (Efield
+                         (Evalof
+                           (Ederef
+                             (Evalof
+                               (Evar _gh (tptr (Tstruct _HorizontalGuidance noattr)))
+                               (tptr (Tstruct _HorizontalGuidance noattr)))
+                             (Tstruct _HorizontalGuidance noattr))
+                           (Tstruct _HorizontalGuidance noattr)) _ref
+                         (Tstruct _HorizontalGuidanceReference noattr))
+                       (Tstruct _HorizontalGuidanceReference noattr)) _pos
+                     (Tstruct _Int32Vect2 noattr))
+                   (Tstruct _Int32Vect2 noattr)) _y tint) tint)
+             (Evalof
+               (Efield
+                 (Evalof
+                   (Ederef
+                     (Ecall
+                       (Evalof
+                         (Evar _stateGetPositionNed_i (Tfunction nil
+                                                        (tptr (Tstruct _NedCoor_i noattr))
+                                                        cc_default))
+                         (Tfunction nil (tptr (Tstruct _NedCoor_i noattr))
+                           cc_default)) Enil
+                       (tptr (Tstruct _NedCoor_i noattr)))
+                     (Tstruct _NedCoor_i noattr))
+                   (Tstruct _NedCoor_i noattr)) _y tint) tint) tint) tint)))
+  (Ssequence
+    (Ssequence
+      (Sdo (Eassign
+             (Efield
+               (Evalof
+                 (Evar _guidance_pid_pos_err (Tstruct _Int32Vect2 noattr))
+                 (Tstruct _Int32Vect2 noattr)) _x tint)
+             (Econdition
+                         (Evalof
+                           (Efield
+                             (Evalof
+                               (Ederef
+                                 (Evalof
+                                   (Evar _gh (tptr (Tstruct _HorizontalGuidance noattr)))
+                                   (tptr (Tstruct _HorizontalGuidance noattr)))
+                                 (Tstruct _HorizontalGuidance noattr))
+                               (Tstruct _HorizontalGuidance noattr)) _ref
+                             (Tstruct _HorizontalGuidanceReference noattr))
+                           (Tstruct _HorizontalGuidanceReference noattr))
+                         _speed (Tstruct _Int32Vect2 noattr))
+                       (Tstruct _Int32Vect2 noattr)) _x tint) tint)
+                 (Evalof
+                   (Efield
+                     (Evalof
+                       (Ederef
+                         (Ecall
+                           (Evalof
+                             (Evar _stateGetSpeedNed_i (Tfunction nil
+                                                         (tptr (Tstruct _NedCoor_i noattr))
+                                                         cc_default))
+                             (Tfunction nil
+                               (tptr (Tstruct _NedCoor_i noattr)) cc_default))
+                           Enil (tptr (Tstruct _NedCoor_i noattr)))
+                         (Tstruct _NedCoor_i noattr))
+                       (Tstruct _NedCoor_i noattr)) _x tint) tint) tint)
+               tint))
+        (Sdo (Eassign
+               (Efield
+                 (Evalof
+                   (Evar _guidance_pid_speed_err (Tstruct _Int32Vect2 noattr))
+                   (Tstruct _Int32Vect2 noattr)) _y tint)
+               (Ebinop Osub
+                 (Evalof
+                   (Efield
+                     (Evalof
+                       (Efield
+                         (Evalof
+                           (Efield
+                             (Evalof
+                               (Ederef
+                                 (Evalof
+                                   (Evar _gh (tptr (Tstruct _HorizontalGuidance noattr)))
+                                   (tptr (Tstruct _HorizontalGuidance noattr)))
+                                 (Tstruct _HorizontalGuidance noattr))
+                               (Tstruct _HorizontalGuidance noattr)) _ref
+                             (Tstruct _HorizontalGuidanceReference noattr))
+                           (Tstruct _HorizontalGuidanceReference noattr))
+                         _speed (Tstruct _Int32Vect2 noattr))
+                       (Tstruct _Int32Vect2 noattr)) _y tint) tint)
+                 (Evalof
+                   (Efield
+                     (Evalof
+                       (Ederef
+                         (Ecall
+                           (Evalof
+                             (Evar _stateGetSpeedNed_i (Tfunction nil
+                                                         (tptr (Tstruct _NedCoor_i noattr))
+                                                         cc_default))
+                             (Tfunction nil
+                               (tptr (Tstruct _NedCoor_i noattr)) cc_default))
+                           Enil (tptr (Tstruct _NedCoor_i noattr)))
+                         (Tstruct _NedCoor_i noattr))
+                       (Tstruct _NedCoor_i noattr)) _y tint) tint) tint)
+               tint)))
+      (Ssequence
+        (Ssequence
+          (Sdo (Eassign
+                 (Efield
+                   (Evalof
+                     (Evar _guidance_pid_speed_err (Tstruct _Int32Vect2 noattr))
+                     (Tstruct _Int32Vect2 noattr)) _x tint)
+                 (Econdition
+                   (Ebinop Olt
+                     (Evalof
+                       (Efield
+                         (Evalof
+                           (Evar _guidance_pid_speed_err (Tstruct _Int32Vect2 noattr))
+                           (Tstruct _Int32Vect2 noattr)) _x tint) tint)
+                     (Eunop Oneg
+                       (Efield
+                         (Evalof
+                           (Evar _guidance_pid_speed_err (Tstruct _Int32Vect2 noattr))
+                           (Tstruct _Int32Vect2 noattr)) _y tint) tint)
+                     tdouble) tdouble) tint)))
+        (Ssequence
+          (Sdo (Eassign
+                 (Ederef
+                   (Evalof
+                     (Evar __res (tptr (Tstruct _StabilizationSetpoint noattr)))
+                     (tptr (Tstruct _StabilizationSetpoint noattr)))
+                   (Tstruct _StabilizationSetpoint noattr))
+                 (Ecomma
+                   (Ecall
+                     (Evalof
+                       (Evar _guidance_pid_h_run (Tfunction
+                                                   ((tptr (Tstruct _StabilizationSetpoint noattr)) ::
+                                                    tbool ::
+                                                    (tptr (Tstruct _HorizontalGuidance noattr)) ::
+                                                    nil) tvoid
+                                                   {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
+                       (Tfunction
+                         ((tptr (Tstruct _StabilizationSetpoint noattr)) ::
+                          tbool ::
+                          (tptr (Tstruct _HorizontalGuidance noattr)) :: nil)
+                         tvoid
+                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
+                     (Econs
+                       (Eaddrof
+                         (Evar __res__1 (Tstruct _StabilizationSetpoint noattr))
+                         (tptr (Tstruct _StabilizationSetpoint noattr)))
+                       (Econs (Evalof (Evar _in_flight tbool) tbool)
+                         (Econs
+                           (Evalof
+                             (Evar _gh (tptr (Tstruct _HorizontalGuidance noattr)))
+                             (tptr (Tstruct _HorizontalGuidance noattr)))
+                           Enil))) tvoid)
+                   (Evalof
+                     (Evar __res__1 (Tstruct _StabilizationSetpoint noattr))
+                     (Tstruct _StabilizationSetpoint noattr))
+                   (Tstruct _StabilizationSetpoint noattr))
+                 (Tstruct _StabilizationSetpoint noattr)))
+          (Sreturn None))))))
+|}.
+
+Definition composites : list composite_definition :=
+(Composite _Int32Vect2 Struct
+   (Member_plain _x tint :: Member_plain _y tint :: nil)
+   noattr ::
+ Composite _GuidancePID Struct
+   (Member_plain _kp tint :: Member_plain _kd tint ::
+     (tint :: nil) tvoid
+     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
+ (_atan2f,
+   Gfun(External (EF_external "atan2f"
+                   (mksignature (AST.Xsingle :: AST.Xsingle :: nil)
+                     AST.Xsingle cc_default)) (tfloat :: tfloat :: nil)
+     tfloat cc_default)) :: (_guidance_pid, Gvar v_guidance_pid) ::
+ (_guidance_pid_pos_err, Gvar v_guidance_pid_pos_err) ::
+ (_guidance_pid_speed_err, Gvar v_guidance_pid_speed_err) ::
+ (_guidance_pid_trim_att_integrator, Gvar v_guidance_pid_trim_att_integrator) ::
+ (_guidance_h, Gvar v_guidance_h) :: (_guidance_v, Gvar v_guidance_v) ::
+ (_stabilization, Gvar v_stabilization) :: (_state, Gvar v_state) ::
+ (_stateCalcPositionNed_i,
+   Gfun(External (EF_external "stateCalcPositionNed_i"
+                   (mksignature nil AST.Xvoid cc_default)) nil tvoid
+     cc_default)) ::
+ (_stateCalcSpeedNed_i,
+   Gfun(External (EF_external "stateCalcSpeedNed_i"
+                   (mksignature nil AST.Xvoid cc_default)) nil tvoid
+     cc_default)) ::
+ (_stateGetPositionNed_i, Gfun(Internal f_stateGetPositionNed_i)) ::
+ (_stateGetSpeedNed_i, Gfun(Internal f_stateGetSpeedNed_i)) ::
+ (_stab_sp_from_ltp_i, Gfun(Internal f_stab_sp_from_ltp_i)) ::
+ (_traj_max_bank, Gvar v_traj_max_bank) ::
+ (_total_max_bank, Gvar v_total_max_bank) ::
+ (_thrust_cmd_filt, Gvar v_thrust_cmd_filt) ::
+ (_guidance_pid_h_run, Gfun(Internal f_guidance_pid_h_run)) ::
+ (_guidance_pid_h_run_pos, Gfun(Internal f_guidance_pid_h_run_pos)) :: nil).
+
+Definition public_idents : list ident :=
+(_guidance_pid_h_run_pos :: _stab_sp_from_ltp_i :: _stateCalcSpeedNed_i ::
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From PidPositionRunPos Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_guidance_pid_h_run_pos)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.

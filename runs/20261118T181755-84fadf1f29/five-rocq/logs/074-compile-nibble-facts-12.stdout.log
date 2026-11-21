@@ -1,0 +1,225 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bc : block
+  p, x : int
+  POS : e ! _pos = Some (bp, Tint I16 Unsigned noattr)
+  LOCAL : e ! _pprz_trig_int_compr = None
+  SYMBOL : Genv.find_symbol (globalenv prog) _pprz_trig_int_compr = Some bc
+  LP : Mem.load Mint16unsigned m bp 0 = Some (Vint p)
+  LB :
+    Mem.load Mint8unsigned m bc (Ptrofs.unsigned (nibble_offset p)) =
+    Some (Vint x)
+  ============================
+  match
+    match
+      match
+        match
+          match
+            (if
+              Int.eq (Int.repr 2) Int.zero
+              || Int.eq p (Int.repr Int.min_signed) &&
+                 Int.eq (Int.repr 2) Int.mone
+             then None
+             else Some (Vint (Int.divs p (Int.repr 2))))
+          with
+          | Some w =>
+              match
+                match
+                  change_attributes (fun _ : attr => noattr)
+                    (Tint I32 Signed noattr)
+                with
+                | Tint _ si _ => add_case_pi (Tint I8 Unsigned noattr) si
+                | Tlong _ _ => add_case_pl (Tint I8 Unsigned noattr)
+                | _ => add_default
+                end
+              with
+              | add_case_pi ty si =>
+                  match w with
+                  | Vint n2 =>
+                      Some
+                        (Vptr bc
+                           (Ptrofs.add Ptrofs.zero
+                              (Ptrofs.mul
+                                 (Ptrofs.repr
+                                    ((fix sizeof
+                                        (env : composite_env) 
+                                        (t : type) {struct t} : Z :=
+                                        match t with
+                                        | Tint I16 _ _ => 2
+                                        | Tint I32 _ _ | Tfloat F32 _ => 4
+                                        | Tlong _ _ | 
+                                          Tfloat F64 _ | 
+                                          Tpointer _ _ => 8
+                                        | Tarray t' n _ =>
+                                            sizeof env t' * Z.max 0 n
+                                        | Tstruct id _ | Tunion id _ =>
+                                            match env ! id with
+                                            | Some co => co_sizeof co
+                                            | None => 0
+                                            end
+                                        | _ => 1
+                                        end)
+                                       (globalenv prog) ty))
+                                 match si with
+                                 | Signed => Ptrofs.of_ints n2
+                                 | Unsigned => Ptrofs.of_intu n2
+                                 end)))
+                  | _ => None
+                  end
+              | add_case_pl ty =>
+                  sem_add_ptr_long (globalenv prog) ty 
+                    (Vptr bc Ptrofs.zero) w
+              | add_case_ip _ _ => match w with
+                                   | Vundef | _ => None
+                                   end
+              | add_case_lp ty =>
+                  sem_add_ptr_long (globalenv prog) ty w
+                    (Vptr bc Ptrofs.zero)
+              | add_default => None
+              end
+          | None => None
+          end
+        with
+        | Some (Vptr b ofs) => Some (b, ofs, Full)
+        | _ => None
+        end
+      with
+      | Some (b, ofs, bf) =>
+          match
+            do_deref_loc (globalenv prog) quiet_world
+              (Tint I8 Unsigned noattr) m b ofs bf
+          with
+          | Some (_, _, v) => Some v
+          | None => None
+          end
+      | None => None
+      end
+    with
+    | Some v =>
+        match
+          match
+            (if
+              Int.eq (Int.repr 2) Int.zero
+              || Int.eq p (Int.repr Int.min_signed) &&
+                 Int.eq (Int.repr 2) Int.mone
+             then None
+             else Some (Vint (Int.mods p (Int.repr 2))))
+          with
+          | Some w =>
+              match
+                match w with
+                | Vint i => Some (Vint i)
+                | _ => None
+                end
+              with
+              | Some (Vint n2) => Some (Vint (Int.mul (Int.repr 4) n2))
+              | _ => None
+              end
+          | None => None
+          end
+        with
+        | Some w =>
+            match
+              match
+                change_attributes (fun _ : attr => noattr)
+                  (Tint I32 Signed noattr)
+              with
+              | Tint _ _ _ => shift_case_ii Signed
+              | Tlong _ _ => shift_case_il Signed
+              | _ => shift_default
+              end
+            with
+            | shift_case_ii sg =>
+                match v with
+                | Vint n1 =>
+                    match w with
+                    | Vint n2 =>
+                        if Int.ltu n2 Int.iwordsize
+                        then
+                         Some
+                           (Vint
+                              match sg with
+                              | Signed => Int.shr n1 n2
+                              | Unsigned => Int.shru n1 n2
+                              end)
+                        else None
+                    | _ => None
+                    end
+                | _ => None
+                end
+            | shift_case_ll sg =>
+                match v with
+                | Vlong n1 =>
+                    match w with
+                    | Vlong n2 =>
+                        if Int64.ltu n2 Int64.iwordsize
+                        then
+                         Some
+                           (Vlong
+                              match sg with
+                              | Signed => Int64.shr n1 n2
+                              | Unsigned => Int64.shru n1 n2
+                              end)
+                        else None
+                    | _ => None
+                    end
+                | _ => None
+                end
+            | shift_case_il sg =>
+                match v with
+                | Vint n1 =>
+                    match w with
+                    | Vlong n2 =>
+                        if Int64.ltu n2 (Int64.repr 32)
+                        then
+                         Some
+                           (Vint
+                              match sg with
+                              | Signed => Int.shr n1 (Int64.loword n2)
+                              | Unsigned => Int.shru n1 (Int64.loword n2)
+                              end)
+                        else None
+                    | _ => None
+                    end
+                | _ => None
+                end
+            | shift_case_li sg =>
+                match v with
+                | Vlong n1 =>
+                    match w with
+                    | Vint n2 =>
+                        if Int.ltu n2 Int64.iwordsize'
+                        then
+                         Some
+                           (Vlong
+                              match sg with
+                              | Signed =>
+                                  Int64.shr n1 (Int64.repr (Int.unsigned n2))
+                              | Unsigned =>
+                                  Int64.shru n1
+                                    (Int64.repr (Int.unsigned n2))
+                              end)
+                        else None
+                    | _ => None
+                    end
+                | _ => None
+                end
+            | shift_default => None
+            end
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some v =>
+      match match v with
+            | Vint i => Some (Vint i)
+            | _ => None
+            end with
+      | Some (Vint n1) => Some (Vint (Int.and n1 (Int.repr 15)))
+      | _ => None
+      end
+  | None => None
+  end = nibble_machine p x

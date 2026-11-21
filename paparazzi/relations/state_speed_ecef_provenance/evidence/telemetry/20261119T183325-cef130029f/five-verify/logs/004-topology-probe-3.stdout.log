@@ -1,0 +1,171 @@
+  if (!bit_is_set(state.pos_status, POS_ENU_F)) {
+    stateCalcPositionEnu_f();
+  }
+  return &state.enu_pos_f;
+}
+
+/// Get position in LLA coordinates (float).
+static inline struct LlaCoor_f *stateGetPositionLla_f(void)
+{
+  if (!bit_is_set(state.pos_status, POS_LLA_F)) {
+    stateCalcPositionLla_f();
+  }
+  return &state.lla_pos_f;
+}
+
+/** @}*/
+
+
+
+/******************************************************************************
+ *                                                                            *
+ * Set and Get functions for the SPEED representations                        *
+ *                                                                            *
+ *****************************************************************************/
+/** @addtogroup state_velocity
+ *  @{ */
+
+/************* declaration of transformation functions ************/
+extern void stateCalcSpeedNed_i(void);
+extern void stateCalcSpeedEnu_i(void);
+extern void stateCalcSpeedEcef_i(void);
+extern void stateCalcHorizontalSpeedNorm_i(void);
+extern void stateCalcHorizontalSpeedDir_i(void);
+extern void stateCalcSpeedNed_f(void);
+extern void stateCalcSpeedEnu_f(void);
+extern void stateCalcSpeedEcef_f(void);
+extern void stateCalcHorizontalSpeedNorm_f(void);
+extern void stateCalcHorizontalSpeedDir_f(void);
+
+/************************ Set functions ****************************/
+
+/// Set ground speed in local NED coordinates (int).
+static inline void stateSetSpeedNed_i(uint16_t id, struct NedCoor_i *ned_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ned_speed_i, *ned_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_NED_I);
+}
+
+/// Set ground speed in local ENU coordinates (int).
+static inline void stateSetSpeedEnu_i(uint16_t id, struct EnuCoor_i *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.enu_speed_i, *enu_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ENU_I);
+}
+
+/// Set ground speed in ECEF coordinates (int).
+static inline void stateSetSpeedEcef_i(uint16_t id, struct EcefCoor_i *ecef_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ecef_speed_i, *ecef_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ECEF_I);
+}
+
+/// Set multiple speed coordinates (int).
+static inline void stateSetSpeed_i(
+  uint16_t id,
+  struct EcefCoor_i *ecef_speed,
+  struct NedCoor_i *ned_speed,
+  struct EnuCoor_i *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  /* clear all status bit */
+  state.speed_status = 0;
+  if (ecef_speed != NULL) {
+    VECT3_COPY(state.ecef_speed_i, *ecef_speed);
+    state.speed_status |= (1 << SPEED_ECEF_I);
+  }
+  if (ned_speed != NULL) {
+    VECT3_COPY(state.ned_speed_i, *ned_speed);
+    state.speed_status |= (1 << SPEED_NED_I);
+  }
+  if (enu_speed != NULL) {
+    VECT3_COPY(state.enu_speed_i, *enu_speed);
+    state.speed_status |= (1 << SPEED_ENU_I);
+  }
+}
+
+/// Set ground speed in local NED coordinates (float).
+static inline void stateSetSpeedNed_f(uint16_t id, struct NedCoor_f *ned_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ned_speed_f, *ned_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_NED_F);
+}
+
+/// Set ground speed in local ENU coordinates (float).
+static inline void stateSetSpeedEnu_f(uint16_t id, struct EnuCoor_f *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.enu_speed_f, *enu_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ENU_F);
+}
+
+/// Set ground speed in ECEF coordinates (float).
+static inline void stateSetSpeedEcef_f(uint16_t id, struct EcefCoor_f *ecef_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ecef_speed_f, *ecef_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ECEF_F);
+}
+
+/// Set multiple speed coordinates (float).
+static inline void stateSetSpeed_f(
+  uint16_t id,
+  struct EcefCoor_f *ecef_speed,
+  struct NedCoor_f *ned_speed,
+  struct EnuCoor_f *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  /* clear all status bit */
+  state.speed_status = 0;
+  if (ecef_speed != NULL) {
+    VECT3_COPY(state.ecef_speed_f, *ecef_speed);
+    state.speed_status |= (1 << SPEED_ECEF_F);
+  }
+  if (ned_speed != NULL) {
+    VECT3_COPY(state.ned_speed_f, *ned_speed);
+    state.speed_status |= (1 << SPEED_NED_F);
+  }
+  if (enu_speed != NULL) {
+    VECT3_COPY(state.enu_speed_f, *enu_speed);
+    state.speed_status |= (1 << SPEED_ENU_F);
+  }
+}
+
+/************************ Get functions ****************************/
+
+/// Get ground speed in local NED coordinates (int).
+static inline struct NedCoor_i *stateGetSpeedNed_i(void)
+{
+  if (!bit_is_set(state.speed_status, SPEED_NED_I)) {
+    stateCalcSpeedNed_i();
+  }
+  return &state.ned_speed_i;
+}
+
+/// Get ground speed in local ENU coordinates (int).
+static inline struct EnuCoor_i *stateGetSpeedEnu_i(void)
+{
+  if (!bit_is_set(state.speed_status, SPEED_ENU_I)) {
+    stateCalcSpeedEnu_i();
+  }
+  return &state.enu_speed_i;
+}
+

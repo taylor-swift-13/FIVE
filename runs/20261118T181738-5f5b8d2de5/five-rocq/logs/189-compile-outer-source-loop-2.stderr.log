@@ -1,0 +1,42 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/InitOuterLoop.v", line 42, characters 32-33:
+Error:
+In environment
+e : env
+base : mem
+input, buffer : block
+c : chunk
+cs : list chunk
+m : mem
+SUF : chunk_suffix (c :: cs)
+C : protocol_core e base input buffer m
+P : packed_prefix (count_before c + repetitions c + 0) m buffer
+I : short_cell e m PprzTrigInit.Source._i (pos c + consumed c)
+T : short_cell e m PprzTrigInit.Source._tab_12 0
+FIX :
+  if multi c
+  then
+   short_cell e m PprzTrigInit.Source._temp (third c) /\
+   short_cell e m PprzTrigInit.Source._k (ChunkMachine.k_value c)
+  else short_cell e m PprzTrigInit.Source._temp (first c)
+J : short_cell e m PprzTrigInit.Source._j (repetitions c)
+CNT :
+  short_cell e m PprzTrigInit.Source._cnt
+    (count_before c + repetitions c + 0)
+V :
+  short_cell e m PprzTrigInit.Source._val
+    (value_before c + (repetitions c + 0) * delta c)
+PREV :
+  short_cell e m PprzTrigInit.Source._val_prev
+    (previous_at (count_before c + repetitions c))
+POS : frontier_pos cs = pos c + consumed c
+COUNT : frontier_count cs = count_before c + repetitions c
+VAL :
+  match cs with
+  | [] => True
+  | d :: _ => value_before d = value_before c + repetitions c * delta c
+  end
+The term "P" has type
+ "packed_prefix (count_before c + repetitions c + 0) m buffer"
+while it is expected to have type
+ "packed_prefix (count_before c + repetitions c) m buffer".
+

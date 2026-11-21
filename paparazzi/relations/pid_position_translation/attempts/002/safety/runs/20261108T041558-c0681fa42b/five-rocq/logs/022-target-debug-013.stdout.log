@@ -1,0 +1,67 @@
+1 goal
+  
+  ge : genv
+  block_cost : block -> nat
+  allowed : fundef -> Prop
+  allowed_call :
+    forall (v : val) (fd : fundef),
+    Genv.find_funct ge v = Some fd -> allowed fd
+  internal_body :
+    forall f : function, allowed (Internal f) -> core_stmt (fn_body f)
+  internal_env :
+    forall f : function,
+    allowed (Internal f) ->
+    forall (m : mem) (e : env) (m' : mem),
+    alloc_variables ge empty_env m (fn_params f ++ fn_vars f) e m' ->
+    env_no_functions e
+  call_budget :
+    forall (v : val) (fd : fundef),
+    Genv.find_funct ge v = Some fd ->
+    activation_rank fd + 2 < 1 + pointer_cost v
+  C : expr -> expr
+  f : function
+  k : cont
+  e : env
+  m : mem
+  fd : fundef
+  vargs : list val
+  ty : type
+  vf : val
+  tyf : type
+  el : exprlist
+  STEP :
+    estep ge (ExprState f (C (Ecall (Eval vf tyf) el ty)) k e m) E0
+      (Callstate fd vargs (Kcall f e C ty k) m)
+  H1 : core_expr (C (Ecall (Eval vf tyf) el ty))
+  H2 : core_cont k
+  H3 : env_no_functions e
+  H : callred ge (Ecall (Eval vf tyf) el ty) m fd vargs ty
+  H0 : context RV RV C
+  tyargs : list type
+  tyres : type
+  cconv : calling_convention
+  H4 : Genv.find_funct ge vf = Some fd
+  H5 : cast_arguments m el tyargs vargs
+  H6 : type_of_fundef fd = Tfunction tyargs tyres cconv
+  H7 : classify_fun tyf = fun_case_f tyargs tyres cconv
+  ADD :
+    expression_rank (C (Ecall (Eval vf tyf) el ty)) =
+    expression_rank (C (Eval Vundef ty)) + (1 + pointer_cost vf + 0 + 0)
+  AR : expressionlist_rank el = 0
+  BUD : activation_rank fd + 2 < 1 + pointer_cost vf
+  ============================
+  activation_rank fd +
+  (expression_rank (C (Eval Vundef ty)) + continuation_rank k + 2) <
+  expression_rank (C (Ecall (Eval vf tyf) el ty)) + continuation_rank k + 1
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

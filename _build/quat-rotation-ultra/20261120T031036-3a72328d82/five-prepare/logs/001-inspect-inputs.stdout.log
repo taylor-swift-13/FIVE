@@ -1,0 +1,397 @@
+---
+name: five-align
+description: Generate CompCert Csyntax/Cexec models and unproved Rocq obligations, audit their source provenance, and map C/CBMC specifications to model-side propositions. Actual proofs belong to five-rocq.
+---
+
+# CompCert 模型与待证目标生成
+
+本阶段负责**模型生成、来源检查、待证目标生成和规约映射**。具体前条件构造、无错误/终止性证明、语义对应证明以及 CBMC 规约的 Rocq 重验均交给 [five-rocq](../five-rocq/SKILL.md)；[five-verify](../five-verify/SKILL.md) 负责调度和最终证据验收。单独调用本 skill 时止于模型和待证任务交付，不自动进入证明阶段。
+
+## 模型生成与来源
+
+- 执行模型来自 **准备后的 C → CompCert `clightgen -csyntax` → 原始 `Cexec`**。不由大模型逐行翻译或替换浮点、整数、内存语义；导出失败时报告缺口，不回退到手写模型。
+- 固定源码/request/hash、CompCert 版本与安装配置、预处理与头文件、架构/ABI/大小端、浮点格式、舍入和 NaN 策略。共同标准是指定 CompCert Csem/Cexec，不能自动推广到 GCC 或宿主硬件。
+- 进入项目后 `source scripts/env.sh`，用 `scripts/compcert-align.py export` 导出，`audit` 重新预处理/导出并核对来源、AST、包装和依赖。命令和交接格式见 [生成与映射契约](references/compcert-alignment.md)。不手改 Source.v。
+- 入口接受任意机器参数和 `Mem.mem`；不使用 non-NaN、指针有效性、初始化或合法长度等证明前条件裁剪模型。保留原始 Cexec 全部后继、控制/求值次序、事件轨迹、输出位模式和实际内存字节修改。
+- 使用原始 block+offset、权限、初始化和生命周期。函数 error 是非正常返回且无合法 Csem 后继；仅检查 Stuckstate 不充分。NaN/Inf/浮点溢出不自动是错误；Vundef、访问失败、未实现接口、fuel 耗尽分别记录，保留出错前的实际写入。
+- 清点外部调用、builtins、inline assembly、volatile/I/O 和所需环境。列出接口、已有对应证据与未完成的覆盖义务；回调 None 或缺失环境不能冒充 C 错误。若需要新的适配器正确性或完整执行对应证明，写成待证目标交给 five-rocq。缺口未解决时不能声称完整语义覆盖。
+
+## 自动目标与前条件接口
+
+每个模型/选定入口必须由 `scripts/generate-obligations.py` 生成一套目标；`compcert-align.py export` 已自动调用：
+
+- `proof/Precondition.v`：`list val -> mem -> Prop` 接口，具体前条件待大模型在证明阶段填写。
+- `proof/Obligations.v`：以显式前条件参数构造无错误和终止性命题。
+- `proof/Proofs.v`：后续证明填写位置，默认没有已证明定理。
+
+无错误量化原始 Csem 的所有可达状态；终止性使用后继关系的 `Acc`，涵盖全部执行分支和轨迹，无固定展开界。前条件缺失时保持参数化，不用 True、False、Axiom 或 Admitted 填补。重复生成保留已填写的前条件和证明；模型变化后重新检查，旧证明不得自动继承有效状态。
+
+只做生成、编译/类型检查、来源审计；必要的独立 kernel check 检查当前声明，不能计作待证目标已证明。模型直接 vm_compute、抽取 OCaml 执行均不是该阶段必需条件。可执行性受阻不妨碍交付基于原始 Csem 的待证命题。
+
+## CBMC 规约映射
+
+接收 five-cbmc 的实际 harness、属性 ID、前条件、程序位置、访问区域、调用/展开范围、观察方式及真实反例。逐项或按明确覆盖关系整理模型侧命题与状态对应，记录在 `spec-map.json`；详细字段见生成与映射契约。忠实保留已有 CBMC 条件，不在此阶段推断新安全前条件。
+
+每项绑定输入与模型 hash、原属性和 Rocq 命题，状态为 mapped/pending-proof 或明确 mapping-gap；CBMC 通过不能直接把 Rocq 状态标为 proved。CBMC 与 CompCert 的浮点/整数/内存/UB 差异显式列为侧条件或待证问题。无 CBMC 输入时记 not_applicable，模型生成不依赖先跑 CBMC。
+
+真实反例的位模式、内存状态、出错操作和写入前缀保留原始来源并交接给 five-rocq；重验、反驳和对应性证明在证明阶段完成。未知字节保持未知，synthetic 变体与原反例分开。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段从 `prepare/source/<entry>.c`、`prepare/source/bindings.json` 和适用的 `cbmc/` 属性读取输入，生成 `align/model/preprocessed.i`、`align/model/` 与 `align/model/proof/` 的规定文件，并更新 `align/report/`；详见共享契约。
+
+## 交付与计量
+
+align 为单 agent，不要求 A/B agent 或独立审批。修复本阶段发现的生成/映射实现问题并记录真实发现、解决、未解决数。证明任务留为显式 pending，不混入“生成失败”，也不冒充已完成证明。无法映射的属性或缺失环境如实列缺口。
+
+保留原 C/预处理、自动 AST、原始解释器包装、manifest/来源审计、外部环境清单、待证文件及适用的 spec-map。报告区分生成完成、映射完成、覆盖待证和程序性质未证明。冻结的 execution-translation 请求保持不变；“生成阶段完成”不等于最终已验证交付。最终证明验收由 five-verify 进行。
+
+遵循 [最小产物契约](references/run-contract.md)：开始工作前建立带 `--session` 的 five-align 记录，记录实际 token、时间、内存；结束采集事件差额。历史证明和费用不重签、不覆盖。
+
+结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验；实际 token、墙钟、工具 CPU 和工具内存峰值逐项有证据。缺失数据记 null 并说明原因，不得用 0 或估计补齐，也不能把后续 rocq 证明消耗计入 align。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+---
+name: five-cbmc
+description: Use CBMC to verify floating-point C implementations, memory safety, and scoped implementation-level properties in FIVE.
+---
+
+# C 实现层验证
+
+本阶段明确使用 **传统符号执行与有界模型检查（BMC）的 CBMC**：对准备后的实际函数/循环体生成 SAT/SMT 约束，使用 harness 中的 assume/assert 和显式展开界。不是霍尔逻辑/契约替换路线；不启用将函数或循环体替换为契约假设的模式。CBMC 运行命令和既有实现端检查保持原样，结论不作为 Rocq 公理。属性、范围和真实反例交给 five-align 映射为模型侧待证任务，再由 five-rocq 独立重验/反驳；five-verify 汇总证据。
+
+输入可以是一个或多个 C 函数、调用链、验证入口和局部性质。先读取项目已有的目标语义及范围；缺失时根据实际目标明确写出，不把宿主机默认行为当作规约。
+
+- 固定 C 方言、目标 ABI、字节序、浮点格式、舍入模式和相关编译选项。区分语言未定义行为与确定的目标平台行为。
+- 为待验证性质构造 harness，记录输入假设、数组/内存范围、程序位置、函数调用和循环展开界；有循环时检查展开是否足够。可把局部规约或不变式作为待检查断言；不以它们替换原始函数/循环体。
+- 使用准备后实际要验证的 C 实现，并记录它与原始源码及外部绑定的关系。优先用 memcpy 表达合法的浮点与整数位观察，除非项目明确验证其他访问方式。
+- 运行内存与局部功能检查。失败时保留反例；超时和 unknown 都不是通过。只在对应范围内陈述结论。
+- 保存完整命令、版本、源码与输入摘要、日志、断言结果和求解范围。前置条件必须能被翻译/对齐阶段引用。
+
+输入假设和展开界仅属于本次性质验证；不得要求 five-align 按这些假设裁剪执行模型或对齐范围。验证可以限定非 NaN、数组长度或内存条件，但模型必须保留这些条件之外的相关执行行为。
+
+参考表若来自 Rocq 模型，核对它与本次实现、目标语义和输入域匹配。CBMC 输出是外部工具证据；除非确实检查了证明证书，不称其为 Rocq 内核检查的定理。
+
+在当前 FIVE 项目中先 `source scripts/env.sh`。使用传统 CBMC 对选定 C 文件和验证入口直接执行有界模型检查；历史案例测试入口已清理，不引用旧有限参考表。保留的案例在同一文件夹内按共享契约组织 `prepare/`、`cbmc/`、`align/` 和 `rocq/`。
+
+交付：实现层结论、适用前置条件、范围与证据路径。模型生成和属性映射交给 [five-align](../five-align/SKILL.md)，实际规约/语义对应证明交给 [five-rocq](../five-rocq/SKILL.md)，端到端调度交给 [five-verify](../five-verify/SKILL.md)。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段从 `prepare/source/<entry>.c` 与 `prepare/source/bindings.json` 读取同一份准备结果，将 harness、属性、范围、日志及真实反例写入 `cbmc/`，并更新 `report/`；详见共享契约。
+
+## 计量及产物
+
+遵循 [最小产物契约](references/run-contract.md)。必须有原C/入口/harness、输入约束与界限、目标配置、属性结果、原始求解日志；失败时保留实际trace与对应输入，成功时反例项明确not_applicable。输出比较完整位模式；涉及写内存时逐字节比较预期结果和实际修改集合，并检查写区外frame不变，不用浮点==或容差冒充位等价。
+
+本skill必须在开始模型工作前依照产物契约建立带`--session`的skill-session记录，并在结束时采集日志边界差额；不要仅用脚本回放记录代替本阶段的模型token消耗。
+
+本阶段结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验：实际 token、墙钟、工具 CPU 和工具内存峰值分别有证据。费用记录不完整时保留已有验证结果，但不能宣称本阶段成本统计完整；失败/超时的成本同样保留。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+From Stdlib Require Import List.
+From compcert Require Import Values Memory Floats Csem Smallstep.
+Require FiveSum2.Execution FiveSum3.Execution.
+Import ListNotations.
+
+Definition Returns (ge : Csem.genv) (entry : list val -> mem -> Csem.state)
+    (args : list val) (before : mem) (value : val) (after : mem) : Prop :=
+  exists t, star Csem.step ge (entry args before) t
+    (Csem.Returnstate value Csem.Kstop after).
+
+Definition Sum2EqualsSum3 : Prop :=
+  forall (a b c ab lhs rhs : float32) m2 m2' m2'' m3 m3',
+    Returns FiveSum2.Execution.ge FiveSum2.Execution.entry
+      [Vsingle a; Vsingle b] m2 (Vsingle ab) m2' ->
+    Returns FiveSum2.Execution.ge FiveSum2.Execution.entry
+      [Vsingle ab; Vsingle c] m2' (Vsingle lhs) m2'' ->
+    Returns FiveSum3.Execution.ge FiveSum3.Execution.entry
+      [Vsingle a; Vsingle b; Vsingle c] m3 (Vsingle rhs) m3' ->
+    Float32.to_bits lhs = Float32.to_bits rhs.
+__pycache__
+ast_library_audit.py
+audit-costs.py
+check-example-artifacts.py
+check-models.py
+codex_usage.py
+compcert-align.py
+compcert-verify.py
+compcert_backend.py
+compcert_gate.py
+cost_audit.py
+env.sh
+example_proof_gate.py
+execution_contract.py
+five_telemetry.py
+generate-obligations.md
+generate-obligations.py
+prove-rocq.py
+tests
+paparazzi/report/lowpass_update_readback/review-report.zh-CN.md
+paparazzi/report/lowpass_update_readback/costs.json
+paparazzi/report/lowpass_update_readback/check_all.py
+paparazzi/report/lowpass_update_readback/README.md
+paparazzi/report/lowpass_update_readback/publication-manifest.json
+paparazzi/report/relation-discovery/costs.json
+paparazzi/report/parameter_order/zeta-canonical-cbmc-replay.json
+paparazzi/report/parameter_order/repository.md
+paparazzi/report/parameter_order/prepare_exact_slices.py
+paparazzi/report/parameter_order/costs.json
+paparazzi/report/parameter_order/check_all.py
+paparazzi/report/parameter_order/scope.json
+paparazzi/report/parameter_order/report.md
+paparazzi/report/lowpass_recovery/costs.json
+paparazzi/report/lowpass_recovery/check_all.py
+paparazzi/report/lowpass_recovery/delivery-candidate.json
+paparazzi/report/lowpass_recovery/report.md
+paparazzi/report/lowpass_recovery/publication-manifest.json
+paparazzi/report/pid_position_translation/finalize_publication.py
+paparazzi/report/pid_position_translation/report.zh-CN.md
+paparazzi/report/pid_position_translation/costs.json
+paparazzi/report/pid_position_translation/cbmc_smt.py
+paparazzi/report/pid_position_translation/cbmc_retry.py
+paparazzi/report/pid_position_translation/publish_cbmc.py
+paparazzi/report/pid_position_translation/prepare.py
+paparazzi/report/pid_position_translation/stages.py
+paparazzi/report/pid_position_translation/publication-manifest.json
+paparazzi/report/guidance_mode/costs.json
+paparazzi/report/guidance_mode/check_all.py
+paparazzi/report/guidance_mode/build_publication_manifest.py
+paparazzi/report/guidance_mode/publication-evidence.json
+paparazzi/report/guidance_mode/report.md
+paparazzi/report/lowpass_readback/costs.json
+paparazzi/report/lowpass_readback/check_all.py
+paparazzi/report/lowpass_readback/delivery-candidate.json
+paparazzi/report/lowpass_readback/report.md
+paparazzi/report/lowpass_readback/publication-manifest.json
+paparazzi/README.md
+paparazzi/relations/parameter_order/README.md
+paparazzi/relations/README.md
+paparazzi/relations/lowpass_recovery/README.md
+paparazzi/relations/parameter_order.md
+paparazzi/models/init_first_order_low_pass/README.md
+paparazzi/models/get_first_order_low_pass/README.md
+paparazzi/models/gh_set_zeta/README.md
+paparazzi/models/update_first_order_low_pass/README.md
+paparazzi/models/update_first_order_low_pass_tau/README.md
+paparazzi/models/gh_set_omega/README.md
+paparazzi/models/reset_first_order_low_pass/README.md
+paparazzi/models/gh_update_ref_from_speed_sp/README.md
+paparazzi/models/gh_update_ref_from_accel_sp/README.md
+paparazzi/models/guidance_pid_h_run_pos/README.md
+  m_a2b->m[1] = m_b2c->m[0] * m_a2c->m[1] + m_b2c->m[3] * m_a2c->m[4] + m_b2c->m[6] * m_a2c->m[7];
+  m_a2b->m[2] = m_b2c->m[0] * m_a2c->m[2] + m_b2c->m[3] * m_a2c->m[5] + m_b2c->m[6] * m_a2c->m[8];
+  m_a2b->m[3] = m_b2c->m[1] * m_a2c->m[0] + m_b2c->m[4] * m_a2c->m[3] + m_b2c->m[7] * m_a2c->m[6];
+  m_a2b->m[4] = m_b2c->m[1] * m_a2c->m[1] + m_b2c->m[4] * m_a2c->m[4] + m_b2c->m[7] * m_a2c->m[7];
+  m_a2b->m[5] = m_b2c->m[1] * m_a2c->m[2] + m_b2c->m[4] * m_a2c->m[5] + m_b2c->m[7] * m_a2c->m[8];
+  m_a2b->m[6] = m_b2c->m[2] * m_a2c->m[0] + m_b2c->m[5] * m_a2c->m[3] + m_b2c->m[8] * m_a2c->m[6];
+  m_a2b->m[7] = m_b2c->m[2] * m_a2c->m[1] + m_b2c->m[5] * m_a2c->m[4] + m_b2c->m[8] * m_a2c->m[7];
+  m_a2b->m[8] = m_b2c->m[2] * m_a2c->m[2] + m_b2c->m[5] * m_a2c->m[5] + m_b2c->m[8] * m_a2c->m[8];
+}
+
+/** rotate 3D vector by rotation matrix.
+ * vb = m_a2b * va
+ */
+void float_rmat_vmult(struct FloatVect3 *vb, const struct FloatRMat *m_a2b, const struct FloatVect3 *va)
+{
+  vb->x = m_a2b->m[0] * va->x + m_a2b->m[1] * va->y + m_a2b->m[2] * va->z;
+  vb->y = m_a2b->m[3] * va->x + m_a2b->m[4] * va->y + m_a2b->m[5] * va->z;
+  vb->z = m_a2b->m[6] * va->x + m_a2b->m[7] * va->y + m_a2b->m[8] * va->z;
+}
+
+/** rotate 3D vector by transposed rotation matrix.
+ * vb = m_b2a^T * va
+ */
+void float_rmat_transp_vmult(struct FloatVect3 *vb, const struct FloatRMat *m_b2a, const struct FloatVect3 *va)
+{
+  vb->x = m_b2a->m[0] * va->x + m_b2a->m[3] * va->y + m_b2a->m[6] * va->z;
+  vb->y = m_b2a->m[1] * va->x + m_b2a->m[4] * va->y + m_b2a->m[7] * va->z;
+  vb->z = m_b2a->m[2] * va->x + m_b2a->m[5] * va->y + m_b2a->m[8] * va->z;
+}
+
+/** rotate angle by rotation matrix.
+ * rb = m_a2b * ra
+ */
+void float_rmat_mult(struct FloatEulers *rb, const struct FloatRMat *m_a2b, const struct FloatEulers *ra)
+{
+  rb->phi = m_a2b->m[0] * ra->phi + m_a2b->m[1] * ra->theta + m_a2b->m[2] * ra->psi;
+  rb->theta = m_a2b->m[3] * ra->phi + m_a2b->m[4] * ra->theta + m_a2b->m[5] * ra->psi;
+  rb->psi = m_a2b->m[6] * ra->phi + m_a2b->m[7] * ra->theta + m_a2b->m[8] * ra->psi;
+}
+
+/** rotate angle by transposed rotation matrix.
+ * rb = m_b2a^T * ra
+ */
+void float_rmat_transp_mult(struct FloatEulers *rb, const struct FloatRMat *m_b2a, const struct FloatEulers *ra)
+{
+  rb->phi = m_b2a->m[0] * ra->phi + m_b2a->m[3] * ra->theta + m_b2a->m[6] * ra->psi;
+  rb->theta = m_b2a->m[1] * ra->phi + m_b2a->m[4] * ra->theta + m_b2a->m[7] * ra->psi;
+  rb->psi = m_b2a->m[2] * ra->phi + m_b2a->m[5] * ra->theta + m_b2a->m[8] * ra->psi;
+}
+
+/** rotate anglular rates by rotation matrix.
+ * rb = m_a2b * ra
+ */
+void float_rmat_ratemult(struct FloatRates *rb, const struct FloatRMat *m_a2b, const struct FloatRates *ra)
+{
+  rb->p = m_a2b->m[0] * ra->p + m_a2b->m[1] * ra->q + m_a2b->m[2] * ra->r;
+  rb->q = m_a2b->m[3] * ra->p + m_a2b->m[4] * ra->q + m_a2b->m[5] * ra->r;
+  rb->r = m_a2b->m[6] * ra->p + m_a2b->m[7] * ra->q + m_a2b->m[8] * ra->r;
+}
+
+/** rotate anglular rates by transposed rotation matrix.
+ * rb = m_b2a^T * ra
+ */
+void float_rmat_transp_ratemult(struct FloatRates *rb, const struct FloatRMat *m_b2a, const struct FloatRates *ra)
+{
+  rb->p = m_b2a->m[0] * ra->p + m_b2a->m[3] * ra->q + m_b2a->m[6] * ra->r;
+  rb->q = m_b2a->m[1] * ra->p + m_b2a->m[4] * ra->q + m_b2a->m[7] * ra->r;
+  rb->r = m_b2a->m[2] * ra->p + m_b2a->m[5] * ra->q + m_b2a->m[8] * ra->r;
+}
+
+
+
+  RMAT_ELMT(*rm, 0, 0) =  ctheta * cpsi - sphi * stheta * spsi;
+  RMAT_ELMT(*rm, 0, 1) =  ctheta * spsi + sphi * stheta * cpsi;
+  RMAT_ELMT(*rm, 0, 2) = -cphi * stheta;
+  RMAT_ELMT(*rm, 1, 0) = -cphi * spsi;
+  RMAT_ELMT(*rm, 1, 1) =  cphi * cpsi;
+  RMAT_ELMT(*rm, 1, 2) =  sphi;
+  RMAT_ELMT(*rm, 2, 0) =  stheta * cpsi + sphi * ctheta * spsi;
+  RMAT_ELMT(*rm, 2, 1) =  stheta * spsi - sphi * ctheta * cpsi;
+  RMAT_ELMT(*rm, 2, 2) =  cphi * ctheta;
+}
+
+
+/* C n->b rotation matrix */
+void float_rmat_of_quat(struct FloatRMat *rm, const struct FloatQuat *q)
+{
+  const float _a = M_SQRT2 * q->qi;
+  const float _b = M_SQRT2 * q->qx;
+  const float _c = M_SQRT2 * q->qy;
+  const float _d = M_SQRT2 * q->qz;
+  const float a2_1 = _a * _a - 1;
+  const float ab = _a * _b;
+  const float ac = _a * _c;
+  const float ad = _a * _d;
+  const float bc = _b * _c;
+  const float bd = _b * _d;
+  const float cd = _c * _d;
+  RMAT_ELMT(*rm, 0, 0) = a2_1 + _b * _b;
+  RMAT_ELMT(*rm, 0, 1) = bc + ad;
+  RMAT_ELMT(*rm, 0, 2) = bd - ac;
+  RMAT_ELMT(*rm, 1, 0) = bc - ad;
+  RMAT_ELMT(*rm, 1, 1) = a2_1 + _c * _c;
+  RMAT_ELMT(*rm, 1, 2) = cd + ab;
+  RMAT_ELMT(*rm, 2, 0) = bd + ac;
+  RMAT_ELMT(*rm, 2, 1) = cd - ab;
+  RMAT_ELMT(*rm, 2, 2) = a2_1 + _d * _d;
+}
+
+/** in place first order integration of a rotation matrix */
+void float_rmat_integrate_fi(struct FloatRMat *rm, const struct FloatRates *omega, float dt)
+{
+  struct FloatRMat exp_omega_dt = {
+    {
+      1.,  dt *omega->r, -dt *omega->q,
+      -dt *omega->r,  1.,  dt *omega->p,
+      dt *omega->q, -dt *omega->p,  1.
+    const float dp = sa_ov_no * omega->p;
+    const float dq = sa_ov_no * omega->q;
+    const float dr = sa_ov_no * omega->r;
+    const float qi = q->qi;
+    const float qx = q->qx;
+    const float qy = q->qy;
+    const float qz = q->qz;
+    q->qi = ca * qi - dp * qx - dq * qy - dr * qz;
+    q->qx = dp * qi + ca * qx + dr * qy - dq * qz;
+    q->qy = dq * qi - dr * qx + ca * qy + dp * qz;
+    q->qz = dr * qi + dq * qx - dp * qy + ca * qz;
+  }
+}
+
+void float_quat_vmult(struct FloatVect3 *v_out, const struct FloatQuat *q, const struct FloatVect3 *v_in)
+{
+  const float qi2_M1_2  = q->qi * q->qi - 0.5;
+  const float qiqx = q->qi * q->qx;
+  const float qiqy = q->qi * q->qy;
+  const float qiqz = q->qi * q->qz;
+  float m01  = q->qx * q->qy; /* aka qxqy */
+  float m02  = q->qx * q->qz; /* aka qxqz */
+  float m12  = q->qy * q->qz; /* aka qyqz */
+
+  const float m00  = qi2_M1_2 + q->qx * q->qx;
+  const float m10  = m01 - qiqz;
+  const float m20  = m02 + qiqy;
+  const float m21  = m12 - qiqx;
+  m01 += qiqz;
+  m02 -= qiqy;
+  m12 += qiqx;
+  const float m11  = qi2_M1_2 + q->qy * q->qy;
+  const float m22  = qi2_M1_2 + q->qz * q->qz;
+  v_out->x = 2 * (m00 * v_in->x + m01 * v_in->y + m02 * v_in->z);
+  v_out->y = 2 * (m10 * v_in->x + m11 * v_in->y + m12 * v_in->z);
+  v_out->z = 2 * (m20 * v_in->x + m21 * v_in->y + m22 * v_in->z);
+}
+
+/** Quaternion derivative from rotational velocity.
+ * qd = -0.5*omega(r) * q
+ * or equally:
+ * qd = 0.5 * q * omega(r)
+ */
+void float_quat_derivative(struct FloatQuat *qd, const struct FloatRates *r, const struct FloatQuat *q)
+{
+  qd->qi = -0.5 * (r->p * q->qx + r->q * q->qy + r->r * q->qz);
+  qd->qx = -0.5 * (-r->p * q->qi - r->r * q->qy + r->q * q->qz);
+  qd->qy = -0.5 * (-r->q * q->qi + r->r * q->qx - r->p * q->qz);
+  qd->qz = -0.5 * (-r->r * q->qi - r->q * q->qx + r->p * q->qy);
+}
+
+{
+  "schema": "five-verification-request/1",
+  "authorization": "User requested complete sum2 noerror, termination, full actual CBMC recheck; concrete arithmetic observation plus unrestricted binary32 safety.",
+  "entry": "main",
+  "implementation": "prepare/source/sum2.c",
+  "assumptions": [],
+  "domain": "all binary32 a,b including NaNs, infinities and signed zeros for the first implementation call",
+  "properties": [
+    "automatic bounds/pointer/overflow/shift checks emitted by CBMC",
+    "concrete ties-to-even result for sum2(16777216.0f,1.0f), IEEE equality to positive finite 16777216.0f, equivalent to result bits 0x4b800000"
+  ],
+  "not_claimed": [
+    "universal cross-tool NaN payload bit equivalence"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "arch": "x86_64",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "No pointers, unions, memcpy, byte observations, or user-visible writes; ordinary C automatic scalar objects only."
+}
+{
+  "entry": "sum2",
+  "source": "prepare/source/sum2.c",
+  "sha256": "a00e6ca0fd5061f344512db66454869e95a66c320fd1230aaea795895de75a96",
+  "callees": [],
+  "external_bindings": [],
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  }
+}

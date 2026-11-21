@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import argparse,sys
+attempt=Path(__file__).resolve().parent
+sys.path.insert(0,str(attempt.parents[2]/"support"))
+from build import verify_problem
+parser=argparse.ArgumentParser()
+parser.add_argument("--record-run")
+parser.add_argument("--build-directory")
+args=parser.parse_args()
+verify_problem(attempt,'FivePidDfExecutionCorrespondence',[{'requested_goal': 'domain_preservation_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.domain_preservation', 'type': 'FivePidDfExecutionCorrespondence.Spec.domain_preservation_goal'}, {'requested_goal': 'floating_point_correspondence_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.floating_point_correspondence', 'type': 'FivePidDfExecutionCorrespondence.Spec.floating_point_correspondence_goal'}, {'requested_goal': 'machine_integer_correspondence_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.machine_integer_correspondence', 'type': 'FivePidDfExecutionCorrespondence.Spec.machine_integer_correspondence_goal'}, {'requested_goal': 'memory_access_correspondence_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.memory_access_correspondence', 'type': 'FivePidDfExecutionCorrespondence.Spec.memory_access_correspondence_goal'}, {'requested_goal': 'control_and_exhaustion_correspondence_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.control_and_exhaustion_correspondence', 'type': 'FivePidDfExecutionCorrespondence.Spec.control_and_exhaustion_correspondence_goal'}, {'requested_goal': 'normal_result_and_memory_correspondence_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.normal_result_and_memory_correspondence', 'type': 'FivePidDfExecutionCorrespondence.Spec.normal_result_and_memory_correspondence_goal'}, {'requested_goal': 'invalid_operation_correspondence_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.invalid_operation_correspondence', 'type': 'FivePidDfExecutionCorrespondence.Spec.invalid_operation_correspondence_goal'}, {'requested_goal': 'whole_execution_correspondence_goal', 'theorem': 'FivePidDfExecutionCorrespondence.Proof.whole_execution_correspondence', 'type': 'FivePidDfExecutionCorrespondence.Spec.whole_execution_correspondence_goal'}],args.record_run,args.build_directory)

@@ -1,0 +1,62 @@
+File "/home/yangfp/five/paparazzi/models/float_rmat_of_quat/rocq/support/Call.v", line 42, characters 39-42:
+Error:
+In environment
+e : env
+q, out : block
+qi, qx, qy, qz : float32
+bq, br : block
+m : mem
+SEP : env_separated e
+NL : Nonlocal e q out
+DEF : locals_defined e
+Q : e ! _q = Some (bq, qtype)
+R : e ! _rm = Some (br, rmtype)
+CT : Context e q out qi qx qy qz (rho0 q out) m
+m0 : mem
+EV :
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       (firstn 11 acts))
+    m =
+  Some (Nnormal, m0)
+CTM : Context e q out qi qx qy qz (rho11 q out qi qx qy qz) m0
+mf : mem
+EVF :
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       (skipn 11 acts))
+    m0 =
+  Some (Nnormal, mf)
+CTF : Context e q out qi qx qy qz (rho11 q out qi qx qy qz) mf
+OUTPUT : nine_stores m0 out (matrix_values qi qx qy qz) mf
+m' : mem
+ch : memory_chunk
+b : block
+ofs : Z
+value : val
+STF : stores e out m0 m'
+H : b = out \/ (exists (id : positive) (ty : type), e ! id = Some (b, ty))
+H0 : Mem.store ch m' b ofs value = Some mf
+IHSTF :
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       (firstn 11 acts))
+    m =
+  Some (Nnormal, m0) ->
+  Context e q out qi qx qy qz (rho11 q out qi qx qy qz) m0 ->
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       (skipn 11 acts))
+    m0 =
+  Some (Nnormal, m') ->
+  Context e q out qi qx qy qz (rho11 q out qi qx qy qz) m' ->
+  nine_stores m0 out (matrix_values qi qx qy qz) m' ->
+  stores e out m m0 -> stores e out m m'
+ST0 : stores e out m m0
+The term "ST0" has type "stores e out m m0" while it is expected to have type
+ "stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       (firstn 11 acts))
+    m =
+  Some (Nnormal, m0)".
+

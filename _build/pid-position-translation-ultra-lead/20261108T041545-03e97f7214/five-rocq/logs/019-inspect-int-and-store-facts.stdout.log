@@ -1,0 +1,282 @@
+Int.sub_signed:
+  forall x y : int,
+  Int.sub x y = Int.repr (BinInt.Z.sub (Int.signed x) (Int.signed y))
+Mem.nextblock_store:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 -> Mem.nextblock m2 = Mem.nextblock m1
+Mem.store_valid_access_3:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.valid_access m1 chunk b ofs Writable
+Mem.store_valid_block_2:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall b' : block, Mem.valid_block m2 b' -> Mem.valid_block m1 b'
+Mem.store_valid_block_1:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall b' : block, Mem.valid_block m1 b' -> Mem.valid_block m2 b'
+Mem.valid_access_store:
+  forall (m1 : mem) (chunk : AST.memory_chunk) (b : block) 
+    (ofs : BinNums.Z) (v : val),
+  Mem.valid_access m1 chunk b ofs Writable ->
+  {m2 : mem | Mem.store chunk m1 b ofs v = Some m2}
+Mem.load_store_same:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.load chunk m2 b ofs = Some (Val.load_result chunk v)
+Mem.store_storebytes:
+  forall (m1 : mem) (b : block) (ofs : BinNums.Z) 
+    (chunk : AST.memory_chunk) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.storebytes m1 b ofs (encode_val chunk v) = Some m2
+Mem.store_valid_access_1:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall (chunk' : AST.memory_chunk) (b' : block) 
+    (ofs' : BinNums.Z) (p : permission),
+  Mem.valid_access m1 chunk' b' ofs' p ->
+  Mem.valid_access m2 chunk' b' ofs' p
+Mem.store_valid_access_2:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall (chunk' : AST.memory_chunk) (b' : block) 
+    (ofs' : BinNums.Z) (p : permission),
+  Mem.valid_access m2 chunk' b' ofs' p ->
+  Mem.valid_access m1 chunk' b' ofs' p
+Mem.storev_store:
+  forall (chunk : AST.memory_chunk) (b : block) (ofs : ptrofs) 
+    (v : val) (m m' : mem),
+  Mem.storev chunk m (Vptr b ofs) v = Some m' ->
+  Mem.store chunk m b (Ptrofs.unsigned ofs) v = Some m'
+Mem.store_access:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.mem_access m2 = Mem.mem_access m1
+Mem.perm_store_2:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall (b' : block) (ofs' : BinNums.Z) (k : perm_kind) (p : permission),
+  Mem.perm m2 b' ofs' k p -> Mem.perm m1 b' ofs' k p
+Mem.perm_store_1:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall (b' : block) (ofs' : BinNums.Z) (k : perm_kind) (p : permission),
+  Mem.perm m1 b' ofs' k p -> Mem.perm m2 b' ofs' k p
+Mem.store_inject_neutral:
+  forall (chunk : AST.memory_chunk) (m : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m' : mem) (thr : block),
+  Mem.store chunk m b ofs v = Some m' ->
+  Mem.inject_neutral thr m ->
+  Coqlib.Plt b thr ->
+  Val.inject (Mem.flat_inj thr) v v -> Mem.inject_neutral thr m'
+Mem.storebytes_store:
+  forall (m1 : mem) (b : block) (ofs : BinNums.Z) 
+    (chunk : AST.memory_chunk) (v : val) (m2 : mem),
+  Mem.storebytes m1 b ofs (encode_val chunk v) = Some m2 ->
+  BinInt.Z.divide (align_chunk chunk) ofs ->
+  Mem.store chunk m1 b ofs v = Some m2
+Mem.loadbytes_store_same:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.loadbytes m2 b ofs (size_chunk chunk) = Some (encode_val chunk v)
+Mem.store_unmapped_inject:
+  forall (f : meminj) (chunk : AST.memory_chunk) (m1 : mem) 
+    (b1 : block) (ofs : BinNums.Z) (v1 : val) (n1 m2 : mem),
+  Mem.inject f m1 m2 ->
+  Mem.store chunk m1 b1 ofs v1 = Some n1 -> f b1 = None -> Mem.inject f n1 m2
+Mem.store_unmapped_inj:
+  forall (f : meminj) (chunk : AST.memory_chunk) (m1 : mem) 
+    (b1 : block) (ofs : BinNums.Z) (v1 : val) (n1 m2 : mem),
+  Mem.mem_inj f m1 m2 ->
+  Mem.store chunk m1 b1 ofs v1 = Some n1 ->
+  f b1 = None -> Mem.mem_inj f n1 m2
+Mem.store_within_extends:
+  forall (chunk : AST.memory_chunk) (m1 m2 : mem) 
+    (b : block) (ofs : BinNums.Z) (v1 : val) (m1' : mem) 
+    (v2 : val),
+  Mem.extends m1 m2 ->
+  Mem.store chunk m1 b ofs v1 = Some m1' ->
+  Val.lessdef v1 v2 ->
+  exists m2' : mem,
+    Mem.store chunk m2 b ofs v2 = Some m2' /\ Mem.extends m1' m2'
+Mem.load_store_pointer_mismatch:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v_b : block) (v_o : ptrofs) 
+    (m2 : mem) (chunk' : AST.memory_chunk) (v : val),
+  Mem.store chunk m1 b ofs (Vptr v_b v_o) = Some m2 ->
+  Mem.load chunk' m2 b ofs = Some v ->
+  ~ Mem.compat_pointer_chunks chunk chunk' -> v = Vundef
+Mem.store_unchanged_on:
+  forall (P : block -> BinNums.Z -> Prop) (chunk : AST.memory_chunk)
+    (m : mem) (b : block) (ofs : BinNums.Z) (v : val) 
+    (m' : mem),
+  Mem.store chunk m b ofs v = Some m' ->
+  (forall i : BinNums.Z,
+   BinInt.Z.le ofs i /\ BinInt.Z.lt i (BinInt.Z.add ofs (size_chunk chunk)) ->
+   ~ P b i) ->
+  Mem.unchanged_on P m m'
+Mem.store_mem_contents:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.mem_contents m2 =
+  Maps.PMap.set b
+    (Mem.setN (encode_val chunk v) ofs
+       (Maps.PMap.get b (Mem.mem_contents m1)))
+    (Mem.mem_contents m1)
+Mem.store_outside_extends:
+  forall (chunk : AST.memory_chunk) (m1 m2 : mem) 
+    (b : block) (ofs : BinNums.Z) (v : val) (m2' : mem),
+  Mem.extends m1 m2 ->
+  Mem.store chunk m2 b ofs v = Some m2' ->
+  (forall ofs' : BinNums.Z,
+   Mem.perm m1 b ofs' Cur Readable ->
+   BinInt.Z.le ofs ofs' /\
+   BinInt.Z.lt ofs' (BinInt.Z.add ofs (size_chunk chunk)) -> False) ->
+  Mem.extends m1 m2'
+Mem.load_store_similar:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall chunk' : AST.memory_chunk,
+  size_chunk chunk' = size_chunk chunk ->
+  BinInt.Z.le (align_chunk chunk') (align_chunk chunk) ->
+  exists v' : val,
+    Mem.load chunk' m2 b ofs = Some v' /\ decode_encode_val v chunk chunk' v'
+Mem.load_store_similar_2:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall chunk' : AST.memory_chunk,
+  size_chunk chunk' = size_chunk chunk ->
+  BinInt.Z.le (align_chunk chunk') (align_chunk chunk) ->
+  AST.type_of_chunk chunk' = AST.type_of_chunk chunk ->
+  Mem.load chunk' m2 b ofs = Some (Val.load_result chunk' v)
+Mem.load_store_other:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall (chunk' : AST.memory_chunk) (b' : block) (ofs' : BinNums.Z),
+  b' <> b \/
+  BinInt.Z.le (BinInt.Z.add ofs' (size_chunk chunk')) ofs \/
+  BinInt.Z.le (BinInt.Z.add ofs (size_chunk chunk)) ofs' ->
+  Mem.load chunk' m2 b' ofs' = Mem.load chunk' m1 b' ofs'
+Mem.load_store_pointer_overlap:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v_b : block) (v_o : ptrofs) 
+    (m2 : mem) (chunk' : AST.memory_chunk) (ofs' : BinNums.Z) 
+    (v : val),
+  Mem.store chunk m1 b ofs (Vptr v_b v_o) = Some m2 ->
+  Mem.load chunk' m2 b ofs' = Some v ->
+  ofs' <> ofs ->
+  BinInt.Z.gt (BinInt.Z.add ofs' (size_chunk chunk')) ofs ->
+  BinInt.Z.gt (BinInt.Z.add ofs (size_chunk chunk)) ofs' -> v = Vundef
+Mem.loadbytes_store_other:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  forall (b' : block) (ofs' n : BinNums.Z),
+  b' <> b \/
+  BinInt.Z.le n BinNums.Z0 \/
+  BinInt.Z.le (BinInt.Z.add ofs' n) ofs \/
+  BinInt.Z.le (BinInt.Z.add ofs (size_chunk chunk)) ofs' ->
+  Mem.loadbytes m2 b' ofs' n = Mem.loadbytes m1 b' ofs' n
+Mem.store_mapped_inject:
+  forall (f : meminj) (chunk : AST.memory_chunk) (m1 : mem) 
+    (b1 : block) (ofs : BinNums.Z) (v1 : val) (n1 m2 : mem) 
+    (b2 : block) (delta : BinNums.Z) (v2 : val),
+  Mem.inject f m1 m2 ->
+  Mem.store chunk m1 b1 ofs v1 = Some n1 ->
+  f b1 = Some (b2, delta) ->
+  Val.inject f v1 v2 ->
+  exists n2 : mem,
+    Mem.store chunk m2 b2 (BinInt.Z.add ofs delta) v2 = Some n2 /\
+    Mem.inject f n1 n2
+Mem.store_int64_split:
+  forall (m : mem) (b : block) (ofs : BinNums.Z) (v : val) (m' : mem),
+  Mem.store AST.Mint64 m b ofs v = Some m' ->
+  Archi.ptr64 = false ->
+  exists m1 : mem,
+    Mem.store AST.Mint32 m b ofs
+      (if Archi.big_endian then Val.hiword v else Val.loword v) =
+    Some m1 /\
+    Mem.store AST.Mint32 m1 b
+      (BinInt.Z.add ofs (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH))))
+      (if Archi.big_endian then Val.loword v else Val.hiword v) =
+    Some m'
+Mem.store_mapped_inj:
+  forall (f : meminj) (chunk : AST.memory_chunk) (m1 : mem) 
+    (b1 : block) (ofs : BinNums.Z) (v1 : val) (n1 m2 : mem) 
+    (b2 : block) (delta : BinNums.Z) (v2 : val),
+  Mem.mem_inj f m1 m2 ->
+  Mem.store chunk m1 b1 ofs v1 = Some n1 ->
+  Mem.meminj_no_overlap f m1 ->
+  f b1 = Some (b2, delta) ->
+  Val.inject f v1 v2 ->
+  exists n2 : mem,
+    Mem.store chunk m2 b2 (BinInt.Z.add ofs delta) v2 = Some n2 /\
+    Mem.mem_inj f n1 n2
+Mem.store_outside_inject:
+  forall (f : meminj) (m1 m2 : mem) (chunk : AST.memory_chunk) 
+    (b : block) (ofs : BinNums.Z) (v : val) (m2' : mem),
+  Mem.inject f m1 m2 ->
+  (forall (b' : block) (delta ofs' : BinNums.Z),
+   f b' = Some (b, delta) ->
+   Mem.perm m1 b' ofs' Cur Readable ->
+   BinInt.Z.le ofs (BinInt.Z.add ofs' delta) /\
+   BinInt.Z.lt (BinInt.Z.add ofs' delta)
+     (BinInt.Z.add ofs (size_chunk chunk)) ->
+   False) ->
+  Mem.store chunk m2 b ofs v = Some m2' -> Mem.inject f m1 m2'
+Mem.store_outside_inj:
+  forall (f : meminj) (m1 m2 : mem) (chunk : AST.memory_chunk) 
+    (b : block) (ofs : BinNums.Z) (v : val) (m2' : mem),
+  Mem.mem_inj f m1 m2 ->
+  (forall (b' : block) (delta ofs' : BinNums.Z),
+   f b' = Some (b, delta) ->
+   Mem.perm m1 b' ofs' Cur Readable ->
+   BinInt.Z.le ofs (BinInt.Z.add ofs' delta) /\
+   BinInt.Z.lt (BinInt.Z.add ofs' delta)
+     (BinInt.Z.add ofs (size_chunk chunk)) ->
+   False) ->
+  Mem.store chunk m2 b ofs v = Some m2' -> Mem.mem_inj f m1 m2'
+Mem.load_pointer_store:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem) (chunk' : AST.memory_chunk)
+    (b' : block) (ofs' : BinNums.Z) (v_b : block) 
+    (v_o : ptrofs),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.load chunk' m2 b' ofs' = Some (Vptr v_b v_o) ->
+  v = Vptr v_b v_o /\
+  Mem.compat_pointer_chunks chunk chunk' /\ b' = b /\ ofs' = ofs \/
+  b' <> b \/
+  BinInt.Z.le (BinInt.Z.add ofs' (size_chunk chunk')) ofs \/
+  BinInt.Z.le (BinInt.Z.add ofs (size_chunk chunk)) ofs'
+Mem.load_store_overlap:
+  forall (chunk : AST.memory_chunk) (m1 : mem) (b : block) 
+    (ofs : BinNums.Z) (v : val) (m2 : mem) (chunk' : AST.memory_chunk)
+    (ofs' : BinNums.Z) (v' : val),
+  Mem.store chunk m1 b ofs v = Some m2 ->
+  Mem.load chunk' m2 b ofs' = Some v' ->
+  BinInt.Z.gt (BinInt.Z.add ofs' (size_chunk chunk')) ofs ->
+  BinInt.Z.gt (BinInt.Z.add ofs (size_chunk chunk)) ofs' ->
+  exists
+    (mv1 : memval) (mvl : list memval) (mv1' : memval) 
+  (mvl' : list memval),
+    shape_encoding chunk v (mv1 :: mvl) /\
+    shape_decoding chunk' (mv1' :: mvl') v' /\
+    (ofs' = ofs /\ mv1' = mv1 \/
+     BinInt.Z.gt ofs' ofs /\ List.In mv1' mvl \/
+     BinInt.Z.lt ofs' ofs /\ List.In mv1 mvl')

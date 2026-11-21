@@ -1,0 +1,88 @@
+  | red_condition: forall v1 ty1 r1 r2 ty b m,
+      bool_val v1 ty1 m = Some b ->
+      rred (Econdition (Eval v1 ty1) r1 r2 ty) m
+        E0 (Eparen (if b then r1 else r2) ty ty) m
+  | red_sizeof: forall ty1 ty m,
+      rred (Esizeof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (sizeof ge ty1))) ty) m
+  | red_alignof: forall ty1 ty m,
+      rred (Ealignof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (alignof ge ty1))) ty) m
+  | red_assign: forall b ofs ty1 bf v2 ty2 m v t m' v',
+      sem_cast v2 ty2 ty1 m = Some v ->
+      assign_loc ty1 m b ofs bf v t m' v' ->
+      rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+         t (Eval v' ty1) m'
+  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+      deref_loc ty1 m b ofs bf t v1 ->
+      rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+         t (Eassign (Eloc b ofs bf ty1)
+                    (Ebinop op (Eval v1 ty1) (Eval v2 ty2) tyres) ty1) m
+  | red_postincr: forall id b ofs ty bf m t v1 op,
+      deref_loc ty m b ofs bf t v1 ->
+      op = match id with Incr => Oadd | Decr => Osub end ->
+      rred (Epostincr id (Eloc b ofs bf ty) ty) m
+         t (Ecomma (Eassign (Eloc b ofs bf ty)
+                            (Ebinop op (Eval v1 ty)
+                                       (Eval (Vint Int.one) type_int32s)
+                                       (incrdecr_type ty))
+                           ty)
+                   (Eval v1 ty) ty) m
+  | red_comma: forall v ty1 r2 ty m,
+      typeof r2 = ty ->
+      rred (Ecomma (Eval v ty1) r2 ty) m
+        E0 r2 m
+  | red_paren: forall v1 ty1 ty2 ty m v,
+1057-      ty = ty1 /\ sem_cast v2 ty2 ty1 m = Some v /\ assign_loc ge ty1 m b ofs bf v t m' v' /\ possible_trace w t w'
+1058-  | Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty =>
+1059-      exists t, exists v1, exists w',
+1060-      ty = ty1 /\ deref_loc ge ty1 m b ofs bf t v1 /\ possible_trace w t w'
+1061:  | Epostincr id (Eloc b ofs bf ty1) ty =>
+1062-      exists t, exists v1, exists w',
+1063-      ty = ty1 /\ deref_loc ge ty m b ofs bf t v1 /\ possible_trace w t w'
+1064-  | Ecomma (Eval v ty1) r2 ty =>
+1065-      typeof r2 = ty
+1066-  | Eparen (Eval v1 ty1) tycast ty =>
+1067-      exists v, sem_cast v1 ty1 tycast m = Some v
+1068-  | Ecall (Eval vf tyf) rargs ty =>
+1069-      exprlist_all_values rargs ->
+1070-      exists tyargs tyres cconv fd vl,
+1071-         classify_fun tyf = fun_case_f tyargs tyres cconv
+1072-      /\ Genv.find_funct ge vf = Some fd
+1073-      /\ cast_arguments m rargs tyargs vl
+1074-      /\ type_of_fundef fd = Tfunction tyargs tyres cconv
+1075-  | Ebuiltin ef tyargs rargs ty =>
+1076-      exprlist_all_values rargs ->
+1077-      exists vargs t vres m' w',
+1078-         cast_arguments m rargs tyargs vargs
+1079-      /\ external_call ef ge vargs m t vres m'
+1080-      /\ possible_trace w t w'
+1081-  | _ => True
+1082-  end.
+1083-
+1084-Lemma lred_invert:
+1054-      exists b, bool_val v1 ty1 m = Some b
+1055-  | Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty =>
+1056-      exists v, exists m', exists v', exists t, exists w',
+1057-      ty = ty1 /\ sem_cast v2 ty2 ty1 m = Some v /\ assign_loc ge ty1 m b ofs bf v t m' v' /\ possible_trace w t w'
+1058:  | Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty =>
+1059-      exists t, exists v1, exists w',
+1060-      ty = ty1 /\ deref_loc ge ty1 m b ofs bf t v1 /\ possible_trace w t w'
+1061-  | Epostincr id (Eloc b ofs bf ty1) ty =>
+1062-      exists t, exists v1, exists w',
+1063-      ty = ty1 /\ deref_loc ge ty m b ofs bf t v1 /\ possible_trace w t w'
+1064-  | Ecomma (Eval v ty1) r2 ty =>
+1065-      typeof r2 = ty
+1066-  | Eparen (Eval v1 ty1) tycast ty =>
+1067-      exists v, sem_cast v1 ty1 tycast m = Some v
+1068-  | Ecall (Eval vf tyf) rargs ty =>
+1069-      exprlist_all_values rargs ->
+1070-      exists tyargs tyres cconv fd vl,
+1071-         classify_fun tyf = fun_case_f tyargs tyres cconv
+1072-      /\ Genv.find_funct ge vf = Some fd
+1073-      /\ cast_arguments m rargs tyargs vl
+1074-      /\ type_of_fundef fd = Tfunction tyargs tyres cconv
+1075-  | Ebuiltin ef tyargs rargs ty =>
+1076-      exprlist_all_values rargs ->
+1077-      exists vargs t vres m' w',
+1078-         cast_arguments m rargs tyargs vargs

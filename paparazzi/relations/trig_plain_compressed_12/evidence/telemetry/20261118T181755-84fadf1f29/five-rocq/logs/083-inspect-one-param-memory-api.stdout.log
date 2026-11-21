@@ -1,0 +1,100 @@
+946:Theorem valid_access_store:
+947-  forall m1 chunk b ofs v,
+948-  valid_access m1 chunk b ofs Writable ->
+949-  { m2: mem | store chunk m1 b ofs v = Some m2 }.
+950-Proof.
+951-  intros.
+952-  unfold store.
+953-  destruct (valid_access_dec m1 chunk b ofs Writable).
+954-  eauto.
+955-  contradiction.
+956-Defined.
+--
+1086:Theorem load_store_other:
+1087-  forall chunk' b' ofs',
+1088-  b' <> b
+1089-  \/ ofs' + size_chunk chunk' <= ofs
+1090-  \/ ofs + size_chunk chunk <= ofs' ->
+1091-  load chunk' m2 b' ofs' = load chunk' m1 b' ofs'.
+1092-Proof.
+1093-  intros. unfold load.
+1094-  destruct (valid_access_dec m1 chunk' b' ofs' Readable).
+1095-  rewrite pred_dec_true.
+1096-  decEq. decEq. rewrite store_mem_contents; simpl.
+--
+1685:Theorem fresh_block_alloc:
+1686-  ~(valid_block m1 b).
+1687-Proof.
+1688-  unfold valid_block. rewrite alloc_result. apply Plt_strict.
+1689-Qed.
+1690-
+1691-Theorem valid_new_block:
+1692-  valid_block m2 b.
+1693-Proof.
+1694-  unfold valid_block. rewrite alloc_result. rewrite nextblock_alloc. apply Plt_succ.
+1695-Qed.
+--
+1715:Theorem perm_alloc_2:
+1716-  forall ofs k, lo <= ofs < hi -> perm m2 b ofs k Freeable.
+1717-Proof.
+1718-  unfold perm; intros. injection ALLOC; intros. rewrite <- H1; simpl.
+1719-  subst b. rewrite PMap.gss. unfold proj_sumbool. rewrite zle_true.
+1720-  rewrite zlt_true. simpl. auto with mem. lia. lia.
+1721-Qed.
+1722-
+1723-Theorem perm_alloc_inv:
+1724-  forall b' ofs k p,
+1725-  perm m2 b' ofs k p ->
+--
+1758:Theorem valid_access_alloc_same:
+1759-  forall chunk ofs,
+1760-  lo <= ofs -> ofs + size_chunk chunk <= hi -> (align_chunk chunk | ofs) ->
+1761-  valid_access m2 chunk b ofs Freeable.
+1762-Proof.
+1763-  intros. constructor; auto with mem.
+1764-  red; intros. apply perm_alloc_2. lia.
+1765-Qed.
+1766-
+1767-Local Hint Resolve valid_access_alloc_other valid_access_alloc_same: mem.
+1768-
+--
+1804:Theorem load_alloc_other:
+1805-  forall chunk b' ofs v,
+1806-  load chunk m1 b' ofs = Some v ->
+1807-  load chunk m2 b' ofs = Some v.
+1808-Proof.
+1809-  intros. rewrite <- H. apply load_alloc_unchanged. eauto with mem.
+1810-Qed.
+1811-
+1812-Theorem load_alloc_same:
+1813-  forall chunk ofs v,
+1814-  load chunk m2 b ofs = Some v ->
+--
+1870:Theorem range_perm_free:
+1871-  forall m1 b lo hi,
+1872-  range_perm m1 b lo hi Cur Freeable ->
+1873-  { m2: mem | free m1 b lo hi = Some m2 }.
+1874-Proof.
+1875-  intros; unfold free. rewrite pred_dec_true; auto. econstructor; eauto.
+1876-Defined.
+1877-
+1878-Section FREE.
+1879-
+1880-Variable m1: mem.
+158:Definition blocks_of_env (e: env) : list (block * Z * Z) :=
+159-  List.map block_of_binding (PTree.elements e).
+160-
+161-(** Selection of the appropriate case of a [switch], given the value [n]
+162-  of the selector expression. *)
+163-
+164-Fixpoint select_switch_default (sl: labeled_statements): labeled_statements :=
+165-  match sl with
+166-  | LSnil => sl
+167-  | LScons None s sl' => sl
+168-  | LScons (Some i) s sl' => select_switch_default sl'
+169-  end.
+170-
+171-Fixpoint select_switch_case (n: Z) (sl: labeled_statements): option labeled_statements :=
+172-  match sl with
+173-  | LSnil => None
+174-  | LScons None s sl' => select_switch_case n sl'

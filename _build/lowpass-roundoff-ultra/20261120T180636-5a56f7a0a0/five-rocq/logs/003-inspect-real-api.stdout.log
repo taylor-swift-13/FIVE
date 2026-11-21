@@ -1,0 +1,30 @@
+32:Definition float32 := binary32. (**r the type of IEE754 single-precision FP numbers *)
+552:  assert (FINx: is_finite _ _ x = true).
+553:  { rewrite ZofB_correct in C. destruct (is_finite _ _ x) eqn:FINx; congruence. }
+580:  assert (FINx: is_finite _ _ x = true).
+581:  { rewrite ZofB_correct in C. destruct (is_finite _ _ x) eqn:FINx; congruence. }
+582:  assert (GE: (B2R _ _ x >= IZR (Int.unsigned ox8000_0000))%R).
+585:    destruct (Rcompare (B2R 53 1024 x) (B2R 53 1024 y)) eqn:CMP.
+620:     B2R _ _ (from_words ox4330_0000 x) = (bpow radix2 52 + IZR (Int.unsigned x))%R
+621:  /\ is_finite _ _ (from_words ox4330_0000 x) = true
+625:  rewrite B2R_FF2B, is_finite_FF2B, Bsign_FF2B.
+642:  apply B2R_Bsign_inj; auto.
+702:     B2R _ _ (from_words ox4530_0000 x) = (bpow radix2 84 + IZR (Int.unsigned x * two_p 32))%R
+703:  /\ is_finite _ _ (from_words ox4530_0000 x) = true
+707:  rewrite B2R_FF2B, is_finite_FF2B, Bsign_FF2B.
+728:  apply B2R_Bsign_inj; auto.
+1008:Module Float32.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassUpdateCase Require Import Contract UpdateCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NoError:Prop:=forall args m,Precondition args m->no_error Execution.ge(Execution.entry args m).
+From compcert Require Import Values Memory.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassUpdate Require Import Execution.
+Definition AllSuccessorsTerminate : Prop := forall args m,Acc(successor Execution.ge)(Execution.entry args m).

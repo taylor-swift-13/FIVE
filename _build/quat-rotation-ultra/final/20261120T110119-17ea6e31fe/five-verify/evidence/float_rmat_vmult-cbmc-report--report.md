@@ -1,0 +1,1 @@
+传统原 C 一般域 CBMC 反驳候选1。完整共享301-ID ledger：300 SUCCESS、main.assertion.1 FAILURE；q各分量[-1,1]、v各分量[-1024,1024]、独立自动对象、无循环或递归、unwind1。新重跑沿冻结 prepare 输入执行前逐一捕获3原C/headers/bindings/request/harness，301 IDs与原13输入输出位完全一致。初次运行、旧trace及失败/重试费用原样保留。当前真实raw/input index由handoff绑定；有限输入条件只属于此性质，执行模型未裁剪。

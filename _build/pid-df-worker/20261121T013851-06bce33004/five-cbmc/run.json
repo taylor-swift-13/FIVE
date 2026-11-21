@@ -1,0 +1,328 @@
+{
+  "schema": "five-run/1.0",
+  "run_id": "20261121T013851-06bce33004",
+  "skill": "five-cbmc",
+  "parent": null,
+  "started_at": "2026-11-21T01:38:51.946290+00:00",
+  "start_epoch": 1795225131.9463086,
+  "invocation_kind": "skill-session",
+  "status": "passed",
+  "timing_scope": "From start to finish of this invocation; not retroactive authoring time",
+  "children": [],
+  "environment": {
+    "os": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "python": "3.10.12",
+    "cwd": "/home/yangfp/five",
+    "measurement": "GNU time + /proc RSS sampling",
+    "tools": {
+      "python3": {
+        "path": "/usr/bin/python3",
+        "binary_sha256": "a2f33a6e006989270f4340528eb61f8f97366e00a5d1b602ac8672ea44fc56ae"
+      },
+      "bash": {
+        "path": "/usr/bin/bash",
+        "binary_sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4"
+      }
+    },
+    "environment_policy": "No full environment dump; secrets excluded"
+  },
+  "scope": {
+    "case": "paparazzi/models/update_pid_df",
+    "requested_model": "gpt-6.1-sol",
+    "requested_effort": "ultra",
+    "actual_model": "gpt-6.1-sol",
+    "actual_effort": "ultra"
+  },
+  "tokens": {
+    "status": "available",
+    "source": {
+      "kind": "codex-session-event",
+      "reference": "/mnt/c/Users/50635/.codex/sessions/2026/11/21/rollout-2026-11-21T09-34-17-01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd.jsonl",
+      "thread_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd"
+    },
+    "complete": true,
+    "scope": "explicit event-boundary interval",
+    "boundaries": {
+      "after_event_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd:a422040d7dd1cbfddd53d48c",
+      "before_event_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd:de43c6fd102d78ee7d21a6df"
+    },
+    "events": [
+      {
+        "event_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd:b27aa556f0d7e1c8b35bd67c",
+        "timestamp": "2026-11-21T01:38:52.374Z",
+        "source_line": 163,
+        "input_tokens": 63123,
+        "output_tokens": 412,
+        "cached_input_tokens": 60288,
+        "reasoning_output_tokens": 49
+      },
+      {
+        "event_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd:de43c6fd102d78ee7d21a6df",
+        "timestamp": "2026-11-21T01:39:16.804Z",
+        "source_line": 170,
+        "input_tokens": 63814,
+        "output_tokens": 792,
+        "cached_input_tokens": 63360,
+        "reasoning_output_tokens": 16
+      }
+    ],
+    "notes": [],
+    "totals": {
+      "input_tokens": 126937,
+      "output_tokens": 1204,
+      "cached_input_tokens": 123648,
+      "reasoning_output_tokens": 65
+    },
+    "total_tokens": 128141
+  },
+  "commands": [
+    {
+      "id": "001-create-cbmc-harness",
+      "argv": [
+        "python3",
+        "-c",
+        "from pathlib import Path\nimport json,hashlib\ncase=Path(\"paparazzi/models/update_pid_df\")\nfor row in json.loads((case/\"prepare/handoff.json\").read_text())[\"outputs\"]:\n assert hashlib.sha256((case/row[\"path\"]).read_bytes()).hexdigest()==row[\"sha256\"]\nd=case/\"cbmc\";d.mkdir()\n(d/\"report\").mkdir()\n(d/\"harness.c\").write_text(\"\"\"#include \"../prepare/source/update_pid_df.c\"\n#include <stdint.h>\n#include <string.h>\nextern float nondet_float(void);\nstatic uint32_t bits(float x) { uint32_t u; memcpy(&u,&x,4); return u; }\nvoid main(void) {\n struct PID_df f={{nondet_float(),nondet_float()},\n                  {nondet_float(),nondet_float(),nondet_float()},\n                  {nondet_float(),nondet_float(),nondet_float()}};\n struct PID_df old=f;\n float input=nondet_float();\n float result=update_pid_df(&f,input);\n __CPROVER_assert(bits(result)==bits(f.u[0]),\"return equals stored u0 exact bits\");\n __CPROVER_assert(bits(f.u[1])==bits(old.u[0]),\"u1 shifts old u0 exact bits\");\n __CPROVER_assert(bits(f.e[0])==bits(input),\"e0 stores input exact bits\");\n __CPROVER_assert(bits(f.e[1])==bits(old.e[0]),\"e1 shifts old e0 exact bits\");\n __CPROVER_assert(bits(f.e[2])==bits(old.e[1]),\"e2 shifts old e1 exact bits\");\n __CPROVER_assert(bits(f.g[0])==bits(old.g[0]),\"a coefficient preserved exact bits\");\n __CPROVER_assert(bits(f.g[1])==bits(old.g[1]),\"b coefficient preserved exact bits\");\n __CPROVER_assert(bits(f.g[2])==bits(old.g[2]),\"c coefficient preserved exact bits\");\n}\n\"\"\")\nprint((d/\"harness.c\").read_text())\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-21T01:39:16.128619+00:00",
+      "finished_at": "2026-11-21T01:39:16.161599+00:00",
+      "wall_seconds": 0.03277313099999901,
+      "timeout_seconds": 180,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 13824,
+        "user_seconds": 0.01,
+        "system_seconds": 0.0,
+        "elapsed_seconds": 0.02,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 11771904,
+      "rss_sample_count": 3,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.013116100999980063,
+      "rss_sampling_errors": [],
+      "stdout": "logs/001-create-cbmc-harness.stdout.log",
+      "stderr": "logs/001-create-cbmc-harness.stderr.log",
+      "time_log": "logs/001-create-cbmc-harness.time.log"
+    },
+    {
+      "id": "002-actual-cbmc",
+      "argv": [
+        "bash",
+        "-lc",
+        "source scripts/env.sh && cbmc --version && cbmc paparazzi/models/update_pid_df/cbmc/harness.c --function main --bounds-check --pointer-check --pointer-overflow-check --signed-overflow-check --unsigned-overflow-check --undefined-shift-check --unwind 6 --unwinding-assertions --json-ui"
+      ],
+      "resolved_executable": "/usr/bin/bash",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-21T01:39:16.171421+00:00",
+      "finished_at": "2026-11-21T01:39:16.487501+00:00",
+      "wall_seconds": 0.3157582530000127,
+      "timeout_seconds": 600,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 24072,
+        "user_seconds": 0.07,
+        "system_seconds": 0.14,
+        "elapsed_seconds": 0.27,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 23879680,
+      "rss_sample_count": 26,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.012821502000008422,
+      "rss_sampling_errors": [],
+      "stdout": "logs/002-actual-cbmc.stdout.log",
+      "stderr": "logs/002-actual-cbmc.stderr.log",
+      "time_log": "logs/002-actual-cbmc.time.log"
+    },
+    {
+      "id": "003-publish-actual-cbmc-ledger",
+      "argv": [
+        "python3",
+        "-c",
+        "from pathlib import Path\nimport hashlib,json,shutil,sys\nsys.path.insert(0,\"scripts\")\nfrom five_telemetry import Run\ncase=Path(\"paparazzi/models/update_pid_df\");r=Run(\"_build/pid-df-worker/20261121T013851-06bce33004/five-cbmc\")\ncmd=r.read(\"commands.json\")[-1];text=(r.folder/cmd[\"stdout\"]).read_text();raw=json.loads(text[text.index(\"[\"):]);props=next(x[\"result\"]for x in raw if \"result\"in x)\nassert all(x[\"status\"]==\"SUCCESS\"for x in props)\ndef dump(p,o):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2,ensure_ascii=False)+chr(10))\ndef sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()\ndump(case/\"cbmc/properties.json\",props);shutil.copyfile(r.folder/cmd[\"stdout\"],case/\"cbmc/report/evidence-cbmc.json.log\")\nt=json.loads((case/\"prepare/handoff.json\").read_text())[\"target\"]\nroles=[(\"source\",\"prepare/source/update_pid_df.c\"),(\"bindings\",\"prepare/source/bindings.json\"),(\"verification-request\",\"prepare/verification-request.json\"),(\"cbmc-harness\",\"cbmc/harness.c\"),(\"cbmc-properties\",\"cbmc/properties.json\"),(\"cbmc-output\",\"cbmc/report/evidence-cbmc.json.log\")]\ndump(case/\"cbmc/handoff.json\",{\"schema\":\"five-stage-handoff/1\",\"case_id\":\"update_pid_df\",\"stage\":\"cbmc\",\"status\":\"passed\",\"target\":t,\"paths_relative_to\":\"case\",\"outputs\":[{\"role\":role,\"path\":p,\"sha256\":sha(case/p)}for role,p in roles],\"limitations\":[\"Traditional loop-free BMC; floating arithmetic finiteness is not asserted. All eight user assertions are bit observations.\"],\"next_stage\":\"align\",\"actual_property_count\":len(props),\"property_ids\":[x[\"property\"]for x in props],\"run\":str(r.folder)})\n(case/\"cbmc/report/report.md\").write_text(\"# PID_df 实现层检查\"+chr(10)+chr(10)+str(len(props))+\" 个实际发出的属性全部 SUCCESS。对象和输入为任意 binary32 位模式，无数值 assume。入口无循环，memcpy 展开界 6 并检查展开断言。检查 8 个位观察断言和全部实际内存/数组属性；没有将浮点 NaN/溢出设为错误。\"+chr(10))\nprint(\"properties\",len(props));print([(x[\"property\"],x[\"description\"])for x in props if x[\"property\"].startswith(\"main.\")])\n"
+      ],
+      "resolved_executable": "/usr/bin/python3",
+      "cwd": "/home/yangfp/five",
+      "started_at": "2026-11-21T01:39:43.178917+00:00",
+      "finished_at": "2026-11-21T01:39:43.245530+00:00",
+      "wall_seconds": 0.06646333900005175,
+      "timeout_seconds": 180,
+      "status": "passed",
+      "exit_code": 0,
+      "error": null,
+      "gnu_time": {
+        "max_process_rss_kib": 16648,
+        "user_seconds": 0.01,
+        "system_seconds": 0.01,
+        "elapsed_seconds": 0.03,
+        "exit_code": 0
+      },
+      "peak_process_tree_rss_sampled_bytes": 17326080,
+      "rss_sample_count": 6,
+      "rss_requested_interval_seconds": 0.01,
+      "rss_max_observed_sample_gap_seconds": 0.0129831589999867,
+      "rss_sampling_errors": [],
+      "stdout": "logs/003-publish-actual-cbmc-ledger.stdout.log",
+      "stderr": "logs/003-publish-actual-cbmc-ledger.stderr.log",
+      "time_log": "logs/003-publish-actual-cbmc-ledger.time.log"
+    }
+  ],
+  "inputs": [],
+  "codex_usage_boundary": {
+    "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/21/rollout-2026-11-21T09-34-17-01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd.jsonl",
+    "before": {
+      "thread_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/21/rollout-2026-11-21T09-34-17-01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd.jsonl",
+      "last_event_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd:a422040d7dd1cbfddd53d48c",
+      "last_event_timestamp": "2026-11-21T01:38:38.360Z",
+      "observed_event_count": 23,
+      "counters": {
+        "input_tokens": 879774,
+        "output_tokens": 7018,
+        "cached_input_tokens": 809344,
+        "reasoning_output_tokens": 1291
+      },
+      "notes": []
+    },
+    "after": {
+      "thread_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd",
+      "session_file": "/mnt/c/Users/50635/.codex/sessions/2026/11/21/rollout-2026-11-21T09-34-17-01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd.jsonl",
+      "last_event_id": "01a1fbbd-6b33-7fc0-ba34-2d52bb50e4fd:de43c6fd102d78ee7d21a6df",
+      "last_event_timestamp": "2026-11-21T01:39:16.804Z",
+      "observed_event_count": 25,
+      "counters": {
+        "input_tokens": 1006711,
+        "output_tokens": 8222,
+        "cached_input_tokens": 932992,
+        "reasoning_output_tokens": 1356
+      },
+      "notes": []
+    }
+  },
+  "finished_at": "2026-11-21T01:39:43.404418+00:00",
+  "finish_epoch": 1795225183.4044454,
+  "result": {
+    "verdict": "passed",
+    "summary": "实际传统 CBMC 属性全部通过。",
+    "outputs": {
+      "handoff": {
+        "status": "present",
+        "role": "handoff",
+        "source": "/home/yangfp/five/paparazzi/models/update_pid_df/cbmc/handoff.json",
+        "path": "evidence/handoff--handoff.json",
+        "sha256": "b9927f83a590068a58b8fecbbd6d6819a8361e0a8077c51a19493cdb5f6452e1",
+        "bytes": 5161
+      },
+      "properties": {
+        "status": "present",
+        "role": "properties",
+        "source": "/home/yangfp/five/paparazzi/models/update_pid_df/cbmc/properties.json",
+        "path": "evidence/properties--properties.json",
+        "sha256": "28186ce509e436bc2f1eb3bb859de1b92f3e36a2974fb48740667d94cc729f2d",
+        "bytes": 91311
+      }
+    },
+    "verification_scope": {
+      "case": "paparazzi/models/update_pid_df",
+      "requested_model": "gpt-6.1-sol",
+      "requested_effort": "ultra",
+      "actual_model": "gpt-6.1-sol",
+      "actual_effort": "ultra"
+    },
+    "remaining_obligations": []
+  },
+  "completeness": {
+    "artifacts": "complete",
+    "measurements": "complete",
+    "missing_roles": [],
+    "note": "A passed verifier result does not imply all requested measurements are available."
+  },
+  "cost_audit": {
+    "status": "complete",
+    "run": "/home/yangfp/five/_build/pid-df-worker/20261121T013851-06bce33004/five-cbmc",
+    "skill": "five-cbmc",
+    "issues": [],
+    "own_model_tokens_excluding_children": 128141,
+    "inclusive_unique_model_tokens": 128141,
+    "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+  },
+  "artifacts": [
+    {
+      "path": "evidence/handoff--handoff.json",
+      "bytes": 5161,
+      "sha256": "b9927f83a590068a58b8fecbbd6d6819a8361e0a8077c51a19493cdb5f6452e1"
+    },
+    {
+      "path": "evidence/model-usage-receipt--usage.json",
+      "bytes": 1312,
+      "sha256": "1452e32a14e0d909a6a20f6bae540ccaa8aa2ea944e6cfa17440d4400206c39b"
+    },
+    {
+      "path": "evidence/properties--properties.json",
+      "bytes": 91311,
+      "sha256": "28186ce509e436bc2f1eb3bb859de1b92f3e36a2974fb48740667d94cc729f2d"
+    },
+    {
+      "path": "logs/001-create-cbmc-harness.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/001-create-cbmc-harness.stdout.log",
+      "bytes": 1140,
+      "sha256": "4162db5d8590de38d0f8142b1d8557d86a647212f42b61dd515c2524d4c0ed84"
+    },
+    {
+      "path": "logs/001-create-cbmc-harness.time.log",
+      "bytes": 109,
+      "sha256": "c1458f8c22bee8ecfa4cd76fb3db5f4f5df0e5a92155d4ac9572d0cd7c197cc6"
+    },
+    {
+      "path": "logs/002-actual-cbmc.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/002-actual-cbmc.stdout.log",
+      "bytes": 88150,
+      "sha256": "9e03e5c75543c636f2da19e901c2dcde8fabea4c3089d365280926ad9e8ee493"
+    },
+    {
+      "path": "logs/002-actual-cbmc.time.log",
+      "bytes": 109,
+      "sha256": "f1d5ae44c617248e1921f3513a8f2aded70f04296f210eacfa869aec0b836bf7"
+    },
+    {
+      "path": "logs/003-publish-actual-cbmc-ledger.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/003-publish-actual-cbmc-ledger.stdout.log",
+      "bytes": 466,
+      "sha256": "056cd894066a3210894a553a381f5608470f2d939c8ddd5733e4a9dd02f4fd75"
+    },
+    {
+      "path": "logs/003-publish-actual-cbmc-ledger.time.log",
+      "bytes": 109,
+      "sha256": "cba2dcfc96f646369574f92d9c84a1a724dfe5150f021c5475c9ca4f04faad7b"
+    },
+    {
+      "path": "metrics.json",
+      "bytes": 2710,
+      "sha256": "330d4675a68926ff62b857e833a637cb674046973ec5f0c92a53c51fbf447c66"
+    },
+    {
+      "path": "report.md",
+      "bytes": 478,
+      "sha256": "06ee15478aa6bdeac7d3dca62ea17e201792257ed3250e4e5f0fad64b563216d"
+    }
+  ]
+}

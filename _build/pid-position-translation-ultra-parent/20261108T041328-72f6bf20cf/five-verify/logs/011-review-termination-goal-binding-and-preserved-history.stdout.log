@@ -1,0 +1,56 @@
+History unchanged files 39
+From compcert Require Import Values Memory Events Csem.
+From FiveShared.verification Require Import Obligations.
+From PidPositionRunPos Require Import Execution.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionSafety Require Import PidTermination.
+Local Transparent PidTermination.ge.
+Theorem all_successor_termination_goal : Spec.AllSuccessorTerminationGoal.
+Proof.
+ unfold Spec.AllSuccessorTerminationGoal;intros gh ret m flight GOOD.
+ pose proof(PidTermination.all_successor_termination(Spec.call_args gh ret flight)m)as ACC.
+ unfold PidTermination.ge in ACC;exact ACC.
+Qed.
+Definition goal_0 : Spec.AllSuccessorTerminationGoal := all_successor_termination_goal.
+Print all_successor_termination_goal.
+Print Assumptions all_successor_termination_goal.
+Print Assumptions goal_0.
+
+PASS 035-exact-goalbinding-002 ['rocq', 'compile', '-q', '-Q', 'shared', 'FiveShared', '-Q', 'paparazzi/relations/guidance_mode/support/semantics', 'FiveGuidanceSemantics', '-Q', 'paparazzi/models/guidance_pid_h_run_pos/align/model', 'PidPositionRunPos', '-Q', 'paparazzi/relations/pid_position_translation/support', 'PidPositionTranslationSupport', '-Q', 'paparazzi/relations/pid_position_translation/problem', 'PidPositionTranslationProblem', '-Q', 'paparazzi/relations/pid_position_translation/attempts/002/safety', 'PidPositionSafety', 'paparazzi/relations/pid_position_translation/attempts/002/safety/GoalBinding.v']
+all_successor_termination_goal =
+(fun (gh ret : block) (m : mem) (flight : bool) (_ : InputGood m gh ret) =>
+ let ACC : Acc (successor ge) (entry (call_args gh ret flight) m) :=
+   all_successor_termination (call_args gh ret flight) m in
+ ACC)
+:
+AllSuccessorTerminationGoal
+     : AllSuccessorTerminationGoal
+
+Arguments all_successor_termination_goal gh ret m flight _
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : String.string -> AST.signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : String.string -> AST.signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+
+PASS 036-independent-kernel-001 ['rocq', 'check', '-silent', '-Q', 'shared', 'FiveShared', '-Q', 'paparazzi/relations/guidance_mode/support/semantics', 'FiveGuidanceSemantics', '-Q', 'paparazzi/models/guidance_pid_h_run_pos/align/model', 'PidPositionRunPos', '-Q', 'paparazzi/relations/pid_position_translation/support', 'PidPositionTranslationSupport', '-Q', 'paparazzi/relations/pid_position_translation/problem', 'PidPositionTranslationProblem', '-Q', 'paparazzi/relations/pid_position_translation/attempts/002/safety', 'PidPositionSafety', 'PidPositionSafety.TargetTermination', 'PidPositionSafety.PidTermination', 'PidPositionSafety.GoalBinding']
+

@@ -1,0 +1,69 @@
+paparazzi/relations/pid_position_translation/attempts/002/ClampSemantics.v:27:Local Opaque Float.to_int Float.of_int.
+paparazzi/relations/pid_position_translation/attempts/002/ClampSemantics.v:57:Local Opaque Execution.ge.
+paparazzi/relations/pid_position_translation/attempts/002/ClampSemantics.v:78:Local Opaque Float.of_int Float.mul Float.of_bits.
+paparazzi/relations/pid_position_translation/attempts/002/EntryPrefix.v:53: Genv.find_funct Execution.ge(Vptr fb Ptrofs.zero)=Some(Internal Source.f_stateGetPositionNed_i) ->
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:11:Lemma ge_ce : genv_cenv ge=ce.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:13:Global Opaque ge E.ge.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:30: unify co (co_for id);rewrite ge_ce;apply co_for_lookup;vm_compute;reflexivity end.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:31:Ltac cfield_lookup := rewrite ge_ce;vm_compute;reflexivity.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:110:     * rewrite ge_ce;change(4|8);exists 2;reflexivity.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:112:     * rewrite ge_ce;exact V.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:124:     * rewrite ge_ce;change(4|0);exists 0;reflexivity.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:125:     * rewrite ge_ce;change(4|0);exists 0;reflexivity.
+paparazzi/relations/pid_position_translation/attempts/002/core/FactorySemantics.v:127:     * rewrite ge_ce;exact BY.
+- the name of the function that acts as entry point ("main" function).
+- a list of definitions for structure and union names
+- the corresponding composite environment
+- a proof that this environment is consistent with the definitions. *)
+
+Record program : Type := {
+  prog_defs: list (ident * globdef fundef type);
+  prog_public: list ident;
+  prog_main: ident;
+  prog_types: list composite_definition;
+  prog_comp_env: composite_env;
+  prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env
+}.
+
+Definition program_of_program (p: program) : AST.program fundef type :=
+  {| AST.prog_defs := p.(prog_defs);
+     AST.prog_public := p.(prog_public);
+     AST.prog_main := p.(prog_main) |}.
+
+Coercion program_of_program: program >-> AST.program.
+
+Program Definition make_program (types: list composite_definition)
+                                (defs: list (ident * globdef fundef type))
+                                (public: list ident)
+                                (main: ident) : res program :=
+  match build_composite_env types with
+  | Error e => Error e
+  | OK ce =>
+      OK {| prog_defs := defs;
+            prog_public := public;
+            prog_main := main;
+            prog_types := types;
+            prog_comp_env := ce;
+            prog_comp_env_eq := _ |}
+  end.
+
+End PROGRAMS.
+
+Arguments External {F} _ _ _ _.
+
+Unset Implicit Arguments.
+
+(** * Separate compilation and linking *)
+
+(** ** Linking types *)
+
+Global Program Instance Linker_types : Linker type := {
+  link := fun t1 t2 => if type_eq t1 t2 then Some t1 else None;
+  linkorder := fun t1 t2 => t1 = t2
+}.
+Next Obligation.
+  destruct (type_eq x y); inv H. auto.
+Defined.
+
+Global Opaque Linker_types.
+

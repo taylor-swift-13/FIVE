@@ -1,0 +1,278 @@
+/home/yangfp/.opam/five/.opam-switch/sources/coq-compcert.3.18/cfrontend/Csem.v
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Csem.v
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+Import ListNotations.
+
+(** These predicates constrain syntax only.  Values, argument lists, memories,
+    allocation, initialization, alignment and permissions remain arbitrary. *)
+Definition nv (ty: type) := negb (type_is_volatile ty).
+Fixpoint core_expr (a: expr): bool :=
+  match a with
+  | Eval _ ty | Evar _ ty | Eloc _ _ _ ty => nv ty
+  | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+  | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty && core_expr a
+  | Ebinop _ a b ty | Eassign a b ty => nv ty && core_expr a && core_expr b
+  | _ => false
+  end.
+Fixpoint core_stmt (s: statement): bool :=
+  match s with
+  | Sskip | Sreturn None => true
+  | Sdo a | Sreturn (Some a) => core_expr a
+  | Ssequence a b => core_stmt a && core_stmt b
+  | Sifthenelse a b c => core_expr a && core_stmt b && core_stmt c
+  | _ => false
+  end.
+Fixpoint core_cont (k: cont): bool :=
+  match k with
+  | Kstop => true
+  | Kseq s k => core_stmt s && core_cont k
+  | _ => false
+  end.
+Definition core_expr_cont (k: cont): bool :=
+  match k with Kdo k | Kreturn k => core_cont k
+ | Kifthenelse a b k => core_stmt a && core_stmt b && core_cont k
+ | _ => false end.
+
+Ltac core_unpack := repeat match goal with H: _ && _ = true |- _ =>
+  apply andb_true_iff in H; let A := fresh "CORE" in let B := fresh "CORE" in destruct H as [A B] end.
+Ltac core_build := repeat match goal with |- _ && _ = true => apply andb_true_iff; split end.
+
+Lemma core_expr_no_builtin:
+  forall a, core_expr a = true -> no_builtin a = true.
+Proof.
+  induction a; simpl; intros H; core_unpack; try discriminate; core_build; eauto.
+Qed.
+
+Lemma core_context_hole:
+  forall from to C, context from to C -> forall a,
+  core_expr (C a) = true -> core_expr a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+Qed.
+
+Lemma core_context_replace:
+  forall from to C, context from to C -> forall a b,
+  core_expr (C a) = true -> core_expr b = true -> core_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HA HB; core_unpack; try discriminate;
+    core_build; eauto.
+Qed.
+
+Lemma core_lred:
+  forall ge e a m a' m', core_expr a = true -> lred ge e a m a' m' -> core_expr a' = true.
+Proof.
+  intros ge e a m a' m' HA HR; inversion HR; subst; simpl in *; core_unpack; auto.
+Qed.
+
+Lemma deref_loc_silent:
+  forall ge ty m b ofs bf t v, nv ty = true -> deref_loc ge ty m b ofs bf t v -> t = E0.
+Proof.
+  intros ge ty m b ofs bf t v NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma assign_loc_silent:
+  forall ge ty m b ofs bf v t m' v', nv ty = true -> assign_loc ge ty m b ofs bf v t m' v' -> t = E0.
+Proof.
+  intros ge ty m b ofs bf v t m' v' NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma core_rred:
+  forall ge a m t a' m', core_expr a = true -> rred ge a m t a' m' ->
+  t = E0 /\ core_expr a' = true.
+Proof.
+  intros ge a m t a' m' HA HR; inversion HR; subst; simpl in HA; core_unpack; try discriminate;
+    split; simpl; eauto using deref_loc_silent, assign_loc_silent.
+Qed.
+Lemma core_no_callred:
+  forall ge a m fd args ty, core_expr a = true -> callred ge a m fd args ty -> False.
+Proof. intros ge a m fd args ty HA HR; inversion HR; subst; discriminate. Qed.
+
+Lemma core_cont_call:
+  forall k, core_cont k = true -> call_cont k = Kstop.
+Proof.
+  induction k; simpl; intros H; core_unpack; try discriminate; auto.
+Qed.
+Lemma core_cont_is_call:
+  forall k, core_cont k = true -> is_call_cont k -> k = Kstop.
+Proof. destruct k; simpl; intros; try discriminate; tauto. Qed.
+
+From Stdlib Require Import List Arith Lia Wellfounded.
+From compcert Require Import Values Memory Events Ctypes Csyntax Csem Smallstep.
+From FiveGhSetZeta Require Import Source.
+From FiveGhSetZetaProof Require Import SourceInvariant.
+From FiveShared.verification Require Import Obligations.
+Import ListNotations.
+
+Fixpoint expression_rank (a:expr) : nat :=
+ match a with
+ | Eval _ _ | Eloc _ _ _ _ => 0
+ | Evar _ _ => 1
+ | Evalof a _ | Efield a _ _ | Ederef a _ | Eaddrof a _
+ | Eunop _ a _ | Ecast a _ | Eparen a _ _ => S(expression_rank a)
+ | Ebinop _ a b _ | Eassign a b _ => S(expression_rank a + expression_rank b)
+ | _ => 0
+ end.
+Fixpoint statement_rank (s:statement) : nat :=
+ match s with
+ | Sskip | Sreturn None => 1
+ | Sdo a | Sreturn(Some a) => expression_rank a + 4
+ | Ssequence s1 s2 => statement_rank s1 + statement_rank s2 + 2
+ | Sifthenelse a s1 s2 => expression_rank a + statement_rank s1 + statement_rank s2 + 6
+ | _ => 0
+ end.
+Fixpoint continuation_rank (k:cont) : nat :=
+ match k with
+ | Kseq s k => statement_rank s + continuation_rank k + 1
+ | Kdo k | Kreturn k => continuation_rank k + 2
+ | Kifthenelse s1 s2 k => statement_rank s1 + statement_rank s2 + continuation_rank k + 3
+ | _ => 0
+ end.
+Definition state_rank (s:Csem.state) : nat :=
+ match s with
+ | State _ stmt k _ _ => statement_rank stmt + continuation_rank k + 1
+ | ExprState _ a k _ _ => expression_rank a + continuation_rank k + 1
+ | Callstate (Internal f) _ _ _ => statement_rank(fn_body f)+2
+ | _ => 0
+ end.
+
+Lemma rank_lred : forall ge e a m a' m',
+ core_expr a=true -> lred ge e a m a' m' -> expression_rank a' < expression_rank a.
+Proof. intros; inversion H0; subst; simpl in *; lia. Qed.
+Lemma rank_rred : forall ge a m t a' m',
+ core_expr a=true -> rred ge a m t a' m' -> expression_rank a' < expression_rank a.
+Proof. intros; inversion H0; subst; simpl in *; core_unpack; try discriminate; lia. Qed.
+Lemma rank_context : forall from to C, context from to C -> forall a b,
+ core_expr(C a)=true -> expression_rank b < expression_rank a ->
+ expression_rank(C b) < expression_rank(C a).
+Proof.
+ induction 1; simpl; intros; core_unpack; try discriminate; try lia;
+ match goal with IH:forall a b, _ |- _ => specialize(IH a b ltac:(assumption) ltac:(assumption));lia end.
+Qed.
+Lemma core_call_stop : forall k, core_cont k=true -> call_cont k=Kstop.
+Proof. induction k; simpl; intros; core_unpack; try discriminate; auto. Qed.
+
+Lemma estep_rank : forall ge s t s', source_state s -> estep ge s t s' ->
+ state_rank s' < state_rank s.
+Proof.
+ intros ge s t s' INV STEP; inversion STEP; subst; simpl in INV;
+ destruct INV as [HF [HA HK]]; simpl [state_rank].
+ - pose proof(rank_lred _ _ _ _ _ _ (core_context_hole _ _ _ H0 _ HA) H) as D.
+   pose proof(rank_context _ _ _ H0 _ _ HA D); lia.
+ - pose proof(rank_rred _ _ _ _ _ _ (core_context_hole _ _ _ H0 _ HA) H) as D.
+   pose proof(rank_context _ _ _ H0 _ _ HA D); lia.
+ - exfalso; eapply core_no_callred; [exact(core_context_hole _ _ _ H0 _ HA)|exact H].
+ - lia.
+Qed.
+Lemma sstep_rank : forall ge s t s', source_state s -> sstep ge s t s' ->
+ state_rank s' < state_rank s.
+Proof.
+ intros ge s t s' INV STEP; inversion STEP; subst; simpl in INV;
+ repeat match goal with H:_ /\ _ |- _ => destruct H end;
+ core_unpack; try discriminate; simpl [state_rank statement_rank continuation_rank]; try lia.
+ destruct b; simpl; lia.
+ subst k; simpl; lia.
+Qed.
+
+Theorem source_accessible : forall s, source_state s ->
+ Acc (successor zeta_ge) s.
+Proof.
+ apply (well_founded_induction (well_founded_ltof _ state_rank)
+   (fun s => source_state s -> Acc (successor zeta_ge) s)).
+ intros s IH SRC. constructor. intros next [t STEP].
+ apply IH.
+ - unfold ltof. destruct STEP as [ES|SS]; eauto using estep_rank,sstep_rank.
+ - exact(proj2(source_step_invariant _ _ _ _ SRC STEP)).
+Qed.
+
+#!/usr/bin/env python3
+"""Exact core goal checking with unique captures and one shared physical build.
+Default: check this attempt. --all-core: check all five replacement attempts once.
+"""
+from pathlib import Path
+import argparse,hashlib,json,re,shutil,subprocess,sys,tempfile
+ROOT=next(p for p in Path(__file__).resolve().parents if(p/'scripts/five_telemetry.py').is_file())
+MAPPINGS={
+ 'FivePaparazziState':'paparazzi/relations/parameter_order/support',
+ 'FiveGhSpeed':'paparazzi/models/gh_update_ref_from_speed_sp/align/model',
+ 'FiveGhAccel':'paparazzi/models/gh_update_ref_from_accel_sp/align/model',
+ 'FiveGuidanceEntry':'paparazzi/relations/guidance_mode/support/entry',
+ 'FiveGuidanceAllocation':'paparazzi/relations/guidance_mode/support/allocation',
+ 'FiveGuidanceSemantics':'paparazzi/relations/guidance_mode/support/semantics',
+ 'FiveGuidanceAllOrder':'paparazzi/relations/guidance_mode/support/allorder',
+ 'FiveGuidanceSoftwareProof':'paparazzi/relations/guidance_mode/support/software',
+ 'FiveGuidanceMode':'paparazzi/relations/guidance_mode/problem',
+ 'FiveGuidanceRelationSupport':'paparazzi/relations/guidance_mode/support/relation',
+ 'FiveShared':'shared'}
+def digest(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def dump(p,o):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+'\n')
+def targets():
+ rows=json.loads((ROOT/'paparazzi/relations/guidance_mode/support/allorder/canonical-attempts.json').read_text());out=[]
+ for row in rows:
+  old=ROOT/row['attempt'];new=old.parent/'002';data=json.loads((old/'evidence/goal-validation.json').read_text())
+  out.append({'namespace':row['namespace'],'attempt':new,'spec':old.parents[1]/'problem/Spec.v','goals':data['goal_bindings']})
+ return out
+def imports(p):
+ s=re.sub(r'\(\*.*?\*\)','',p.read_text(),flags=re.S);rows=[]
+ for prefix,names in re.findall(r'From\s+([A-Za-z0-9_.]+)\s+Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.',s):rows +=[prefix+'.'+x for x in names.split()]
+ s=re.sub(r'From\s+[A-Za-z0-9_.]+\s+Require\s+(?:Import\s+|Export\s+)?[A-Za-z0-9_.\s]+?\.','',s)
+ for names in re.findall(r'Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.(?=\s|$)',s):rows+=names.split()
+ return rows
+def graph(selected):
+ special={}
+ for t in selected:special[t['namespace']+'.Spec']=t['spec'];special[t['namespace']+'.Proof']=t['attempt']/'Proof.v'
+ def resolve(q):
+  if q in special:return special[q]
+  ns=q.split('.')[0]
+  return ROOT/MAPPINGS[ns]/(q[len(ns)+1:].replace('.','/')+'.v')if ns in MAPPINGS else None
+ order=[];seen=set();closure={}
+ def visit(q):
+  p=resolve(q)
+  if p is None:return set()
+  if q in closure:return closure[q]
+  if q in seen:raise RuntimeError('Dependency cycle: '+q)
+  seen.add(q)
+  if not p.is_file():raise FileNotFoundError(str(p))
+  result={q}
+  for dep in imports(p):result |= visit(dep)
+  closure[q]=result;order.append((q,p));return result
+ for t in selected:visit(t['namespace']+'.Proof')
+ return order,closure
+def run_checks(selected,build,run):
+ order,closure=graph(selected);names=list(dict.fromkeys([*MAPPINGS,*[t['namespace']for t in selected]]));flags=[]
+ for ns in names:d=build/ns;d.mkdir(parents=True,exist_ok=True);flags+=['-Q',str(d),ns]
+ source={};snapshot={};rows=[]
+ for q,p in order:
+  dst=build/(q.replace('.','/')+'.v');dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dst)
+  source[q]=p;snapshot[q]=dst;rows.append({'module':q,'source':str(p.relative_to(ROOT)),'sha256':digest(p),'snapshot':str(dst.relative_to(ROOT))if dst.is_relative_to(ROOT)else None})
+  if run:run.capture(dst,'core-source-'+q,area='inputs')
+ def command(argv,label):
+  if run:return run.command(argv,label,timeout=600,cwd=str(ROOT))
+  subprocess.run(argv,cwd=ROOT,check=True);return None
+ for i,(q,p)in enumerate(order):command(['/home/yangfp/.opam/five/bin/rocq','compile',*flags,str(snapshot[q])],'core-direct-'+q)
+ sys.path.insert(0,str(ROOT/'scripts'));from example_proof_gate import certificate_source
+ certs={};compiles={}
+ for t in selected:
+  ns=t['namespace'];cert=build/ns/'GoalBinding.v';cert.write_text(certificate_source([ns+'.Spec',ns+'.Proof'],t['goals']));certs[ns]=cert
+  if run:run.capture(cert,'core-certificate-'+ns,area='inputs')
+  compiles[ns]=command(['/home/yangfp/.opam/five/bin/rocq','compile',*flags,str(cert)],'core-typed-goalbinding-'+ns)
+ modules=[m for t in selected for m in[t['namespace']+'.Proof',t['namespace']+'.GoalBinding']]
+ kernel=command(['/home/yangfp/.opam/five/bin/rocq','check','-silent',*flags,*modules],'core-all-five-independent-kernel')
+ if not run:return
+ dump(build/'shared-source-index.json',{'schema':'five-shared-core-build/1','scope':'Every dependency has one immutable physical source path, captured under a unique qualified role and directly compiled once in this bound run.','sources':rows,'proof_modules':modules})
+ runpath=str(run.folder.relative_to(ROOT))
+ for t in selected:
+  ns=t['namespace'];attempt=t['attempt'];goals=t['goals'];cert=certs[ns];qs=closure[ns+'.Proof'];evidence=attempt/'evidence';evidence.mkdir(parents=True,exist_ok=True)
+  selected_rows=[r for r in rows if r['module']in qs];deps={str(snapshot[q].relative_to(ROOT)):digest(snapshot[q])for q in qs}
+  receipt={'kind':'rocq-kernel-check','run':runpath,'command_id':kernel['id'],'theorems':[g['theorem']for g in goals],'statement_artifacts':[str(snapshot[ns+'.Spec'].relative_to(ROOT)),str(snapshot[ns+'.Proof'].relative_to(ROOT))],'dependency_sha256':deps}
+  dump(evidence/'kernel-evidence.json',receipt)
+  cr={**receipt,'theorems':[ns+'.GoalBinding.goal_'+str(i)for i in range(len(goals))],'statement_artifacts':[str(cert.relative_to(ROOT))],'dependency_sha256':{**deps,str(cert.relative_to(ROOT)):digest(cert)}}
+  dump(evidence/'certificate-kernel-evidence.json',cr)
+  indexed={str(source[q].relative_to(ROOT)):digest(source[q])for q in qs}
+  for entry in ['gh_update_ref_from_speed_sp','gh_update_ref_from_accel_sp']:
+   case=ROOT/'paparazzi/models'/entry
+   for rel in ['prepare/source/'+entry+'.c','prepare/source/five_sqrtf.c','prepare/source/bindings.json','align/request.json','align/model/compcert-manifest.json','align/model/preprocessed.i']:
+    p=case/rel;indexed[str(p.relative_to(ROOT))]=digest(p)
+  checker=attempt/'check.py';indexed[str(checker.relative_to(ROOT))]=digest(checker);run.capture(checker,'core-checker-'+ns,area='inputs')
+  dump(attempt/'provenance.json',{'schema':'five-proof-attempt-provenance/1','files':[{'path':p,'sha256':h}for p,h in sorted(indexed.items())]})

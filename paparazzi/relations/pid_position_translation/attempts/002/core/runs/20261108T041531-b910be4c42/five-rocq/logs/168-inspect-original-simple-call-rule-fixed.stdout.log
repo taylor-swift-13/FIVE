@@ -1,0 +1,24 @@
+Inductive eval_simple_list: exprlist -> list type -> list val -> Prop :=
+  | esrl_nil:
+      eval_simple_list Enil nil nil
+  | esrl_cons: forall r rl ty tyl v vl v',
+      eval_simple_rvalue r v' -> sem_cast v' (typeof r) ty m = Some v ->
+      eval_simple_list rl tyl vl ->
+      eval_simple_list (Econs r rl) (ty :: tyl) (v :: vl).
+
+Scheme eval_simple_rvalue_ind2 := Minimality for eval_simple_rvalue Sort Prop
+  with eval_simple_lvalue_ind2 := Minimality for eval_simple_lvalue Sort Prop.
+Combined Scheme eval_simple_rvalue_lvalue_ind from eval_simple_rvalue_ind2, eval_simple_lvalue_ind2.
+
+End SIMPLE_EXPRS.
+
+(** Left reduction contexts. These contexts allow reducing to the right
+  of a binary operator only if the left subexpression is simple. *)
+
+Inductive leftcontext: kind -> kind -> (expr -> expr) -> Prop :=
+  | lctx_top: forall k,
+      leftcontext k k (fun x => x)
+  | lctx_deref: forall k C ty,
+      leftcontext k RV C -> leftcontext k LV (fun x => Ederef (C x) ty)
+  | lctx_field: for
+EffectfulSupport.v

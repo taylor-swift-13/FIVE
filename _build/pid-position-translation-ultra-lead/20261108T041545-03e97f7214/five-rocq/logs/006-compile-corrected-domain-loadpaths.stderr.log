@@ -1,0 +1,28 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/Proof.v", line 34, characters 47-50:
+Error:
+In environment
+gh : block
+a, b : mem
+axis : ident
+d : Z
+ra, pa, rb, pb : int
+RA : load_path Mint32 a gh gh_type (ref_pos axis) = Some (Vint ra)
+PA :
+  load_global Mint32 a Source._state state_type (measured_pos axis) =
+  Some (Vint pa)
+RB : load_path Mint32 b gh gh_type (ref_pos axis) = Some (Vint rb)
+PB :
+  load_global Mint32 b Source._state state_type (measured_pos axis) =
+  Some (Vint pb)
+R : signed32 (Int.signed ra)
+P : signed32 (Int.signed pa)
+D : signed32 d
+RD : signed32 (Int.signed ra + d)
+PD : signed32 (Int.signed pa + d)
+ERR : signed32 (Int.signed ra - Int.signed pa)
+RBE : Int.signed rb = Int.signed ra + d
+PBE : Int.signed pb = Int.signed pa + d
+The term "ERR" has type "signed32 (Int.signed ra - Int.signed pa)"
+while it is expected to have type
+ "-2147483648 <= Int.signed ra - Int.signed pa".
+

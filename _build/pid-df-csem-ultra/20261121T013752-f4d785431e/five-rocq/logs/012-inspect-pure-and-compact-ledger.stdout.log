@@ -1,0 +1,471 @@
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+From FiveGuidanceAllOrder Require Import PureSyntax.
+Import ListNotations.
+
+(** This denotation is used to establish uniqueness of normal executions.
+    Execution remains the complete error-preserving operational model. *)
+Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
+
+Section DENOTATION.
+Variable ge: genv.
+Variable e: env.
+Variable m: mem.
+
+Fixpoint pure_rval (a: expr): option val :=
+  match a with
+  | Eval v _ => Some v
+  | Evalof l ty =>
+      if type_eq ty (typeof l) then
+      match pure_lval l with
+      | Some (b,ofs,bf) =>
+          match Cexec.do_deref_loc ge quiet_world ty m b ofs bf with
+          | Some (_,_,v) => Some v | None => None end
+      | None => None end else None
+  | Eaddrof l _ =>
+      match pure_lval l with Some (b,ofs,Full) => Some (Vptr b ofs) | _ => None end
+  | Eunop op a _ =>
+      match pure_rval a with Some v => sem_unary_operation op v (typeof a) m | None => None end
+  | Ebinop op a b _ =>
+      match pure_rval a, pure_rval b with
+      | Some v, Some w => sem_binary_operation ge op v (typeof a) w (typeof b) m
+      | _,_ => None end
+  | Ecast a ty =>
+      match pure_rval a with Some v => sem_cast v (typeof a) ty m | None => None end
+  | Esizeof ty _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty)))
+  | Ealignof ty _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty)))
+  | _ => None
+  end
+with pure_lval (a: expr): option (block * ptrofs * bitfield) :=
+  match a with
+  | Eloc b ofs bf _ => Some (b,ofs,bf)
+  | Evar id ty =>
+      match PTree.get id e with
+      | Some (b,ty') => if type_eq ty ty' then Some (b,Ptrofs.zero,Full) else None
+      | None => match Genv.find_symbol ge id with Some b => Some (b,Ptrofs.zero,Full) | None => None end end
+  | Ederef a _ =>
+      match pure_rval a with Some (Vptr b ofs) => Some (b,ofs,Full) | _ => None end
+  | Efield a id _ =>
+      match pure_rval a with
+      | Some (Vptr b ofs) =>
+          match typeof a with
+          | Tstruct sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | Tunion sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match union_field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | _ => None end
+      | _ => None end
+  | _ => None
+  end.
+
+Definition pure_eq (k: kind) (a b: expr): Prop :=
+  match k with RV => pure_rval a = pure_rval b | LV => pure_lval a = pure_lval b end.
+
+Lemma context_type_eq:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> typeof (C a) = typeof (C b).
+Proof. induction 1; simpl; intros; auto. Qed.
+
+Lemma pure_context_congr:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> pure_eq from a b -> pure_eq to (C a) (C b).
+Proof.
+  induction 1; simpl; intros a b HT HE; auto;
+    try (rewrite (IHcontext a b HT HE); reflexivity);
+    try (rewrite (context_type_eq _ _ _ H a b HT), (IHcontext a b HT HE); reflexivity).
+Qed.
+
+End DENOTATION.
+
+Lemma simple_context_hole:
+  forall from to C, context from to C -> forall a,
+  simple (C a) = true -> simple a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+Qed.
+
+Lemma pure_lred:
+  forall ge e a m a' m', lred ge e a m a' m' ->
+  m' = m /\ typeof a' = typeof a /\ simple a' = true /\
+  pure_lval ge e m a = pure_lval ge e m a'.
+Proof.
+  intros ge e a m a' m' H; inversion H; subst; simpl; repeat split; auto;
+    try rewrite H0; try rewrite H1; try rewrite H2; try rewrite dec_eq_true; auto.
+Qed.
+
+Lemma pure_rred:
+  forall ge e a m t a' m', simple a = true -> rred ge a m t a' m' ->
+  m' = m /\ t = E0 /\ typeof a' = typeof a /\ simple a' = true /\
+  pure_rval ge e m a = pure_rval ge e m a'.
+Proof.
+  intros ge e a m t a' m' HA HR; inversion HR; subst; simpl in HA; core_unpack; try discriminate;
+    simpl; repeat split; auto; try rewrite H; auto.
+  - eapply deref_loc_silent; eauto.
+  - assert (HT: t = E0) by (eapply deref_loc_silent; eauto). subst t.
+    rewrite dec_eq_true.
+    rewrite (do_deref_loc_complete ge quiet_world ty m' b ofs bf quiet_world E0 v H (possible_trace_nil _)).
+    reflexivity.
+Qed.
+
+Definition flat_expr (a: expr): bool :=
+  match a with Eassign l r _ => simple l && simple r | _ => simple a end.
+
+Definition flat_eval (ge: genv) (e: env) (m: mem) (a: expr): option (val * mem) :=
+  match a with
+  | Eassign l r ty =>
+      if type_eq (typeof l) ty then
+      match pure_lval ge e m l, pure_rval ge e m r with
+      | Some (b,ofs,bf), Some v =>
+          match sem_cast v (typeof r) (typeof l) m with
+          | Some v => match Cexec.do_assign_loc ge quiet_world (typeof l) m b ofs bf v with
+              | Some (_,_,m',v') => Some (v',m') | None => None end
+          | None => None end
+      | _,_ => None end else None
+  | _ => match pure_rval ge e m a with Some v => Some (v,m) | None => None end
+  end.
+
+Lemma flat_of_simple:
+  forall a, simple a = true -> flat_expr a = true.
+Proof. destruct a; simpl; auto; discriminate. Qed.
+
+Lemma flat_eval_simple:
+  forall ge e m a, simple a = true ->
+  flat_eval ge e m a = match pure_rval ge e m a with Some v => Some (v,m) | None => None end.
+Proof. destruct a; simpl; auto; discriminate. Qed.
+
+Lemma flat_context_hole:
+  forall from to C, context from to C -> forall a,
+  flat_expr (C a) = true -> flat_expr a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto using flat_of_simple, simple_context_hole.
+Qed.
+
+Lemma flat_context_assign_root:
+  forall C, context RV RV C -> forall l r ty,
+  flat_expr (C (Eassign l r ty)) = true -> forall z, C z = z.
+Proof.
+  intros C HC l r ty HA; inversion HC; subst; simpl in HA; core_unpack; try discriminate; auto;
+    exfalso; match goal with
+    | H: Csem.context _ _ ?C, P: simple (?C (Eassign _ _ _)) = true |- _ =>
+      pose proof (simple_context_hole _ _ _ H _ P); discriminate
+    end.
+Qed.
+
+Lemma simple_context_replace:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> simple (C a) = true -> simple b = true -> simple (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HT HA HB; core_unpack; try discriminate; core_build; eauto.
+  rewrite <- (context_type_eq _ _ _ H a b HT); assumption.
+Qed.
+
+Lemma flat_context_replace:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> flat_expr (C a) = true -> simple b = true -> flat_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HT HA HB; core_unpack; try discriminate; core_build;
+    eauto using simple_context_replace, flat_of_simple.
+  rewrite <- (context_type_eq _ _ _ H a b HT); assumption.
+Qed.
+
+Lemma flat_context_congr:
+  forall ge e m from C, context from RV C -> forall a b,
+  typeof a = typeof b -> simple a = true -> simple b = true ->
+  pure_eq ge e m from a b -> flat_eval ge e m (C a) = flat_eval ge e m (C b).
+Proof.
+  intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+    try (repeat rewrite flat_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+  all: try (match goal with
+    | |- flat_eval ?ge ?e ?m ?A = flat_eval ?ge ?e ?m ?B =>
+      change (option_map (fun v => (v,m)) (pure_rval ge e m A) =
+              option_map (fun v => (v,m)) (pure_rval ge e m B))
+    end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+Qed.
+
+Lemma flat_assign_head:
+  forall ge e m l r ty t a' m', core_expr (Eassign l r ty) = true ->
+  rred ge (Eassign l r ty) m t a' m' ->
+  flat_eval ge e m (Eassign l r ty) = flat_eval ge e m' a'.
+Proof.
+  intros ge e m l r ty t a' m' CORE HR; inversion HR; subst; simpl in CORE; core_unpack.
+  simpl. rewrite dec_eq_true.
+  match goal with H: sem_cast _ _ _ _ = Some _ |- _ => rewrite H end.
+  assert (HT: t = E0) by
+    (match goal with A: assign_loc ge ?T ?M ?B ?O ?BF ?V t ?M' ?V' |- _ =>
+       exact (assign_loc_silent ge T M B O BF V t M' V' ltac:(assumption) A) end). subst t.
+  match goal with A: assign_loc ge _ _ _ _ _ _ E0 _ _ |- _ =>
+    rewrite (do_assign_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ _ A (possible_trace_nil _)) end.
+  reflexivity.
+Qed.
+
+Lemma flat_lred_context:
+  forall ge e m a a' m' from C,
+  context from RV C -> from = LV -> flat_expr (C a) = true ->
+  lred ge e a m a' m' ->
+  m' = m /\ flat_expr (C a') = true /\
+  flat_eval ge e m (C a) = flat_eval ge e m' (C a').
+Proof.
+  intros ge e m a a' m' from C HC KIND FLAT HR; subst from.
+  destruct (pure_lred _ _ _ _ _ _ HR) as [HM [HT [HS HE]]]; subst m'.
+  split; auto; split.
+  - eapply (flat_context_replace _ _ _ HC a a'); eauto; symmetry; exact HT.
+  - assert (SA: simple a = true) by (inversion HR; subst; simpl; auto).
+    exact (flat_context_congr ge e m LV C HC a a' (eq_sym HT) SA HS HE).
+Qed.
+
+Lemma flat_rred_context:
+  forall ge e m a a' t m' C,
+  context RV RV C -> flat_expr (C a) = true -> core_expr (C a) = true ->
+  rred ge a m t a' m' ->
+  flat_expr (C a') = true /\ flat_eval ge e m (C a) = flat_eval ge e m' (C a').
+Proof.
+  intros ge e m a a' t m' C HC FLAT CORE HR.
+  destruct (simple a) eqn:SA.
+  - destruct (pure_rred ge e a m t a' m' SA HR) as [HM [TT [HT [HS HE]]]]; subst m'.
+    split.
+    + exact (flat_context_replace _ _ _ HC a a' (eq_sym HT) FLAT HS).
+    + exact (flat_context_congr ge e m RV C HC a a' (eq_sym HT) SA HS HE).
+  - assert (FA: flat_expr a = true) by (exact (flat_context_hole _ _ _ HC a FLAT)).
+    destruct a; simpl in SA, FA; try congruence.
+    assert (ID: forall z, C z = z) by (exact (flat_context_assign_root C HC a1 a2 ty FLAT)).
+    repeat rewrite ID in FLAT, CORE |- *.
+    inversion HR; subst. split; [reflexivity|].
+    repeat rewrite ID. eapply flat_assign_head; eauto.
+Qed.
+
+Lemma simple_estep:
+  forall ge f a k e m t S', simple a = true -> Csem.estep ge (ExprState f a k e m) t S' ->
+  S' = Stuckstate \/
+  exists a', S' = ExprState f a' k e m /\ typeof a' = typeof a /\ simple a' = true /\
+    pure_rval ge e m a = pure_rval ge e m a'.
+Proof.
+  intros ge f a k e m t S' SIMPLE STEP; inversion STEP; subst.
+  - match goal with LR: lred ge e ?A m ?A' ?M', HC: Csem.context LV RV ?C |- _ =>
+      destruct (pure_lred ge e A m A' M' LR) as [HM [HT [HS HE]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with RR: rred ge ?A m t ?A' ?M', HC: Csem.context RV RV ?C |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      destruct (pure_rred ge e A m t A' M' SA RR) as [HM [TT [HT [HS HE]]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with CR: callred ge ?A _ _ _ _, HC: Csem.context RV RV _ |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      inversion CR; subst; discriminate end.
+  - left; reflexivity.
+Qed.
+
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "update_pid_df",
+  "stage": "align",
+  "status": "generated",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case",
+  "outputs": [
+    {
+      "role": "source",
+      "path": "prepare/source/update_pid_df.c",
+      "sha256": "51b255ae42a19ab9d5b30366132bf46f5ff70e31903e6d93aae018cb5578829f"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "1dcd8bb2842304f7d5cfdf46da4a73b0544c79562ee01a457991516ab47604b5"
+    },
+    {
+      "role": "verification-request",
+      "path": "prepare/verification-request.json",
+      "sha256": "132bbebfc5b2c7aba73876a96ed455874e8c6a28f7fe0ea309032791c5732736"
+    },
+    {
+      "role": "cbmc-harness",
+      "path": "cbmc/harness.c",
+      "sha256": "df13dc52dc941fd0ae608f0bbaa2bc06ce353eb986a720a62e5bf5bcd2fed8a0"
+    },
+    {
+      "role": "cbmc-properties",
+      "path": "cbmc/properties.json",
+      "sha256": "28186ce509e436bc2f1eb3bb859de1b92f3e36a2974fb48740667d94cc729f2d"
+    },
+    {
+      "role": "cbmc-output",
+      "path": "cbmc/report/evidence-cbmc.json.log",
+      "sha256": "9e03e5c75543c636f2da19e901c2dcde8fabea4c3089d365280926ad9e8ee493"
+    },
+    {
+      "role": "Source.v",
+      "path": "align/model/Source.v",
+      "sha256": "6358f092a83f1d67f2ea413a7448e525cd271d55bb030d64497ea0dffeef0650"
+    },
+    {
+      "role": "Extraction.v",
+      "path": "align/model/Extraction.v",
+      "sha256": "0d350aa3f538ed376352b32c3b28eb1536f455f151000cecd2ef73adf1fea8cf"
+    },
+    {
+      "role": "compcert-manifest.json",
+      "path": "align/model/compcert-manifest.json",
+      "sha256": "349b715937d591f159d7e9ae67c5213138ec5a251075ec8f91f1df558e9d6ef2"
+    },
+    {
+      "role": "preprocessed.i",
+      "path": "align/model/preprocessed.i",
+      "sha256": "e61c19060cdc931af49d11327824422ae457b71d9af0076ce871a2cbbf886588"
+    },
+    {
+      "role": "Execution.v",
+      "path": "align/model/Execution.v",
+      "sha256": "f1fded31a59d697a117f4c597a9bb5acf20f2c52886842ca0c325f7cea8768bb"
+    },
+    {
+      "role": "execution.mli",
+      "path": "align/model/execution.mli",
+      "sha256": "3799f9ae6564fd84433be2b82038d821064d75cc69b1bcc64edbe97e1e44aa4f"
+    },
+    {
+      "role": "execution.ml",
+      "path": "align/model/execution.ml",
+      "sha256": "64234f97755c1db4a2c9ce1024493a6125c1366e106c217065f4a4f11c1f404d"
+    },
+    {
+      "role": "Obligations.v",
+      "path": "align/model/proof/Obligations.v",
+      "sha256": "1e080dc268f5a170a85ad4281c1ae9dae4768409060df2f2cc8eec694c8e34ed"
+    },
+    {
+      "role": "Precondition.v",
+      "path": "align/model/proof/Precondition.v",
+      "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933"
+    },
+    {
+      "role": "Proofs.v",
+      "path": "align/model/proof/Proofs.v",
+      "sha256": "9d4fb4fae3900e886f2a2aba1c1a900a1543099fe4566bf378d59ba1a786c651"
+    },
+    {
+      "role": "request",
+      "path": "align/request.json",
+      "sha256": "b03821cfd059a77b7064bb74d7033d7446b78c8f34a5b4abb54e5d0be6410f1c"
+    },
+    {
+      "role": "spec-map",
+      "path": "align/spec-map.json",
+      "sha256": "e33a83f1088b0f8073948da6a891c9bd2d605f6a0db5d93d2421ff204ea459db"
+    }
+  ],
+  "limitations": [
+    "Generation does not prove safety/termination or numerical correctness; proof stage consumes unchanged full model."
+  ],
+  "next_stage": "rocq",
+  "source_audit_run": "runs/20261121T014018-c4fc22bd6f/five-align"
+}
+memcpy.pointer_arithmetic.1 | pointer arithmetic: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4 | 33
+memcpy.pointer.1 | same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4 | 33
+memcpy.pointer_arithmetic.2 | pointer relation: dead object in (const unsigned char *)(const void *)&x | 33
+memcpy.pointer_arithmetic.3 | pointer arithmetic: dead object in (const unsigned char *)(const void *)&x + (signed long int)(size_t)4 | 34
+memcpy.pointer.2 | same object violation in (const unsigned char *)(void *)&u >= (const unsigned char *)(const void *)&x + (signed long int)(size_t)4 | 34
+memcpy.pointer_arithmetic.4 | pointer relation: dead object in (const unsigned char *)(void *)&u | 34
+bits.precondition_instance.1 | memcpy src/dst overlap | 5
+bits.precondition_instance.2 | memcpy source region readable | 5
+bits.precondition_instance.3 | memcpy destination region writeable | 5
+main.assertion.1 | return equals stored u0 exact bits | 13
+main.assertion.2 | u1 shifts old u0 exact bits | 14
+main.assertion.3 | e0 stores input exact bits | 15
+main.assertion.4 | e1 shifts old e0 exact bits | 16
+main.assertion.5 | e2 shifts old e1 exact bits | 17
+main.assertion.6 | a coefficient preserved exact bits | 18
+main.assertion.7 | b coefficient preserved exact bits | 19
+main.assertion.8 | c coefficient preserved exact bits | 20
+update_pid_df.pointer_dereference.1 | dereference failure: pointer NULL in pid->e | 9
+update_pid_df.pointer_dereference.2 | dereference failure: pointer invalid in pid->e | 9
+update_pid_df.pointer_dereference.3 | dereference failure: deallocated dynamic object in pid->e | 9
+update_pid_df.pointer_dereference.4 | dereference failure: dead object in pid->e | 9
+update_pid_df.pointer_dereference.5 | dereference failure: pointer outside object bounds in pid->e | 9
+update_pid_df.pointer_dereference.6 | dereference failure: invalid integer address in pid->e | 9
+update_pid_df.array_bounds.1 | array.e dynamic object upper bound in pid->e[(signed long int)2] | 9
+update_pid_df.array_bounds.2 | array.e dynamic object upper bound in pid->e[(signed long int)1] | 9
+update_pid_df.pointer_dereference.7 | dereference failure: pointer NULL in pid->e | 10
+update_pid_df.pointer_dereference.8 | dereference failure: pointer invalid in pid->e | 10
+update_pid_df.pointer_dereference.9 | dereference failure: deallocated dynamic object in pid->e | 10
+update_pid_df.pointer_dereference.10 | dereference failure: dead object in pid->e | 10
+update_pid_df.pointer_dereference.11 | dereference failure: pointer outside object bounds in pid->e | 10
+update_pid_df.pointer_dereference.12 | dereference failure: invalid integer address in pid->e | 10
+update_pid_df.array_bounds.3 | array.e dynamic object upper bound in pid->e[(signed long int)1] | 10
+update_pid_df.array_bounds.4 | array.e dynamic object upper bound in pid->e[(signed long int)0] | 10
+update_pid_df.pointer_dereference.13 | dereference failure: pointer NULL in pid->e | 11
+update_pid_df.pointer_dereference.14 | dereference failure: pointer invalid in pid->e | 11
+update_pid_df.pointer_dereference.15 | dereference failure: deallocated dynamic object in pid->e | 11
+update_pid_df.pointer_dereference.16 | dereference failure: dead object in pid->e | 11
+update_pid_df.pointer_dereference.17 | dereference failure: pointer outside object bounds in pid->e | 11
+update_pid_df.pointer_dereference.18 | dereference failure: invalid integer address in pid->e | 11
+update_pid_df.array_bounds.5 | array.e dynamic object upper bound in pid->e[(signed long int)0] | 11
+update_pid_df.pointer_dereference.19 | dereference failure: pointer NULL in pid->u | 12
+update_pid_df.pointer_dereference.20 | dereference failure: pointer invalid in pid->u | 12
+update_pid_df.pointer_dereference.21 | dereference failure: deallocated dynamic object in pid->u | 12
+update_pid_df.pointer_dereference.22 | dereference failure: dead object in pid->u | 12
+update_pid_df.pointer_dereference.23 | dereference failure: pointer outside object bounds in pid->u | 12
+update_pid_df.pointer_dereference.24 | dereference failure: invalid integer address in pid->u | 12
+update_pid_df.array_bounds.6 | array.u dynamic object upper bound in pid->u[(signed long int)1] | 12
+update_pid_df.array_bounds.7 | array.u dynamic object upper bound in pid->u[(signed long int)0] | 12
+update_pid_df.pointer_dereference.25 | dereference failure: pointer NULL in pid->u | 13
+update_pid_df.pointer_dereference.26 | dereference failure: pointer invalid in pid->u | 13
+update_pid_df.pointer_dereference.27 | dereference failure: deallocated dynamic object in pid->u | 13
+update_pid_df.pointer_dereference.28 | dereference failure: dead object in pid->u | 13
+update_pid_df.pointer_dereference.29 | dereference failure: pointer outside object bounds in pid->u | 13
+update_pid_df.pointer_dereference.30 | dereference failure: invalid integer address in pid->u | 13
+update_pid_df.array_bounds.8 | array.u dynamic object upper bound in pid->u[(signed long int)0] | 13
+update_pid_df.array_bounds.9 | array.u dynamic object upper bound in pid->u[(signed long int)1] | 13
+update_pid_df.pointer_dereference.31 | dereference failure: pointer NULL in pid->g | 13
+update_pid_df.pointer_dereference.32 | dereference failure: pointer invalid in pid->g | 13
+update_pid_df.pointer_dereference.33 | dereference failure: deallocated dynamic object in pid->g | 13
+update_pid_df.pointer_dereference.34 | dereference failure: dead object in pid->g | 13
+update_pid_df.pointer_dereference.35 | dereference failure: pointer outside object bounds in pid->g | 13
+update_pid_df.pointer_dereference.36 | dereference failure: invalid integer address in pid->g | 13
+update_pid_df.array_bounds.10 | array.g dynamic object upper bound in pid->g[(signed long int)0] | 13
+update_pid_df.pointer_dereference.37 | dereference failure: pointer NULL in pid->e | 13
+update_pid_df.pointer_dereference.38 | dereference failure: pointer invalid in pid->e | 13
+update_pid_df.pointer_dereference.39 | dereference failure: deallocated dynamic object in pid->e | 13
+update_pid_df.pointer_dereference.40 | dereference failure: dead object in pid->e | 13
+update_pid_df.pointer_dereference.41 | dereference failure: pointer outside object bounds in pid->e | 13
+update_pid_df.pointer_dereference.42 | dereference failure: invalid integer address in pid->e | 13
+update_pid_df.array_bounds.11 | array.e dynamic object upper bound in pid->e[(signed long int)0] | 13
+update_pid_df.array_bounds.12 | array.g dynamic object upper bound in pid->g[(signed long int)1] | 13
+update_pid_df.array_bounds.13 | array.e dynamic object upper bound in pid->e[(signed long int)1] | 13
+update_pid_df.array_bounds.14 | array.g dynamic object upper bound in pid->g[(signed long int)2] | 13
+update_pid_df.array_bounds.15 | array.e dynamic object upper bound in pid->e[(signed long int)2] | 13
+update_pid_df.pointer_dereference.43 | dereference failure: pointer NULL in pid->u | 14
+update_pid_df.pointer_dereference.44 | dereference failure: pointer invalid in pid->u | 14
+update_pid_df.pointer_dereference.45 | dereference failure: deallocated dynamic object in pid->u | 14
+update_pid_df.pointer_dereference.46 | dereference failure: dead object in pid->u | 14
+update_pid_df.pointer_dereference.47 | dereference failure: pointer outside object bounds in pid->u | 14
+update_pid_df.pointer_dereference.48 | dereference failure: invalid integer address in pid->u | 14
+update_pid_df.array_bounds.16 | array.u dynamic object upper bound in pid->u[(signed long int)0] | 14

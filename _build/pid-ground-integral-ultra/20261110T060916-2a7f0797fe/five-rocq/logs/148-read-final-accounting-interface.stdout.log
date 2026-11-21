@@ -1,0 +1,95 @@
+    def finish(self, verdict, summary, required_roles, missing=None):
+        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+            raise ValueError('Invalid verification verdict')
+        metadata = self.read('run.json')
+        boundary=metadata.get('codex_usage_boundary')
+        if boundary and not boundary.get('after'):
+            try:
+                from codex_usage import snapshot, receipt
+                import tempfile
+                boundary['after']=snapshot(boundary['session_file'])
+                metadata['codex_usage_boundary']=boundary
+                dump(self.folder/'run.json',metadata)
+                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+                    usage_file=Path(temporary)/'usage.json'
+                    dump(usage_file,usage)
+                    self.import_tokens(usage_file)
+                metadata=self.read('run.json')
+            except Exception as usage_error:
+                metadata=self.read('run.json')
+                metadata['tokens']={'status':'unavailable','source':{'kind':'codex-session-event','reference':boundary['session_file']},'events':[],'reason':str(usage_error)}
+                metadata['usage_capture_error']=str(usage_error)
+                dump(self.folder/'run.json',metadata)
+        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+        dump(self.folder/'run.json',metadata)
+        roles = {}
+        for role, path in required_roles.items():
+            try:
+                roles[role] = {'status':'present',**self.capture(path,role)}
+            except FileNotFoundError:
+                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+        # Child runs are linked (normally nested under stages/), never copied twice.
+        metrics = self.refresh_metrics()
+        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+             'note':'A passed verifier result does not imply all requested measurements are available.'})
+        from cost_audit import audit_run
+        cost_audit = audit_run(self.folder)
+        metadata = self.read('run.json')
+        metadata['cost_audit'] = cost_audit
+        if cost_audit['status'] != 'complete':
+            metadata['completeness']['measurements'] = 'partial'
+            metrics['measurement_status'] = 'partial'
+            dump(self.folder/'metrics.json',metrics)
+        dump(self.folder/'run.json',metadata)
+        self.render()
+        print(f'ARTIFACTS: {self.folder}',flush=True)
+
+METRICS {
+  "schema": "five-run/1.0",
+  "run_id": "20261110T060916-2a7f0797fe",
+  "skill": "five-rocq",
+  "time": {
+    "wall_seconds": 3646.9421627521515,
+    "cpu_tool_seconds": 1815.47,
+    "cpu_recorded_tool_seconds": 1815.47,
+    "own_tool_wall_seconds": 2934.049738623493,
+    "scope": "From start to finish of this invocation; not retroactive authoring time",
+    "aggregation": "wrapper wall is direct elapsed time, not sum of children"
+  },
+  "memory": {
+    "peak_process_tree_rss_sampled_bytes": 1496084480,
+    "max_individual_process_rss_bytes": 1492320256,
+    "max_child_tree_rss_sampled_bytes": 1496084480,
+    "method": "10ms requested /proc process-tree RSS sampling; GNU time max RSS per command",
+    "scope": "Launched tool processes plus time launcher; excludes model-serving/desktop agent memory",
+    "limitations": "RSS sum may count shared pages more than once; sampling may miss brief peaks. GNU max RSS is an individual-process maximum, not summed concurrent memory.",
+    "aggregation": "max over sequential tools/children; overlapping child runs have no combined peak estimate",
+    "parallel_children": false,
+    "tree_sampling_complete": true,
+    "commands_without_sampled_tree_peak": []
+  },
+  "tokens": {
+    "status": "unavailable",
+    "input_tokens": null,
+    "output_tokens": null,
+    "total_tokens": null,
+    "cached_input_tokens": null,
+    "reasoning_output_tokens": null,
+    "events": [],
+    "sources": [],
+    "unmeasured_invocations": [
+      "20261110T060916-2a7f0797fe"
+    ],
+    "conflicting_event_ids": [],
+    "counting_rule": "total=input+output; cache/reasoning are subsets; event_id union across wrapper and children",
+    "scope": "Model invocations only. Tool log bytes and source-code size are not token usage."
+  },
+  "command_count": 147,
+  "measurement_status": "partial"
+}
+

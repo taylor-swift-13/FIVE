@@ -1,0 +1,72 @@
+get_nibble_literal_expression
+     : forall (e : Maps.PTree.tree (prod Values.block Ctypes.type))
+         (m : Memory.Mem.mem) (bp bc : Values.block) 
+         (p : Z)
+         (_ : and (Z.le Z0 p)
+                (Z.lt p
+                   (Zpos
+                      (xI
+                         (xI (xO (xO (xI (xI (xO (xO (xI (xO (xI xH))))))))))))))
+         (_ : @eq (option (prod Values.block Ctypes.type))
+                (@Maps.PTree.get (prod Values.block Ctypes.type) Source._pos
+                   e)
+                (@Some (prod Values.block Ctypes.type)
+                   (@pair Values.block Ctypes.type bp
+                      (Ctypes.Tint Ctypes.I16 Ctypes.Unsigned Ctypes.noattr))))
+         (_ : @eq (option (prod Values.block Ctypes.type))
+                (@Maps.PTree.get (prod Values.block Ctypes.type)
+                   Source._pprz_trig_int_compr e)
+                (@None (prod Values.block Ctypes.type)))
+         (_ : @eq (option Values.block)
+                (@Globalenvs.Genv.find_symbol Csyntax.fundef Ctypes.type
+                   (genv_genv (globalenv Source.prog))
+                   Source._pprz_trig_int_compr)
+                (@Some Values.block bc))
+         (_ : @eq (option Values.val)
+                (Memory.Mem.load AST.Mint16unsigned m bp Z0)
+                (@Some Values.val (Values.Vint (Integers.Int.repr p))))
+         (_ : @eq (option Values.val)
+                (Memory.Mem.load AST.Mint8unsigned m bc
+                   (Z.div p (Zpos (xO xH))))
+                (@Some Values.val
+                   (Values.Vint (Integers.Int.repr (source_byte p))))),
+       @eq (option Values.val)
+         (PureEval.pure_rval (globalenv Source.prog) e m nibble_expr)
+         (@Some Values.val
+            (Values.Vint (Integers.Int.repr (source_nibble p))))
+get_nibble_call_total
+     : forall (Q : forall (_ : Values.val) (_ : Memory.Mem.mem), Prop)
+         (args : list Values.val) (k : cont) (m : Memory.Mem.mem) 
+         (e : env) (m0 m1 : Memory.Mem.mem) (result returned : Values.val)
+         (mf : Memory.Mem.mem)
+         (_ : @eq (prod env Memory.Mem.mem)
+                (Cexec.do_alloc_variables (globalenv Source.prog) empty_env m
+                   (@app (prod AST.ident Ctypes.type)
+                      (Csyntax.fn_params Source.f_get_nibble)
+                      (Csyntax.fn_vars Source.f_get_nibble)))
+                (@pair env Memory.Mem.mem e m0))
+         (_ : @eq (option Memory.Mem.mem)
+                (Cexec.sem_bind_parameters (globalenv Source.prog)
+                   Control.quiet e m0 (Csyntax.fn_params Source.f_get_nibble)
+                   args)
+                (@Some Memory.Mem.mem m1))
+         (_ : @eq (option Values.val)
+                (PureEval.pure_rval (globalenv Source.prog) e m1 nibble_expr)
+                (@Some Values.val result))
+         (_ : @eq (option Values.val)
+                (Cop.sem_cast result (Csyntax.typeof nibble_expr)
+                   (Csyntax.fn_return Source.f_get_nibble) m1)
+                (@Some Values.val returned))
+         (_ : @eq (option Memory.Mem.mem)
+                (Memory.Mem.free_list m1
+                   (blocks_of_env (globalenv Source.prog) e))
+                (@Some Memory.Mem.mem mf))
+         (_ : Total.total (globalenv Source.prog) Q
+                (Returnstate returned (call_cont k) mf)),
+       Total.total (globalenv Source.prog) Q
+         (Callstate (@Ctypes.Internal Csyntax.function Source.f_get_nibble)
+            args k m)
+Source.prog
+     : Csyntax.program
+nibble_expr
+     : Csyntax.expr

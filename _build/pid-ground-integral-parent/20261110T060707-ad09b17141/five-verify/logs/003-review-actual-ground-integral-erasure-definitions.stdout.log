@@ -1,0 +1,28 @@
+FILE paparazzi/relations/pid_position_translation/attempts/002/core/ControllerPrefix.v LINE 11
+Definition controller_command(f:bool)(kp kd ki kv ka pe se rs ra i traj total:int):int:=
+ clip_bits(next_command f(after_feedforward kp kd kv ka pe se rs ra traj)(next_integral f i ki(pd_bits kp kd pe se)traj))total.
+Definition controller_updates(f:bool)(bx bpy bp bi:block)(kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total:int):list scalar_update:=
+ first_four_updates bx bpy bp kp kd kv ka pex pey sex sey rsx rsy rax ray++
+ clamp_updates bp(feedforward_bits(pd_bits kp kd pex sex)kv rsx ka rax)(feedforward_bits(pd_bits kp kd pey sey)kv rsy ka ray)traj++
+ flight_updates f bi bp(pd_bits kp kd pex sex)(pd_bits kp kd pey sey)ki ix iy
+ (after_feedforward kp kd kv ka pex sex rsx rax traj)(after_feedforward kp kd kv ka pey sey rsy ray traj)traj++
+ clamp_updates bp
+ (next_command f(after_feedforward kp kd kv ka pex sex rsx rax traj)(next_integral f ix ki(pd_bits kp kd pex sex)traj))
+ (next_command f(after_feedforward kp kd kv ka pey sey rsy ray traj)(next_integral f iy ki(pd_bits kp kd pey sey)traj))total.
+Ltac miss_update :=
+ cbn[misses_chunk size_chunk];
+ lazymatch goal with |- (?b <> ?bu) \/ (?a <= ?c) \/ (?d <= ?f) =>
+FILE paparazzi/relations/pid_position_translation/attempts/002/core/FlightSemantics.v LINE 10
+Definition next_integral(flight:bool)(i ki pd maximum:int):int:=
+ if flight then clip_bits(Int.add i(Int.mul ki pd))(Int.shl maximum(Int.repr 16))else Int.zero.
+Definition next_command(flight:bool)(c ni:int):int:=if flight then Int.add c(Int.shr ni(Int.repr 16))else c.
+Definition flight_updates(f:bool)(bi bp:block)(pdx pdy ki ix iy cx cy maximum:int):list scalar_update:=
+ if f then [(Mint32,bi,0,Vint(Int.add ix(Int.mul ki pdx)));
+ (Mint32,bi,4,Vint(Int.add iy(Int.mul ki pdy)));
+ (Mint32,bi,0,Vint(next_integral true ix ki pdx maximum));
+ (Mint32,bi,4,Vint(next_integral true iy ki pdy maximum));
+ (Mint32,bp,32,Vint(next_command true cx(next_integral true ix ki pdx maximum)));
+ (Mint32,bp,36,Vint(next_command true cy(next_integral true iy ki pdy maximum)))]
+ else [(Mint32,bi,0,Vint Int.zero);(Mint32,bi,4,Vint Int.zero)].
+Ltac raw_scalar_load := lazymatch goal with|-Mem.loadv ?c ?mm(Vptr ?bb ?oo)=Some ?vv=>
+ let ox:=eval vm_compute in(Ptrofs.unsigned oo)in change(Mem.load c mm bb ox=Some vv);scalar_frame;first[eassumption|reflexivity]end.

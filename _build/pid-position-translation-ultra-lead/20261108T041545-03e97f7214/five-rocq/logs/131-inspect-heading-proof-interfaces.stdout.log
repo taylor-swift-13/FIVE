@@ -1,0 +1,425 @@
+Float32.mul =
+Binary.Bmult 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+     : float32 -> float32 -> float32
+Float32.compare =
+fun f1 f2 : float32 => Binary.Bcompare 24 128 f1 f2
+     : float32 -> float32 -> option comparison
+
+Arguments Float32.compare f1 f2
+Raux.Rcompare_spec:
+  forall x y : R, Raux.Rcompare_prop x y (Raux.Rcompare x y)
+Raux.Rmin_compare:
+  forall x y : R,
+  Rmin x y = match Raux.Rcompare x y with
+             | Gt => y
+             | _ => x
+             end
+Raux.Rcompare_sym:
+  forall x y : R, Raux.Rcompare x y = CompOpp (Raux.Rcompare y x)
+Raux.Rcompare_Eq_inv: forall x y : R, Raux.Rcompare x y = Eq -> x = y
+Raux.Rcompare_Eq: forall x y : R, x = y -> Raux.Rcompare x y = Eq
+Raux.Rcompare_opp:
+  forall x y : R, Raux.Rcompare (- x) (- y) = Raux.Rcompare y x
+Raux.Rcompare_Gt: forall x y : R, (y < x)%R -> Raux.Rcompare x y = Gt
+Raux.Rcompare_Lt_inv: forall x y : R, Raux.Rcompare x y = Lt -> (x < y)%R
+Raux.Rcompare_Lt: forall x y : R, (x < y)%R -> Raux.Rcompare x y = Lt
+Raux.Rcompare_Gt_inv: forall x y : R, Raux.Rcompare x y = Gt -> (y < x)%R
+Raux.Rcompare_IZR: forall x y : Z, Raux.Rcompare (IZR x) (IZR y) = (x ?= y)
+Raux.Rcompare_plus_r:
+  forall z x y : R, Raux.Rcompare (x + z) (y + z) = Raux.Rcompare x y
+Raux.Rcompare_plus_l:
+  forall z x y : R, Raux.Rcompare (z + x) (z + y) = Raux.Rcompare x y
+Raux.Rcompare_not_Gt_inv:
+  forall x y : R, Raux.Rcompare x y <> Gt -> (x <= y)%R
+Raux.Rcompare_not_Gt: forall x y : R, (x <= y)%R -> Raux.Rcompare x y <> Gt
+Raux.Rcompare_not_Lt_inv:
+  forall x y : R, Raux.Rcompare x y <> Lt -> (y <= x)%R
+Raux.Rcompare_not_Lt: forall x y : R, (y <= x)%R -> Raux.Rcompare x y <> Lt
+Raux.Rcompare_sqr:
+  forall x y : R,
+  Raux.Rcompare (x * x) (y * y) = Raux.Rcompare (Rabs x) (Rabs y)
+Bracket.inbetween_distance_inexact:
+  forall (d u x : R) (l : comparison),
+  Bracket.inbetween d u x (SpecFloat.loc_Inexact l) ->
+  Raux.Rcompare (x - d) (u - x) = l
+Raux.Rcompare_mult_r:
+  forall z x y : R,
+  (0 < z)%R -> Raux.Rcompare (x * z) (y * z) = Raux.Rcompare x y
+Raux.Rcompare_mult_l:
+  forall z x y : R,
+  (0 < z)%R -> Raux.Rcompare (z * x) (z * y) = Raux.Rcompare x y
+Float_prop.Rcompare_F2R:
+  forall (beta : Zaux.radix) (e m1 m2 : Z),
+  Raux.Rcompare (Defs.F2R {| Defs.Fnum := m1; Defs.Fexp := e |})
+    (Defs.F2R {| Defs.Fnum := m2; Defs.Fexp := e |}) =
+  (m1 ?= m2)
+Raux.Rcompare_half_l:
+  forall x y : R, Raux.Rcompare (x / 2) y = Raux.Rcompare x (2 * y)
+Raux.Rcompare_half_r:
+  forall x y : R, Raux.Rcompare x (y / 2) = Raux.Rcompare (2 * x) y
+Bracket.inbetween_distance_inexact_abs:
+  forall d u : R,
+  (d < u)%R ->
+  forall (x : R) (l : comparison),
+  Bracket.inbetween d u x (SpecFloat.loc_Inexact l) ->
+  Raux.Rcompare (Rabs (d - x)) (Rabs (u - x)) = l
+Raux.Rcompare_middle:
+  forall x d u : R,
+  Raux.Rcompare (x - d) (u - x) = Raux.Rcompare x ((d + u) / 2)
+Bracket.inbetween_Inexact:
+  forall (d u x : R) (l : comparison),
+  (d < x < u)%R ->
+  Raux.Rcompare x ((d + u) / 2) = l ->
+  Bracket.inbetween d u x (SpecFloat.loc_Inexact l)
+Raux.Rcompare_ceil_floor_middle:
+  forall x : R,
+  IZR (Raux.Zfloor x) <> x ->
+  Raux.Rcompare (IZR (Raux.Zceil x) - x) (/ 2) =
+  Raux.Rcompare (IZR (Raux.Zceil x) - x) (x - IZR (Raux.Zfloor x))
+Raux.Rcompare_floor_ceil_middle:
+  forall x : R,
+  IZR (Raux.Zfloor x) <> x ->
+  Raux.Rcompare (x - IZR (Raux.Zfloor x)) (/ 2) =
+  Raux.Rcompare (x - IZR (Raux.Zfloor x)) (IZR (Raux.Zceil x) - x)
+Binary.Bcompare_correct:
+  forall (prec emax : Z) (f1 f2 : Binary.binary_float prec emax),
+  Binary.is_finite prec emax f1 = true ->
+  Binary.is_finite prec emax f2 = true ->
+  Binary.Bcompare prec emax f1 f2 =
+  Some (Raux.Rcompare (Binary.B2R prec emax f1) (Binary.B2R prec emax f2))
+BinarySingleNaN.Bcompare_correct:
+  forall (prec emax : Z) (f1 f2 : BinarySingleNaN.binary_float prec emax),
+  BinarySingleNaN.is_finite f1 = true ->
+  BinarySingleNaN.is_finite f2 = true ->
+  BinarySingleNaN.Bcompare f1 f2 =
+  Some (Raux.Rcompare (BinarySingleNaN.B2R f1) (BinarySingleNaN.B2R f2))
+Bracket.inbetween_sind:
+  forall (d u x : R) (P : SpecFloat.location -> SProp),
+  (x = d -> P SpecFloat.loc_Exact) ->
+  (forall l : comparison,
+   (d < x < u)%R ->
+   Raux.Rcompare x ((d + u) / 2) = l -> P (SpecFloat.loc_Inexact l)) ->
+  forall l : SpecFloat.location, Bracket.inbetween d u x l -> P l
+Bracket.inbetween_ind:
+  forall (d u x : R) (P : SpecFloat.location -> Prop),
+  (x = d -> P SpecFloat.loc_Exact) ->
+  (forall l : comparison,
+   (d < x < u)%R ->
+   Raux.Rcompare x ((d + u) / 2) = l -> P (SpecFloat.loc_Inexact l)) ->
+  forall l : SpecFloat.location, Bracket.inbetween d u x l -> P l
+Bracket.inbetween_step_not_Eq:
+  forall (start step : R) (nb_steps : Z),
+  (0 < step)%R ->
+  forall (x : R) (k : Z) (l : SpecFloat.location) (l' : comparison),
+  Bracket.inbetween (start + IZR k * step) (start + IZR (k + 1) * step) x l ->
+  0 < k < nb_steps ->
+  Raux.Rcompare x (start + IZR nb_steps / 2 * step) = l' ->
+  Bracket.inbetween start (start + IZR nb_steps * step) x
+    (SpecFloat.loc_Inexact l')
+BinarySingleNaN.binary_normalize_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (m : BinarySingleNaN.mode) (mx ex : Z) (szero : bool),
+  let x := Defs.F2R {| Defs.Fnum := mx; Defs.Fexp := ex |} in
+  let z :=
+    BinarySingleNaN.binary_normalize prec emax prec_gt_0_ prec_lt_emax_ m mx
+      ex szero
+    in
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m) x))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   BinarySingleNaN.B2R z =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m) x /\
+   BinarySingleNaN.is_finite z = true /\
+   BinarySingleNaN.Bsign z =
+   match Raux.Rcompare x 0 with
+   | Eq => szero
+   | Lt => true
+   | Gt => false
+   end
+  else
+   BinarySingleNaN.B2SF z =
+   BinarySingleNaN.binary_overflow prec emax m (Raux.Rlt_bool x 0)
+Binary.binary_normalize_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (m : BinarySingleNaN.mode) (mx ex : Z) (szero : bool),
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m)
+           (Defs.F2R {| Defs.Fnum := mx; Defs.Fexp := ex |})))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   Binary.B2R prec emax
+     (Binary.binary_normalize prec emax prec_gt_0_ prec_lt_emax_ m mx ex
+        szero) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m)
+     (Defs.F2R {| Defs.Fnum := mx; Defs.Fexp := ex |}) /\
+   Binary.is_finite prec emax
+     (Binary.binary_normalize prec emax prec_gt_0_ prec_lt_emax_ m mx ex
+        szero) =
+   true /\
+   Binary.Bsign prec emax
+     (Binary.binary_normalize prec emax prec_gt_0_ prec_lt_emax_ m mx ex
+        szero) =
+   match
+     Raux.Rcompare (Defs.F2R {| Defs.Fnum := mx; Defs.Fexp := ex |}) 0
+   with
+   | Eq => szero
+   | Lt => true
+   | Gt => false
+   end
+  else
+   Binary.B2FF prec emax
+     (Binary.binary_normalize prec emax prec_gt_0_ prec_lt_emax_ m mx ex
+        szero) =
+   Binary.binary_overflow prec emax m
+     (Raux.Rlt_bool (Defs.F2R {| Defs.Fnum := mx; Defs.Fexp := ex |}) 0)
+BinarySingleNaN.Bfma_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (m : BinarySingleNaN.mode)
+    (x y z : BinarySingleNaN.binary_float prec emax),
+  BinarySingleNaN.is_finite x = true ->
+  BinarySingleNaN.is_finite y = true ->
+  BinarySingleNaN.is_finite z = true ->
+  let res :=
+    (BinarySingleNaN.B2R x * BinarySingleNaN.B2R y + BinarySingleNaN.B2R z)%R
+    in
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m) res))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   BinarySingleNaN.B2R (BinarySingleNaN.Bfma m x y z) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m) res /\
+   BinarySingleNaN.is_finite (BinarySingleNaN.Bfma m x y z) = true /\
+   BinarySingleNaN.Bsign (BinarySingleNaN.Bfma m x y z) =
+   match Raux.Rcompare res 0 with
+   | Eq => BinarySingleNaN.Bfma_szero prec emax m x y z
+   | Lt => true
+   | Gt => false
+   end
+  else
+   BinarySingleNaN.B2SF (BinarySingleNaN.Bfma m x y z) =
+   BinarySingleNaN.binary_overflow prec emax m (Raux.Rlt_bool res 0)
+Binary.Bfma_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (fma_nan : Binary.binary_float prec emax ->
+               Binary.binary_float prec emax ->
+               Binary.binary_float prec emax ->
+               {x : Binary.binary_float prec emax
+               | Binary.is_nan prec emax x = true})
+    (m : BinarySingleNaN.mode) (x y z : Binary.binary_float prec emax),
+  Binary.is_finite prec emax x = true ->
+  Binary.is_finite prec emax y = true ->
+  Binary.is_finite prec emax z = true ->
+  let res :=
+    (Binary.B2R prec emax x * Binary.B2R prec emax y + Binary.B2R prec emax z)%R
+    in
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m) res))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   Binary.B2R prec emax
+     (Binary.Bfma prec emax prec_gt_0_ prec_lt_emax_ fma_nan m x y z) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m) res /\
+   Binary.is_finite prec emax
+     (Binary.Bfma prec emax prec_gt_0_ prec_lt_emax_ fma_nan m x y z) =
+   true /\
+   Binary.Bsign prec emax
+     (Binary.Bfma prec emax prec_gt_0_ prec_lt_emax_ fma_nan m x y z) =
+   match Raux.Rcompare res 0 with
+   | Eq => Binary.Bfma_szero prec emax m x y z
+   | Lt => true
+   | Gt => false
+   end
+  else
+   Binary.B2FF prec emax
+     (Binary.Bfma prec emax prec_gt_0_ prec_lt_emax_ fma_nan m x y z) =
+   Binary.binary_overflow prec emax m (Raux.Rlt_bool res 0)
+BinarySingleNaN.Bplus_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (m : BinarySingleNaN.mode) (x y : BinarySingleNaN.binary_float prec emax),
+  BinarySingleNaN.is_finite x = true ->
+  BinarySingleNaN.is_finite y = true ->
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m)
+           (BinarySingleNaN.B2R x + BinarySingleNaN.B2R y)))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   BinarySingleNaN.B2R (BinarySingleNaN.Bplus m x y) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m)
+     (BinarySingleNaN.B2R x + BinarySingleNaN.B2R y) /\
+   BinarySingleNaN.is_finite (BinarySingleNaN.Bplus m x y) = true /\
+   BinarySingleNaN.Bsign (BinarySingleNaN.Bplus m x y) =
+   match Raux.Rcompare (BinarySingleNaN.B2R x + BinarySingleNaN.B2R y) 0 with
+   | Eq =>
+       match m with
+       | BinarySingleNaN.mode_DN =>
+           (BinarySingleNaN.Bsign x || BinarySingleNaN.Bsign y)%bool
+       | _ => (BinarySingleNaN.Bsign x && BinarySingleNaN.Bsign y)%bool
+       end
+   | Lt => true
+   | Gt => false
+   end
+  else
+   BinarySingleNaN.B2SF (BinarySingleNaN.Bplus m x y) =
+   BinarySingleNaN.binary_overflow prec emax m (BinarySingleNaN.Bsign x) /\
+   BinarySingleNaN.Bsign x = BinarySingleNaN.Bsign y
+BinarySingleNaN.Bminus_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (m : BinarySingleNaN.mode) (x y : BinarySingleNaN.binary_float prec emax),
+  BinarySingleNaN.is_finite x = true ->
+  BinarySingleNaN.is_finite y = true ->
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m)
+           (BinarySingleNaN.B2R x - BinarySingleNaN.B2R y)))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   BinarySingleNaN.B2R (BinarySingleNaN.Bminus m x y) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m)
+     (BinarySingleNaN.B2R x - BinarySingleNaN.B2R y) /\
+   BinarySingleNaN.is_finite (BinarySingleNaN.Bminus m x y) = true /\
+   BinarySingleNaN.Bsign (BinarySingleNaN.Bminus m x y) =
+   match Raux.Rcompare (BinarySingleNaN.B2R x - BinarySingleNaN.B2R y) 0 with
+   | Eq =>
+       match m with
+       | BinarySingleNaN.mode_DN =>
+           (BinarySingleNaN.Bsign x || negb (BinarySingleNaN.Bsign y))%bool
+       | _ =>
+           (BinarySingleNaN.Bsign x && negb (BinarySingleNaN.Bsign y))%bool
+       end
+   | Lt => true
+   | Gt => false
+   end
+  else
+   BinarySingleNaN.B2SF (BinarySingleNaN.Bminus m x y) =
+   BinarySingleNaN.binary_overflow prec emax m (BinarySingleNaN.Bsign x) /\
+   BinarySingleNaN.Bsign x = negb (BinarySingleNaN.Bsign y)
+Binary.Bplus_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (plus_nan : Binary.binary_float prec emax ->
+                Binary.binary_float prec emax ->
+                {x : Binary.binary_float prec emax
+                | Binary.is_nan prec emax x = true})
+    (m : BinarySingleNaN.mode) (x y : Binary.binary_float prec emax),
+  Binary.is_finite prec emax x = true ->
+  Binary.is_finite prec emax y = true ->
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m)
+           (Binary.B2R prec emax x + Binary.B2R prec emax y)))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   Binary.B2R prec emax
+     (Binary.Bplus prec emax prec_gt_0_ prec_lt_emax_ plus_nan m x y) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m)
+     (Binary.B2R prec emax x + Binary.B2R prec emax y) /\
+   Binary.is_finite prec emax
+     (Binary.Bplus prec emax prec_gt_0_ prec_lt_emax_ plus_nan m x y) =
+   true /\
+   Binary.Bsign prec emax
+     (Binary.Bplus prec emax prec_gt_0_ prec_lt_emax_ plus_nan m x y) =
+   match
+     Raux.Rcompare (Binary.B2R prec emax x + Binary.B2R prec emax y) 0
+   with
+   | Eq =>
+       match m with
+       | BinarySingleNaN.mode_DN =>
+           (Binary.Bsign prec emax x || Binary.Bsign prec emax y)%bool
+       | _ => (Binary.Bsign prec emax x && Binary.Bsign prec emax y)%bool
+       end
+   | Lt => true
+   | Gt => false
+   end
+  else
+   Binary.B2FF prec emax
+     (Binary.Bplus prec emax prec_gt_0_ prec_lt_emax_ plus_nan m x y) =
+   Binary.binary_overflow prec emax m (Binary.Bsign prec emax x) /\
+   Binary.Bsign prec emax x = Binary.Bsign prec emax y
+Binary.Bminus_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (minus_nan : Binary.binary_float prec emax ->
+                 Binary.binary_float prec emax ->
+                 {x : Binary.binary_float prec emax
+                 | Binary.is_nan prec emax x = true})
+    (m : BinarySingleNaN.mode) (x y : Binary.binary_float prec emax),
+  Binary.is_finite prec emax x = true ->
+  Binary.is_finite prec emax y = true ->
+  if
+   Raux.Rlt_bool
+     (Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode m)
+           (Binary.B2R prec emax x - Binary.B2R prec emax y)))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   Binary.B2R prec emax
+     (Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ minus_nan m x y) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode m)
+     (Binary.B2R prec emax x - Binary.B2R prec emax y) /\
+   Binary.is_finite prec emax
+     (Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ minus_nan m x y) =
+   true /\
+   Binary.Bsign prec emax
+     (Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ minus_nan m x y) =
+   match
+     Raux.Rcompare (Binary.B2R prec emax x - Binary.B2R prec emax y) 0
+   with
+   | Eq =>
+       match m with
+       | BinarySingleNaN.mode_DN =>
+           (Binary.Bsign prec emax x || negb (Binary.Bsign prec emax y))%bool
+       | _ =>
+           (Binary.Bsign prec emax x && negb (Binary.Bsign prec emax y))%bool
+       end
+   | Lt => true
+   | Gt => false
+   end
+  else
+   Binary.B2FF prec emax
+     (Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ minus_nan m x y) =
+   Binary.binary_overflow prec emax m (Binary.Bsign prec emax x) /\
+   Binary.Bsign prec emax x = negb (Binary.Bsign prec emax y)
+BinarySingleNaN.fexp_correct:
+  forall prec emax : Z,
+  FLX.Prec_gt_0 prec -> Generic_fmt.Valid_exp (SpecFloat.fexp prec emax)
+Binary.fexp_correct:
+  forall prec emax : Z,
+  FLX.Prec_gt_0 prec -> Generic_fmt.Valid_exp (SpecFloat.fexp prec emax)
+BinarySingleNaN.valid_rnd_round_mode
+     : forall m : BinarySingleNaN.mode,
+       Generic_fmt.Valid_rnd (BinarySingleNaN.round_mode m)

@@ -1,0 +1,18 @@
+Require Import FiveRmatVmultCorrespondence.Spec.
+Require Import FiveRmatVmultCorrespondence.Proof.
+Definition goal_0 : FiveRmatVmultCorrespondence.Spec.domain_preservation_goal := FiveRmatVmultCorrespondence.Proof.domain_preservation.
+Print Assumptions goal_0.
+Definition goal_1 : FiveRmatVmultCorrespondence.Spec.floating_point_correspondence_goal := FiveRmatVmultCorrespondence.Proof.floating_point_correspondence.
+Print Assumptions goal_1.
+Definition goal_2 : FiveRmatVmultCorrespondence.Spec.machine_integer_correspondence_goal := FiveRmatVmultCorrespondence.Proof.machine_integer_correspondence.
+Print Assumptions goal_2.
+Definition goal_3 : FiveRmatVmultCorrespondence.Spec.memory_access_correspondence_goal := FiveRmatVmultCorrespondence.Proof.memory_access_correspondence.
+Print Assumptions goal_3.
+Definition goal_4 : FiveRmatVmultCorrespondence.Spec.control_and_exhaustion_correspondence_goal := FiveRmatVmultCorrespondence.Proof.control_and_exhaustion_correspondence.
+Print Assumptions goal_4.
+Definition goal_5 : FiveRmatVmultCorrespondence.Spec.normal_result_and_memory_correspondence_goal := FiveRmatVmultCorrespondence.Proof.normal_result_and_memory_correspondence.
+Print Assumptions goal_5.
+Definition goal_6 : FiveRmatVmultCorrespondence.Spec.invalid_operation_correspondence_goal := FiveRmatVmultCorrespondence.Proof.invalid_operation_correspondence.
+Print Assumptions goal_6.
+Definition goal_7 : FiveRmatVmultCorrespondence.Spec.whole_execution_correspondence_goal := FiveRmatVmultCorrespondence.Proof.whole_execution_correspondence.
+Print Assumptions goal_7.

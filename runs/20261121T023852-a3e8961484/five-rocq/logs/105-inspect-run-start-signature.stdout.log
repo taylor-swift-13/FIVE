@@ -1,0 +1,41 @@
+74:    def start(cls, base, skill, inputs, scope, parent=None, invocation_kind='tool-workflow', usage_session=None):
+75-        if skill not in {'five-prepare','five-cbmc','five-align','five-rocq','five-verify'}:
+76-            raise ValueError('Unknown FIVE skill')
+77-        run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')+'-'+uuid.uuid4().hex[:10]
+78-        folder = Path(base).resolve()/run_id/skill
+79-        folder.mkdir(parents=True,exist_ok=False)
+80-        for name in ['inputs','logs','evidence']:
+81-            (folder/name).mkdir()
+82-        dump(folder/'run.json', {'schema':SCHEMA,'run_id':run_id,'skill':skill,'parent':str(parent) if parent else None,
+83-             'started_at':utc(),'start_epoch':time.time(),'invocation_kind':invocation_kind,'status':'running',
+84-             'timing_scope':'From start to finish of this invocation; not retroactive authoring time',
+85-             'children':[]})
+86-        dump(folder/'environment.json', {'os':platform.platform(),'machine':platform.machine(),'python':platform.python_version(),
+87-             'cwd':os.getcwd(),'measurement':'GNU time + /proc RSS sampling',
+88-             'tools':{},'environment_policy':'No full environment dump; secrets excluded'})
+89-        dump(folder/'scope.json', scope)
+90-        dump(folder/'tokens.json', {'status':'unavailable','source':None,'events':[],
+91-             'reason':'The invoking runtime has not supplied per-call model usage receipts. No token estimation is substituted.'})
+92-        dump(folder/'commands.json', [])
+93-        dump(folder/'inputs/manifest.json', [])
+94-        run = cls(folder)
+95-        for role,path in inputs:
+96-            try:
+97-                run.capture(path,role,area='inputs')
+98-            except FileNotFoundError:
+99-                manifest = run.read('inputs/manifest.json')
+100-                manifest.append({'role':role,'source':str(path),'status':'missing','reason':'Input did not exist at invocation start'})
+101-                dump(folder/'inputs/manifest.json',manifest)
+102-        if usage_session is not None:
+103-            from codex_usage import snapshot
+104-            metadata=run.read('run.json')
+105-            metadata['codex_usage_boundary']={'session_file':str(Path(usage_session).resolve()),'before':snapshot(usage_session)}
+106-            dump(folder/'run.json',metadata)
+107-        run.refresh_metrics()
+108-        if parent:
+109-            cls(parent).link_child(run)
+110-        return run
+111-
+112-    def __init__(self, folder):
+113-        self.folder = Path(folder).resolve()
+114-        if not (self.folder/'run.json').is_file():

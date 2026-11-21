@@ -1,0 +1,94 @@
+_build/paparazzi/upstream/sw/airborne/state.h-510-extern void stateSetInputFilter(uint8_t type, uint16_t id);
+_build/paparazzi/upstream/sw/airborne/state.h-511-
+_build/paparazzi/upstream/sw/airborne/state.h-512-/// Helper macro to check input filter and return if not valid input id
+_build/paparazzi/upstream/sw/airborne/state.h:513:#define STATE_CHECK_INPUT_AND_RETURN(flag, id) if (flag==STATE_INPUT_DISABLE || !(flag==STATE_INPUT_ANY || flag==id)) { return; }
+_build/paparazzi/upstream/sw/airborne/state.h-514-
+_build/paparazzi/upstream/sw/airborne/state.h-515-/** @addtogroup state_position
+_build/paparazzi/upstream/sw/airborne/state.h-516- *  @{ */
+_build/paparazzi/upstream/sw/airborne/state.h-517-
+_build/paparazzi/upstream/sw/airborne/state.h-518-/// Set the local (flat earth) coordinate frame origin (int).
+_build/paparazzi/upstream/sw/airborne/state.h-519-static inline void stateSetLocalOrigin_i(uint16_t id, struct LtpDef_i *ltp_def)
+_build/paparazzi/upstream/sw/airborne/state.h-520-{
+_build/paparazzi/upstream/sw/airborne/state.h-521-  STATE_CHECK_INPUT_AND_RETURN(state.origin_input_filter, id);
+_build/paparazzi/upstream/sw/airborne/state.h-522-
+_build/paparazzi/upstream/sw/airborne/state.h-523-  state.ned_origin_i = *ltp_def;
+--
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-204-// Real (floating point) ->  Binary Fixed Point  (int)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-205-#define LBFP_OF_REAL(_vr, _frac)   ((_vr)*(1LL<<(_frac)))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-206-#define BFP_OF_REAL(_vr, _frac)    ((_vr)*(1<<(_frac)))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:207:#define FLOAT_OF_BFP(_vbfp, _frac) ((float)(_vbfp)/(1<<(_frac)))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-208-#define DOUBLE_OF_BFP(_vbfp, _frac) ((double)(_vbfp)/(1<<(_frac)))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-209-#define RATE_BFP_OF_REAL(_af)   BFP_OF_REAL((_af), INT32_RATE_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-210-#define RATE_FLOAT_OF_BFP(_ai)  FLOAT_OF_BFP((_ai), INT32_RATE_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-211-#define ANGLE_BFP_OF_REAL(_af)  BFP_OF_REAL((_af), INT32_ANGLE_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-212-#define ANGLE_FLOAT_OF_BFP(_ai) FLOAT_OF_BFP((_ai), INT32_ANGLE_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-213-#define QUAT1_BFP_OF_REAL(_qf)  BFP_OF_REAL((_qf), INT32_QUAT_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-214-#define QUAT1_FLOAT_OF_BFP(_qi) FLOAT_OF_BFP((_qi), INT32_QUAT_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-215-#define TRIG_BFP_OF_REAL(_tf)   BFP_OF_REAL((_tf), INT32_TRIG_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-216-#define TRIG_FLOAT_OF_BFP(_ti)  FLOAT_OF_BFP((_ti),INT32_TRIG_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-217-#define POS_BFP_OF_REAL(_af)    BFP_OF_REAL((_af), INT32_POS_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-218-#define POS_FLOAT_OF_BFP(_ai)   FLOAT_OF_BFP((_ai), INT32_POS_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-219-#define SPEED_BFP_OF_REAL(_af)  BFP_OF_REAL((_af), INT32_SPEED_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:220:#define SPEED_FLOAT_OF_BFP(_ai) FLOAT_OF_BFP((_ai), INT32_SPEED_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-221-#define ACCEL_BFP_OF_REAL(_af)  BFP_OF_REAL((_af), INT32_ACCEL_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-222-#define ACCEL_FLOAT_OF_BFP(_ai) FLOAT_OF_BFP((_ai), INT32_ACCEL_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-223-#define MAG_BFP_OF_REAL(_af)    BFP_OF_REAL((_af), INT32_MAG_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-224-#define MAG_FLOAT_OF_BFP(_ai)   FLOAT_OF_BFP((_ai), INT32_MAG_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-225-
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-226-#define INT_MULT_RSHIFT(_a, _b, _r) (((_a)*(_b))>>(_r))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-227-
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-228-
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-229-extern uint32_t int32_sqrt(uint32_t in);
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h-230-extern uint32_t int32_gcd(uint32_t a, uint32_t b);
+--
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-346-#define FLOAT_RMAT_COMP(_m_a2c, _m_a2b, _m_b2c) WARNING("FLOAT_RMAT_COMP macro is deprecated, use the lower case function instead") float_rmat_comp(&(_m_a2c), &(_m_a2b), &(_m_b2c))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-347-#define FLOAT_RMAT_COMP_INV(_m_a2b, _m_a2c, _m_b2c) WARNING("FLOAT_RMAT_COMP_INV macro is deprecated, use the lower case function instead") float_rmat_comp_inv(&(_m_a2b), &(_m_a2c), &(_m_b2c))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-348-#define FLOAT_RMAT_VMULT(_vb, _m_a2b, _va) WARNING("FLOAT_RMAT_VMULT macro is deprecated, use the lower case function instead") float_rmat_vmult(&(_vb), &(_m_a2b), &(_va))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h:349:#define FLOAT_RMAT_TRANSP_VMULT(_vb, _m_b2a, _va) WARNING("FLOAT_RMAT_TRANSP_VMULT macro is deprecated, use the lower case function instead") float_rmat_transp_vmult(&(_vb), &(_m_b2a), &(_va))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-350-#define FLOAT_RMAT_RATEMULT(_rb, _m_a2b, _ra) WARNING("FLOAT_RMAT_RATEMULT macro is deprecated, use the lower case function instead") float_rmat_ratemult(&(_rb), &(_m_a2b), &(_ra))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-351-#define FLOAT_RMAT_TRANSP_RATEMULT(_rb, _m_b2a, _ra) WARNING("FLOAT_RMAT_TRANSP_RATEMULT macro is deprecated, use the lower case function instead") float_rmat_ratemult(&(_rb), &(_m_b2a), &(_ra))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-352-#define FLOAT_RMAT_OF_AXIS_ANGLE(_rm, _uv, _an) WARNING("FLOAT_RMAT_OF_AXIS_ANGLE macro is deprecated, use the lower case function instead") float_rmat_of_axis_angle(&(_rm), &(_uv), _an)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-353-#define FLOAT_RMAT_OF_EULERS(_rm, _e)     WARNING("FLOAT_RMAT_OF_EULERS macro is deprecated, use the lower case function instead") float_rmat_of_eulers_321(&(_rm), &(_e))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-354-#define FLOAT_RMAT_OF_EULERS_321(_rm, _e) WARNING("FLOAT_RMAT_OF_EULERS_321 macro is deprecated, use the lower case function instead") float_rmat_of_eulers_321(&(_rm), &(_e))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-355-#define FLOAT_RMAT_OF_EULERS_312(_rm, _e) WARNING("FLOAT_RMAT_OF_EULERS_312 macro is deprecated, use the lower case function instead") float_rmat_of_eulers_312(&(_rm), &(_e))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-356-#define FLOAT_RMAT_OF_QUAT(_rm, _q)       WARNING("FLOAT_RMAT_OF_QUAT macro is deprecated, use the lower case function instead") float_rmat_of_quat(&(_rm), &(_q))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-357-#define FLOAT_RMAT_INTEGRATE_FI(_rm, _omega, _dt) WARNING("FLOAT_RMAT_INTEGRATE_FI macro is deprecated, use the lower case function instead") float_rmat_integrate_fi(&(_rm), &(_omega), &(_dt))
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-358-
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.h-359-
+--
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-780-    (_ef).z = POS_BFP_OF_REAL((_ei).z);   \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-781-  }
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-782-
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h:783:#define SPEEDS_FLOAT_OF_BFP(_ef, _ei) {     \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-784-    (_ef).x = SPEED_FLOAT_OF_BFP((_ei).x);    \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-785-    (_ef).y = SPEED_FLOAT_OF_BFP((_ei).y);    \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-786-    (_ef).z = SPEED_FLOAT_OF_BFP((_ei).z);    \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-787-  }
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-788-
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-789-#define SPEEDS_BFP_OF_REAL(_ef, _ei) {      \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-790-    (_ef).x = SPEED_BFP_OF_REAL((_ei).x);   \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-791-    (_ef).y = SPEED_BFP_OF_REAL((_ei).y);   \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-792-    (_ef).z = SPEED_BFP_OF_REAL((_ei).z);   \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra.h-793-  }
+--
+_build/paparazzi/upstream/sw/include/std.h-79-
+_build/paparazzi/upstream/sw/include/std.h-80-
+_build/paparazzi/upstream/sw/include/std.h-81-#ifndef bit_is_set
+_build/paparazzi/upstream/sw/include/std.h:82:  #define bit_is_set(x, b) ((x >> b) & 0x1)
+_build/paparazzi/upstream/sw/include/std.h-83-#endif
+_build/paparazzi/upstream/sw/include/std.h-84-
+_build/paparazzi/upstream/sw/include/std.h-85-#ifndef _BV
+_build/paparazzi/upstream/sw/include/std.h-86-  #define _BV(bit) (1 << (bit))
+_build/paparazzi/upstream/sw/include/std.h-87-#endif
+_build/paparazzi/upstream/sw/include/std.h-88-
+_build/paparazzi/upstream/sw/include/std.h:89:#define SetBit(a, n) a |= (1 << n)
+_build/paparazzi/upstream/sw/include/std.h-90-#define ClearBit(a, n) a &= ~(1 << n)
+_build/paparazzi/upstream/sw/include/std.h-91-
+_build/paparazzi/upstream/sw/include/std.h-92-/** Normalize a rad angle between -PI and PI */
+_build/paparazzi/upstream/sw/include/std.h-93-#define NormRadAngle(x) { \
+_build/paparazzi/upstream/sw/include/std.h-94-    while (x > M_PI) x -= 2 * M_PI; \
+_build/paparazzi/upstream/sw/include/std.h-95-    while (x < -M_PI) x += 2 * M_PI; \
+_build/paparazzi/upstream/sw/include/std.h-96-  }
+_build/paparazzi/upstream/sw/include/std.h-97-/** Normalize a degree angle between 0 and 359 */
+_build/paparazzi/upstream/sw/include/std.h-98-#define NormCourse(x) { \
+_build/paparazzi/upstream/sw/include/std.h-99-    while (x < 0) x += 360; \

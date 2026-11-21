@@ -1,0 +1,1 @@
+原 C经 CompCert3.17 clightgen -csyntax 自动导出，fresh source audit通过；Source.v/Execution.v/manifest均未手改。生成scaffold与实际证明分离：模型保留全部list val及CompCert mem状态，实际安全前条件位于rocq/support/Contract.v。Rocq现已核验所有8类全执行对应；本阶段完整301 spec-map引用真实后续联合重验/反驳，导出本身不充当证明。外部调用/volatile/assembly无；原混合double/single表达式及NaN策略不变。

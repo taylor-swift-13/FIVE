@@ -1,0 +1,33 @@
+Mem.loadbytes_empty
+     : forall (m : mem) (b : Values.block) (ofs n : BinNums.Z),
+       BinInt.Z.le n BinNums.Z0 -> Mem.loadbytes m b ofs n = Some nil
+Mem.loadbytes_split
+     : forall (m : mem) (b : Values.block) (ofs n1 n2 : BinNums.Z)
+         (bytes : list memval),
+       Mem.loadbytes m b ofs (BinInt.Z.add n1 n2) = Some bytes ->
+       BinInt.Z.ge n1 BinNums.Z0 ->
+       BinInt.Z.ge n2 BinNums.Z0 ->
+       exists bytes1 bytes2 : list memval,
+         Mem.loadbytes m b ofs n1 = Some bytes1 /\
+         Mem.loadbytes m b (BinInt.Z.add ofs n1) n2 = Some bytes2 /\
+         bytes = (bytes1 ++ bytes2)%list
+Mem.loadbytes_concat
+     : forall (m : mem) (b : Values.block) (ofs n1 n2 : BinNums.Z)
+         (bytes1 bytes2 : list memval),
+       Mem.loadbytes m b ofs n1 = Some bytes1 ->
+       Mem.loadbytes m b (BinInt.Z.add ofs n1) n2 = Some bytes2 ->
+       BinInt.Z.ge n1 BinNums.Z0 ->
+       BinInt.Z.ge n2 BinNums.Z0 ->
+       Mem.loadbytes m b ofs (BinInt.Z.add n1 n2) =
+       Some (bytes1 ++ bytes2)%list
+Mem.load_valid_access
+     : forall (m : mem) (chunk : AST.memory_chunk) 
+         (b : Values.block) (ofs : BinNums.Z) (v : Values.val),
+       Mem.load chunk m b ofs = Some v ->
+       Mem.valid_access m chunk b ofs Readable
+Mem.loadbytes_load
+     : forall (chunk : AST.memory_chunk) (m : mem) 
+         (b : Values.block) (ofs : BinNums.Z) (bytes : list memval),
+       Mem.loadbytes m b ofs (size_chunk chunk) = Some bytes ->
+       BinInt.Z.divide (align_chunk chunk) ofs ->
+       Mem.load chunk m b ofs = Some (decode_val chunk bytes)

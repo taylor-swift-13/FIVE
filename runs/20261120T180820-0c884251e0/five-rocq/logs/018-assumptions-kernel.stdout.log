@@ -1,0 +1,932 @@
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+step_bound_local =
+fun (c li lo x : Floats.float32) (FC : finite c)
+  (HC : Rdefinitions.Rle (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) (r32 c) /\
+        Rdefinitions.Rle (r32 c)
+          (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+  (FL : finite li)
+  (HL : Rdefinitions.Rle (Rbasic_fun.Rabs (r32 li))
+          (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+  (FO : finite lo)
+  (HO : Rdefinitions.Rle (Rbasic_fun.Rabs (r32 lo))
+          (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+  (FX : finite x)
+  (HX : Rdefinitions.Rle (Rbasic_fun.Rabs (r32 x))
+          (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))) =>
+let a := Floats.Float32.sub c one in
+let s := Floats.Float32.add x li in
+let p := Floats.Float32.mul a lo in
+let n := Floats.Float32.add s p in
+let d := Floats.Float32.add one c in
+let Hc1 :
+  Rdefinitions.Rle (Rbasic_fun.Rabs (Rdefinitions.Rminus (r32 c) (r32 one)))
+    (Rdefinitions.IZR
+       (BinInt.Z.pos (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))) :=
+  eq_ind_r
+    (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+     Rdefinitions.Rle (Rbasic_fun.Rabs (Rdefinitions.Rminus (r32 c) r))
+       (Rdefinitions.IZR
+          (BinInt.Z.pos (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))
+    (eq_ind_r
+       (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+        Rdefinitions.Rle r
+          (Rdefinitions.IZR
+             (BinInt.Z.pos (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))
+       ((let __arith :
+           forall (__p1 : Prop) (__x1 : Rdefinitions.RbaseSymbolsImpl.R),
+           __p1 /\
+           Rdefinitions.Rle __x1
+             (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) ->
+           Rdefinitions.Rle
+             (Rdefinitions.Rminus __x1
+                (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+             (Rdefinitions.IZR
+                (BinInt.Z.pos
+                   (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))) :=
+           fun (__p1 : Prop) (__x1 : Rdefinitions.RbaseSymbolsImpl.R) =>
+           let __wit := nil in
+           let __varmap := VarMap.Elt __x1 in
+           let __ff :=
+             Tauto.IMPL
+               (Tauto.AND (Tauto.X Tauto.isProp __p1)
+                  (Tauto.A Tauto.isProp
+                     {|
+                       RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                       RingMicromega.Fop := RingMicromega.OpLe;
+                       RingMicromega.Frhs :=
+                         EnvRing.PEc
+                           (RMicromega.CZ
+                              (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                     |} tt))
+               None
+               (Tauto.A Tauto.isProp
+                  {|
+                    RingMicromega.Flhs :=
+                      EnvRing.PEsub (EnvRing.PEX BinNums.xH)
+                        (EnvRing.PEc
+                           (RMicromega.CZ (BinInt.Z.pos BinNums.xH)));
+                    RingMicromega.Fop := RingMicromega.OpLe;
+                    RingMicromega.Frhs :=
+                      EnvRing.PEc
+                        (RMicromega.CZ
+                           (BinInt.Z.pos
+                              (BinNums.xO
+                                 (BinNums.xO (BinNums.xO BinNums.xH)))))
+                  |} tt)
+             in
+           RMicromega.RTautoChecker_sound __ff __wit
+             (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+             (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+           in
+         __arith
+           (Rdefinitions.Rle (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+              (r32 c))
+           (r32 c) HC)
+        :
+        Rdefinitions.Rle
+          (Rdefinitions.Rminus (r32 c)
+             (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+          (Rdefinitions.IZR
+             (BinInt.Z.pos (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))
+       (Rbasic_fun.Rabs_pos_eq
+          (Rdefinitions.Rminus (r32 c)
+             (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+          ((let __arith :
+              forall (__p1 : Prop) (__x1 : Rdefinitions.RbaseSymbolsImpl.R),
+              Rdefinitions.Rle (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+                __x1 /\
+              __p1 ->
+              Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                (Rdefinitions.Rminus __x1
+                   (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))) :=
+              fun (__p1 : Prop) (__x1 : Rdefinitions.RbaseSymbolsImpl.R) =>
+              let __wit := nil in
+              let __varmap := VarMap.Elt __x1 in
+              let __ff :=
+                Tauto.IMPL
+                  (Tauto.AND
+                     (Tauto.A Tauto.isProp
+                        {|
+                          RingMicromega.Flhs :=
+                            EnvRing.PEc
+                              (RMicromega.CZ (BinInt.Z.pos BinNums.xH));
+                          RingMicromega.Fop := RingMicromega.OpLe;
+                          RingMicromega.Frhs := EnvRing.PEX BinNums.xH
+                        |} tt)
+                     (Tauto.X Tauto.isProp __p1))
+                  None
+                  (Tauto.A Tauto.isProp
+                     {|
+                       RingMicromega.Flhs :=
+                         EnvRing.PEc (RMicromega.CZ BinNums.Z0);
+                       RingMicromega.Fop := RingMicromega.OpLe;
+                       RingMicromega.Frhs :=
+                         EnvRing.PEsub (EnvRing.PEX BinNums.xH)
+                           (EnvRing.PEc
+                              (RMicromega.CZ (BinInt.Z.pos BinNums.xH)))
+                     |} tt)
+                in
+              RMicromega.RTautoChecker_sound __ff __wit
+                (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+              in
+            __arith
+              (Rdefinitions.Rle (r32 c)
+                 (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+              (r32 c) HC)
+           :
+           Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+             (Rdefinitions.Rminus (r32 c)
+                (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))))))
+    one_real
+  in
+let a0 :
+  FloatBounds.finite (Floats.Float32.sub c one) /\
+  FloatBounds.r32 (Floats.Float32.sub c one) =
+  FloatBounds.RN
+    (Rdefinitions.Rminus (FloatBounds.r32 c) (FloatBounds.r32 one)) :=
+  FloatBounds.sub_finite_real c one FC one_finite Hc1 in
+match a0 with
+| conj x0 x1 =>
+    (fun (FA : FloatBounds.finite (Floats.Float32.sub c one))
+       (RA : FloatBounds.r32 (Floats.Float32.sub c one) =
+             FloatBounds.RN
+               (Rdefinitions.Rminus (FloatBounds.r32 c) (FloatBounds.r32 one))) =>
+     let RA0 :
+       r32 a =
+       FloatBounds.RN
+         (Rdefinitions.Rminus (r32 c)
+            (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))) :=
+       eq_ind (r32 one)
+         (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+          r32 a = FloatBounds.RN (Rdefinitions.Rminus (r32 c) r))
+         RA (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) one_real
+       in
+     let Ha :
+       Rdefinitions.Rle (Rbasic_fun.Rabs (r32 a))
+         (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) :=
+       eq_ind_r
+         (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+          Rdefinitions.Rle (Rbasic_fun.Rabs r)
+            (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+         (let H :
+            Rdefinitions.Rle
+              (Rbasic_fun.Rabs
+                 (FloatBounds.RN
+                    (Rdefinitions.Rminus (r32 c)
+                       (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))))
+              (Rdefinitions.RbaseSymbolsImpl.Rplus
+                 (Rdefinitions.RbaseSymbolsImpl.Rplus
+                    (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+                    (Rdefinitions.RbaseSymbolsImpl.Rmult u
+                       (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))))
+                 eta) :=
+            RN_abs_small
+              (Rdefinitions.Rminus (r32 c)
+                 (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+              (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+              ((let __arith :
+                  Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                    (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) :=
+                  let __wit := nil in
+                  let __varmap := VarMap.Empty in
+                  let __ff :=
+                    Tauto.A Tauto.isProp
+                      {|
+                        RingMicromega.Flhs :=
+                          EnvRing.PEc (RMicromega.CZ BinNums.Z0);
+                        RingMicromega.Fop := RingMicromega.OpLe;
+                        RingMicromega.Frhs :=
+                          EnvRing.PEc
+                            (RMicromega.CZ (BinInt.Z.pos BinNums.xH))
+                      |} tt
+                    in
+                  RMicromega.RTautoChecker_sound __ff __wit
+                    (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                    (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+                  in
+                __arith)
+               :
+               Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                 (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+              (eq_ind_r
+                 (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+                  Rdefinitions.Rle r
+                    (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+                 ((let __arith :
+                     forall (__p1 : Prop)
+                       (__x1 : Rdefinitions.RbaseSymbolsImpl.R),
+                     __p1 /\
+                     Rdefinitions.Rle __x1
+                       (Rdefinitions.IZR
+                          (BinInt.Z.pos (BinNums.xO BinNums.xH))) ->
+                     Rdefinitions.Rle
+                       (Rdefinitions.Rminus __x1
+                          (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+                       (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) :=
+                     fun (__p1 : Prop)
+                       (__x1 : Rdefinitions.RbaseSymbolsImpl.R) =>
+                     let __wit := nil in
+                     let __varmap := VarMap.Elt __x1 in
+                     let __ff :=
+                       Tauto.IMPL
+                         (Tauto.AND (Tauto.X Tauto.isProp __p1)
+                            (Tauto.A Tauto.isProp
+                               {|
+                                 RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                                 RingMicromega.Fop := RingMicromega.OpLe;
+                                 RingMicromega.Frhs :=
+                                   EnvRing.PEc
+                                     (RMicromega.CZ (BinInt.Z.pos ...))
+                               |} tt))
+                         None
+                         (Tauto.A Tauto.isProp
+                            {|
+                              RingMicromega.Flhs :=
+                                EnvRing.PEsub (EnvRing.PEX BinNums.xH)
+                                  (EnvRing.PEc
+                                     (RMicromega.CZ (BinInt.Z.pos BinNums.xH)));
+                              RingMicromega.Fop := RingMicromega.OpLe;
+                              RingMicromega.Frhs :=
+                                EnvRing.PEc
+                                  (RMicromega.CZ (BinInt.Z.pos BinNums.xH))
+                            |} tt)
+                       in
+                     RMicromega.RTautoChecker_sound __ff __wit
+                       (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                       (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+                     in
+                   __arith
+                     (Rdefinitions.Rle
+                        (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) 
+                        (r32 c))
+                     (r32 c) HC)
+                  :
+                  Rdefinitions.Rle
+                    (Rdefinitions.Rminus (r32 c)
+                       (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+                    (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+                 (Rbasic_fun.Rabs_pos_eq
+                    (Rdefinitions.Rminus (r32 c)
+                       (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+                    ((let __arith :
+                        forall (__p1 : Prop)
+                          (__x1 : Rdefinitions.RbaseSymbolsImpl.R),
+                        Rdefinitions.Rle
+                          (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) __x1 /\
+                        __p1 ->
+                        Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                          (Rdefinitions.Rminus __x1
+                             (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))) :=
+                        fun (__p1 : Prop)
+                          (__x1 : Rdefinitions.RbaseSymbolsImpl.R) =>
+                        let __wit := nil in
+                        let __varmap := VarMap.Elt __x1 in
+                        let __ff :=
+                          Tauto.IMPL
+                            (Tauto.AND
+                               (Tauto.A Tauto.isProp
+                                  {|
+                                    RingMicromega.Flhs :=
+                                      EnvRing.PEc (RMicromega.CZ ...);
+                                    RingMicromega.Fop := RingMicromega.OpLe;
+                                    RingMicromega.Frhs :=
+                                      EnvRing.PEX BinNums.xH
+                                  |} tt)
+                               (Tauto.X Tauto.isProp __p1))
+                            None
+                            (Tauto.A Tauto.isProp
+                               {|
+                                 RingMicromega.Flhs :=
+                                   EnvRing.PEc (RMicromega.CZ BinNums.Z0);
+                                 RingMicromega.Fop := RingMicromega.OpLe;
+                                 RingMicromega.Frhs :=
+                                   EnvRing.PEsub (EnvRing.PEX BinNums.xH)
+                                     (EnvRing.PEc (RMicromega.CZ ...))
+                               |} tt)
+                          in
+                        RMicromega.RTautoChecker_sound __ff __wit
+                          (eq_refl
+                           <:
+                           RMicromega.RTautoChecker __ff __wit = true)
+                          (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+                        in
+                      __arith
+                        (Rdefinitions.Rle (r32 c)
+                           (Rdefinitions.IZR
+                              (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+                        (r32 c) HC)
+                     :
+                     Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                       (Rdefinitions.Rminus (r32 c)
+                          (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))))))
+            in
+          ((let __arith :
+              forall __x1 : Rdefinitions.RbaseSymbolsImpl.R,
+              Rdefinitions.Rle __x1
+                (Rdefinitions.RbaseSymbolsImpl.Rplus
+                   (Rdefinitions.RbaseSymbolsImpl.Rplus
+                      (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+                      (Rdefinitions.RbaseSymbolsImpl.Rmult
+                         (Rdefinitions.RbaseSymbolsImpl.Rmult
+                            (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+                            (Rdefinitions.RinvImpl.Rinv
+                               (Rdefinitions.IZR
+                                  (BinInt.Z.pos (BinNums.xO (BinNums.xO ...))))))
+                         (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))))
+                   (Rdefinitions.RbaseSymbolsImpl.Rmult
+                      (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+                      (Rdefinitions.RinvImpl.Rinv
+                         (Rdefinitions.IZR
+                            (BinInt.Z.pos
+                               (BinNums.xO
+                                  (BinNums.xO (BinNums.xO (BinNums.xO ...))))))))) ->
+              Rdefinitions.Rle __x1
+                (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) :=
+              fun __x1 : Rdefinitions.RbaseSymbolsImpl.R =>
+              let __wit := nil in
+              let __varmap := VarMap.Elt __x1 in
+              let __ff :=
+                Tauto.IMPL
+                  (Tauto.A Tauto.isProp
+                     {|
+                       RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                       RingMicromega.Fop := RingMicromega.OpLe;
+                       RingMicromega.Frhs :=
+                         EnvRing.PEc
+                           (RMicromega.CPlus
+                              (RMicromega.CPlus
+                                 (RMicromega.CZ (BinInt.Z.pos BinNums.xH))
+                                 (RMicromega.CMult
+                                    (RMicromega.CMult (...) (...))
+                                    (RMicromega.CZ (...))))
+                              (RMicromega.CMult
+                                 (RMicromega.CZ (BinInt.Z.pos BinNums.xH))
+                                 (RMicromega.CInv (RMicromega.CZ (...)))))
+                     |} tt)
+                  None
+                  (Tauto.A Tauto.isProp
+                     {|
+                       RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                       RingMicromega.Fop := RingMicromega.OpLe;
+                       RingMicromega.Frhs :=
+                         EnvRing.PEc
+                           (RMicromega.CZ
+                              (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                     |} tt)
+                in
+              RMicromega.RTautoChecker_sound __ff __wit
+                (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+              in
+            __arith
+              (Rbasic_fun.Rabs
+                 (FloatBounds.RN
+                    (Rdefinitions.Rminus (r32 c)
+                       (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))))
+              H)
+           :
+           Rdefinitions.Rle
+             (Rbasic_fun.Rabs
+                (FloatBounds.RN
+                   (Rdefinitions.Rminus (r32 c)
+                      (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))))
+             (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+          :
+          Rdefinitions.Rle
+            (Rbasic_fun.Rabs
+               (FloatBounds.RN
+                  (Rdefinitions.Rminus (r32 c)
+                     (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))))
+            (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+         RA0
+       in
+     let Hxl :
+       Rdefinitions.Rle
+         (Rbasic_fun.Rabs
+            (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li)))
+         (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) :=
+       let H :
+         Rdefinitions.Rle
+           (Rbasic_fun.Rabs
+              (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li)))
+           (Rdefinitions.RbaseSymbolsImpl.Rplus
+              (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+              (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))) :=
+         abs_pair (r32 x) (r32 li)
+           (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+           (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) HX HL
+         in
+       (let __arith :
+          forall __x1 : Rdefinitions.RbaseSymbolsImpl.R,
+          Rdefinitions.Rle __x1
+            (Rdefinitions.RbaseSymbolsImpl.Rplus
+               (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+               (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))) ->
+          Rdefinitions.Rle __x1
+            (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) :=
+          fun __x1 : Rdefinitions.RbaseSymbolsImpl.R =>
+          let __wit := nil in
+          let __varmap := VarMap.Elt __x1 in
+          let __ff :=
+            Tauto.IMPL
+              (Tauto.A Tauto.isProp
+                 {|
+                   RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                   RingMicromega.Fop := RingMicromega.OpLe;
+                   RingMicromega.Frhs :=
+                     EnvRing.PEc
+                       (RMicromega.CPlus
+                          (RMicromega.CZ (BinInt.Z.pos BinNums.xH))
+                          (RMicromega.CZ (BinInt.Z.pos BinNums.xH)))
+                 |} tt)
+              None
+              (Tauto.A Tauto.isProp
+                 {|
+                   RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                   RingMicromega.Fop := RingMicromega.OpLe;
+                   RingMicromega.Frhs :=
+                     EnvRing.PEc
+                       (RMicromega.CZ (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                 |} tt)
+            in
+          RMicromega.RTautoChecker_sound __ff __wit
+            (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+            (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+          in
+        __arith
+          (Rbasic_fun.Rabs
+             (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li)))
+          H)
+       :
+       Rdefinitions.Rle
+         (Rbasic_fun.Rabs
+            (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li)))
+         (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+       in
+     let a1 :
+       FloatBounds.finite (Floats.Float32.add x li) /\
+       FloatBounds.r32 (Floats.Float32.add x li) =
+       FloatBounds.RN
+         (Rdefinitions.RbaseSymbolsImpl.Rplus (FloatBounds.r32 x)
+            (FloatBounds.r32 li)) :=
+       FloatBounds.add_finite_real x li FX FL
+         ((let __arith :
+             forall __x1 : Rdefinitions.RbaseSymbolsImpl.R,
+             Rdefinitions.Rle __x1
+               (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) ->
+             Rdefinitions.Rle __x1
+               (Rdefinitions.IZR
+                  (BinInt.Z.pos
+                     (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))) :=
+             fun __x1 : Rdefinitions.RbaseSymbolsImpl.R =>
+             let __wit := nil in
+             let __varmap := VarMap.Elt __x1 in
+             let __ff :=
+               Tauto.IMPL
+                 (Tauto.A Tauto.isProp
+                    {|
+                      RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                      RingMicromega.Fop := RingMicromega.OpLe;
+                      RingMicromega.Frhs :=
+                        EnvRing.PEc
+                          (RMicromega.CZ
+                             (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                    |} tt)
+                 None
+                 (Tauto.A Tauto.isProp
+                    {|
+                      RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                      RingMicromega.Fop := RingMicromega.OpLe;
+                      RingMicromega.Frhs :=
+                        EnvRing.PEc
+                          (RMicromega.CZ
+                             (BinInt.Z.pos
+                                (BinNums.xO
+                                   (BinNums.xO (BinNums.xO BinNums.xH)))))
+                    |} tt)
+               in
+             RMicromega.RTautoChecker_sound __ff __wit
+               (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+               (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+             in
+           __arith
+             (Rbasic_fun.Rabs
+                (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li)))
+             Hxl)
+          :
+          Rdefinitions.Rle
+            (Rbasic_fun.Rabs
+               (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li)))
+            (Rdefinitions.IZR
+               (BinInt.Z.pos
+                  (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))
+       in
+     match a1 with
+     | conj x2 x3 =>
+         (fun (FS : FloatBounds.finite (Floats.Float32.add x li))
+            (RS : FloatBounds.r32 (Floats.Float32.add x li) =
+                  FloatBounds.RN
+                    (Rdefinitions.RbaseSymbolsImpl.Rplus 
+                       (FloatBounds.r32 x) (FloatBounds.r32 li))) =>
+          let Hs :
+            Rdefinitions.Rle (Rbasic_fun.Rabs (r32 s))
+              (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) :=
+            eq_ind_r
+              (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+               Rdefinitions.Rle (Rbasic_fun.Rabs r)
+                 (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+              (FloatBounds.RN_abs_le_2
+                 (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li)) Hxl)
+              RS
+            in
+          let Hal :
+            Rdefinitions.Rle
+              (Rbasic_fun.Rabs
+                 (Rdefinitions.RbaseSymbolsImpl.Rmult (r32 a) (r32 lo)))
+              (Rdefinitions.IZR
+                 (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH)))) :=
+            let H :
+              Rdefinitions.Rle
+                (Rbasic_fun.Rabs
+                   (Rdefinitions.RbaseSymbolsImpl.Rmult (r32 a) (r32 lo)))
+                (Rdefinitions.RbaseSymbolsImpl.Rmult
+                   (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                   (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH)))) :=
+              abs_product (r32 a) (r32 lo)
+                (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) Ha
+                HO
+                ((let __arith :
+                    Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                      (Rdefinitions.IZR
+                         (BinInt.Z.pos (BinNums.xO BinNums.xH))) :=
+                    let __wit := nil in
+                    let __varmap := VarMap.Empty in
+                    let __ff :=
+                      Tauto.A Tauto.isProp
+                        {|
+                          RingMicromega.Flhs :=
+                            EnvRing.PEc (RMicromega.CZ BinNums.Z0);
+                          RingMicromega.Fop := RingMicromega.OpLe;
+                          RingMicromega.Frhs :=
+                            EnvRing.PEc (RMicromega.CZ (BinInt.Z.pos ...))
+                        |} tt
+                      in
+                    RMicromega.RTautoChecker_sound __ff __wit
+                      (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                      (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+                    in
+                  __arith)
+                 :
+                 Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                   (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+                ((let __arith :
+                    Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                      (Rdefinitions.IZR
+                         (BinInt.Z.pos (BinNums.xO BinNums.xH))) :=
+                    let __wit := nil in
+                    let __varmap := VarMap.Empty in
+                    let __ff :=
+                      Tauto.A Tauto.isProp
+                        {|
+                          RingMicromega.Flhs :=
+                            EnvRing.PEc (RMicromega.CZ BinNums.Z0);
+                          RingMicromega.Fop := RingMicromega.OpLe;
+                          RingMicromega.Frhs :=
+                            EnvRing.PEc (RMicromega.CZ (BinInt.Z.pos ...))
+                        |} tt
+                      in
+                    RMicromega.RTautoChecker_sound __ff __wit
+                      (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                      (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+                    in
+                  __arith)
+                 :
+                 Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                   (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+              in
+            (let __arith :
+               forall __x1 : Rdefinitions.RbaseSymbolsImpl.R,
+               Rdefinitions.Rle __x1
+                 (Rdefinitions.RbaseSymbolsImpl.Rmult
+                    (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                    (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH)))) ->
+               Rdefinitions.Rle __x1
+                 (Rdefinitions.IZR
+                    (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH)))) :=
+               fun __x1 : Rdefinitions.RbaseSymbolsImpl.R =>
+               let __wit := nil in
+               let __varmap := VarMap.Elt __x1 in
+               let __ff :=
+                 Tauto.IMPL
+                   (Tauto.A Tauto.isProp
+                      {|
+                        RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                        RingMicromega.Fop := RingMicromega.OpLe;
+                        RingMicromega.Frhs :=
+                          EnvRing.PEc
+                            (RMicromega.CMult (RMicromega.CZ ...)
+                               (RMicromega.CZ ...))
+                      |} tt)
+                   None
+                   (Tauto.A Tauto.isProp
+                      {|
+                        RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                        RingMicromega.Fop := RingMicromega.OpLe;
+                        RingMicromega.Frhs :=
+                          EnvRing.PEc (RMicromega.CZ (BinInt.Z.pos ...))
+                      |} tt)
+                 in
+               RMicromega.RTautoChecker_sound __ff __wit
+                 (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                 (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+               in
+             __arith
+               (Rbasic_fun.Rabs
+                  (Rdefinitions.RbaseSymbolsImpl.Rmult (r32 a) (r32 lo)))
+               H)
+            :
+            Rdefinitions.Rle
+              (Rbasic_fun.Rabs
+                 (Rdefinitions.RbaseSymbolsImpl.Rmult (r32 a) (r32 lo)))
+              (Rdefinitions.IZR
+                 (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH))))
+            in
+          let a2 :
+            FloatBounds.finite (Floats.Float32.mul a lo) /\
+            FloatBounds.r32 (Floats.Float32.mul a lo) =
+            FloatBounds.RN
+              (Rdefinitions.RbaseSymbolsImpl.Rmult 
+                 (FloatBounds.r32 a) (FloatBounds.r32 lo)) :=
+            FloatBounds.mul_finite_real a lo FA FO
+              ((let __arith :
+                  forall __x1 : Rdefinitions.RbaseSymbolsImpl.R,
+                  Rdefinitions.Rle __x1
+                    (Rdefinitions.IZR
+                       (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH)))) ->
+                  Rdefinitions.Rle __x1
+                    (Rdefinitions.IZR
+                       (BinInt.Z.pos
+                          (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))) :=
+                  fun __x1 : Rdefinitions.RbaseSymbolsImpl.R =>
+                  let __wit := nil in
+                  let __varmap := VarMap.Elt __x1 in
+                  let __ff :=
+                    Tauto.IMPL
+                      (Tauto.A Tauto.isProp
+                         {|
+                           RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                           RingMicromega.Fop := RingMicromega.OpLe;
+                           RingMicromega.Frhs :=
+                             EnvRing.PEc (RMicromega.CZ ...)
+                         |} tt)
+                      None
+                      (Tauto.A Tauto.isProp
+                         {|
+                           RingMicromega.Flhs := EnvRing.PEX BinNums.xH;
+                           RingMicromega.Fop := RingMicromega.OpLe;
+                           RingMicromega.Frhs :=
+                             EnvRing.PEc (RMicromega.CZ ...)
+                         |} tt)
+                    in
+                  RMicromega.RTautoChecker_sound __ff __wit
+                    (eq_refl <: RMicromega.RTautoChecker __ff __wit = true)
+                    (VarMap.find (Rdefinitions.IZR BinNums.Z0) __varmap)
+                  in
+                __arith
+                  (Rbasic_fun.Rabs
+                     (Rdefinitions.RbaseSymbolsImpl.Rmult (r32 a) (r32 lo)))
+                  Hal)
+               :
+               Rdefinitions.Rle
+                 (Rbasic_fun.Rabs
+                    (Rdefinitions.RbaseSymbolsImpl.Rmult (r32 a) (r32 lo)))
+                 (Rdefinitions.IZR
+                    (BinInt.Z.pos
+                       (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))
+            in
+          match a2 with
+          | conj x4 x5 =>
+              (fun (FP : FloatBounds.finite (Floats.Float32.mul a lo))
+                 (RP : FloatBounds.r32 (Floats.Float32.mul a lo) =
+                       FloatBounds.RN
+                         (Rdefinitions.RbaseSymbolsImpl.Rmult
+                            (FloatBounds.r32 a) (FloatBounds.r32 lo))) =>
+               let Hp :
+                 Rdefinitions.Rle (Rbasic_fun.Rabs (r32 p))
+                   (Rdefinitions.IZR
+                      (BinInt.Z.pos (BinNums.xI (BinNums.xO BinNums.xH)))) :=
+                 eq_ind_r
+                   (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+                    Rdefinitions.Rle (Rbasic_fun.Rabs r)
+                      (Rdefinitions.IZR
+                         (BinInt.Z.pos (BinNums.xI (BinNums.xO BinNums.xH)))))
+                   (let H :
+                      Rdefinitions.Rle
+                        (Rbasic_fun.Rabs
+                           (FloatBounds.RN
+                              (Rdefinitions.RbaseSymbolsImpl.Rmult 
+                                 (r32 a) (r32 lo))))
+                        (Rdefinitions.RbaseSymbolsImpl.Rplus
+                           (Rdefinitions.RbaseSymbolsImpl.Rplus
+                              (Rdefinitions.IZR (BinInt.Z.pos (...)))
+                              (Rdefinitions.RbaseSymbolsImpl.Rmult u
+                                 (Rdefinitions.IZR (...))))
+                           eta) :=
+                      RN_abs_small
+                        (Rdefinitions.RbaseSymbolsImpl.Rmult (r32 a) (r32 lo))
+                        (Rdefinitions.IZR
+                           (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH))))
+                        ((let __arith :
+                            Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                              (Rdefinitions.IZR (...)) :=
+                            let __wit := nil in
+                            let __varmap := VarMap.Empty in
+                            let __ff := ... in
+                            RMicromega.RTautoChecker_sound __ff __wit ... ...
+                            in
+                          __arith)
+                         :
+                         Rdefinitions.Rle (Rdefinitions.IZR BinNums.Z0)
+                           (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO ...))))
+                        Hal
+                      in
+                    ((let __arith :
+                        forall __x1 : Rdefinitions.RbaseSymbolsImpl.R,
+                        Rdefinitions.Rle __x1
+                          (Rdefinitions.RbaseSymbolsImpl.Rplus ... ...) ->
+                        Rdefinitions.Rle __x1 (Rdefinitions.IZR ...) :=
+                        fun __x1 : Rdefinitions.RbaseSymbolsImpl.R =>
+                        let __wit := nil in
+                        let __varmap := VarMap.Elt __x1 in
+                        let __ff := ... in
+                        RMicromega.RTautoChecker_sound __ff __wit ... ... in
+                      __arith (Rbasic_fun.Rabs (FloatBounds.RN (...))) H)
+                     :
+                     Rdefinitions.Rle
+                       (Rbasic_fun.Rabs
+                          (FloatBounds.RN
+                             (Rdefinitions.RbaseSymbolsImpl.Rmult (...) (...))))
+                       (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xI (...)))))
+                    :
+                    Rdefinitions.Rle
+                      (Rbasic_fun.Rabs
+                         (FloatBounds.RN
+                            (Rdefinitions.RbaseSymbolsImpl.Rmult 
+                               (r32 a) (r32 lo))))
+                      (Rdefinitions.IZR
+                         (BinInt.Z.pos (BinNums.xI (BinNums.xO BinNums.xH)))))
+                   RP
+                 in
+               let Hsp :
+                 Rdefinitions.Rle
+                   (Rbasic_fun.Rabs
+                      (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 s) (r32 p)))
+                   (Rdefinitions.IZR
+                      (BinInt.Z.pos
+                         (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))) :=
+                 let H :
+                   Rdefinitions.Rle
+                     (Rbasic_fun.Rabs
+                        (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 s) (r32 p)))
+                     (Rdefinitions.RbaseSymbolsImpl.Rplus
+                        (Rdefinitions.IZR
+                           (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                        (Rdefinitions.IZR
+                           (BinInt.Z.pos (BinNums.xI (BinNums.xO BinNums.xH))))) :=
+                   abs_pair (r32 s) (r32 p)
+                     (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+                     (Rdefinitions.IZR
+                        (BinInt.Z.pos (BinNums.xI (BinNums.xO BinNums.xH))))
+                     Hs Hp
+                   in
+                 (let __arith :
+                    forall __x1 : Rdefinitions.RbaseSymbolsImpl.R,
+                    Rdefinitions.Rle __x1
+                      (Rdefinitions.RbaseSymbolsImpl.Rplus
+                         (Rdefinitions.IZR (...)) 
+                         (Rdefinitions.IZR (...))) ->
+                    Rdefinitions.Rle __x1
+                      (Rdefinitions.IZR (BinInt.Z.pos (...))) :=
+                    fun __x1 : Rdefinitions.RbaseSymbolsImpl.R =>
+                    let __wit := nil in
+                    let __varmap := VarMap.Elt __x1 in
+                    let __ff :=
+                      Tauto.IMPL (Tauto.A Tauto.isProp ... tt) None
+                        (Tauto.A Tauto.isProp ... tt)
+                      in
+                    RMicromega.RTautoChecker_sound __ff __wit
+                      (eq_refl <: ... = true) (VarMap.find (...) __varmap)
+                    in
+                  __arith
+                    (Rbasic_fun.Rabs
+                       (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 s) (r32 p)))
+                    H)
+                 :
+                 Rdefinitions.Rle
+                   (Rbasic_fun.Rabs
+                      (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 s) (r32 p)))
+                   (Rdefinitions.IZR
+                      (BinInt.Z.pos
+                         (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))
+                 in
+               let a3 :
+                 FloatBounds.finite (Floats.Float32.add s p) /\
+                 FloatBounds.r32 (Floats.Float32.add s p) =
+                 FloatBounds.RN
+                   (Rdefinitions.RbaseSymbolsImpl.Rplus 
+                      (FloatBounds.r32 s) (FloatBounds.r32 p)) :=
+                 FloatBounds.add_finite_real s p FS FP Hsp in
+               match a3 with
+               | conj x6 x7 =>
+                   (fun (FN : FloatBounds.finite (Floats.Float32.add s p))
+                      (RN : FloatBounds.r32 (Floats.Float32.add s p) =
+                            FloatBounds.RN
+                              (Rdefinitions.RbaseSymbolsImpl.Rplus
+                                 (FloatBounds.r32 s) 
+                                 (FloatBounds.r32 p))) =>
+                    let H1c :
+                      Rdefinitions.Rle
+                        (Rbasic_fun.Rabs
+                           (Rdefinitions.RbaseSymbolsImpl.Rplus (...) (...)))
+                        (Rdefinitions.IZR (BinInt.Z.pos (...))) :=
+                      eq_ind_r
+                        (fun r : Rdefinitions.RbaseSymbolsImpl.R =>
+                         Rdefinitions.Rle (Rbasic_fun.Rabs ...)
+                           (Rdefinitions.IZR ...))
+                        (eq_ind_r (fun ... => Rdefinitions.Rle r ...)
+                           ((...) : Rdefinitions.Rle ... ...)
+                           (Rbasic_fun.Rabs_pos_eq (...) (...)))
+                        one_real
+                      in
+                    let a4 :
+                      FloatBounds.finite (Floats.Float32.add one c) /\
+                      FloatBounds.r32 (Floats.Float32.add one c) =
+                      FloatBounds.RN
+                        (Rdefinitions.RbaseSymbolsImpl.Rplus ... ...) :=
+                      FloatBounds.add_finite_real one c one_finite FC H1c in
+                    match a4 with
+                    | conj x8 x9 => (fun ... ... => ... ...) x8 x9
+                    end) x6 x7
+               end) x4 x5
+          end) x2 x3
+     end) x0 x1
+end
+     : forall c li lo x : Floats.float32,
+       finite c ->
+       Rdefinitions.Rle (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) (r32 c) /\
+       Rdefinitions.Rle (r32 c)
+         (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) ->
+       finite li ->
+       Rdefinitions.Rle (Rbasic_fun.Rabs (r32 li))
+         (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) ->
+       finite lo ->
+       Rdefinitions.Rle (Rbasic_fun.Rabs (r32 lo))
+         (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) ->
+       finite x ->
+       Rdefinitions.Rle (Rbasic_fun.Rabs (r32 x))
+         (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) ->
+       finite (step c li lo x) /\
+       Rdefinitions.Rle (Rbasic_fun.Rabs (r32 (step c li lo x)))
+         (Rdefinitions.IZR (BinInt.Z.pos (BinNums.xO BinNums.xH))) /\
+       Rdefinitions.Rle
+         (Rbasic_fun.Rabs
+            (Rdefinitions.Rminus (r32 (step c li lo x))
+               (Rdefinitions.Rdiv
+                  (Rdefinitions.RbaseSymbolsImpl.Rplus
+                     (Rdefinitions.RbaseSymbolsImpl.Rplus (r32 x) (r32 li))
+                     (Rdefinitions.RbaseSymbolsImpl.Rmult
+                        (Rdefinitions.Rminus (r32 c)
+                           (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)))
+                        (r32 lo)))
+                  (Rdefinitions.RbaseSymbolsImpl.Rplus
+                     (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH)) 
+                     (r32 c)))))
+         (Rdefinitions.Rdiv (Rdefinitions.IZR (BinInt.Z.pos BinNums.xH))
+            (Rdefinitions.IZR
+               (BinInt.Z.pos
+                  (BinNums.xO
+                     (BinNums.xO
+                        (BinNums.xO
+                           (BinNums.xO
+                              (BinNums.xO
+                                 (BinNums.xO
+                                    (BinNums.xO
+                                       (BinNums.xO
+                                          (BinNums.xO
+                                             (BinNums.xO
+                                                (BinNums.xO
+                                                 (BinNums.xO
+                                                 (BinNums.xO (BinNums.xO ...)))))))))))))))))
+
+Arguments step_bound_local c li lo x _ _ _ _ _ _ _ _

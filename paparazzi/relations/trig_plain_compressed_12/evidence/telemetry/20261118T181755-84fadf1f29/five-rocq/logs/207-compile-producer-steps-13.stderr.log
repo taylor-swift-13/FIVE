@@ -1,0 +1,21 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/ProducerSteps.v", line 131, characters 47-62:
+Error:
+In environment
+ge : genv
+te : typenv
+mf : mem
+x : int
+H : producer ConstantNine (Eval (Vint x) tint)
+P : producer SmallDelta (Ebinop Oadd (Eval (Vint x) tint) (lit 1) tint)
+W : wt_rvalue ge te (Ebinop Oadd (Eval (Vint x) tint) (lit 1) tint)
+v : val
+RED :
+  rred ge (Ebinop Oadd (Eval (Vint x) tint) (lit 1) tint) mf Events.E0
+    (Eval v tint) mf
+H9 :
+  sem_binary_operation ge Oadd (Vint x) tint (Vint (Int.repr 1)) tint mf =
+  Some v
+B : producer_bounds ConstantNine (Int.signed x)
+Unable to unify "Int.repr (Int.signed ?i) = ?i" with
+ "x = Int.repr (Int.signed x)".
+

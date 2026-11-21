@@ -1,0 +1,68 @@
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/EncoderMemory.v", line 155, characters 24-35:
+Error:
+In environment
+m : mem
+value, previous, count : Z
+tb : block
+tofs : ptrofs
+V : 0 <= value <= 16383
+P : 0 <= previous <= 16383
+C : 0 <= count <= 16383
+a1 : Mem.mem'
+b1 : block
+A1 : Mem.alloc m 0 2 = (a1, b1)
+a2 : Mem.mem'
+b2 : block
+A2 : Mem.alloc a1 0 2 = (a2, b2)
+a3 : Mem.mem'
+b3 : block
+A3 : Mem.alloc a2 0 2 = (a3, b3)
+a4 : Mem.mem'
+b4 : block
+A4 : Mem.alloc a3 0 8 = (a4, b4)
+F1 : ~ Mem.valid_block m b1
+F2 : ~ Mem.valid_block m b2
+F3 : ~ Mem.valid_block m b3
+F4 : ~ Mem.valid_block m b4
+D12 : b1 <> b2
+D13 : b1 <> b3
+D14 : b1 <> b4
+D23 : b2 <> b3
+D24 : b2 <> b4
+D34 : b3 <> b4
+VA1 : Mem.valid_access a4 Mint16signed b1 0 Freeable
+VA2 : Mem.valid_access a4 Mint16signed b2 0 Freeable
+VA3 : Mem.valid_access a4 Mint16signed b3 0 Freeable
+VA4 : Mem.valid_access a4 Mptr b4 0 Freeable
+s1 : mem
+S1 : Mem.store Mint16signed a4 b1 0 (Vint (Int.repr value)) = Some s1
+VW2 : Mem.valid_access s1 Mint16signed b2 0 Writable
+s2 : mem
+S2 : Mem.store Mint16signed s1 b2 0 (Vint (Int.repr previous)) = Some s2
+VW3 : Mem.valid_access s2 Mint16signed b3 0 Writable
+s3 : mem
+S3 : Mem.store Mint16signed s2 b3 0 (Vint (Int.repr count)) = Some s3
+VW4 : Mem.valid_access s3 Mptr b4 0 Writable
+mp : mem
+S4 : Mem.store Mptr s3 b4 0 (Vptr tb tofs) = Some mp
+e :=
+  PTree.set _tab (b4, pointer_type)
+    (PTree.set _cnt (b3, short_type)
+       (PTree.set _val_prev (b2, short_type)
+          (PTree.set _val (b1, short_type) (PTree.empty (block * type)))))
+  : PTree.tree (block * type)
+E1 : e ! _val = Some (b1, short_type)
+E2 : e ! _val_prev = Some (b2, short_type)
+E3 : e ! _cnt = Some (b3, short_type)
+E4 : e ! _tab = Some (b4, pointer_type)
+L1 : Mem.load Mint16signed mp b1 0 = Some (Vint (Int.repr value))
+L2 : Mem.load Mint16signed mp b2 0 = Some (Vint (Int.repr previous))
+L3 : Mem.load Mint16signed mp b3 0 = Some (Vint (Int.repr count))
+L4 : Mem.load Mptr mp b4 0 = Some (Vptr tb tofs)
+VF1 : Mem.valid_access mp Mint16signed b1 0 Freeable
+VF2 : Mem.valid_access mp Mint16signed b2 0 Freeable
+VF3 : Mem.valid_access mp Mint16signed b3 0 Freeable
+VF4 : Mem.valid_access mp Mptr b4 0 Freeable
+Unable to unify "[(b1, 0, 2); (b2, 0, 2); (b3, 0, 2); (b4, 0, 8)]" with
+ "[(b3, 0, 2); (b4, 0, 8); (b2, 0, 2); (b1, 0, 2)]".
+

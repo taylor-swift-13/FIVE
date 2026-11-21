@@ -1,0 +1,44 @@
+Theorem perm_alloc_1:
+  forall b' ofs k p, perm m1 b' ofs k p -> perm m2 b' ofs k p.
+
+Theorem perm_alloc_2:
+  forall ofs k, lo <= ofs < hi -> perm m2 b ofs k Freeable.
+
+Theorem perm_alloc_3:
+  forall ofs k p, perm m2 b ofs k p -> lo <= ofs < hi.
+
+Theorem perm_free_1:
+  forall b ofs k p,
+  b <> bf \/ ofs < lo \/ hi <= ofs ->
+  perm m1 b ofs k p ->
+  perm m2 b ofs k p.
+
+Theorem perm_free_2:
+  forall ofs k p, lo <= ofs < hi -> ~ perm m2 bf ofs k p.
+
+Theorem perm_free_3:
+  forall b ofs k p,
+  perm m2 b ofs k p -> perm m1 b ofs k p.
+
+Lemma perm_free_list:
+  forall l m m' b ofs k p,
+  free_list m l = Some m' ->
+  perm m' b ofs k p ->
+  perm m b ofs k p /\
+  (forall lo hi, In (b, lo, hi) l -> lo <= ofs < hi -> False).
+
+Theorem valid_block_alloc_inv:
+  forall b', valid_block m2 b' -> b' = b \/ valid_block m1 b'.
+
+Theorem nextblock_alloc:
+  nextblock m2 = Pos.succ (nextblock m1).
+
+Lemma allocation_keeps_binding : forall vars e m id,
+ ~In id(map fst vars) ->
+ (fst(Cexec.do_alloc_variables ge e m vars))!id=e!id.
+Proof.
+ induction vars as[|[head ty]vars IH];intros e m id NOT;cbn [Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(simpl in NOT;tauto).
+ apply PTree.gso;intro EQ;subst;simpl in NOT;tauto.
+Qed.

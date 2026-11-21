@@ -1,0 +1,314 @@
+"""Strict current proof receipt validation; historical attempts remain immutable."""
+import hashlib
+import json
+from pathlib import Path
+import re
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def certificate_source(imports, bindings):
+    return ''.join(f'Require Import {name}.\n' for name in imports) + ''.join(
+        f'Definition goal_{i} : {row["type"]} := {row["theorem"]}.\nPrint Assumptions goal_{i}.\n'
+        for i, row in enumerate(bindings))
+
+
+def input_index(root, active):
+    """Explicit adapters for retained index formats, never a default empty list."""
+    choices = [p for p in (active / 'inputs.json', active / 'provenance.json') if p.is_file()]
+    if len(choices) != 1:
+        raise ValueError('exactly one input index is required: ' + str(active))
+    path = choices[0]
+    data = json.loads(path.read_text())
+    schema = data.get('schema')
+    if schema == 'five-proof-attempt-provenance/1':
+        groups = [(root, data.get('files'))]
+    elif schema == 'five-proof-provenance/1':
+        stages = [p for p in active.parents if p.name == 'rocq']
+        if len(stages) != 1 or not data.get('model_configuration'):
+            raise ValueError('invalid case provenance context: ' + str(path))
+        groups = [(stages[0].parent, data.get('inputs')), (root, data.get('shared_inputs'))]
+    elif schema == 'five-proof-inputs/1':
+        hashes = data.get('dependency_sha256')
+        semantics = data.get('semantic_dependencies')
+        if not isinstance(hashes, dict) or not hashes or not isinstance(semantics, dict) or not semantics:
+            raise ValueError('missing dependency/semantic hash maps: ' + str(path))
+        for name, value in semantics.items():
+            source = Path(name)
+            if not source.is_absolute() or not source.is_file() or digest(source) != value:
+                raise ValueError('stale external semantic dependency: ' + str(source))
+        groups = [(root, [{'path': name, 'sha256': value} for name, value in hashes.items()])]
+    elif path.name == 'inputs.json' and schema is None:
+        # The two published pre-versioned layouts have distinct path bases.
+        keys = [key for key in ('inputs', 'artifacts') if key in data]
+        if len(keys) != 1:
+            raise ValueError('ambiguous/missing legacy input rows: ' + str(path))
+        key = keys[0]
+        groups = [(active if key == 'artifacts' else root, data.get(key))]
+    else:
+        raise ValueError('unsupported input index schema: ' + str(path))
+    rows = []
+    for base, entries in groups:
+        if not isinstance(entries, list) or not entries:
+            raise ValueError('empty/malformed input index: ' + str(path))
+        rows.extend((base, row) for row in entries)
+    resolved = {}
+    for base, row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str) or not row['path'] or not re.fullmatch('[0-9a-f]{64}', str(row.get('sha256', ''))):
+            raise ValueError('malformed input row: ' + str(path))
+        source = (base / row['path']).resolve()
+        if source in resolved or not source.is_file():
+            raise ValueError('duplicate/missing indexed input: ' + str(source))
+        resolved[source] = row['sha256']
+    return path, resolved
+
+
+def validate_current(root, problem, active, status):
+    from compcert_gate import kernel_record
+    root = Path(root).resolve()
+    path = active / 'evidence/goal-validation.json'
+    data = json.loads(path.read_text())
+    if data.get('schema') != 'five-proof-validation/1':
+        raise ValueError('unsupported current proof validation schema')
+    def checked(row):
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str):
+            raise ValueError('malformed current binding')
+        source = (root / row['path']).resolve()
+        if not source.is_relative_to(root) or not source.is_file() or digest(source) != row.get('sha256'):
+            raise ValueError('stale/missing current binding: ' + str(source))
+        return source
+    index, historical = input_index(root, active)
+    if checked(data.get('index')) != index:
+        raise ValueError('wrong input index binding')
+    rows = data.get('inputs')
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('missing current input bindings')
+    current, snapshots = {}, {}
+    for row in rows:
+        source = checked(row)
+        if source in current:
+            raise ValueError('duplicate current input')
+        current[source] = row['sha256']
+        if row.get('snapshot'):
+            snapshot = (root / row['snapshot']).resolve()
+            if not snapshot.is_relative_to(root) or not snapshot.is_file() or digest(snapshot) != row['sha256']:
+                raise ValueError('current source differs from compiled snapshot: ' + str(source))
+            if snapshot in snapshots:
+                raise ValueError('ambiguous compiled snapshot')
+            snapshots[snapshot] = source
+    required = set(historical) | {problem / 'Spec.v', active / 'Proof.v', active / 'check.py'}
+    if not required.issubset(current):
+        raise ValueError('current bindings omit indexed/proof/spec/checker inputs')
+    # Old manifest histories are immutable, but current executable sources must
+    # still match their original index as well as their fresh compiled snapshot.
+    for source, old_hash in historical.items():
+        if source.suffix in ('.v', '.c') and current[source] != old_hash:
+            raise ValueError('source differs from retained input index: ' + str(source))
+    if not {problem / 'Spec.v', active / 'Proof.v'}.issubset(set(snapshots.values())):
+        raise ValueError('current Proof/Spec missing compiled snapshots')
+    receipt_ref = data['kernel_evidence']
+    kernel_record(root, receipt_ref)
+    receipt = json.loads((root / receipt_ref).read_text())
+    dependencies = {(root / name).resolve(): value for name, value in receipt['dependency_sha256'].items()}
+    if set(dependencies) != set(snapshots):
+        raise ValueError('current source bindings do not cover exact kernel dependency closure')
+    if any(current[snapshots[p]] != value for p, value in dependencies.items()):
+        raise ValueError('kernel dependency hash differs from current source')
+    proof_run = json.loads((root / receipt['run'] / 'run.json').read_text())
+    def full_compile(command):
+        # Reference full-build shape only: load paths, harmless output flags,
+        # and exactly one source. Output/module overrides can leave stale .vo
+        # files at the path later consumed by the kernel, so fail closed.
+        argv = command.get('argv', [])
+        if not argv or command.get('status') != 'passed' or command.get('exit_code') != 0:
+            return False
+        if Path(argv[0]).name == 'rocq' and argv[1:2] == ['compile']:
+            args = argv[2:]
+        elif Path(argv[0]).name == 'coqc':
+            args = argv[1:]
+        else:
+            return False
+        sources = 0
+        i = 0
+        while i < len(args):
+            if args[i] in ('-Q', '-R') and i + 2 < len(args):
+                i += 3
+            elif args[i] == '-I' and i + 1 < len(args):
+                i += 2
+            elif args[i] in ('-q', '-quiet', '-time'):
+                i += 1
+            elif not args[i].startswith('-') and args[i].endswith('.v'):
+                sources += 1
+                i += 1
+            else:
+{
+  "schema": "five-proof-validation/1",
+  "index": {
+    "path": "examples/relations/sum2_sum3/attempts/001/provenance.json",
+    "sha256": "26917a9b164db61afe3e376eb9a26022cfc1557c1fd032a91569b4056a3aeb2b"
+  },
+  "inputs": [
+    {
+      "path": "examples/models/sum2/align/handoff.json",
+      "sha256": "8358416710049b0963f7db3e65d358e67bd6ee9340718300d81548f24edeec17"
+    },
+    {
+      "path": "examples/models/sum2/align/model/Execution.v",
+      "sha256": "ae470887faa2ed9168348b51ab9e00cf65778cd4481e50b8c1f46e657c01fa07",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum2/Execution.v"
+    },
+    {
+      "path": "examples/models/sum2/align/model/Source.v",
+      "sha256": "6605d81b08d60d60936c479f46b11deabc6dacade4e1446ce2f10cd63734fb0e",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum2/Source.v"
+    },
+    {
+      "path": "examples/models/sum2/align/model/compcert-manifest.json",
+      "sha256": "db3cc28f99b371b0b758e378381e11380e341a817763dd401d988a5be46c5780"
+    },
+    {
+      "path": "examples/models/sum2/align/model/preprocessed.i",
+      "sha256": "15546f38e94e77c56653736f3301bffb4a72a43284864642a4eec340881b35e8"
+    },
+    {
+      "path": "examples/models/sum2/prepare/source/bindings.json",
+      "sha256": "830fcbaa8a2073f73b73a2d0dc6b6b9f6e3052462f7e028aedec962ba7b379eb"
+    },
+    {
+      "path": "examples/models/sum2/prepare/source/sum2.c",
+      "sha256": "a00e6ca0fd5061f344512db66454869e95a66c320fd1230aaea795895de75a96"
+    },
+    {
+      "path": "examples/models/sum3/align/handoff.json",
+      "sha256": "2077f97b05ce5343bfd145a12ccc3c08373b479c49ebbe8ee93687fbc49f45aa"
+    },
+    {
+      "path": "examples/models/sum3/align/model/Execution.v",
+      "sha256": "cac05564097b235e3c31d3bf9a826b8bfd1929b2d9dba7368737baa4a0f79ebe",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3/Execution.v"
+    },
+    {
+      "path": "examples/models/sum3/align/model/Source.v",
+      "sha256": "73e34704b1ea03671de34f619daa475cc70dff336f1720e64c431995008d373e",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3/Source.v"
+    },
+    {
+      "path": "examples/models/sum3/align/model/compcert-manifest.json",
+      "sha256": "c2b89dbaeda373e02257ee44576379a7a1eef3365b17f77e54f744af7e9e3b32"
+    },
+    {
+      "path": "examples/models/sum3/align/model/preprocessed.i",
+      "sha256": "93d414fe6aeb78e94bfc6cdf02fb47a9fb7ec993617ec3458896b3c7fc3c99bf"
+    },
+    {
+      "path": "examples/models/sum3/prepare/source/bindings.json",
+      "sha256": "c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4"
+    },
+    {
+      "path": "examples/models/sum3/prepare/source/sum3.c",
+      "sha256": "25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/Proof.v",
+      "sha256": "f6d72ce1412014de387489a0bb21958f4429ac240e705b50aa63929b0336ce21",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/relation/Proof.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/Sum2Return.v",
+      "sha256": "5c3d428edd6dbc157b58897a9f73832064e51c570d04886bc69ea86508575b6e",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum2proof/Sum2Return.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/Sum3Return.v",
+      "sha256": "dcf1f6663b22876e06ebda1c2152f5082079b4a3951f799f6219d9351c2d72c8",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3proof/ReturnValue.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/check.py",
+      "sha256": "c66d87ee6954331e19364ac2f24ad7faba91c993d13dc916af582c79f25f09e4"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum2/Invariant.v",
+      "sha256": "10a1704dc9086241cc0ab0b0952374c6d48185d9c7d570a34dfc9df02174911a",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum2proof/Invariant.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum2/NormalCorrespondence.v",
+      "sha256": "c1a3e726b95b604a7fb1220e946be282e72f7b375244a281db9f1c371505f22d",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum2proof/support/NormalCorrespondence.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum2/PureProgress.v",
+      "sha256": "0cfe976ed1f44f478f24bccd1d9c422124b3a3cc2055c35093df73c8f06406a1",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum2proof/PureProgress.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum2/SourceInvariant.v",
+      "sha256": "1f0ed1e6d275adb17666961908ec2225c8d10045bb76bb1b44e86bc8d8ff2ba1",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum2proof/SourceInvariant.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum3/Core.v",
+      "sha256": "d3c7b872fecb51af2cce0b4fec7c2e6d6ecc2381f06d2f18d88386a2014b6749",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3proof/Core.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum3/Entry.v",
+      "sha256": "144fde663e938008680e1fddb779851147b0256b62d3c927eeb74f7e07b07169",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3proof/Entry.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum3/Invariant.v",
+      "sha256": "92be3cbd46bcdcedf8f57d7ec0328a91629a2afb6bd5bf27f2374282d5d6a367",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3proof/Invariant.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum3/NormalCorrespondence.v",
+      "sha256": "f1e510ae1a44e3c45baf03990deec55c724105e5e983f6e3839b3f156a261eb1",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3proof/support/NormalCorrespondence.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum3/PureProgress.v",
+      "sha256": "a592e89a8ee0d9ed729217253d99deb590fecb8f78c18540583d7438ca0bbedb",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3proof/PureProgress.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/attempts/001/support/sum3/SourceInvariant.v",
+      "sha256": "bc9c565d9a74113594c661cd8303594c294e98268d544ab38b0bfc6e25dbe419",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/sum3proof/SourceInvariant.v"
+    },
+    {
+      "path": "examples/relations/sum2_sum3/problem/Spec.v",
+      "sha256": "87f8626a6c3398fcb44dfb49a9b92190bc83291ce4d8fdd316e80f8e363199ea",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/relation/Spec.v"
+    },
+    {
+      "path": "shared/pure_semantics/SemanticsSupport.v",
+      "sha256": "c788b34e8e9d3b84660250496472580d515d39de02e80be566f5381988c92de5",
+      "snapshot": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/shared/pure_semantics/SemanticsSupport.v"
+    }
+  ],
+  "kernel_evidence": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/proof-kernel-evidence.json",
+  "goal_bindings": [
+    {
+      "requested_goal": "Sum2EqualsSum3",
+      "theorem": "FiveExampleRelation.Proof.composition_bits",
+      "type": "FiveExampleRelation.Spec.Sum2EqualsSum3"
+    }
+  ],
+  "certificate": {
+    "path": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/checked/relation/GoalBinding.v",
+    "sha256": "1abb237d8b70bbbbd5552613bc136e799a1e16a52daaac964ec05390c83cf285",
+    "module": "FiveExampleRelation.GoalBinding",
+    "imports": [
+      "FiveExampleRelation.Spec",
+      "FiveExampleRelation.Proof"
+    ],
+    "run": "examples/models/sum3/rocq/report/evidence/goal-certification/run",
+    "compile_command_id": "130-certificate-relation-sum2_sum3",
+    "kernel_command_id": "131-certificate-kernel-relation-sum2_sum3",
+    "kernel_evidence": "examples/relations/sum2_sum3/attempts/001/evidence/goal-binding/certificate-kernel-evidence.json"
+  }
+}

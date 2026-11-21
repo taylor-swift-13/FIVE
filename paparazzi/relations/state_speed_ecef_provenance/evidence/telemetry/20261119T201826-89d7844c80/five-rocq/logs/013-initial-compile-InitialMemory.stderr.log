@@ -1,0 +1,65 @@
+File "./paparazzi/relations/state_speed_ecef_provenance/support/InitialMemory.v", line 272, characters 1-12:
+Error:
+In environment
+nx, ny, nz, ex, ey, ez : int
+m0 : mem
+INIT : Genv.init_mem S.prog = Some m0
+sb : block
+SYM : Genv.find_symbol GE.ge G._state = Some sb
+RP : Mem.range_perm m0 sb 0 656 Cur Writable
+READZERO : Genv.read_as_zero m0 sb 0 656
+ZERO : Mem.loadbytes m0 sb 0 656 = Some (repeat (Byte Byte.zero) 656)
+SBVALID : Mem.valid_block m0 sb
+mN : Mem.mem'
+nsrc : block
+AN : Mem.alloc m0 0 12 = (mN, nsrc)
+mE : Mem.mem'
+esrc : block
+AE : Mem.alloc mN 0 12 = (mE, esrc)
+NNE : nsrc <> sb
+SBVALIDN : Mem.valid_block mN sb
+ENE : esrc <> sb
+NVALID : Mem.valid_block mN nsrc
+NEDIFF : nsrc <> esrc
+NRANGE : Mem.range_perm mE nsrc 0 12 Cur Writable
+ERANGE : Mem.range_perm mE esrc 0 12 Cur Writable
+SRANGE : Mem.range_perm mE sb 0 656 Cur Writable
+ZEROE : Mem.loadbytes mE sb 0 656 = Some (repeat (Byte Byte.zero) 656)
+STATUS0 : Mem.load Mint16unsigned m0 sb 280 = Some (Vint Int.zero)
+STATUSE : Mem.load Mint16unsigned mE sb 280 = Some (Vint Int.zero)
+mNW : mem
+SN : store_words mE nsrc nx ny nz = Some mNW
+NWORDS : Words mNW nsrc nx ny nz
+NPERM :
+  forall (bb : block) (oo : Z) (k : perm_kind) (p : permission),
+  Mem.perm mE bb oo k p <-> Mem.perm mNW bb oo k p
+NLOAD :
+  forall (ch : memory_chunk) (bb : block) (oo : Z),
+  bb <> nsrc -> Mem.load ch mNW bb oo = Mem.load ch mE bb oo
+NBYTES :
+  forall (bb : block) (oo n : Z),
+  bb <> nsrc -> Mem.loadbytes mNW bb oo n = Mem.loadbytes mE bb oo n
+ERN : Mem.range_perm mNW esrc 0 12 Cur Writable
+mEW : mem
+SE : store_words mNW esrc ex ey ez = Some mEW
+EWORDS : Words mEW esrc ex ey ez
+EPERM :
+  forall (bb : block) (oo : Z) (k : perm_kind) (p : permission),
+  Mem.perm mNW bb oo k p <-> Mem.perm mEW bb oo k p
+ELOAD :
+  forall (ch : memory_chunk) (bb : block) (oo : Z),
+  bb <> esrc -> Mem.load ch mEW bb oo = Mem.load ch mNW bb oo
+EBYTES :
+  forall (bb : block) (oo n : Z),
+  bb <> esrc -> Mem.loadbytes mEW bb oo n = Mem.loadbytes mNW bb oo n
+SRW : Mem.range_perm mEW sb 0 656 Cur Writable
+ZEROW : Mem.loadbytes mEW sb 0 656 = Some (repeat (Byte Byte.zero) 656)
+STATUSW : Mem.load Mint16unsigned mEW sb 280 = Some (Vint Int.zero)
+m : mem
+FILTER : Mem.store Mint16unsigned mEW sb 282 (Vint any_filter) = Some m
+SRFINAL : Mem.range_perm m sb 0 656 Cur Writable
+ANY : Mem.load Mint16unsigned m sb 282 = Some (Vint any_filter)
+STATUS : Mem.load Mint16unsigned m sb 280 = Some (Vint Int.zero)
+BYTES : Mem.loadbytes m sb 0 656 = Some initial_state_contents
+Unable to unify "Some (Vint nx)" with "Mem.load Mint32 m nsrc 0".
+

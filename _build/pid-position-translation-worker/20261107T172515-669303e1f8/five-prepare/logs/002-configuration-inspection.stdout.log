@@ -1,0 +1,210 @@
+{
+  "entry": "gh_update_ref_from_speed_sp",
+  "signature": "void (struct FloatVect2)",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a",
+  "prepared_source": {
+    "path": "gh_update_ref_from_speed_sp.c",
+    "sha256": "bfbb3e4f976d9482dbb2ccecc513001a165507c06a6643235c40d1eac29e44fb"
+  },
+  "external_calls": [
+    {
+      "original": "sqrtf",
+      "actual": "five_sqrtf",
+      "kind": "explicit fixed internal C implementation",
+      "source": "five_sqrtf.c",
+      "sha256": "ba19f7684dc74b1e279c00e57cb9afe974d3e904f849397c990e7b7f49b6918b",
+      "scope": "Exact execution of common finite integer restoring C algorithm. Native libm equivalence/IEEE accuracy transfer not claimed as proved."
+    }
+  ],
+  "compilation_options": [
+    "-fstruct-passing"
+  ],
+  "limitations": [
+    "Native system libm equivalence and software IEEE accuracy theorem outside requested fixed-binding execution relation."
+  ],
+  "dependencies": [
+    {
+      "path": "five_sqrtf.c",
+      "sha256": "ba19f7684dc74b1e279c00e57cb9afe974d3e904f849397c990e7b7f49b6918b",
+      "origin": "paparazzi/report/guidance_mode/evidence/software-sqrt-binding/restoring/five_sqrtf.c"
+    }
+  ],
+  "binding_revision": "integer-restoring-v2"
+}
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/extraction.json
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/verification-request.json
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/report/costs.json
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/report/report.md
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/COPYING
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/source/five_sqrtf.c
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/source/gh_update_ref_from_speed_sp.c
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/source/bindings.json
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/original/sw/airborne/math/pprz_algebra_int.h
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/original/sw/airborne/math/pprz_algebra.h
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/original/sw/airborne/math/pprz_algebra_float.h
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/original/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/original/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.c
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/handoff.json
+#!/usr/bin/env python3
+"""Validate every actual guidance problem and optionally rebuild active proofs."""
+from pathlib import Path
+import argparse, importlib.util, json, subprocess, sys, hashlib, re
+root=Path(__file__).resolve().parents[3]
+sys.path.insert(0,str(root/'scripts'))
+spec=importlib.util.spec_from_file_location('five_reference_validator',root/'scripts/check-example-artifacts.py')
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+def audit_input_copies(validator):
+ """Check retained input bytes, beyond the original source/hash receipt gate."""
+ runs=set()
+ for attempt in set(validator.active):
+  validation=validator.read(attempt/'evidence/goal-validation.json')
+  if validation.get('certificate',{}).get('run'):runs.add(validation['certificate']['run'])
+  ref=validation.get('kernel_evidence')
+  if ref:
+   evidence=validator.read(root/ref)
+   if evidence.get('run'):runs.add(evidence['run'])
+ for name in ('gh_update_ref_from_speed_sp','gh_update_ref_from_accel_sp'):
+  ledger=validator.read(root/'paparazzi/models'/name/'rocq/spec-recheck.json')
+  if ledger.get('cbmc_run'):runs.add(ledger['cbmc_run'])
+ checked=0
+ for ref in sorted(runs):
+  run=(root/ref).resolve()
+  if not validator.require(run.is_relative_to(root),'run path outside repository: '+str(run)):continue
+  metadata=validator.read(run/'run.json')
+  validator.require(metadata.get('status')=='passed','active proof/CBMC run not passed: '+str(run))
+  rows=metadata.get('inputs',[]);validator.require(bool(rows),'empty retained input manifest: '+str(run))
+  for row in rows:
+   relative=row.get('path');expected=row.get('sha256')
+   if not validator.require(row.get('status')!='missing'and isinstance(relative,str)and isinstance(expected,str)and re.fullmatch('[0-9a-f]{64}',expected),'missing or malformed retained input: '+str(run)+': '+str(row.get('source'))):continue
+   copied=(run/relative).resolve()
+   if not validator.require(copied.is_relative_to(run),'captured input escapes run: '+str(copied)):continue
+   if validator.file(copied):
+    validator.require(hashlib.sha256(copied.read_bytes()).hexdigest()==expected,'captured input SHA mismatch: '+str(copied));checked+=1
+ return {'runs':sorted(runs),'input_copies_checked':checked}
+def main():
+ parser=argparse.ArgumentParser();parser.add_argument('--compile',action='store_true');args=parser.parse_args()
+ validator=module.Validator(root)
+ for name in ('gh_update_ref_from_speed_sp','gh_update_ref_from_accel_sp'):
+  case=root/'paparazzi/models'/name;validator.case(case)
+  for problem in sorted((case/'rocq').glob('*/problem')):
+   if problem.parent.name not in ('no_error','termination','cbmc_recheck'):validator.proof_problem(problem)
+ validator.proof_problem(root/'paparazzi/relations/guidance_mode/problem')
+ input_copies=audit_input_copies(validator)
+ # Both execution and CBMC gates independently inspect current source bindings.
+ if not validator.errors:
+  for name in ('gh_update_ref_from_speed_sp','gh_update_ref_from_accel_sp'):
+   case=root/'paparazzi/models'/name
+   from compcert_gate import accept_compcert_delivery
+   import hashlib
+   request=case/'align/request.json'
+   try:accept_compcert_delivery(root,request_path=str(request.relative_to(root)),expected_request_sha256=hashlib.sha256(request.read_bytes()).hexdigest(),contract_path=str((case/'rocq/execution-contract.json').relative_to(root)),manifest_path=str((case/'align/model/compcert-manifest.json').relative_to(root)),spec_recheck_path=str((case/'rocq/spec-recheck.json').relative_to(root)))
+   except Exception as exc:validator.errors.append('complete execution gate: '+name+': '+str(exc))
+ if validator.errors:
+  print(json.dumps({'status':'failed','errors':validator.errors},indent=2));return 1
+ if args.compile:
+  for attempt in dict.fromkeys(validator.active):subprocess.run([sys.executable,str(attempt/'check.py')],cwd=root,check=True)
+ print(json.dumps({'status':'passed','active_problems':len(set(validator.active)),'compile':args.compile,'problems':[str(p.relative_to(root)) for p in validator.active],'input_copy_audit':input_copies},indent=2));return 0
+if __name__=='__main__':raise SystemExit(main())
+/*
+ * Copyright (C) 2023 Gautier Hattenberger <gautier.hattenberger@enac.fr>
+ *
+ * This file is part of paparazzi.
+ *
+ * paparazzi is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * paparazzi is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with paparazzi; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
+
+/** @file firmwares/rotorcraft/guidance/guidance_pid.h
+ *  Guidance controller with PID for rotorcrafts.
+ *
+ */
+
+#ifndef GUIDANCE_PID_H
+#define GUIDANCE_PID_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "std.h"
+#include "math/pprz_algebra_int.h"
+#include "firmwares/rotorcraft/guidance/guidance_h.h"
+#include "firmwares/rotorcraft/guidance/guidance_v.h"
+
+struct GuidancePID {
+  // horizontal gains
+  int32_t kp;
+  int32_t kd;
+  int32_t ki;
+  int32_t kv;
+  int32_t ka;
+  // vertical gains
+  int32_t v_kp;
+  int32_t v_kd;
+  int32_t v_ki;
+  // outputs
+  struct Int32Vect2 cmd_earth;  // Horizontal guidance command (north/east with #INT32_ANGLE_FRAC)
+  int32_t cmd_thrust;           // Vertical guidance command (in pprz_t)
+  // options
+  bool approx_force_by_thrust;  // Correction of force commands from thrust
+  bool adapt_throttle_enabled;  // Use adaptive throttle command estimation
+};
+
+/** Guidance PID structyre
+ */
+extern struct GuidancePID guidance_pid;
+
+extern void guidance_pid_init(void);
+extern void guidance_pid_h_enter(void);
+extern void guidance_pid_v_enter(void);
+extern struct StabilizationSetpoint guidance_pid_h_run_pos(bool in_flight, struct HorizontalGuidance *gh);
+extern struct StabilizationSetpoint guidance_pid_h_run_speed(bool in_flight, struct HorizontalGuidance *gh);
+extern struct StabilizationSetpoint guidance_pid_h_run_accel(bool in_flight, struct HorizontalGuidance *gh);
+extern struct ThrustSetpoint guidance_pid_v_run_pos(bool in_flight, struct VerticalGuidance *gv);
+extern struct ThrustSetpoint guidance_pid_v_run_speed(bool in_flight, struct VerticalGuidance *gv);
+extern struct ThrustSetpoint guidance_pid_v_run_accel(bool in_flight, struct VerticalGuidance *gv);
+
+extern void guidance_pid_set_h_igain(uint32_t igain);
+extern void guidance_pid_set_v_igain(uint32_t igain);
+
+/** Gets the position error
+ * @param none.
+ * @return Pointer to a structure containing x and y position errors
+ */
+extern const struct Int32Vect2 *guidance_pid_get_h_pos_err(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* GUIDANCE_PID_H */
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"

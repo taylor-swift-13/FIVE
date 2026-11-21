@@ -1,0 +1,45 @@
+124:Qed.
+125:Lemma conditional_context_hole:forall from to C,
+126: context from to C ->forall a v,to=RV ->conditional_value(C a)v ->
+127: simple a=true \/exists w,conditional_value a w.
+128:Proof.
+129: intros from to C CT;pose proof CT as WHOLE;induction CT;intros a v KIND CV;try discriminate.
+130: all:try solve[right;exists v;exact CV].
+131: all:try solve[inversion CV;subst;try discriminate;left;eapply simple_context_hole;[exact WHOLE|eassumption]].
+132: - inversion CV;subst;try discriminate;left;eapply simple_context_hole;[exact CT|eassumption].
+133: - inversion CV;subst;try discriminate;eapply IHCT;eauto.
+134:Qed.
+135:
+136:Lemma conditional_estep:forall f a k t next v,
+137: conditional_value a v ->Csem.estep ge(ExprState f a k e m)t next ->
+138: exists a',next=ExprState f a' k e m /\t=E0 /\
+139: typeof a'=typeof a /\conditional_value a' v.
+140:Proof.
+141: intros f a k t next v CV STEP;inversion STEP;subst.
+142: - match goal with LR:lred ge e ?sub m ?sub' ?mf,CT:Csem.context LV RV ?C|-_ =>
+143:   destruct(pure_lred ge e sub m sub' mf LR)as[MM[TY[SI EQ]]];subst mf;
+144:   exists(C sub');repeat split;auto;
+145:   [exact(context_type_eq _ _ _ CT sub' sub TY)
+146:   |eapply conditional_context_congr;[exact CT|symmetry;exact TY| |intros BAD;discriminate|reflexivity|exact CV];
+147:    intros SA;split;assumption]end.
+148: - match goal with RR:rred ge ?sub m t ?sub' ?mf,CT:Csem.context RV RV ?C|-_ =>
+149:   destruct(conditional_context_hole _ _ _ CT sub v eq_refl CV)as[SA|[w CW]];
+150:   [destruct(pure_rred ge e sub m t sub' mf SA RR)as[MM[TT[TY[SI EQ]]]]|
+151:    destruct(conditional_rred sub w t sub' mf CW RR)as[MM[TT[TY CW']]]];
+152:   subst mf;
+153:   exists(C sub');repeat split;auto;
+154:   try exact(context_type_eq _ _ _ CT sub' sub TY);
+155:   eapply conditional_context_congr;[exact CT|symmetry;exact TY| | |reflexivity|exact CV];
+156:   [intros SIMPLE;destruct(pure_rred ge e sub m t sub' m SIMPLE RR)as[_[_[_[SS EE]]]];split;assumption
+157:   |intros _ value VALUE;exact(proj2(proj2(proj2(conditional_rred sub value t sub' m VALUE RR))))]
+158:   end.
+159: - match goal with CR:callred ge ?sub m _ _ _,CT:Csem.context RV RV ?C|-_ =>
+160:   destruct(conditional_context_hole _ _ _ CT sub v eq_refl CV)as[SA|[w CW]];
+161:   inversion CR;subst;[discriminate|inversion CW;discriminate]end.
+162: - exfalso;match goal with BAD:~imm_safe ge e ?kind ?sub m,CT:Csem.context ?kind RV ?C|-_ =>
+163:   apply BAD;exact(conditional_not_stuck _ _ CV _ _ _ CT eq_refl)end.
+164:Qed.
+165:End CONDITIONAL.
+166:Print Assumptions conditional_estep.
+167:
+[PosixPath('paparazzi/relations/pid_position_translation/support'), PosixPath('paparazzi/relations/pid_position_translation/problem'), PosixPath('paparazzi/relations/pid_position_translation/attempts')]

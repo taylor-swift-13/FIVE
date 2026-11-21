@@ -1,0 +1,160 @@
+((if
+   type_eq tfloat
+     (typeof
+        (Ederef
+           (Ebinop Oadd
+              (Evalof
+                 (Efield (Evalof (Ederef (Ptr _m_a2b rt) rt) rt) _m
+                    (tarray tfloat 9))
+                 (tarray tfloat 9))
+              (Eval (Vint (Int.repr i)) tint) (tptr tfloat))
+           tfloat))
+  then
+   match
+     match
+       match
+         (if
+           type_eq (tarray tfloat 9)
+             (typeof
+                (Efield (Evalof (Ederef (Ptr _m_a2b rt) rt) rt) _m
+                   (tarray tfloat 9)))
+          then
+           match
+             match
+               (if type_eq rt (typeof (Ederef (Ptr _m_a2b rt) rt))
+                then
+                 match
+                   match
+                     (fix pure_rval (a : expr) : option val :=
+                        match a with
+                        | Eval v _ => Some v
+                        | Evalof l ty => if ... then ... else None
+                        | Eaddrof l _ =>
+                            match ... with
+                            | ... ...
+                            | ... None
+                            | ... None
+                            end
+                        | Eunop op a0 _ =>
+                            match ... with
+                            | ... ...
+                            | ... None
+                            end
+                        | Ebinop op a0 b _ =>
+                            match ... with
+                            | ... ...
+                            | ... None
+                            end
+                        | Ecast a0 ty =>
+                            match ... with
+                            | ... ...
+                            | ... None
+                            end
+                        | Esizeof ty _ => Some (...)
+                        | Ealignof ty _ => Some (...)
+                        | _ => None
+                        end
+                      with pure_lval (a : expr) : option (... * bitfield) :=
+                        match a with
+                        | Evar id ty =>
+                            match ... with
+                            | ... ...
+                            | ... ...
+                            end
+                        | Efield a0 id _ =>
+                            match ... with
+                            | ... ...
+                            | ... None
+                            end
+                        | Ederef a0 _ =>
+                            match ... with
+                            | ... ...
+                            | ... None
+                            end
+                        | Eloc b ofs bf _ => Some (b, ofs, bf)
+                        | _ => None
+                        end
+                      for
+                      pure_rval) (Ptr _m_a2b rt)
+                   with
+                   | Some (Vptr b ofs) => Some (b, ofs, Full)
+                   | _ => None
+                   end
+                 with
+                 | Some (b, ofs, bf) =>
+                     match
+                       do_deref_loc ge PureDenotation.quiet_world rt m b ofs
+                         bf
+                     with
+                     | Some (_, _, v) => Some v
+                     | None => None
+                     end
+                 | None => None
+                 end
+                else None)
+             with
+             | Some (Vptr b ofs) =>
+                 match typeof (Evalof (Ederef (Ptr _m_a2b rt) rt) rt) with
+                 | Tstruct sid _ =>
+                     match ge ! sid with
+                     | Some co =>
+                         match field_offset ge _m (co_members co) with
+                         | OK (delta, bf) =>
+                             Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+                         | Error _ => None
+                         end
+                     | None => None
+                     end
+                 | Tunion sid _ =>
+                     match ge ! sid with
+                     | Some co =>
+                         match union_field_offset ge _m (co_members co) with
+                         | OK (delta, bf) =>
+                             Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+                         | Error _ => None
+                         end
+                     | None => None
+                     end
+                 | _ => None
+                 end
+             | _ => None
+             end
+           with
+           | Some (b, ofs, bf) =>
+               match
+                 do_deref_loc ge PureDenotation.quiet_world 
+                   (tarray tfloat 9) m b ofs bf
+               with
+               | Some (_, _, v) => Some v
+               | None => None
+               end
+           | None => None
+           end
+          else None)
+       with
+       | Some v =>
+           sem_binary_operation ge Oadd v
+             (typeof
+                (Evalof
+                   (Efield (Evalof (Ederef (Ptr _m_a2b rt) rt) rt) _m
+                      (tarray tfloat 9))
+                   (tarray tfloat 9)))
+             (Vint (Int.repr i)) (typeof (Eval (Vint (Int.repr i)) tint)) m
+       | None => None
+       end
+     with
+     | Some (Vptr b ofs) => Some (b, ofs, Full)
+     | _ => None
+     end
+   with
+   | Some (b, ofs, bf) =>
+       match
+         do_deref_loc ge PureDenotation.quiet_world tfloat m b ofs bf
+       with
+       | Some (_, _, v) => Some v
+       | None => None
+       end
+   | None => None
+   end
+  else None) =
+ Some (Vsingle (f i)))

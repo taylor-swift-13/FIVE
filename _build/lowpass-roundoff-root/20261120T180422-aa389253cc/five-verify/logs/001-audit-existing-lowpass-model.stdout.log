@@ -1,0 +1,56 @@
+prepare passed outputhashmismatches []
+cbmc passed outputhashmismatches []
+align generated outputhashmismatches []
+rocq proved outputhashmismatches []
+PROBLEM cbmc_recheck proved ../attempts/001
+PROBLEM functional proved ../attempts/001
+PROBLEM execution_correspondence proved ../attempts/001
+PROBLEM no_error proved ../attempts/001
+PROBLEM termination proved ../attempts/001
+SUPPORT paparazzi/models/update_first_order_low_pass/rocq/support/UpdateBody.v
+Lemma field_location:forall e m bp b p id delta,
+ e!Source._filter=Some(bp,filter_type)->Mem.load Mptr m bp 0=Some(Vptr b p)->
+ (id=Source._time_const /\ delta=0) \/ (id=Source._last_in /\ delta=4) \/ (id=Source._last_out /\ delta=8)->
+ pure_lval Execution.ge e m(field id)=Some(b,Ptrofs.add p(Ptrofs.repr delta),Full).
+Lemma field_value:forall e m bp b p id delta x,
+ writable12 m b p->e!Source._filter=Some(bp,filter_type)->Mem.load Mptr m bp 0=Some(Vptr b p)->
+ (id=Source._time_const /\delta=0)\/(id=Source._last_in /\delta=4)\/(id=Source._last_out /\delta=8)->
+ Mem.load Mfloat32 m b(Ptrofs.unsigned p+delta)=Some(Vsingle x)->
+Lemma formula_value:forall e m bp bv b p tc li lo value,
+ Initialized m b p tc li lo -> e!Source._filter=Some(bp,filter_type)->e!Source._value=Some(bv,tfloat)->
+ Mem.load Mptr m bp 0=Some(Vptr b p)->Mem.load Mfloat32 m bv 0=Some(Vsingle value)->
+ pure_rval Execution.ge e m formula=Some(Vsingle(output tc li lo value)).
+Lemma update_body_eval:forall e m bp bv bo b p tc li lo value m0 m1 m2,
+ Initialized m b p tc li lo ->
+ e!Source._filter=Some(bp,filter_type)->e!Source._value=Some(bv,tfloat)->e!Source._out=Some(bo,tfloat)->
+ Mem.load Mptr m bp 0=Some(Vptr b p)->Mem.load Mfloat32 m bv 0=Some(Vsingle value)->
+SUPPORT paparazzi/models/update_first_order_low_pass/rocq/support/Contract.v
+Definition output(tc li lo value:float32):float32:=Float32.div (Float32.add (Float32.add value li)(Float32.mul (Float32.sub tc one) lo))(Float32.add one tc).
+Definition Initialized(m:mem)(b:block)(p:ptrofs)(tc li lo:float32):Prop:=
+ writable12 m b p /\ Mem.load Mfloat32 m b(Ptrofs.unsigned p+0)=Some(Vsingle tc) /\ Mem.load Mfloat32 m b(Ptrofs.unsigned p+4)=Some(Vsingle li) /\ Mem.load Mfloat32 m b(Ptrofs.unsigned p+8)=Some(Vsingle lo).
+Definition Precondition(args:list val)(m:mem):Prop:=exists b p tc li lo value,args=Args b p value /\Initialized m b p tc li lo.
+Lemma initialized_valid:forall m b p tc li lo,Initialized m b p tc li lo->Mem.valid_block m b.
+Proof. intros m b p tc li lo [W [L _]];eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact L|constructor]. Qed.
+SUPPORT paparazzi/models/update_first_order_low_pass/rocq/support/UpdateSites.v
+Lemma field_guards:forall m b p delta,writable12 m b p->In delta[0;4;8]->forall k,(k<6)%nat->Guard k m b p delta.
+Proof.
+ intros m b p delta W D k K;pose proof(field_access m b p delta W D)as VA.
+ assert(VB:Mem.valid_block m b)by(eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|constructor]).
+Theorem site_properties:forall site k,(site<4)%nat->(k<6)%nat->SiteProperty site k.
+Proof. intros site k SITE K;unfold SiteProperty.
+ intros m b p tc li lo value INIT;pose proof(proj1 INIT)as P.
+ pose proof(field_access m b p 4 P ltac:(simpl;auto))as W4.
+SUPPORT paparazzi/models/update_first_order_low_pass/rocq/support/Witness.v
+Theorem initialized_inhabited:forall tc li lo:float32,exists m b,Initialized m b Ptrofs.zero tc li lo.
+Proof.
+ intros tc li lo;destruct(Mem.alloc Mem.empty 0 12)as[ma b]eqn:A.
+ assert(W:writable12 ma b Ptrofs.zero).
+SUPPORT paparazzi/models/update_first_order_low_pass/rocq/support/UpdateCall.v
+Lemma update_alloc_nodup:NoDup(map fst update_declarations).
+Proof. vm_compute;repeat constructor;simpl;intuition discriminate. Qed.
+Theorem update_call_summary:forall m b p tc li lo value,
+ Initialized m b p tc li lo ->
+Theorem update_call_summary:forall m b p tc li lo value,
+ Initialized m b p tc li lo ->
+ exists mf,state_eval Execution.ge(Execution.entry(Args b p value)m)=Some(Vsingle(output tc li lo value),mf) /\Post m mf b p tc li lo value.
+Proof.

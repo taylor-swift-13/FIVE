@@ -1,0 +1,31 @@
+                return path.parent / ref
+            if row.get('shared_costs'):
+                refs.append(row['shared_costs'])
+            if proof:
+                agent = row.get('agent', {})
+                requested_effort = agent.get('requested_reasoning_effort')
+                self.require(agent.get('model') == 'gpt-6.1-sol' and
+                             requested_effort in self.allowed_proof_efforts and
+                             agent.get('actual_reasoning_effort') == requested_effort, f'proof runtime model/effort: {path}')
+                runtime_ref = agent.get('evidence') or agent.get('runtime_evidence') or next(
+                    (ref for ref in refs if Path(ref).name in ('runtime-metadata.json', 'runtime-config.json')), None)
+                self.require(bool(runtime_ref), f'missing runtime receipt: {path}')
+                if runtime_ref:
+                    runtime = self.read(reference(runtime_ref))
+                    events = runtime if isinstance(runtime, list) else runtime.get('selected_runtime_metadata')
+                    if isinstance(events, list):
+                        actual = next((r for r in events if r.get('type') == 'turn_context'), {})
+                    else:
+                        actual = runtime.get('actual', runtime)
+                    self.require(actual.get('model') == 'gpt-6.1-sol' and
+                                 (actual.get('effort') or actual.get('actual_reasoning_effort')) == requested_effort,
+                                 f'actual runtime receipt mismatch: {reference(runtime_ref)}')
+            if row.get('status') == 'not_measured':
+                self.require(all(value is None for group in ('time', 'token', 'memory')
+                                 for value in row.get(group, {}).values()) and
+                             bool(row.get('measurement_scope') or row.get('missing_reason')),
+                             f'unexplained historical measurement absence: {path}')
+            elif row.get('status') not in ('not_run', 'not_applicable'):
+                self.require(bool(refs), f'missing cost evidence: {path}')
+The Rocq Prover, version 9.2
+compiled with OCaml 4.14.2

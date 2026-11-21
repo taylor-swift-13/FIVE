@@ -1,0 +1,50 @@
+From Stdlib Require Import List ZArith.
+From compcert Require Import Coqlib Floats AST Values Memory Events Ctypes Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress CallfreeExecution.
+Lemma invariant_expression_not_stuck:forall ge f a k e m,
+ execution_invariant ge(ExprState f a k e m)->Csem.not_stuck ge e a m.
+Proof.
+ intros ge f a k e m[N[CN[result EV]]].
+ destruct k;cbn[normal_state]in N;try discriminate;core_unpack;
+ cbn[state_eval]in EV.
+ - destruct(atomic_eval ge e m a)as[[v mf]|]eqn:A;try discriminate;eapply atomic_not_stuck;eauto.
+ - destruct(pure_rval ge e m a)as[v|]eqn:A;try discriminate;eapply pure_not_stuck;eauto.
+ - destruct(pure_rval ge e m a)as[v|]eqn:A;try discriminate;eapply pure_not_stuck;eauto.
+Qed.
+Theorem reachable_context_immediate:forall ge initial t f a k e m K C sub,
+ execution_invariant ge initial->
+ star Csem.step ge initial t(ExprState f a k e m)->
+ context K RV C->a=C sub->imm_safe ge e K sub m.
+Proof. intros ge initial t f a k e m K C sub INV PATH CT EQ.
+ eapply invariant_expression_not_stuck;[eapply reachable_invariant;eauto|exact CT|exact EQ]. Qed.
+Theorem reachable_redex_valid:forall ge initial t f a k e m K C sub,
+ execution_invariant ge initial->star Csem.step ge initial t(ExprState f a k e m)->
+ context K RV C->a=C sub->
+ match sub with Eloc _ _ _ _|Eval _ _=>True|_=>Cstrategy.invert_expr_prop ge e sub m end.
+Proof. intros;eapply Cstrategy.imm_safe_inv;eapply reachable_context_immediate;eauto. Qed.
+Theorem reachable_float_load:forall ge initial t f k e m C b p,
+ execution_invariant ge initial->
+ star Csem.step ge initial t(ExprState f(C(Evalof(Eloc b p Full tfloat)tfloat))k e m)->
+ context RV RV C->exists value,Mem.loadv Mfloat32 m(Vptr b p)=Some value.
+Proof.
+ intros ge initial t f k e m C b p INV PATH CT.
+ pose proof(reachable_redex_valid ge initial t f _ k e m RV C(Evalof(Eloc b p Full tfloat)tfloat)INV PATH CT eq_refl)as H.
+ cbn[Cstrategy.invert_expr_prop]in H;destruct H as[_[tr[value D]]].
+ inversion D;subst;cbv[access_mode type_is_volatile tfloat noattr attr_of_type attr_volatile]in *;try discriminate.
+ match goal with H:By_value Mfloat32=By_value ?ch|-_=>injection H as<- end;eauto.
+Qed.
+Theorem reachable_float_store:forall ge initial t f k e m C b p x,
+ execution_invariant ge initial->
+ star Csem.step ge initial t(ExprState f(C(Eassign(Eloc b p Full tfloat)(Eval(Vsingle x)tfloat)tfloat))k e m)->
+ context RV RV C->exists mf,Mem.storev Mfloat32 m(Vptr b p)(Vsingle x)=Some mf.
+Proof.
+ intros ge initial t f k e m C b p x INV PATH CT.
+ pose proof(reachable_redex_valid ge initial t f _ k e m RV C(Eassign(Eloc b p Full tfloat)(Eval(Vsingle x)tfloat)tfloat)INV PATH CT eq_refl)as H.
+ cbn[Cstrategy.invert_expr_prop]in H;destruct H as[v[mf[v'[tr[TY[CAST A]]]]]].
+ change(Some(Vsingle x)=Some v)in CAST;injection CAST as<-.
+ inversion A;subst;cbv[access_mode type_is_volatile tfloat noattr attr_of_type attr_volatile]in *;try discriminate.
+ match goal with H:By_value Mfloat32=By_value ?ch|-_=>injection H as<- end;eauto.
+Qed.
+Print Assumptions reachable_context_immediate.
+Print Assumptions reachable_float_load.
+Print Assumptions reachable_float_store.

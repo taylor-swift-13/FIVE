@@ -1,0 +1,14 @@
+436:Definition loadv (chunk: memory_chunk) (m: mem) (addr: val) : option val :=
+437-  match addr with
+438-  | Vptr b ofs =>
+439-      if zle (Ptrofs.unsigned ofs + size_chunk chunk) Ptrofs.modulus
+440-      then load chunk m b (Ptrofs.unsigned ofs)
+441-      else None
+442-  | _ => None
+443-  end.
+444-
+445-(** [loadbytes m b ofs n] reads [n] consecutive bytes starting at
+446-  location [(b, ofs)].  Returns [None] if the accessed locations are
+447-  not readable. *)
+448-
+449-Definition loadbytes (m: mem) (b: block) (ofs n: Z): option (list memval) :=

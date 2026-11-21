@@ -1,0 +1,49 @@
+FILE paparazzi/models/float_quat_vmult/rocq/support/Call.v
+Theorem call_summary:forall m q v out qi qx qy qz vx vy vz,
+ Inputs m q v out qi qx qy qz vx vy vz->
+ exists mf,state_eval Execution.ge(Execution.entry(Args out q v)m)=Some(Vundef,mf) /\
+ (forall b z n,Mem.valid_block m b->(b<>out\/z+n<=0\/12<=z)->Mem.loadbytes mf b z n=Mem.loadbytes m b z n) /\
+ Mem.loadbytes mf out 0 12=Some(encode_val Mfloat32(Vsingle(output_x qi qx qy qz vx vy vz))++encode_val Mfloat32(Vsingle(output_y qi qx qy qz vx vy vz))++encode_val Mfloat32(Vsingle(output_z qi qx qy qz vx vy vz))) /\
+ access_kept m mf /\(forall ch b z,Mem.valid_block m b->b<>out->Mem.load ch mf b z=Mem.load ch m b z).
+Proof.
+ intros m q v out qi qx qy qz vx vy vz IN.
+ assert(VQ:Mem.valid_block m q)by(eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact(lqi _ _ _ _ _ _ _ _ _ _ _ IN)|constructor]).
+ assert(VV:Mem.valid_block m v)by(eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact(lvx _ _ _ _ _ _ _ _ _ _ _ IN)|constructor]).
+ assert(VO:Mem.valid_block m out)by(eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact(wout _ _ _ _ _ _ _ _ _ _ _ IN 0 ltac:(simpl;tauto))|constructor]).
+ destruct(Cexec.do_alloc_variables Execution.ge empty_env m declares)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables Execution.ge empty_env m declares e ma)by(pose proof(Cexec.do_alloc_variables_sound Execution.ge declares empty_env m)as H;rewrite ALLOC in H;exact H).
+ assert(ALL:forall id ty,In(id,ty)declares->exists bx,e!id=Some(bx,ty) /\~Mem.valid_block m bx /\Mem.range_perm ma bx 0(sizeof Execution.ge ty)Cur Freeable).
+ { intros id ty IX;pose proof(allocated_variable Execution.ge declares empty_env m id ty declares_nodup IX)as H;rewrite ALLOC in H;destruct H as(bx&L&F&V&P);exists bx;auto. }
+ destruct(ALL Source._v_out vtype ltac:(left;reflexivity))as[bo[LO[FO RO]]].
+ destruct(ALL Source._q qtype ltac:(right;left;reflexivity))as[bq[LQ[FQ RQ]]].
+ destruct(ALL Source._v_in vtype ltac:(right;right;left;reflexivity))as[bv[LV[FV RV]]].
+ assert(SEP:env_separated e)by(pose proof(allocation_env_separated Execution.ge declares empty_env m ltac:(intros id bx ty H;discriminate)ltac:(
+FILE paparazzi/models/float_rmat_of_quat/rocq/support/CallSummary.v
+Theorem call_summary:forall m q out qi qx qy qz,
+ Inputs m q out qi qx qy qz->
+ exists mf,state_eval Execution.ge(Execution.entry(Args out q)m)=Some(Vundef,mf) /\
+ (forall b z n,Mem.valid_block m b->(b<>out\/z+n<=0\/36<=z)->Mem.loadbytes mf b z n=Mem.loadbytes m b z n) /\
+ Mem.loadbytes mf out 0 36=Some(matrix_bytes(matrix_values qi qx qy qz)) /\
+ (forall i:nat,(i<9)%nat->Mem.load Mfloat32 mf out(Z.of_nat i*4)=Some(Vsingle(nth i(matrix_values qi qx qy qz)Float32.zero))) /\
+ (forall ch b ofs p,Mem.valid_block m b->Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p).
+Proof.
+ intros m q out qi qx qy qz IN.
+ assert(VQ:Mem.valid_block m q).
+ { eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact(lqi _ _ _ _ _ _ _ IN)|constructor]. }
+ assert(VO:Mem.valid_block m out).
+ { eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact(wout _ _ _ _ _ _ _ IN 0 ltac:(simpl;tauto))|constructor]. }
+ destruct(Cexec.do_alloc_variables Execution.ge empty_env m decls)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables Execution.ge empty_env m decls e ma).
+ { pose proof(Cexec.do_alloc_variables_sound Execution.ge decls empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decls->exists bx,e!id=Some(bx,ty) /\~Mem.valid_block m bx /\Mem.range_perm ma bx 0(sizeof Execution.ge ty)Cur Freeable).
+ { intros id ty IX;pose proof(allocated_variable Execution.ge decls empty_env m id ty decls_nodup IX)as H;rewrite ALLOC in H;destruct H as(bx&L&F&V&P);exists bx;auto. }
+ destruct(ALL Source._rm rmtype ltac:(left;reflexivity))as[br[LR[FR RR]]].
+ destruct(ALL Source._q qtype ltac:(right;left;reflexivity))as[bq[LQ[FQ RQ]]].
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated Execution.ge decls empty_env m ltac:(intros id bx ty H;discriminate)ltac:(intros id1 id2 bx t1 t2 H;discriminate))as H;rewrite ALLOC in H;exact H. }
+ assert(QR:bq<>br).
+ { intro EQ;subst bq;pose proof(SEP _ _ _ _ _ LQ LR);discriminate. }
+ assert(NL:Nonlocal e q out).
+ { intros id b ty LOOK;destruct(ALL id ty(allocated_environment_origin Execution.ge decls m e ma AV id b ty LOOK))as(bx&L&F&P);rewrite LOOK in L;inject
+RUNTIME_SCOPE paparazzi/models/float_rmat_of_quat/rocq/cbmc_recheck/problem/Spec.v 8775 True True
+RUNTIME_SCOPE paparazzi/models/float_rmat_vmult/rocq/cbmc_recheck/problem/Spec.v 9432 True True

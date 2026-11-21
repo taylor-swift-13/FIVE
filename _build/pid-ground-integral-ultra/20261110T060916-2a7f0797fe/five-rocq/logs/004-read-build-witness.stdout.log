@@ -1,0 +1,1036 @@
+FILE CoreInputs.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionSafety Require Import PidTermination.
+From PidPositionTranslationAttempt002 Require Import InputSemantics ReadOnlySemantics HeadingSemantics.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent PidTermination.ge PidTermination.ast_prog.
+Record core_initial_data(m:mem)(gh:block):Type:={
+ cid_pid:block;cid_i:block;cid_traj:block;cid_total:block;cid_heading:block;cid_factory:block;
+ cid_kp:int;cid_kd:int;cid_ki:int;cid_kv:int;cid_ka:int;cid_ax:int;cid_ay:int;cid_ix:int;cid_iy:int;cid_h:float32;cid_hbits:int;
+ cid_pid_symbol:Genv.find_symbol E.ge S._guidance_pid=Some cid_pid;
+ cid_i_symbol:Genv.find_symbol E.ge S._guidance_pid_trim_att_integrator=Some cid_i;
+ cid_traj_symbol:Genv.find_symbol E.ge S._traj_max_bank=Some cid_traj;
+ cid_total_symbol:Genv.find_symbol E.ge S._total_max_bank=Some cid_total;
+ cid_heading_symbol:Genv.find_symbol E.ge S._guidance_h=Some cid_heading;
+ cid_factory_symbol:Genv.find_symbol E.ge S._stab_sp_from_ltp_i=Some cid_factory;
+ cid_factory_function:Genv.find_funct E.ge(Vptr cid_factory Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i);
+ cid_approx:Mem.load Mint8unsigned m cid_pid 44=Some(Vint Int.zero);
+ cid_gain_p:Mem.load Mint32 m cid_pid 0=Some(Vint cid_kp);
+ cid_gain_d:Mem.load Mint32 m cid_pid 4=Some(Vint cid_kd);
+ cid_gain_i:Mem.load Mint32 m cid_pid 8=Some(Vint cid_ki);
+ cid_gain_v:Mem.load Mint32 m cid_pid 12=Some(Vint cid_kv);
+ cid_gain_a:Mem.load Mint32 m cid_pid 16=Some(Vint cid_ka);
+ cid_accel_x:Mem.load Mint32 m gh 60=Some(Vint cid_ax);
+ cid_accel_y:Mem.load Mint32 m gh 64=Some(Vint cid_ay);
+ cid_integral_x:Mem.load Mint32 m cid_i 0=Some(Vint cid_ix);
+ cid_integral_y:Mem.load Mint32 m cid_i 4=Some(Vint cid_iy);
+ cid_trajectory_limit:Mem.load Mint32 m cid_traj 0=Some(Vint(Int.repr 1429));
+ cid_total_limit:Mem.load Mint32 m cid_total 0=Some(Vint(Int.repr 3216));
+ cid_heading_load:Mem.load Mfloat32 m cid_heading 28=Some(Vsingle cid_h);
+ cid_heading_cast:forall mm,sem_cast(Vsingle(Float32.mul cid_h(Float32.of_int(Int.repr 4096))))tfloat tint mm=Some(Vint cid_hbits);
+ cid_heading_bound:-12288<=Int.signed cid_hbits<=12288;
+ cid_pid_writable:Mem.range_perm m cid_pid 0 48 Cur Writable;
+ cid_i_writable:Mem.range_perm m cid_i 0 8 Cur Writable
+}.
+Lemma actual_factory_target : exists b,Genv.find_symbol E.ge S._stab_sp_from_ltp_i=Some b /\
+ Genv.find_funct E.ge(Vptr b Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i).
+Proof.
+ exists(PidTermination.symbol_block S._stab_sp_from_ltp_i);split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._stab_sp_from_ltp_i=Some(PidTermination.symbol_block S._stab_sp_from_ltp_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+ - change(Genv.find_funct_ptr(genv_genv PidTermination.ge)(PidTermination.symbol_block S._stab_sp_from_ltp_i)=Some(Internal S.f_stab_sp_from_ltp_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Qed.
+Theorem inputgood_core_initial_data : forall m gh ret,InputGood m gh ret ->exists data:core_initial_data m gh,True.
+Proof.
+ intros m gh ret GOOD;pose proof(proj1 GOOD)as LEG.
+ assert(WR:writable_controller_globals m)by(unfold InputGoodLegacy in LEG;tauto).
+ destruct(WR S._guidance_pid ltac:(cbn;intuition congruence))as[bp[gv[SP[VP WP]]]].
+ destruct(actual_global_variable_binding S._guidance_pid S.v_guidance_pid ltac:(vm_compute;reflexivity))as[bp0[SP0 VP0]].
+ rewrite SP in SP0;injection SP0 as EQ;subst bp0;rewrite VP0 in VP;injection VP as EQ;subst gv.
+ change(Mem.range_perm m bp 0 48 Cur Writable)in WP.
+ destruct(WR S._guidance_pid_trim_att_integrator ltac:(cbn;intuition congruence))as[bi[gv[SI[VI WI]]]].
+ destruct(actual_global_variable_binding S._guidance_pid_trim_att_integrator S.v_guidance_pid_trim_att_integrator ltac:(vm_compute;reflexivity))as[bi0[SI0 VI0]].
+ rewrite SI in SI0;injection SI0 as EQ;subst bi0;rewrite VI0 in VI;injection VI as EQ;subst gv.
+ change(Mem.range_perm m bi 0 8 Cur Writable)in WI.
+ assert(GAIN:forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka]->bounded_global m S._guidance_pid pid_type[gain]0 100)
+ by(unfold InputGoodLegacy in LEG;tauto).
+ destruct(GAIN S._kp ltac:(cbn;intuition congruence))as[kp[KP _]].
+ destruct(GAIN S._kd ltac:(cbn;intuition congruence))as[kd[KD _]].
+ destruct(GAIN S._ki ltac:(cbn;intuition congruence))as[ki[KI _]].
+ destruct(GAIN S._kv ltac:(cbn;intuition congruence))as[kv[KV _]].
+ destruct(GAIN S._ka ltac:(cbn;intuition congruence))as[ka[KA _]].
+ unfold load_global in KP,KD,KI,KV,KA;rewrite SP in KP,KD,KI,KV,KA.
+ assert(XY:forall axis,In axis[S._x;S._y]->
+ bounded_global m S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+ bounded_path m gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+ bounded_path m gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+ bounded_global m S._state state_type[S._ned_speed_i;axis](-10000)10000)
+ by(unfold InputGoodLegacy in LEG;tauto).
+ destruct(XY S._x ltac:(cbn;intuition congruence))as[[ix[IX _]][_[[ax[AX _]]_]]].
+ destruct(XY S._y ltac:(cbn;intuition congruence))as[[iy[IY _]][_[[ay[AY _]]_]]].
+ unfold load_global in IX,IY;rewrite SI in IX,IY.
+ assert(APP:load_global Mint8unsigned m S._guidance_pid pid_type[S._approx_force_by_thrust]=Some(Vint Int.zero))
+ by(unfold InputGoodLegacy in LEG;tauto).
+ unfold load_global in APP;rewrite SP in APP.
+ destruct(actual_global_variable_binding S._guidance_h S.v_guidance_h ltac:(vm_compute;reflexivity))as[bh[SH VH]].
+ assert(HEAD:heading_safe m)by(unfold InputGoodLegacy in LEG;tauto).
+ destruct HEAD as[h[HEAD[LO HI]]];unfold load_global in HEAD;rewrite SH in HEAD.
+ destruct(heading_angle_cast_defined h LO HI)as[heading[CAST HBOUND]].
+ destruct(inputgood_static_limits m gh ret GOOD)as[bt[bu[ST[SU[LT LU]]]]].
+ destruct actual_factory_target as[bfun[SF FF]].
+ refine(ex_intro _ {|cid_pid:=bp;cid_i:=bi;cid_traj:=bt;cid_total:=bu;cid_heading:=bh;cid_factory:=bfun;
+ cid_kp:=kp;cid_kd:=kd;cid_ki:=ki;cid_kv:=kv;cid_ka:=ka;cid_ax:=ax;cid_ay:=ay;cid_ix:=ix;cid_iy:=iy;
+ cid_h:=h;cid_hbits:=heading;cid_pid_symbol:=SP;cid_i_symbol:=SI;cid_traj_symbol:=ST;cid_total_symbol:=SU;
+ cid_heading_symbol:=SH;cid_factory_symbol:=SF;cid_factory_function:=FF;cid_approx:=APP;
+ cid_gain_p:=KP;cid_gain_d:=KD;cid_gain_i:=KI;cid_gain_v:=KV;cid_gain_a:=KA;
+ cid_accel_x:=AX;cid_accel_y:=AY;cid_integral_x:=IX;cid_integral_y:=IY;
+ cid_trajectory_limit:=LT;cid_total_limit:=LU;cid_heading_load:=HEAD;cid_heading_bound:=HBOUND;
+ cid_pid_writable:=WP;cid_i_writable:=WI|} I).
+ intros mm;change(match Float32.to_int(Float32.mul h(Float32.of_int(Int.repr 4096)))with Some n=>Some(Vint n)|None=>None end=Some(Vint heading)).
+ rewrite CAST;reflexivity.
+Qed.
+Print Assumptions inputgood_core_initial_data.
+
+Lemma actual_core_target : exists b,Genv.find_symbol E.ge S._guidance_pid_h_run=Some b /\
+ Genv.find_funct E.ge(Vptr b Ptrofs.zero)=Some(Internal S.f_guidance_pid_h_run).
+Proof.
+ exists(PidTermination.symbol_block S._guidance_pid_h_run);split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._guidance_pid_h_run=Some(PidTermination.symbol_block S._guidance_pid_h_run)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+ - change(Genv.find_funct_ptr(genv_genv PidTermination.ge)(PidTermination.symbol_block S._guidance_pid_h_run)=Some(Internal S.f_guidance_pid_h_run)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Qed.
+
+FILE check.py
+#!/usr/bin/env python3
+"""Cold-check immutable copies of the actual PID proof dependency closure.
+
+Default: six relation goals and the two model aliases.  --cbmc adds the
+model recheck proof once it exists.  --publish writes fresh, hash-bound
+reference receipts; normal replay leaves the published receipts untouched.
+An open --run lets the Ultra proof author retain its real phase accounting.
+"""
+from pathlib import Path
+import argparse, hashlib, importlib.util, json, re, shlex, shutil, sys
+from datetime import datetime, timezone
+
+ATTEMPT = Path(__file__).resolve().parent
+ROOT = ATTEMPT.parents[4]
+sys.path.insert(0, str(ROOT / 'scripts'))
+from five_telemetry import Run
+from example_proof_gate import certificate_source, input_index
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+def dump(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+
+def relative(path):
+    return str(Path(path).resolve().relative_to(ROOT))
+
+def config():
+    p = ATTEMPT / 'core/BuildConfiguration.py'
+    spec = importlib.util.spec_from_file_location('pid_build_configuration', p)
+    obj = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(obj)
+    pairs = list(obj.LOADPATHS)
+    case = 'paparazzi/models/guidance_pid_h_run_pos/rocq'
+    for name, prefix in [('no_error', 'PidPositionRunPosNoError'),
+                         ('termination', 'PidPositionRunPosTermination'),
+                         ('cbmc_recheck', 'PidPositionRunPosCBMC')]:
+        pairs += [(f'{case}/{name}/problem', prefix + 'Problem'),
+                  (f'{case}/{name}/attempts/002', prefix + 'Attempt002')]
+    return pairs
+
+def module(path, pairs):
+    options = [(len(str(ROOT / d)), d, prefix) for d, prefix in pairs
+               if Path(path).is_relative_to(ROOT / d)]
+    if not options:
+        raise ValueError('No explicit namespace for ' + str(path))
+    _, directory, prefix = max(options)
+    return prefix + '.' + '.'.join(Path(path).relative_to(ROOT / directory).with_suffix('').parts)
+
+def problems(with_cbmc):
+    aliases = ['position_translation', 'no_error', 'all_successor_termination',
+               'input_nonvacuity', 'nonzero_nonvacuity', 'relational_frame']
+    status = json.loads((ATTEMPT.parent.parent / 'problem/status.json').read_text())
+    rel = {'attempt': ATTEMPT, 'problem': ATTEMPT.parent.parent / 'problem',
+           'imports': ['PidPositionTranslationProblem.Spec', 'PidPositionTranslationAttempt002.Proof'],
+           'bindings': [{'requested_goal': goal,
+                         'theorem': 'PidPositionTranslationAttempt002.Proof.' + alias,
+                         'type': 'PidPositionTranslationProblem.Spec.' + goal}
+                        for goal, alias in zip(status['requested_goals'], aliases)]}
+    assert len(rel['bindings']) == 6
+    result = [rel]
+    case = ROOT / 'paparazzi/models/guidance_pid_h_run_pos/rocq'
+    kinds = [('no_error', 'PidPositionRunPosNoError'),
+             ('termination', 'PidPositionRunPosTermination')]
+    if with_cbmc:
+        kinds.append(('cbmc_recheck', 'PidPositionRunPosCBMC'))
+    for name, prefix in kinds:
+        base = case / name
+        proof = base / 'attempts/002/Proof.v'
+        if not proof.is_file():
+            raise FileNotFoundError(proof)
+        goals = json.loads((base / 'problem/status.json').read_text())['requested_goals']
+        explicit = proof.parent / 'evidence/expected-bindings.json'
+        if explicit.is_file():
+            declared = json.loads(explicit.read_text())
+            if [b['requested_goal'] for b in declared['bindings']] != goals:
+                raise ValueError('Explicit bindings differ from canonical requested goals')
+            result.append({'attempt': proof.parent, 'problem': base / 'problem',
+                           'imports': declared['imports'], 'bindings': declared['bindings']})
+            continue
+        declarations = re.findall(r'(?:Theorem|Lemma)\s+([A-Za-z_][A-Za-z_0-9]*)\s*:\s*'
+                                  + re.escape(prefix + 'Problem.Spec.RequestedGoal'), proof.read_text())
+        if len(goals) != 1 or len(declarations) != 1:
+            raise ValueError('Model alias requires one exact RequestedGoal theorem: ' + str(proof))
+        result.append({'attempt': proof.parent, 'problem': base / 'problem',
+                       'imports': [prefix + 'Problem.Spec', prefix + 'Attempt002.Proof'],
+                       'bindings': [{'requested_goal': goals[0],
+                                     'theorem': prefix + 'Attempt002.Proof.' + declarations[0],
+                                     'type': prefix + 'Problem.Spec.RequestedGoal'}]})
+    return result
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--run', type=Path, help='existing open, metered proof-author run')
+    parser.add_argument('--publish', action='store_true')
+    parser.add_argument('--cbmc', action='store_true')
+    parser.add_argument('--plan', action='store_true', help='dependency plan only; no proof acceptance')
+    parser.add_argument('--timeout', type=int, default=360)
+    args = parser.parse_args()
+    pairs = config()
+    flags = [x for d, n in pairs for x in ['-Q', d, n]]
+    groups = problems(args.cbmc)
+    owned = args.run is None
+    if args.run:
+        run = Run(args.run.resolve())
+        if run.read('run.json')['status'] != 'running':
+            raise ValueError('Cannot append to a closed historical run')
+    else:
+        run = Run.start(ROOT / '_build/pid-ultra-cold-checks', 'five-rocq', [],
+                        {'scope': 'tool-only cold reproduction, no new mathematical authoring',
+                         'requested_proof_model': 'gpt-6.1-sol', 'requested_proof_effort': 'ultra'},
+                        invocation_kind='tool-only')
+    final = {}
+    try:
+        if not args.publish and not args.plan:
+            for group in groups:
+                if (group['attempt'] / 'provenance.json').is_file():
+                    _, indexed_sources = input_index(ROOT, group['attempt'])
+                    for source, expected in indexed_sources.items():
+                        if digest(source) != expected:
+                            raise ValueError('Published proof input changed: ' + str(source))
+        excluded = {'runs', 'inputs', 'checked', 'exploratory', '__pycache__', 'cold-checks'}
+        files = set()
+        for directory, _ in pairs:
+            base = ROOT / directory
+            if base.is_dir():
+                for source in base.rglob('*.v'):
+                    if set(source.relative_to(base).parts) & excluded:
+                        continue
+                    if not re.fullmatch('[A-Za-z_][A-Za-z_0-9]*', source.stem):
+                        continue
+                    files.add(source.resolve())
+        roots = [g['attempt'] / 'Proof.v' for g in groups]
+        dep = run.command(['rocq', 'dep', *flags, *[relative(p) for p in sorted(files)]],
+                          'cold-proof-dependency-graph', timeout=120, cwd=ROOT)
+        graph = {}
+        text = (run.folder / dep['stdout']).read_text().replace('\\\n', '')
+        for line in text.splitlines():
+            if ':' not in line:
+                continue
+            lhs, rhs = line.split(':', 1)
+            targets = shlex.split(lhs)
+            if not targets or not targets[0].endswith('.vo'):
+                continue
+            src = (ROOT / targets[0]).with_suffix('.v').resolve()
+            graph[src] = [(ROOT / item).with_suffix('.v').resolve()
+                          for item in shlex.split(rhs) if item.endswith('.vo')
+                          and (ROOT / item).with_suffix('.v').is_file()]
+        order, visiting, done = [], set(), set()
+        def visit(source):
+            source = source.resolve()
+            if source in done:
+                return
+            if source in visiting:
+                raise ValueError('Cyclic source dependency ' + str(source))
+            if not source.is_relative_to(ROOT) or '/attempts/001/' in str(source):
+                raise ValueError('Forbidden compilation target ' + str(source))
+            if source not in graph:
+                raise ValueError('Missing local dependency declaration ' + str(source))
+            visiting.add(source)
+            for child in graph[source]:
+                visit(child)
+            visiting.remove(source)
+            done.add(source)
+            order.append(source)
+        for source in roots:
+            visit(source)
+        if args.plan:
+            print(json.dumps({'scope': 'dependency plan only, no new validation claim',
+                              'sources': [relative(p) for p in order]}, indent=2))
+            if owned:
+                note = run.folder / 'evidence/dependency-plan.json'
+                dump(note, {'sources': [relative(p) for p in order]})
+                run.finish('passed', 'Dependency plan only.', {'plan': note})
+            return
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f')
+        base = (ATTEMPT / 'evidence/cold-checks' if args.publish else ROOT / '_build/pid-ultra-cold-replays') / stamp
+        checked = base / 'checked'
+        current = {source: digest(source) for source in order}
+        snapshots = {}
+        for source, expected in current.items():
+            target = checked / relative(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+            assert digest(target) == expected
+            snapshots[source] = target
+            run.capture(target, 'cold-dependency-' + stamp + '-' + hashlib.sha256(relative(source).encode()).hexdigest()[:18], area='inputs')
+        cold_flags = [x for directory, prefix in pairs
+                      for x in ['-Q', relative(checked / directory), prefix]]
+        for source in order:
+            target = snapshots[source]
+            run.command(['rocq', 'compile', '-q', *cold_flags, relative(target)],
+                        'cold-compile-' + source.stem, timeout=args.timeout, cwd=ROOT)
+        theorem_names = [b['theorem'] for g in groups for b in g['bindings']]
+        kernel_modules = list(dict.fromkeys(name.rsplit('.', 1)[0] for name in theorem_names))
+        kernel = run.command(['rocq', 'check', '-silent', *cold_flags, *kernel_modules],
+                             'cold-independent-proof-kernel', timeout=args.timeout, cwd=ROOT)
+        hashes = {relative(snapshots[s]): h for s, h in current.items()}
+        proof_receipt = base / 'proof-kernel-evidence.json'
+        dump(proof_receipt, {'kind': 'rocq-kernel-check', 'run': relative(run.folder),
+                            'command_id': kernel['id'], 'theorems': theorem_names,
+                            'statement_artifacts': [relative(snapshots[p.resolve()]) for p in roots],
+                            'dependency_sha256': hashes})
+        for group in groups:
+            target = checked / relative(group['attempt']) / 'CurrentGoalBinding.v'
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(certificate_source(group['imports'], group['bindings']))
+            run.capture(target, 'cold-certificate-' + hashlib.sha256(relative(target).encode()).hexdigest()[:18], area='inputs')
+            compile_cmd = run.command(['rocq', 'compile', '-q', *cold_flags, relative(target)],
+                                      'cold-exact-goalbinding', timeout=args.timeout, cwd=ROOT)
+            cert_module = module(group['attempt'] / 'CurrentGoalBinding.v', pairs)
+            cert_kernel = run.command(['rocq', 'check', '-silent', *cold_flags, cert_module],
+                                      'cold-exact-goalbinding-kernel', timeout=args.timeout, cwd=ROOT)
+            cert_receipt = target.parent / 'certificate-kernel-evidence.json'
+            dump(cert_receipt, {'kind': 'rocq-kernel-check', 'run': relative(run.folder),
+                               'command_id': cert_kernel['id'],
+                               'theorems': [cert_module + '.goal_' + str(i) for i in range(len(group['bindings']))],
+                               'statement_artifacts': [relative(target)],
+                               'dependency_sha256': {**hashes, relative(target): digest(target)}})
+            if args.publish:
+                manifest = ROOT / 'paparazzi/models/guidance_pid_h_run_pos/align/model/compcert-manifest.json'
+                semantic = json.loads(manifest.read_text())['semantic_dependencies']
+                indexed = {relative(p): h for p, h in current.items()}
+                for p in [Path(__file__).resolve(), manifest,
+                          ATTEMPT / 'core/BuildConfiguration.py',
+                          group['attempt'] / 'check.py',
+                          ROOT / 'paparazzi/models/guidance_pid_h_run_pos/prepare/source/guidance_pid_h_run_pos.c',
+                          ROOT / 'paparazzi/models/guidance_pid_h_run_pos/prepare/source/bindings.json']:
+                    indexed[relative(p)] = digest(p)
+                index = group['attempt'] / 'provenance.json'
+                if (group['attempt'] / 'inputs.json').exists():
+                    raise ValueError('Do not create competing input indexes')
+                dump(index, {'schema': 'five-proof-inputs/1', 'dependency_sha256': indexed,
+                             'semantic_dependencies': semantic})
+                rows = [{'path': name, 'sha256': value,
+                         **({'snapshot': relative(snapshots[ROOT / name])} if ROOT / name in snapshots else {})}
+                        for name, value in sorted(indexed.items())]
+                validation = group['attempt'] / 'evidence/goal-validation.json'
+                dump(validation, {'schema': 'five-proof-validation/1',
+                                  'index': {'path': relative(index), 'sha256': digest(index)},
+                                  'inputs': rows, 'kernel_evidence': relative(proof_receipt),
+                                  'goal_bindings': group['bindings'],
+                                  'certificate': {'path': relative(target), 'sha256': digest(target),
+                                                  'module': cert_module, 'imports': group['imports'],
+                                                  'run': relative(run.folder),
+                                                  'compile_command_id': compile_cmd['id'],
+                                                  'kernel_command_id': cert_kernel['id'],
+                                                  'kernel_evidence': relative(cert_receipt)}})
+                status_path = group['problem'] / 'status.json'
+                status = json.loads(status_path.read_text())
+                status.update({'status': 'proved', 'active_attempt': '../attempts/002',
+                               'goal_status': {b['requested_goal']: 'proved' for b in group['bindings']}})
+                dump(status_path, status)
+                final['validation-' + str(len(final))] = validation
+        for source, expected in current.items():
+            if digest(source) != expected:
+                raise ValueError('Source changed during cold build: ' + str(source))
+        print(json.dumps({'status': 'passed', 'source_count': len(order),
+                          'goals': theorem_names, 'run': relative(run.folder),
+                          'kernel_evidence': relative(proof_receipt)}, indent=2))
+        if owned:
+            run.finish('passed', 'Cold source snapshots, exact typed goals and independent kernel passed.',
+                       {**final, 'kernel': proof_receipt})
+    except BaseException:
+        if owned and run.read('run.json')['status'] == 'running':
+            note = run.folder / 'evidence/checker-failure.json'
+            dump(note, {'scope': 'cold checker did not complete; failure retained in command logs'})
+            run.finish('failed', 'Cold checker failed; no completion claim.', {'failure': note})
+        raise
+
+if __name__ == '__main__':
+    main()
+
+FILE WitnessMemory.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma replay_stores_exists : forall us m,
+ Forall(fun u=>let '(ch,b,ofs,_):=u in Mem.valid_access m ch b ofs Writable)us ->
+ exists mf,replay_stores m us=Some mf.
+Proof.
+ induction us as[|[[[ch b]ofs]v]us IH];intros m ACCESS.
+ - exists m;reflexivity.
+ - inversion ACCESS as[|u tail A REST];subst.
+   destruct(Mem.valid_access_store m ch b ofs v A)as[ma STORE].
+   destruct(IH ma ltac:(eapply Forall_impl;[|exact REST];intros[[[cu bu]ou]vu] VA;eapply Mem.store_valid_access_1;eauto))as[mf RUN].
+   exists mf;cbn[replay_stores];rewrite STORE;exact RUN.
+Qed.
+Lemma replay_stores_value_at : forall i us m mf ch b ofs v,
+ nth_error us i=Some(ch,b,ofs,v) ->replay_stores m us=Some mf ->
+ Forall(misses_chunk ch b ofs)(skipn(S i)us) ->
+ Mem.load ch mf b ofs=Some(Val.load_result ch v).
+Proof.
+ induction i as[|i IH];intros us m mf ch b ofs v NTH RUN MISS;
+ destruct us as[|[[[cu bu]ou]vu]us];try discriminate;
+ cbn[replay_stores]in RUN;
+ destruct(Mem.store cu m bu ou vu)as[ma|]eqn:STORE;try discriminate.
+ - cbn[nth_error]in NTH;injection NTH as<- <- <- <-.
+   cbn[skipn]in MISS;rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN MISS).
+   eapply Mem.load_store_same;exact STORE.
+ - eapply IH;[exact NTH|exact RUN|exact MISS].
+Qed.
+
+Lemma global_contract_after_allocation : forall m ma fresh lo hi,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->Mem.valid_block m b) ->
+ Mem.alloc m lo hi=(ma,fresh) ->global_bytes_initialized ma.
+Proof.
+ intros m ma fresh lo hi[init[INIT GLOBAL]]VALID ALLOC.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros ofs R;eapply Mem.perm_alloc_1;[exact ALLOC|apply RP;exact R].
+ - intros RO ofs R;erewrite Mem.loadbytes_alloc_unchanged;[|exact ALLOC|apply VALID with(gv:=gv);exact VAR].
+   apply BY;assumption.
+Qed.
+Lemma global_contract_after_store : forall m mf ch dst ofs v,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst) ->
+ Mem.store ch m dst ofs v=Some mf ->global_bytes_initialized mf.
+Proof.
+ intros m mf ch dst ofs v[init[INIT GLOBAL]]OUT STORE.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros i R;eapply Mem.perm_store_1;[exact STORE|apply RP;exact R].
+ - intros RO i R;rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ STORE b i 1)
+    by(left;eapply OUT;eauto);apply BY;assumption.
+Qed.
+Lemma global_contract_after_replay : forall us m mf,
+ global_bytes_initialized m ->
+ Forall(fun u=>let '(_,dst,_,_):=u in
+ forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst)us ->
+ replay_stores m us=Some mf ->global_bytes_initialized mf.
+Proof.
+ induction us as[|[[[ch dst]ofs]v]us IH];intros m mf GOOD OUT RUN;cbn[replay_stores]in RUN.
+ - injection RUN as<-;exact GOOD.
+ - destruct(Mem.store ch m dst ofs v)as[ma|]eqn:STORE;try discriminate.
+   inversion OUT as[|u tail HEAD REST];subst.
+   eapply IH;[eapply global_contract_after_store;eauto|exact REST|exact RUN].
+Qed.
+
+Lemma translated_store_pair_preserves_canonical_frame : forall gh ret a b dst ofs ch va vb af bf,
+ same_except_positions_and_return gh ret a b ->
+ (forall i,ofs<=i<ofs+size_chunk ch ->translated_byte gh dst i) ->
+ Mem.store ch a dst ofs va=Some af ->Mem.store ch b dst ofs vb=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dst ofs ch va vb af bf[NEXT[PERM BY]]TRAN SA SB;split.
+ - rewrite(Mem.nextblock_store _ _ _ _ _ _ SA),(Mem.nextblock_store _ _ _ _ _ _ SB);exact NEXT.
+ - split.
+   + intros blk i k p;split;intro H.
+     * eapply Mem.perm_store_1;[exact SB|]. apply(proj1(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SA|exact H].
+     * eapply Mem.perm_store_1;[exact SA|]. apply(proj2(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SB|exact H].
+   + intros blk i NT RET.
+     assert(OUT:blk<>dst \/i+1<=ofs\/ofs+size_chunk ch<=i).
+     { destruct(peq blk dst)as[->|D];[right|left;exact D].
+       destruct(zlt i ofs);[left;lia|right].
+       destruct(zle(ofs+size_chunk ch)i);[exact l|].
+       exfalso;apply NT;apply TRAN;lia. }
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA blk i 1)by(tauto).
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB blk i 1)by(tauto).
+     apply BY;assumption.
+Qed.
+Definition compatible_update(gh:block)(u v:scalar_update):Prop:=
+ exists ch dst ofs va vb,u=(ch,dst,ofs,va)/\v=(ch,dst,ofs,vb)/\
+ (va=vb\/(forall i,ofs<=i<ofs+size_chunk ch->translated_byte gh dst i)).
+Lemma compatible_replay_preserves_canonical_frame : forall gh ret us vs a b af bf,
+ Forall2(compatible_update gh)us vs ->
+ same_except_positions_and_return gh ret a b ->
+ replay_stores a us=Some af ->replay_stores b vs=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret us vs a b af bf COMP;revert a b af bf.
+ induction COMP;intros a b af bf FRAME UA UB.
+ - cbn[replay_stores]in UA,UB;injection UA as<-;injection UB as<-;exact FRAME.
+ - destruct H as[ch[dst[ofs[va[vb[-> [-> CASE]]]]]]].
+   cbn[replay_stores]in UA,UB.
+   destruct(Mem.store ch a dst ofs va)as[ma|]eqn:SA;try discriminate.
+   destruct(Mem.store ch b dst ofs vb)as[mb|]eqn:SB;try discriminate.
+   eapply IHCOMP;[|exact UA|exact UB].
+   destruct CASE as[EQ|TR].
+   + subst vb;eapply synchronized_store_preserves_canonical_frame;eauto.
+   + eapply translated_store_pair_preserves_canonical_frame;eauto.
+Qed.
+Print Assumptions compatible_replay_preserves_canonical_frame.
+
+FILE WitnessUpdates.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement WitnessMemory.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Definition witness_updates(gh sb:block)(shift:Z):list scalar_update:=[
+ (Mint16unsigned,sb,2,Vint(Int.repr 2));
+ (Mint16unsigned,sb,280,Vint(Int.repr 2));
+ (Mint32,gh,44,Vint(Int.repr(512+shift)));
+ (Mint32,gh,48,Vint Int.zero);
+ (Mint32,gh,52,Vint Int.zero);
+ (Mint32,gh,56,Vint Int.zero);
+ (Mint32,gh,60,Vint Int.zero);
+ (Mint32,gh,64,Vint Int.zero);
+ (Mint32,sb,100,Vint(Int.repr shift))].
+Ltac witness_forall tac :=
+ lazymatch goal with
+ | |-Forall _ []=>apply Forall_nil
+ | |-Forall _ (_::_)=>apply Forall_cons;[tac|witness_forall tac]
+ end.
+Ltac witness_align :=
+ lazymatch goal with |-Z.divide ?a ?p=>
+ let q:=eval vm_compute in(p/a)in exists q;reflexivity end.
+Ltac witness_miss :=
+ cbn[misses_chunk];first[left;congruence|right;left;cbn;lia|right;right;cbn;lia].
+Theorem witness_updates_exist : forall base gh sb shift,
+ Mem.range_perm base gh 0 84 Cur Writable ->
+ Mem.range_perm base sb 0 656 Cur Writable ->
+ exists mf,replay_stores base(witness_updates gh sb shift)=Some mf.
+Proof.
+ intros base gh sb shift WG WS;apply replay_stores_exists.
+ unfold witness_updates;witness_forall ltac:(
+ cbn;first[
+ eapply scalar_access_inside with(n:=84);[exact WG|lia|cbn;lia|witness_align]|
+ eapply scalar_access_inside with(n:=656);[exact WS|lia|cbn;lia|witness_align]]).
+Qed.
+Lemma zero_preserved_by_disjoint_replay : forall us base mf b len,
+ Genv.read_as_zero base b 0 len ->
+ Forall(fun u=>let '(_,dst,_,_):=u in b<>dst)us ->
+ replay_stores base us=Some mf ->
+ Genv.read_as_zero mf b 0 len.
+Proof.
+ intros us base mf b len ZERO MISS RUN ch ofs LO HI ALIGN.
+ rewrite(replay_stores_load_frame us base mf ch b ofs RUN).
+ - apply ZERO;assumption.
+ - eapply Forall_impl;[|exact MISS].
+   intros[[[cu dst]ou]v]NOT;left;exact NOT.
+Qed.
+Theorem witness_updated_loads : forall base mf gh sb shift,
+ gh<>sb ->Genv.read_as_zero base sb 0 656 ->
+ replay_stores base(witness_updates gh sb shift)=Some mf ->
+ Mem.load Mint16unsigned mf sb 2=Some(Vint(Int.repr 2)) /\
+ Mem.load Mint16unsigned mf sb 280=Some(Vint(Int.repr 2)) /\
+ Mem.load Mint32 mf gh 44=Some(Vint(Int.repr(512+shift))) /\
+ Mem.load Mint32 mf gh 48=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 52=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 56=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 60=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 64=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf sb 100=Some(Vint(Int.repr shift)) /\
+ Mem.load Mint32 mf sb 104=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf sb 296=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf sb 300=Some(Vint Int.zero).
+Proof.
+ intros base mf gh sb shift DIFF ZERO RUN.
+ assert(P:Mem.load Mint16unsigned mf sb 2=Some(Vint(Int.repr 2))).
+ { eapply replay_stores_value_at with(i:=0%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr 2));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(S:Mem.load Mint16unsigned mf sb 280=Some(Vint(Int.repr 2))).
+ { eapply replay_stores_value_at with(i:=1%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr 2));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(R:Mem.load Mint32 mf gh 44=Some(Vint(Int.repr(512+shift)))).
+ { eapply replay_stores_value_at with(i:=2%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr(512+shift)));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(Y:Mem.load Mint32 mf gh 48=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=3%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(VX:Mem.load Mint32 mf gh 52=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=4%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(VY:Mem.load Mint32 mf gh 56=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=5%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(AX:Mem.load Mint32 mf gh 60=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=6%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(AY:Mem.load Mint32 mf gh 64=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=7%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(N:Mem.load Mint32 mf sb 100=Some(Vint(Int.repr shift))).
+ { eapply replay_stores_value_at with(i:=8%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr shift));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ repeat(first[assumption|split]).
+ all:rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN);
+ [apply ZERO;[lia|cbn;lia|witness_align]|unfold witness_updates;witness_forall ltac:(witness_miss)].
+Qed.
+Lemma reference_position_written_bytes : forall gh i,
+ 44<=i<48 ->translated_byte gh gh i.
+Proof.
+ intros gh i R;left;exists S._x;split;[cbn;auto|];split;[reflexivity|].
+ exists tint,44;split;[reflexivity|exact R].
+Qed.
+Lemma measured_position_written_bytes : forall gh sb i,
+ Genv.find_symbol E.ge S._state=Some sb ->100<=i<104 ->translated_byte gh sb i.
+Proof.
+ intros gh sb i SYM R;right;exists sb,S._x;split;[exact SYM|];split;[cbn;auto|].
+ split;[reflexivity|];exists tint,100;split;[reflexivity|exact R].
+Qed.
+Lemma compatible_update_same : forall gh ch dst ofs v,
+ compatible_update gh(ch,dst,ofs,v)(ch,dst,ofs,v).
+Proof. intros;exists ch,dst,ofs,v,v;split;[reflexivity|];split;[reflexivity|];left;reflexivity. Qed.
+Lemma compatible_update_translated : forall gh ch dst ofs va vb,
+ (forall i,ofs<=i<ofs+size_chunk ch->translated_byte gh dst i) ->
+ compatible_update gh(ch,dst,ofs,va)(ch,dst,ofs,vb).
+Proof. intros;exists ch,dst,ofs,va,vb;split;[reflexivity|];split;[reflexivity|];right;assumption. Qed.
+Theorem witness_replays_related : forall base gh ret sb a b,
+ Genv.find_symbol E.ge S._state=Some sb ->
+ replay_stores base(witness_updates gh sb 0)=Some a ->
+ replay_stores base(witness_updates gh sb 25600)=Some b ->
+ same_except_positions_and_return gh ret a b.
+Proof.
+ intros base gh ret sb a b SYM A B.
+ eapply compatible_replay_preserves_canonical_frame;[| |exact A|exact B].
+ - unfold witness_updates.
+   repeat(apply Forall2_cons;[apply compatible_update_same|]).
+   apply Forall2_cons.
+   + apply compatible_update_translated;intros i R;apply reference_position_written_bytes;exact R.
+   + repeat(apply Forall2_cons;[apply compatible_update_same|]).
+     apply Forall2_cons.
+     * apply compatible_update_translated;intros i R;apply measured_position_written_bytes with(sb:=sb);assumption.
+     * constructor.
+ - split;[reflexivity|];split;[intros;tauto|intros;reflexivity].
+Qed.
+Print Assumptions witness_replays_related.
+
+FILE StackAgreement.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Values Memory Memdata.
+From PidPositionTranslationProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma unit_loadbytes_absent : forall m b ofs,
+ ~Mem.perm m b ofs Cur Readable ->Mem.loadbytes m b ofs 1=None.
+Proof.
+ intros m b ofs NP;destruct(Mem.loadbytes m b ofs 1)as[bytes|]eqn:L;auto.
+ exfalso;apply NP;pose proof(Mem.loadbytes_range_perm _ _ _ _ _ L)as RP;apply RP;lia.
+Qed.
+Lemma allocated_unit_is_undef : forall m lo hi ma fresh ofs bytes,
+ Mem.alloc m lo hi=(ma,fresh) ->
+ Mem.loadbytes ma fresh ofs 1=Some bytes ->bytes=[Undef].
+Proof.
+ intros m lo hi ma fresh ofs bytes AL LOAD.
+ pose proof(Mem.loadbytes_length _ _ _ _ _ LOAD)as LEN;change(length bytes=1%nat)in LEN.
+ destruct bytes as[|v tail];[discriminate|].
+ destruct tail as[|v' tail];[|discriminate].
+ f_equal;eapply Mem.loadbytes_alloc_same;[exact AL|exact LOAD|left;reflexivity].
+Qed.
+
+Theorem synchronized_alloc_preserves_canonical_frame :
+ forall gh ret a b lo hi af ab bf bb,
+ same_except_positions_and_return gh ret a b ->
+ Mem.alloc a lo hi=(af,ab) ->Mem.alloc b lo hi=(bf,bb) ->
+ ab=bb /\same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b lo hi af ab bf bb[NB[PERMS BYTES]]AA AB.
+ assert(EQ:ab=bb).
+ { rewrite(Mem.alloc_result _ _ _ _ _ AA),(Mem.alloc_result _ _ _ _ _ AB);exact NB. }
+ subst bb;split;[reflexivity|].
+ assert(NEXT:Mem.nextblock af=Mem.nextblock bf).
+ { rewrite(Mem.nextblock_alloc _ _ _ _ _ AA),(Mem.nextblock_alloc _ _ _ _ _ AB),NB;reflexivity. }
+ assert(PERM:forall blk ofs k p,Mem.perm af blk ofs k p<->Mem.perm bf blk ofs k p).
+ { intros blk ofs k p;destruct(peq blk ab)as[EQ|NE].
+   - subst blk;split;intro P.
+     + pose proof(Mem.perm_alloc_3 _ _ _ _ _ AA _ _ _ P)as R.
+       eapply Mem.perm_implies;[apply(Mem.perm_alloc_2 _ _ _ _ _ AB);exact R|destruct p;constructor].
+     + pose proof(Mem.perm_alloc_3 _ _ _ _ _ AB _ _ _ P)as R.
+       eapply Mem.perm_implies;[apply(Mem.perm_alloc_2 _ _ _ _ _ AA);exact R|destruct p;constructor].
+   - split;intro P.
+     + apply(Mem.perm_alloc_1 _ _ _ _ _ AB);apply PERMS;eapply Mem.perm_alloc_4;[exact AA|exact P|exact NE].
+     + apply(Mem.perm_alloc_1 _ _ _ _ _ AA);apply PERMS;eapply Mem.perm_alloc_4;[exact AB|exact P|exact NE]. }
+ split;[exact NEXT|];split;[exact PERM|].
+ intros blk ofs NT NR;destruct(peq blk ab)as[EQ|NE].
+ - subst blk.
+   destruct(Mem.loadbytes af ab ofs 1)as[av|]eqn:LA.
+   + assert(RB:Mem.range_perm bf ab ofs(ofs+1)Cur Readable).
+     { intros z ZR;apply PERM;exact(Mem.loadbytes_range_perm _ _ _ _ _ LA z ZR). }
+     destruct(Mem.range_perm_loadbytes _ _ _ _ RB)as[bv LB];rewrite LB.
+     rewrite(allocated_unit_is_undef _ _ _ _ _ _ _ AA LA).
+     rewrite(allocated_unit_is_undef _ _ _ _ _ _ _ AB LB);reflexivity.
+   + destruct(Mem.loadbytes bf ab ofs 1)as[bv|]eqn:LB;[|reflexivity].
+     assert(RA:Mem.range_perm af ab ofs(ofs+1)Cur Readable).
+     { intros z ZR;apply PERM;exact(Mem.loadbytes_range_perm _ _ _ _ _ LB z ZR). }
+     destruct(Mem.range_perm_loadbytes _ _ _ _ RA)as[av L];rewrite LA in L;discriminate.
+ - destruct(plt blk(Mem.nextblock a))as[VA|NVA].
+   + assert(VB:Mem.valid_block b blk)by(unfold Mem.valid_block;rewrite<-NB;exact VA).
+     rewrite(Mem.loadbytes_alloc_unchanged _ _ _ _ _ AA _ _ _ VA).
+     rewrite(Mem.loadbytes_alloc_unchanged _ _ _ _ _ AB _ _ _ VB).
+     apply BYTES;assumption.
+   + assert(NA:~Mem.perm af blk ofs Cur Readable).
+     { intro P;pose proof(Mem.perm_valid_block _ _ _ _ _ P)as V.
+       destruct(Mem.valid_block_alloc_inv _ _ _ _ _ AA blk V)as[E|V0];[contradiction|exact(NVA V0)]. }
+     assert(NB':~Mem.perm bf blk ofs Cur Readable)by(intro P;apply NA;apply PERM;exact P).
+     rewrite(unit_loadbytes_absent _ _ _ NA),(unit_loadbytes_absent _ _ _ NB');reflexivity.
+Qed.
+
+Theorem synchronized_free_preserves_canonical_frame :
+ forall gh ret a b blk lo hi af bf,
+ same_except_positions_and_return gh ret a b ->
+ Mem.free a blk lo hi=Some af ->Mem.free b blk lo hi=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b blk lo hi af bf[NB[PERMS BYTES]]FA FB.
+ assert(PERM:forall b ofs k p,Mem.perm af b ofs k p<->Mem.perm bf b ofs k p).
+ { intros b' ofs k p;destruct(peq b' blk)as[EQ|NE].
+   - subst b';destruct(zle lo ofs), (zlt ofs hi).
+     + split;intro P;exfalso;[exact(Mem.perm_free_2 a blk lo hi af FA ofs k p ltac:(lia)P)|exact(Mem.perm_free_2 b blk lo hi bf FB ofs k p ltac:(lia)P)].
+     + split;intro P;[eapply Mem.perm_free_1;[exact FB|right;right;lia|apply PERMS;eapply Mem.perm_free_3;eauto]|
+       eapply Mem.perm_free_1;[exact FA|right;right;lia|apply PERMS;eapply Mem.perm_free_3;eauto]].
+     + split;intro P;[eapply Mem.perm_free_1;[exact FB|right;left;lia|apply PERMS;eapply Mem.perm_free_3;eauto]|
+       eapply Mem.perm_free_1;[exact FA|right;left;lia|apply PERMS;eapply Mem.perm_free_3;eauto]].
+     + split;intro P;[eapply Mem.perm_free_1;[exact FB|right;left;lia|apply PERMS;eapply Mem.perm_free_3;eauto]|
+       eapply Mem.perm_free_1;[exact FA|right;left;lia|apply PERMS;eapply Mem.perm_free_3;eauto]].
+   - split;intro P;[eapply Mem.perm_free_1;[exact FB|left;exact NE|apply PERMS;eapply Mem.perm_free_3;eauto]|
+      eapply Mem.perm_free_1;[exact FA|left;exact NE|apply PERMS;eapply Mem.perm_free_3;eauto]]. }
+ split.
+ - rewrite(Mem.nextblock_free _ _ _ _ _ FA),(Mem.nextblock_free _ _ _ _ _ FB);exact NB.
+ - split;[exact PERM|].
+   intros b' ofs NT NR;destruct(peq b' blk)as[EQ|NE].
+   + subst b';destruct(zle lo ofs), (zlt ofs hi).
+     * assert(NA:~Mem.perm af blk ofs Cur Readable)by(eapply Mem.perm_free_2;[exact FA|split;assumption]).
+       assert(NB':~Mem.perm bf blk ofs Cur Readable)by(eapply Mem.perm_free_2;[exact FB|split;assumption]).
+       rewrite(unit_loadbytes_absent _ _ _ NA),(unit_loadbytes_absent _ _ _ NB');reflexivity.
+     * rewrite(Mem.loadbytes_free _ _ _ _ _ FA)by(right;right;right;lia).
+       rewrite(Mem.loadbytes_free _ _ _ _ _ FB)by(right;right;right;lia);apply BYTES;assumption.
+     * rewrite(Mem.loadbytes_free _ _ _ _ _ FA)by(right;right;left;lia).
+       rewrite(Mem.loadbytes_free _ _ _ _ _ FB)by(right;right;left;lia);apply BYTES;assumption.
+     * rewrite(Mem.loadbytes_free _ _ _ _ _ FA)by(right;right;left;lia).
+       rewrite(Mem.loadbytes_free _ _ _ _ _ FB)by(right;right;left;lia);apply BYTES;assumption.
+   + rewrite(Mem.loadbytes_free _ _ _ _ _ FA)by(left;exact NE).
+     rewrite(Mem.loadbytes_free _ _ _ _ _ FB)by(left;exact NE);apply BYTES;assumption.
+Qed.
+Print Assumptions synchronized_alloc_preserves_canonical_frame.
+Print Assumptions synchronized_free_preserves_canonical_frame.
+
+FILE ByteSubrange.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata.
+Import ListNotations.
+Open Scope Z_scope.
+Lemma unit_loadbytes_singleton : forall m b ofs bytes,
+ Mem.loadbytes m b ofs 1=Some bytes ->exists v,bytes=[v].
+Proof.
+ intros m b ofs bytes LOAD;pose proof(Mem.loadbytes_length _ _ _ _ _ LOAD)as LEN.
+ change(length bytes=1%nat)in LEN.
+ destruct bytes as[|v tail];[discriminate|].
+ destruct tail as[|v' tail];[exists v;reflexivity|discriminate].
+Qed.
+Lemma equal_loadbytes_all_units : forall(n:nat)a b blk base bytes,
+ Mem.loadbytes a blk base(Z.of_nat n)=Some bytes ->
+ Mem.loadbytes b blk base(Z.of_nat n)=Some bytes ->
+ forall ofs,base<=ofs<base+Z.of_nat n ->
+ Mem.loadbytes a blk ofs 1=Mem.loadbytes b blk ofs 1.
+Proof.
+ induction n as[|n IH];intros a b blk base bytes LA LB ofs RANGE.
+ - cbn in RANGE;lia.
+ - replace(Z.of_nat(S n))with(1+Z.of_nat n)in LA,LB by lia.
+   destruct(Mem.loadbytes_split a blk base 1(Z.of_nat n)bytes LA ltac:(lia)ltac:(lia))
+   as[ah[atail[AH[AT AE]]]].
+   destruct(Mem.loadbytes_split b blk base 1(Z.of_nat n)bytes LB ltac:(lia)ltac:(lia))
+   as[bh[btail[BH[BT BE]]]].
+   destruct(unit_loadbytes_singleton _ _ _ _ AH)as[av AV].
+   destruct(unit_loadbytes_singleton _ _ _ _ BH)as[bv BV].
+   rewrite AV in AH,AE;rewrite BV in BH,BE.
+   rewrite AE in BE;cbn in BE;injection BE as EV ET;subst bv btail.
+   destruct(Z.eq_dec ofs base)as[EQ|NE].
+   + subst ofs;rewrite AH,BH;reflexivity.
+   + eapply IH;[exact AT|exact BT|lia].
+Qed.
+Lemma equal_int32_words_all_units : forall a b blk base bytes,
+ Mem.loadbytes a blk base 4=Some bytes ->
+ Mem.loadbytes b blk base 4=Some bytes ->
+ forall ofs,base<=ofs<base+4 ->
+ Mem.loadbytes a blk ofs 1=Mem.loadbytes b blk ofs 1.
+Proof.
+ intros a b blk base bytes LA LB ofs RANGE.
+ exact(equal_loadbytes_all_units 4 a b blk base bytes LA LB ofs RANGE).
+Qed.
+Print Assumptions equal_int32_words_all_units.
+
+GATE
+"""Strict current proof receipt validation; historical attempts remain immutable."""
+import hashlib
+import json
+from pathlib import Path
+import re
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def certificate_source(imports, bindings):
+    return ''.join(f'Require Import {name}.\n' for name in imports) + ''.join(
+        f'Definition goal_{i} : {row["type"]} := {row["theorem"]}.\nPrint Assumptions goal_{i}.\n'
+        for i, row in enumerate(bindings))
+
+
+def input_index(root, active):
+    """Explicit adapters for retained index formats, never a default empty list."""
+    choices = [p for p in (active / 'inputs.json', active / 'provenance.json') if p.is_file()]
+    if len(choices) != 1:
+        raise ValueError('exactly one input index is required: ' + str(active))
+    path = choices[0]
+    data = json.loads(path.read_text())
+    schema = data.get('schema')
+    if schema == 'five-proof-attempt-provenance/1':
+        groups = [(root, data.get('files'))]
+    elif schema == 'five-proof-provenance/1':
+        stages = [p for p in active.parents if p.name == 'rocq']
+        if len(stages) != 1 or not data.get('model_configuration'):
+            raise ValueError('invalid case provenance context: ' + str(path))
+        groups = [(stages[0].parent, data.get('inputs')), (root, data.get('shared_inputs'))]
+    elif schema == 'five-proof-inputs/1':
+        hashes = data.get('dependency_sha256')
+        semantics = data.get('semantic_dependencies')
+        if not isinstance(hashes, dict) or not hashes or not isinstance(semantics, dict) or not semantics:
+            raise ValueError('missing dependency/semantic hash maps: ' + str(path))
+        for name, value in semantics.items():
+            source = Path(name)
+            if not source.is_absolute() or not source.is_file() or digest(source) != value:
+                raise ValueError('stale external semantic dependency: ' + str(source))
+        groups = [(root, [{'path': name, 'sha256': value} for name, value in hashes.items()])]
+    elif path.name == 'inputs.json' and schema is None:
+        # The two published pre-versioned layouts have distinct path bases.
+        keys = [key for key in ('inputs', 'artifacts') if key in data]
+        if len(keys) != 1:
+            raise ValueError('ambiguous/missing legacy input rows: ' + str(path))
+        key = keys[0]
+        groups = [(active if key == 'artifacts' else root, data.get(key))]
+    else:
+        raise ValueError('unsupported input index schema: ' + str(path))
+    rows = []
+    for base, entries in groups:
+        if not isinstance(entries, list) or not entries:
+            raise ValueError('empty/malformed input index: ' + str(path))
+        rows.extend((base, row) for row in entries)
+    resolved = {}
+    for base, row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str) or not row['path'] or not re.fullmatch('[0-9a-f]{64}', str(row.get('sha256', ''))):
+            raise ValueError('malformed input row: ' + str(path))
+        source = (base / row['path']).resolve()
+        if source in resolved or not source.is_file():
+            raise ValueError('duplicate/missing indexed input: ' + str(source))
+        resolved[source] = row['sha256']
+    return path, resolved
+
+
+def validate_current(root, problem, active, status):
+    from compcert_gate import kernel_record
+    root = Path(root).resolve()
+    path = active / 'evidence/goal-validation.json'
+    data = json.loads(path.read_text())
+    if data.get('schema') != 'five-proof-validation/1':
+        raise ValueError('unsupported current proof validation schema')
+    def checked(row):
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str):
+            raise ValueError('malformed current binding')
+        source = (root / row['path']).resolve()
+        if not source.is_relative_to(root) or not source.is_file() or digest(source) != row.get('sha256'):
+            raise ValueError('stale/missing current binding: ' + str(source))
+        return source
+    index, historical = input_index(root, active)
+    if checked(data.get('index')) != index:
+        raise ValueError('wrong input index binding')
+    rows = data.get('inputs')
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('missing current input bindings')
+    current, snapshots = {}, {}
+    for row in rows:
+        source = checked(row)
+        if source in current:
+            raise ValueError('duplicate current input')
+        current[source] = row['sha256']
+        if row.get('snapshot'):
+            snapshot = (root / row['snapshot']).resolve()
+            if not snapshot.is_relative_to(root) or not snapshot.is_file() or digest(snapshot) != row['sha256']:
+                raise ValueError('current source differs from compiled snapshot: ' + str(source))
+            if snapshot in snapshots:
+                raise ValueError('ambiguous compiled snapshot')
+            snapshots[snapshot] = source
+    required = set(historical) | {problem / 'Spec.v', active / 'Proof.v', active / 'check.py'}
+    if not required.issubset(current):
+        raise ValueError('current bindings omit indexed/proof/spec/checker inputs')
+    # Old manifest histories are immutable, but current executable sources must
+    # still match their original index as well as their fresh compiled snapshot.
+    for source, old_hash in historical.items():
+        if source.suffix in ('.v', '.c') and current[source] != old_hash:
+            raise ValueError('source differs from retained input index: ' + str(source))
+    if not {problem / 'Spec.v', active / 'Proof.v'}.issubset(set(snapshots.values())):
+        raise ValueError('current Proof/Spec missing compiled snapshots')
+    receipt_ref = data['kernel_evidence']
+    kernel_record(root, receipt_ref)
+    receipt = json.loads((root / receipt_ref).read_text())
+    dependencies = {(root / name).resolve(): value for name, value in receipt['dependency_sha256'].items()}
+    if set(dependencies) != set(snapshots):
+        raise ValueError('current source bindings do not cover exact kernel dependency closure')
+    if any(current[snapshots[p]] != value for p, value in dependencies.items()):
+        raise ValueError('kernel dependency hash differs from current source')
+    proof_run = json.loads((root / receipt['run'] / 'run.json').read_text())
+    def full_compile(command):
+        # Reference full-build shape only: load paths, harmless output flags,
+        # and exactly one source. Output/module overrides can leave stale .vo
+        # files at the path later consumed by the kernel, so fail closed.
+        argv = command.get('argv', [])
+        if not argv or command.get('status') != 'passed' or command.get('exit_code') != 0:
+            return False
+        if Path(argv[0]).name == 'rocq' and argv[1:2] == ['compile']:
+            args = argv[2:]
+        elif Path(argv[0]).name == 'coqc':
+            args = argv[1:]
+        else:
+            return False
+        sources = 0
+        i = 0
+        while i < len(args):
+            if args[i] in ('-Q', '-R') and i + 2 < len(args):
+                i += 3
+            elif args[i] == '-I' and i + 1 < len(args):
+                i += 2
+            elif args[i] in ('-q', '-quiet', '-time'):
+                i += 1
+            elif not args[i].startswith('-') and args[i].endswith('.v'):
+                sources += 1
+                i += 1
+            else:
+                return False
+        return sources == 1
+    compiled = set()
+    for command in proof_run.get('commands', []):
+        argv = command.get('argv', [])
+        if full_compile(command):
+            compiled.update((Path(command['cwd']) / arg).resolve() for arg in argv[1:] if arg.endswith('.v'))
+    if not set(dependencies).issubset(compiled):
+        raise ValueError('kernel dependency source was not compiled in the bound proof run')
+    kernel_commands = [c for c in proof_run.get('commands', []) if c.get('id') == receipt['command_id']]
+    def module_candidates(command, module):
+        args = command['argv']; mappings = []
+        for i, arg in enumerate(args):
+            if arg in ('-Q', '-R') and i + 2 < len(args):
+                mappings.append((args[i + 2], (Path(command['cwd']) / args[i + 1]).resolve()))
+        matching = [(prefix, directory) for prefix, directory in mappings if module == prefix or module.startswith(prefix + '.')]
+        if not matching:
+            return []
+        longest = max(len(prefix) for prefix, _ in matching)
+        matching = [(prefix, directory) for prefix, directory in matching if len(prefix) == longest]
+        if len(matching) != 1:
+            raise ValueError('ambiguous logical namespace mapping: ' + module)
+        prefix, directory = matching[0]
+        return [directory.joinpath(*module[len(prefix):].strip('.').split('.')).with_suffix('.v')]
+    for theorem in receipt['theorems']:
+        module = theorem.rsplit('.', 1)[0]
+        candidates = module_candidates(kernel_commands[0], module)
+        if len(candidates) != 1 or candidates[0] not in dependencies:
+            raise ValueError('kernel theorem module does not resolve to bound dependency snapshot')
+        source = candidates[0]
+        matching_compiles = [c for c in proof_run.get('commands', []) if full_compile(c) and any((Path(c['cwd']) / arg).resolve() == source for arg in c['argv'] if arg.endswith('.v'))]
+        if not matching_compiles or any(module_candidates(c, module) != [source] for c in matching_compiles):
+            raise ValueError('proof compile and kernel namespace mappings differ')
+    bindings = data.get('goal_bindings')
+    goals = status.get('requested_goals')
+    if not isinstance(bindings, list) or not bindings or not isinstance(goals, list) or len(set(goals)) != len(goals):
+        raise ValueError('missing/malformed goal bindings')
+    if [r.get('requested_goal') for r in bindings] != goals:
+        raise ValueError('requested goals differ from certified goals')
+    ident = r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*'
+    for row in bindings:
+        if not re.fullmatch(ident, str(row.get('theorem', ''))) or not isinstance(row.get('type'), str) or not row['type'].strip() or any(token in row['type'] for token in ('(*', '*)', '\n', '\r')) or re.search(r'\.(?:\s|$)', row['type']):
+            raise ValueError('malformed theorem/type binding')
+        if row['theorem'] not in receipt['theorems']:
+            raise ValueError('goal theorem is not claimed by kernel receipt')
+    cert = data['certificate']
+    certificate = checked(cert)
+    imports = cert.get('imports')
+    if not isinstance(imports, list) or not imports or not all(re.fullmatch(ident, str(n)) for n in imports):
+        raise ValueError('malformed certificate imports')
+    if certificate.read_text() != certificate_source(imports, bindings):
+        raise ValueError('certificate does not express exact theorem-to-goal bindings')
+    run = json.loads((root / cert['run'] / 'run.json').read_text())
+    if run.get('status') != 'passed':
+        raise ValueError('certificate run did not pass')
+    run_inputs = {Path(x['source']).resolve(): x['sha256'] for x in run.get('inputs', [])}
+    if run_inputs.get(certificate) != cert['sha256'] or any(run_inputs.get(p) != h for p, h in dependencies.items()):
+        raise ValueError('certificate run omitted actual certificate/dependency snapshot')
+    def command(command_id):
+        rows = [c for c in run.get('commands', []) if c.get('id') == command_id]
+        if len(rows) != 1 or rows[0].get('exit_code') != 0 or rows[0].get('status') != 'passed':
+            raise ValueError('missing/failed certificate command')
+        return rows[0]
+    compile_row = command(cert['compile_command_id'])
+    stdout = compile_row.get('stdout')
+    if not isinstance(stdout, str) or not (root / cert['run'] / stdout).is_file() or not (root / cert['run'] / stdout).stat().st_size:
+        raise ValueError('missing actual certificate Print Assumptions output')
+    argv = compile_row['argv']
+    if not full_compile(compile_row) or not any((Path(compile_row['cwd']) / arg).resolve() == certificate for arg in argv if arg.endswith('.v')):
+        raise ValueError('certificate was not actually compiled')
+    # Reuse canonical independent-kernel and compilation/snapshot checks for
+    # certificate module, avoiding a second permissive argv implementation.
+    certificate_receipt = cert['kernel_evidence']
+    kernel_record(root, certificate_receipt)
+    ce = json.loads((root / certificate_receipt).read_text())
+    if ce['run'] != cert['run'] or ce['command_id'] != cert['kernel_command_id'] or ce['theorems'] != [cert['module'] + '.goal_' + str(i) for i in range(len(bindings))] or ce['statement_artifacts'] != [cert['path']] or ce['dependency_sha256'] != {**receipt['dependency_sha256'], cert['path']: cert['sha256']}:
+        raise ValueError('certificate kernel receipt differs from exact certification')
+    # Imports must resolve to the very same compiled dependency source paths.
+    for row in (compile_row, command(cert['kernel_command_id'])):
+        for module in set(imports) | {b['theorem'].rsplit('.', 1)[0] for b in bindings} | {b['type'].rsplit('.', 1)[0] for b in bindings if re.fullmatch(ident, b['type']) and '.' in b['type']}:
+            candidates = module_candidates(row, module)
+            if not any(p in dependencies for p in candidates):
+                raise ValueError('certificate import not bound to actual compiled snapshot: ' + module)
+        if certificate not in module_candidates(row, cert['module']):
+            raise ValueError('certificate module does not resolve to actual compiled certificate')
+

@@ -1,0 +1,407 @@
+
+FILE core/CoreClamp.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics.
+Import ListNotations.
+Open Scope Z_scope.
+Fixpoint top_statement(n:nat)(s:statement):statement:=
+ match n with O=>match s with Ssequence a _=>a|_=>s end
+ |Datatypes.S n=>match s with Ssequence _ b=>top_statement n b|_=>Sskip end end.
+Definition cmd_lvalue(axis:ident):expr:=Efield(Evalof(Efield(Evalof(Evar S._guidance_pid pid_type)pid_type)S._cmd_earth vec_type)vec_type)axis tint.
+Definition max_rvalue(id:ident):expr:=Evalof(Evar id tint)tint.
+Definition clamp_assignment(l mx:expr):statement:=Sdo(Eassign l(clamp_expr(Evalof l tint)mx)tint).
+Definition trajectory_clamp:=top_statement 4(fn_body S.f_guidance_pid_h_run).
+Definition total_clamp:=top_statement 7(fn_body S.f_guidance_pid_h_run).
+Lemma trajectory_clamp_source:trajectory_clamp=
+ Ssequence(clamp_assignment(cmd_lvalue S._x)(max_rvalue S._traj_max_bank))
+ (clamp_assignment(cmd_lvalue S._y)(max_rvalue S._traj_max_bank)).
+Proof. reflexivity. Qed.
+Lemma total_clamp_source:total_clamp=
+ Ssequence(clamp_assignment(cmd_lvalue S._x)(max_rvalue S._total_max_bank))
+ (clamp_assignment(cmd_lvalue S._y)(max_rvalue S._total_max_bank)).
+Proof. reflexivity. Qed.
+Lemma command_scalar_clamp:forall e m bp bm maxid axis ofs value maximum mf,
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!maxid=None ->Genv.find_symbol ge maxid=Some bm ->
+ (axis=S._x/\ofs=32)\/(axis=S._y/\ofs=36) ->
+ Mem.load Mint32 m bp ofs=Some(Vint value) ->Mem.load Mint32 m bm 0=Some(Vint maximum) ->
+ Mem.store Mint32 m bp ofs(Vint(clip_bits value maximum))=Some mf ->
+ exec_stmt ge e m(clamp_assignment(cmd_lvalue axis)(max_rvalue maxid))E0 mf Out_normal.
+Proof.
+ intros e m bp bm maxid axis ofs value maximum mf NP SP NM SM AX LOAD MAX STORE.
+ assert(LV:eval_simple_lvalue ge e m(cmd_lvalue axis)bp(Ptrofs.repr ofs)Full).
+ { destruct AX as[[-> ->]|[-> ->]];unfold cmd_lvalue,pid_type,vec_type;
+   lazymatch goal with|-eval_simple_lvalue _ _ _ _ _(Ptrofs.repr ?n) _=>replace(Ptrofs.repr n)with(Ptrofs.add(Ptrofs.add Ptrofs.zero(Ptrofs.repr 32))(Ptrofs.repr(n-32)))by reflexivity end;core_lv I I I NP I I SP I I I I I I. }
+ assert(RV:eval_simple_rvalue ge e m(Evalof(cmd_lvalue axis)tint)(Vint value)).
+ { eapply read_scalar with(chunk:=Mint32);[exact LV|reflexivity|reflexivity|reflexivity|].
+   destruct AX as[[-> ->]|[-> ->]];exact LOAD. }
+ assert(MV:eval_simple_rvalue ge e m(max_rvalue maxid)(Vint maximum)).
+ { unfold max_rvalue;eapply read_scalar with(chunk:=Mint32)(b:=bm)(ofs:=Ptrofs.zero);
+   [apply esl_var_global;assumption|reflexivity|reflexivity|reflexivity|exact MAX]. }
+ unfold clamp_assignment;eapply atomic_assign_expression;
+ [exact LV|reflexivity|eapply int32_clamp_expression;[reflexivity|reflexivity|reflexivity|reflexivity|exact RV|exact MV]|reflexivity| |reflexivity].
+ eapply assign_loc_value;[reflexivity|reflexivity|].
+ destruct AX as[[-> ->]|[-> ->]];exact STORE.
+Qed.
+Definition clamp_updates(bp:block)(x y maximum:int):list scalar_update:=
+ [(Mint32,bp,32,Vint(clip_bits x maximum));(Mint32,bp,36,Vint(clip_bits y maximum))].
+Theorem command_pair_clamp_normal:forall e m bp bm maxid x y maximum,
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!maxid=None ->Genv.find_symbol ge maxid=Some bm ->bp<>bm ->
+ Mem.load Mint32 m bp 32=Some(Vint x) ->Mem.load Mint32 m bp 36=Some(Vint y) ->
+ Mem.load Mint32 m bm 0=Some(Vint maximum) ->
+ Mem.valid_access m Mint32 bp 32 Writable ->Mem.valid_access m Mint32 bp 36 Writable ->
+ exists mf,
+ exec_stmt ge e m(Ssequence(clamp_assignment(cmd_lvalue S._x)(max_rvalue maxid))(clamp_assignment(cmd_lvalue S._y)(max_rvalue maxid)))E0 mf Out_normal /\
+ Mem.load Mint32 mf bp 32=Some(Vint(clip_bits x maximum)) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(clip_bits y maximum)) /\raw_writes(fun b=>b=bp)m mf /\replay_stores m(clamp_updates bp x y maximum)=Some mf.
+Proof.
+ intros e m bp bm maxid x y maximum NP SP NM SM DIST LX LY LM AX AY.
+ destruct(Mem.valid_access_store m Mint32 bp 32(Vint(clip_bits x maximum))AX)as[m1 ST1].
+ assert(AY1:Mem.valid_access m1 Mint32 bp 36 Writable)by(eapply Mem.store_valid_access_1;eauto).
+ destruct(Mem.valid_access_store m1 Mint32 bp 36(Vint(clip_bits y maximum))AY1)as[mf ST2].
+ exists mf;split.
+ - eapply sequence_normal.
+   + eapply command_scalar_clamp with(value:=x)(maximum:=maximum);eauto;left;auto.
+   + eapply command_scalar_clamp with(value:=y)(maximum:=maximum);eauto;try(right;auto);scalar_frame;assumption.
+ - repeat split;try(scalar_frame;reflexivity).
+   eapply raw_writes_store;[reflexivity|exact ST1|].
+   eapply raw_writes_store;[reflexivity|exact ST2|constructor].
+   cbv beta iota zeta delta[clamp_updates replay_stores];rewrite ST1,ST2;reflexivity.
+Qed.
+Corollary original_trajectory_clamp_normal:forall e m bp bm x y maximum,
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!S._traj_max_bank=None ->Genv.find_symbol ge S._traj_max_bank=Some bm ->bp<>bm ->
+ Mem.load Mint32 m bp 32=Some(Vint x) ->Mem.load Mint32 m bp 36=Some(Vint y) ->
+ Mem.load Mint32 m bm 0=Some(Vint maximum) ->
+ Mem.valid_access m Mint32 bp 32 Writable ->Mem.valid_access m Mint32 bp 36 Writable ->
+ exists mf,exec_stmt ge e m trajectory_clamp E0 mf Out_normal /\
+ Mem.load Mint32 mf bp 32=Some(Vint(clip_bits x maximum)) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(clip_bits y maximum)) /\raw_writes(fun b=>b=bp)m mf /\replay_stores m(clamp_updates bp x y maximum)=Some mf.
+Proof. intros;rewrite trajectory_clamp_source;eapply command_pair_clamp_normal;eauto. Qed.
+Print Assumptions original_trajectory_clamp_normal.
+
+
+FILE core/FlightSemantics.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp.
+Import ListNotations.
+Open Scope Z_scope.
+Definition flight_statement:=top_statement 5(fn_body S.f_guidance_pid_h_run).
+Definition next_integral(flight:bool)(i ki pd maximum:int):int:=
+ if flight then clip_bits(Int.add i(Int.mul ki pd))(Int.shl maximum(Int.repr 16))else Int.zero.
+Definition next_command(flight:bool)(c ni:int):int:=if flight then Int.add c(Int.shr ni(Int.repr 16))else c.
+Definition flight_updates(f:bool)(bi bp:block)(pdx pdy ki ix iy cx cy maximum:int):list scalar_update:=
+ if f then [(Mint32,bi,0,Vint(Int.add ix(Int.mul ki pdx)));
+ (Mint32,bi,4,Vint(Int.add iy(Int.mul ki pdy)));
+ (Mint32,bi,0,Vint(next_integral true ix ki pdx maximum));
+ (Mint32,bi,4,Vint(next_integral true iy ki pdy maximum));
+ (Mint32,bp,32,Vint(next_command true cx(next_integral true ix ki pdx maximum)));
+ (Mint32,bp,36,Vint(next_command true cy(next_integral true iy ki pdy maximum)))]
+ else [(Mint32,bi,0,Vint Int.zero);(Mint32,bi,4,Vint Int.zero)].
+Ltac raw_scalar_load := lazymatch goal with|-Mem.loadv ?c ?mm(Vptr ?bb ?oo)=Some ?vv=>
+ let ox:=eval vm_compute in(Ptrofs.unsigned oo)in change(Mem.load c mm bb ox=Some vv);scalar_frame;first[eassumption|reflexivity]end.
+Ltac flight_add EX EY NP SP NI SI NM SM STORE:=
+ eapply atomic_assignop;
+ [core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|
+  core_rv EX EY I NP I I SP I I NI SI NM SM|reflexivity|
+  eapply deref_loc_value;[reflexivity|reflexivity|raw_scalar_load]|
+  reflexivity|reflexivity|
+  eapply assign_loc_value;[reflexivity|reflexivity|exact STORE]|reflexivity].
+Ltac flight_clamp EX EY NP SP NI SI NM SM STORE:=
+ eapply atomic_assign_expression;
+ [core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|
+  eapply int32_clamp_expression;[reflexivity|reflexivity|reflexivity|reflexivity|
+    core_rv EX EY I NP I I SP I I NI SI NM SM|core_rv EX EY I NP I I SP I I NI SI NM SM]|
+  reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact STORE]|reflexivity].
+Theorem original_flight_integrator_normal:forall e m bx bpy bp bi bm bf(flight:bool)pdx pdy ki ix iy cx cy maximum,
+ e!S._pd_x=Some(bx,tint) ->e!S._pd_y=Some(bpy,tint) ->e!S._in_flight=Some(bf,tbool) ->
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!S._guidance_pid_trim_att_integrator=None ->Genv.find_symbol ge S._guidance_pid_trim_att_integrator=Some bi ->
+ e!S._traj_max_bank=None ->Genv.find_symbol ge S._traj_max_bank=Some bm ->
+ NoDup[bx;bpy;bp;bi;bm;bf] ->
+ Mem.load Mint8unsigned m bf 0=Some(Vint(if flight then Int.one else Int.zero)) ->
+ Mem.load Mint32 m bx 0=Some(Vint pdx) ->Mem.load Mint32 m bpy 0=Some(Vint pdy) ->
+ Mem.load Mint32 m bp 8=Some(Vint ki) ->
+ Mem.load Mint32 m bi 0=Some(Vint ix) ->Mem.load Mint32 m bi 4=Some(Vint iy) ->
+ Mem.load Mint32 m bp 32=Some(Vint cx) ->Mem.load Mint32 m bp 36=Some(Vint cy) ->
+ Mem.load Mint32 m bm 0=Some(Vint maximum) ->
+ Mem.valid_access m Mint32 bi 0 Writable ->Mem.valid_access m Mint32 bi 4 Writable ->
+ Mem.valid_access m Mint32 bp 32 Writable ->Mem.valid_access m Mint32 bp 36 Writable ->
+ exists mf,exec_stmt ge e m flight_statement E0 mf Out_normal /\
+ Mem.load Mint32 mf bi 0=Some(Vint(next_integral flight ix ki pdx maximum)) /\
+ Mem.load Mint32 mf bi 4=Some(Vint(next_integral flight iy ki pdy maximum)) /\
+ Mem.load Mint32 mf bp 32=Some(Vint(next_command flight cx(next_integral flight ix ki pdx maximum))) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(next_command flight cy(next_integral flight iy ki pdy maximum))) /\
+ raw_writes(fun b=>b=bi\/b=bp)m mf /\replay_stores m(flight_updates flight bi bp pdx pdy ki ix iy cx cy maximum)=Some mf.
+Proof.
+ intros e m bx bpy bp bi bm bf flight pdx pdy ki ix iy cx cy maximum EX EY EF NP SP NI SI NM SM SEP LF LPX LPY LKI LIX LIY LCX LCY LM AIX AIY ACX ACY.
+ assert(DIST:bx<>bpy /\ bx<>bp /\ bx<>bi /\ bx<>bm /\ bx<>bf /\ bpy<>bp /\ bpy<>bi /\ bpy<>bm /\ bpy<>bf /\ bp<>bi /\ bp<>bm /\ bp<>bf /\ bi<>bm /\ bi<>bf /\ bm<>bf).
+ {repeat rewrite NoDup_cons_iff in SEP;simpl in SEP;intuition congruence. }
+ destruct DIST as(D0&D1&D2&D3&D4&D5&D6&D7&D8&D9&D10&D11&D12&D13&D14).
+ assert(FL:eval_simple_rvalue ge e m(Evalof(Evar S._in_flight tbool)tbool)(Vint(if flight then Int.one else Int.zero))).
+ { eapply read_scalar with(chunk:=Mbool)(b:=bf)(ofs:=Ptrofs.zero);
+   [apply esl_var_local;exact EF|reflexivity|reflexivity|reflexivity|change(Mem.load Mbool m bf 0=Some(Vint(if flight then Int.one else Int.zero)));rewrite Mem.load_bool_int8_unsigned,LF;destruct flight;reflexivity]. }
+ destruct flight.
+ - cbn[next_integral next_command]in*.
+   destruct(Mem.valid_access_store m Mint32 bi 0(Vint(Int.add ix(Int.mul ki pdx)))AIX)as[m1 ST1].
+   assert(A2:Mem.valid_access m1 Mint32 bi 4 Writable).
+   {eapply Mem.store_valid_access_1;[exact ST1|]. exact AIY. }
+   destruct(Mem.valid_access_store m1 Mint32 bi 4(Vint(Int.add iy(Int.mul ki pdy)))A2)as[m2 ST2].
+   assert(A3:Mem.valid_access m2 Mint32 bi 0 Writable).
+   {eapply Mem.store_valid_access_1;[exact ST2|]. eapply Mem.store_valid_access_1;[exact ST1|]. exact AIX. }
+   destruct(Mem.valid_access_store m2 Mint32 bi 0(Vint(clip_bits(Int.add ix(Int.mul ki pdx))(Int.shl maximum(Int.repr 16))))A3)as[m3 ST3].
+   assert(A4:Mem.valid_access m3 Mint32 bi 4 Writable).
+   {eapply Mem.store_valid_access_1;[exact ST3|]. eapply Mem.store_valid_access_1;[exact ST2|]. eapply Mem.store_valid_access_1;[exact ST1|]. exact AIY. }
+   destruct(Mem.valid_access_store m3 Mint32 bi 4(Vint(clip_bits(Int.add iy(Int.mul ki pdy))(Int.shl maximum(Int.repr 16))))A4)as[m4 ST4].
+   assert(A5:Mem.valid_access m4 Mint32 bp 32 Writable).
+   {eapply Mem.store_valid_access_1;[exact ST4|]. eapply Mem.store_valid_access_1;[exact ST3|]. eapply Mem.store_valid_access_1;[exact ST2|]. eapply Mem.store_valid_access_1;[exact ST1|]. exact ACX. }
+   destruct(Mem.valid_access_store m4 Mint32 bp 32(Vint(Int.add cx(Int.shr(clip_bits(Int.add ix(Int.mul ki pdx))(Int.shl maximum(Int.repr 16)))(Int.repr 16))))A5)as[m5 ST5].
+   assert(A6:Mem.valid_access m5 Mint32 bp 36 Writable).
+   {eapply Mem.store_valid_access_1;[exact ST5|]. eapply Mem.store_valid_access_1;[exact ST4|]. eapply Mem.store_valid_access_1;[exact ST3|]. eapply Mem.store_valid_access_1;[exact ST2|]. eapply Mem.store_valid_access_1;[exact ST1|]. exact ACY. }
+   destruct(Mem.valid_access_store m5 Mint32 bp 36(Vint(Int.add cy(Int.shr(clip_bits(Int.add iy(Int.mul ki pdy))(Int.shl maximum(Int.repr 16)))(Int.repr 16))))A6)as[mf ST6].
+   exists mf;split.
+   + unfold flight_statement;cbn[top_statement S.f_guidance_pid_h_run fn_body].
+     eapply exec_Sifthenelse with(v1:=Vint Int.one)(b:=true)(m1:=m)(t1:=E0)(t2:=E0).
+     * apply simple_expression;[exact FL|reflexivity].
+     * reflexivity.
+     * cbn.
+       eapply sequence_normal;[flight_add EX EY NP SP NI SI NM SM ST1|].
+       eapply sequence_normal;[flight_add EX EY NP SP NI SI NM SM ST2|].
+       eapply sequence_normal.
+       -- eapply sequence_normal;[flight_clamp EX EY NP SP NI SI NM SM ST3|flight_clamp EX EY NP SP NI SI NM SM ST4].
+       -- eapply sequence_normal;[flight_add EX EY NP SP NI SI NM SM ST5|flight_add EX EY NP SP NI SI NM SM ST6].
+   + repeat split;try(scalar_frame;reflexivity).
+     eapply raw_writes_store;[left;reflexivity|exact ST1|].
+     eapply raw_writes_store;[left;reflexivity|exact ST2|].
+     eapply raw_writes_store;[left;reflexivity|exact ST3|].
+     eapply raw_writes_store;[left;reflexivity|exact ST4|].
+     eapply raw_writes_store;[right;reflexivity|exact ST5|].
+     eapply raw_writes_store;[right;reflexivity|exact ST6|constructor].
+     cbv beta iota zeta delta[flight_updates next_integral next_command replay_stores];rewrite ST1,ST2,ST3,ST4,ST5,ST6;reflexivity.
+ - cbn[next_integral next_command]in*.
+   destruct(Mem.valid_access_store m Mint32 bi 0(Vint Int.zero)AIX)as[m1 ST1].
+   assert(A2:Mem.valid_access m1 Mint32 bi 4 Writable)by(eapply Mem.store_valid_access_1;eauto).
+   destruct(Mem.valid_access_store m1 Mint32 bi 4(Vint Int.zero)A2)as[mf ST2].
+   exists mf;split.
+   + unfold flight_statement;cbn[top_statement S.f_guidance_pid_h_run fn_body].
+     eapply exec_Sifthenelse with(v1:=Vint Int.zero)(b:=false)(m1:=m)(t1:=E0)(t2:=E0).
+     * apply simple_expression;[exact FL|reflexivity].
+     * reflexivity.
+     * cbn;eapply sequence_normal;
+       [eapply atomic_assign;[core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|constructor|reflexivity|reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact ST1]|reflexivity]|
+        eapply atomic_assign;[core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|constructor|reflexivity|reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact ST2]|reflexivity]].
+   + repeat split;try(scalar_frame;first[reflexivity|assumption]).
+     eapply raw_writes_store;[left;reflexivity|exact ST1|].
+     eapply raw_writes_store;[left;reflexivity|exact ST2|constructor].
+     cbv beta iota zeta delta[flight_updates replay_stores];rewrite ST1,ST2;reflexivity.
+Qed.
+Print Assumptions original_flight_integrator_normal.
+
+
+FILE core/cbmc/FlightAnnotations.v
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionSafety Require Import PureSound.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactorySemantics CoreSemantics ClampSemantics CoreClamp FlightSemantics GetterInstances.
+From CoreCBMC Require Import ArithmeticTree BasicAnnotations NumericBounds ClampAnnotations.
+Open Scope Z_scope.
+Definition ki_rvalue:expr:=Evalof(Efield(Evalof(Evar S._guidance_pid pid_type)pid_type)S._ki tint)tint.
+Definition pd_rvalue(id:ident):expr:=Evalof(Evar id tint)tint.
+Definition integral_add_expr(axis pdid:ident):expr:=
+ Eassignop Oadd(integral_lvalue axis)(Ebinop Omul ki_rvalue(pd_rvalue pdid)tint)tint tint.
+Definition command_add_expr(axis:ident):expr:=
+ Eassignop Oadd(cmd_lvalue axis)(Ebinop Oshr(Evalof(integral_lvalue axis)tint)source_count16 tint)tint tint.
+Lemma original_flight_arithmetic_source:flight_yes=
+ Ssequence(Sdo(integral_add_expr S._x S._pd_x))
+ (Ssequence(Sdo(integral_add_expr S._y S._pd_y))
+ (Ssequence(Ssequence(Sdo(integral_clamp_expr S._x))(Sdo(integral_clamp_expr S._y)))
+ (Ssequence(Sdo(command_add_expr S._x))(Sdo(command_add_expr S._y))))).
+Proof. reflexivity. Qed.
+Theorem original_flight_axis_annotations:forall e m bpd bp bi bt axis pdid ofs pd ki integral command,
+ e!pdid=Some(bpd,tint) ->
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!S._guidance_pid_trim_att_integrator=None ->Genv.find_symbol ge S._guidance_pid_trim_att_integrator=Some bi ->
+ e!S._traj_max_bank=None ->Genv.find_symbol ge S._traj_max_bank=Some bt ->
+ (axis=S._x /\ofs=0)\/(axis=S._y /\ofs=4) ->
+ Mem.load Mint32 m bpd 0=Some(Vint pd) ->Mem.load Mint32 m bp 8=Some(Vint ki) ->
+ Mem.load Mint32 m bi ofs=Some(Vint integral) ->
+ Mem.load Mint32 m bp(32+ofs)=Some(Vint command) ->
+ Mem.load Mint32 m bt 0=Some(Vint(Int.repr 1429)) ->
+ 0<=Int.signed ki<=100 ->int_bound pd 12800 ->
+ int_bound integral 101280000 ->int_bound command 2858 ->
+ arithmetic_tree ge e m(integral_add_expr axis pdid) /\
+ arithmetic_tree ge e m(integral_clamp_expr axis) /\
+ arithmetic_tree ge e m(command_add_expr axis).
+Proof.
+ intros e m bpd bp bi bt axis pdid ofs pd ki integral command ENV NP SP NI SI NT ST AX PD KI ILOAD CLOAD LIMIT GAIN PDB IB CB.
+ assert(DPV:pure_rval ge e m(pd_rvalue pdid)=Some(Vint pd)).
+ { apply(proj1(simple_big_denotation ge e m));[|reflexivity].
+   unfold pd_rvalue;eapply read_scalar with(chunk:=Mint32)(b:=bpd)(ofs:=Ptrofs.zero);
+   [apply esl_var_local;exact ENV|reflexivity|reflexivity|reflexivity|exact PD]. }
+ assert(KPV:pure_rval ge e m ki_rvalue=Some(Vint ki)).
+ { apply(proj1(simple_big_denotation ge e m));[|reflexivity].
+   unfold ki_rvalue,pid_type;core_rv I I I NP I I SP I I I I I I. }
+ assert(ILV:eval_simple_lvalue ge e m(integral_lvalue axis)bi(Ptrofs.repr ofs)Full).
+ { destruct AX as[[-> ->]|[-> ->]];unfold integral_lvalue,vec_type;
+   lazymatch goal with|-eval_simple_lvalue _ _ _ _ _(Ptrofs.repr ?n)_ =>
+    replace(Ptrofs.repr n)with(Ptrofs.add Ptrofs.zero(Ptrofs.repr n))by reflexivity end;
+   core_lv I I I I I I I I I NI SI I I. }
+ assert(CLV:eval_simple_lvalue ge e m(cmd_lvalue axis)bp(Ptrofs.repr(32+ofs))Full).
+ { destruct AX as[[-> ->]|[-> ->]];unfold cmd_lvalue,pid_type,vec_type;
+   lazymatch goal with|-eval_simple_lvalue _ _ _ _ _(Ptrofs.repr ?n)_ =>
+    replace(Ptrofs.repr n)with(Ptrofs.add(Ptrofs.add Ptrofs.zero(Ptrofs.repr 32))(Ptrofs.repr(n-32)))by reflexivity end;
+   core_lv I I I NP I I SP I I I I I I. }
+ assert(ILP:pure_lval ge e m(integral_lvalue axis)=Some(bi,Ptrofs.repr ofs,Full)).
+ { apply(proj2(simple_big_denotation ge e m));[exact ILV|reflexivity]. }
+ assert(CLP:pure_lval ge e m(cmd_lvalue axis)=Some(bp,Ptrofs.repr(32+ofs),Full)).
+ { apply(proj2(simple_big_denotation ge e m));[exact CLV|reflexivity]. }
+ assert(IREAD:Cexec.do_deref_loc ge quiet_world tint m bi(Ptrofs.repr ofs)Full=Some(quiet_world,E0,Vint integral)).
+ { eapply raw_deref_complete with(ch:=Mint32);[reflexivity|reflexivity|].
+   destruct AX as[[-> ->]|[-> ->]];exact ILOAD. }
+ assert(CREAD:Cexec.do_deref_loc ge quiet_world tint m bp(Ptrofs.repr(32+ofs))Full=Some(quiet_world,E0,Vint command)).
+ { eapply raw_deref_complete with(ch:=Mint32);[reflexivity|reflexivity|].
+   destruct AX as[[-> ->]|[-> ->]];exact CLOAD. }
+ assert(IPV:pure_rval ge e m(Evalof(integral_lvalue axis)tint)=Some(Vint integral)).
+ { cbn[pure_rval];fold(pure_lval ge e m).
+   rewrite ILP;change(match Cexec.do_deref_loc ge quiet_world tint m bi(Ptrofs.repr ofs)Full with
+   |Some(_,_,v)=>Some v|None=>None end=Some(Vint integral));rewrite IREAD;reflexivity. }
+ assert(MULPV:pure_rval ge e m(Ebinop Omul ki_rvalue(pd_rvalue pdid)tint)=Some(Vint(Int.mul ki pd))).
+ { cbn[pure_rval];fold(pure_rval ge e m);rewrite KPV,DPV;reflexivity. }
+ destruct(gain_product_bound ki pd 12800 GAIN PDB ltac:(lia)ltac:(lia))as[MULBOUND MULSAFE].
+ destruct(bounded_sum integral(Int.mul ki pd)101280000 1280000 IB MULBOUND ltac:(lia)ltac:(lia)ltac:(lia))as[SUMBOUND SUMSAFE].
+ assert(MULTREE:arithmetic_tree ge e m(Ebinop Omul ki_rvalue(pd_rvalue pdid)tint)).
+ { eapply binary_values_tree;[apply data_expression_tree;reflexivity|apply data_expression_tree;reflexivity|exact KPV|exact DPV|exact MULSAFE]. }
+ assert(SHPV:pure_rval ge e m(Ebinop Oshr(Evalof(integral_lvalue axis)tint)source_count16 tint)=Some(Vint(Int.shr integral(Int.repr 16)))).
+ { change((match pure_rval ge e m(Evalof(integral_lvalue axis)tint),pure_rval ge e m source_count16 with
+   |Some a,Some b=>sem_binary_operation ge Oshr a tint b tint m|_,_=>None end)=Some(Vint(Int.shr integral(Int.repr 16)))).
+   rewrite IPV,source_count16_value;reflexivity. }
+ assert(SHTREE:arithmetic_tree ge e m(Ebinop Oshr(Evalof(integral_lvalue axis)tint)source_count16 tint)).
+ { eapply binary_values_tree;[apply data_expression_tree;reflexivity|apply source_count16_tree|exact IPV|apply source_count16_value|].
+   change(Int.unsigned(Int.repr 16)<32);vm_compute;congruence. }
+ assert(SHBOUND:int_bound(Int.shr integral(Int.repr 16))1546).
+ { eapply shift_bound with(d:=65536)(bound:=101280000);
+   [exact IB|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+ destruct(bounded_sum command(Int.shr integral(Int.repr 16))2858 1546 CB SHBOUND ltac:(lia)ltac:(lia)ltac:(lia))as[COMBOUND COMSAFE].
+ split.
+ - unfold integral_add_expr;eapply compound_add_tree.
+   + apply data_expression_tree;reflexivity.
+   + exact MULTREE.
+   + reflexivity.
+   + reflexivity.
+   + exact ILP.
+   + exact IREAD.
+   + exact MULPV.
+   + exact SUMSAFE.
+ - split.
+   + eapply original_integrator_clamp_annotation;eassumption.
+   + unfold command_add_expr;eapply compound_add_tree.
+     * apply data_expression_tree;reflexivity.
+     * exact SHTREE.
+     * reflexivity.
+     * reflexivity.
+     * exact CLP.
+     * exact CREAD.
+     * exact SHPV.
+     * exact COMSAFE.
+Qed.
+Print Assumptions original_flight_axis_annotations.
+
+
+FILE core/cbmc/ClampAnnotations.v
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionSafety Require Import PureSound.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactorySemantics CoreSemantics ClampSemantics CoreClamp FlightSemantics GetterInstances.
+From CoreCBMC Require Import ArithmeticTree BasicAnnotations NumericBounds.
+Open Scope Z_scope.
+Definition source_count16:expr:=Ebinop Oadd(Eval(Vint(Int.repr 12))tint)
+ (Ebinop Omul(Eval(Vint(Int.repr 2))tint)(Eval(Vint(Int.repr 2))tint)tint)tint.
+Definition source_integral_limit:expr:=Ebinop Oshl(max_rvalue S._traj_max_bank)source_count16 tint.
+Definition integral_lvalue(axis:ident):expr:=
+ Efield(Evalof(Evar S._guidance_pid_trim_att_integrator vec_type)vec_type)axis tint.
+Definition integral_clamp_expr(axis:ident):expr:=
+ Eassign(integral_lvalue axis)(clamp_expr(Evalof(integral_lvalue axis)tint)source_integral_limit)tint.
+Definition flight_yes:statement:=match flight_statement with Sifthenelse _ yes _=>yes|_=>Sskip end.
+Lemma original_integral_clamp_source:
+ top_statement 2 flight_yes=Ssequence(Sdo(integral_clamp_expr S._x))(Sdo(integral_clamp_expr S._y)).
+Proof. reflexivity. Qed.
+Lemma source_count16_value:forall ge0 e m,
+ pure_rval ge0 e m source_count16=Some(Vint(Int.repr 16)).
+Proof. reflexivity. Qed.
+Lemma source_count16_tree:forall ge0 e m,arithmetic_tree ge0 e m source_count16.
+Proof. intros;vm_compute;repeat split;congruence. Qed.
+Lemma max_value:forall e m id block value,
+ e!id=None ->Genv.find_symbol ge id=Some block ->Mem.load Mint32 m block 0=Some(Vint value) ->
+ pure_rval ge e m(max_rvalue id)=Some(Vint value).
+Proof.
+ intros e m id block value LOCAL SYM LOAD.
+ apply(proj1(simple_big_denotation ge e m));[|reflexivity].
+ unfold max_rvalue;eapply read_scalar with(chunk:=Mint32)(b:=block)(ofs:=Ptrofs.zero);
+ [apply esl_var_global;assumption|reflexivity|reflexivity|reflexivity|exact LOAD].
+Qed.
+Lemma original_integral_limit_tree:forall e m bt,
+ e!S._traj_max_bank=None ->Genv.find_symbol ge S._traj_max_bank=Some bt ->
+ Mem.load Mint32 m bt 0=Some(Vint(Int.repr 1429)) ->
+ arithmetic_tree ge e m source_integral_limit /\
+ pure_rval ge e m source_integral_limit=Some(Vint(Int.repr 93650944)).
+Proof.
+ intros e m bt LOCAL SYM LOAD;pose proof(max_value e m S._traj_max_bank bt(Int.repr 1429)LOCAL SYM LOAD)as MAX.
+ split.
+ - unfold source_integral_limit;eapply binary_values_tree.
+   + apply data_expression_tree;reflexivity.
+   + apply source_count16_tree.
+   + exact MAX.
+   + apply source_count16_value.
+   + change(Int.unsigned(Int.repr 16)<32 /\0<=Int.signed(Int.repr 1429) /\signed32(Int.signed(Int.repr 1429)*two_p(Int.unsigned(Int.repr 16)))).
+     vm_compute;repeat split;congruence.
+ - unfold source_integral_limit,binary_condition;cbn[pure_rval];fold(pure_rval ge e m).
+   rewrite MAX,source_count16_value;reflexivity.
+Qed.
+Theorem original_integrator_clamp_annotation:forall e m bt axis,
+ e!S._traj_max_bank=None ->Genv.find_symbol ge S._traj_max_bank=Some bt ->
+ Mem.load Mint32 m bt 0=Some(Vint(Int.repr 1429)) ->
+ arithmetic_tree ge e m(integral_clamp_expr axis).
+Proof.
+ intros e m bt axis LOCAL SYM LOAD.
+ destruct(original_integral_limit_tree e m bt LOCAL SYM LOAD)as[TREE VALUE].
+ unfold integral_clamp_expr;cbn[arithmetic_tree];split.
+ - apply data_expression_tree;reflexivity.
+ - eapply int32_clamp_tree;[apply data_expression_tree;reflexivity|exact TREE|reflexivity|exact VALUE|].
+   change(93650944<> -2147483648);lia.
+Qed.
+Theorem original_command_clamp_annotation:forall e m bm maxid axis maximum,
+ e!maxid=None ->Genv.find_symbol ge maxid=Some bm ->
+ Mem.load Mint32 m bm 0=Some(Vint maximum) ->Int.signed maximum<> -2147483648 ->
+ match clamp_assignment(cmd_lvalue axis)(max_rvalue maxid)with
+ Sdo a=>arithmetic_tree ge e m a|_=>False end.
+Proof.
+ intros e m bm maxid axis maximum LOCAL SYM LOAD NOTMIN.
+ unfold clamp_assignment;cbn[arithmetic_tree];split.
+ - apply data_expression_tree;reflexivity.
+ - eapply int32_clamp_tree.
+   + apply data_expression_tree;reflexivity.
+   + apply data_expression_tree;reflexivity.
+   + reflexivity.
+   + eapply max_value;eassumption.
+   + exact NOTMIN.
+Qed.
+Print Assumptions original_integrator_clamp_annotation.
+Print Assumptions original_command_clamp_annotation.
+

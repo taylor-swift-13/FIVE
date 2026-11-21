@@ -1,0 +1,135 @@
+Theorem original_h_run_funcall_certificate:forall m bp be bs gh bi bt bu bh bfun ret(flight:bool)
+ kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total(h:float32)(heading:int),
+ Genv.find_symbol ge S._guidance_pid=Some bp ->
+ Genv.find_symbol ge S._guidance_pid_pos_err=Some be ->
+ Genv.find_symbol ge S._guidance_pid_speed_err=Some bs ->
+ Genv.find_symbol ge S._guidance_pid_trim_att_integrator=Some bi ->
+ Genv.find_symbol ge S._traj_max_bank=Some bt ->Genv.find_symbol ge S._total_max_bank=Some bu ->
+ Genv.find_symbol ge S._guidance_h=Some bh ->Genv.find_symbol ge S._stab_sp_from_ltp_i=Some bfun ->
+ Genv.find_funct ge(Vptr bfun Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i) ->
+ NoDup[bp;be;bs;gh;bi;bt;bu] ->ret<>bp ->ret<>bi ->bh<>bp ->bh<>bi ->
+ Mem.load Mint8unsigned m bp 44=Some(Vint Int.zero) ->
+ Mem.load Mint32 m bp 0=Some(Vint kp) ->
+ Mem.load Mint32 m bp 4=Some(Vint kd) ->
+ Mem.load Mint32 m bp 8=Some(Vint ki) ->
+ Mem.load Mint32 m bp 12=Some(Vint kv) ->
+ Mem.load Mint32 m bp 16=Some(Vint ka) ->
+ Mem.load Mint32 m be 0=Some(Vint pex) ->
+ Mem.load Mint32 m be 4=Some(Vint pey) ->
+ Mem.load Mint32 m bs 0=Some(Vint sex) ->
+ Mem.load Mint32 m bs 4=Some(Vint sey) ->
+ Mem.load Mint32 m gh 52=Some(Vint rsx) ->
+ Mem.load Mint32 m gh 56=Some(Vint rsy) ->
+ Mem.load Mint32 m gh 60=Some(Vint rax) ->
+ Mem.load Mint32 m gh 64=Some(Vint ray) ->
+ Mem.load Mint32 m bi 0=Some(Vint ix) ->
+ Mem.load Mint32 m bi 4=Some(Vint iy) ->
+ Mem.load Mint32 m bt 0=Some(Vint traj) ->
+ Mem.load Mint32 m bu 0=Some(Vint total) ->
+ Mem.load Mfloat32 m bh 28=Some(Vsingle h) ->
+ sem_cast(Vsingle(Float32.mul h(Float32.of_int(Int.repr 4096))))tfloat tint m=Some(Vint heading) ->
+ Mem.range_perm m bp 32 40 Cur Readable ->Mem.range_perm m ret 0 36 Cur Writable ->
+ Mem.valid_access m Mint32 bi 0 Writable ->Mem.valid_access m Mint32 bi 4 Writable ->
+ Mem.valid_access m Mint32 bp 32 Writable ->Mem.valid_access m Mint32 bp 36 Writable ->
+ exists mf,
+ (forall base,is_call_cont base ->exists P,certificate ge P(Returnstate Vundef base mf)/\
+ P(Callstate(Internal S.f_guidance_pid_h_run)
+ [Vptr ret Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero]base m)) /\
+ active_fields mf ret
+ (controller_command flight kp kd ki kv ka pex sex rsx rax ix traj total)
+ (controller_command flight kp kd ki kv ka pey sey rsy ray iy traj total)heading /\
+ Mem.load Mint32 mf bi 0=Some(Vint(next_integral flight ix ki(pd_bits kp kd pex sex)traj)) /\
+ Mem.load Mint32 mf bi 4=Some(Vint(next_integral flight iy ki(pd_bits kp kd pey sey)traj)) /\
+ Mem.load Mint32 mf bp 32=Some(Vint(controller_command flight kp kd ki kv ka pex sex rsx rax ix traj total)) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(controller_command flight kp kd ki kv ka pey sey rsy ray iy traj total)) /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>bp ->b<>bi ->b<>ret ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs n,Mem.valid_block m b ->b<>bp ->b<>bi ->b<>ret ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+Proof.
+ intros m bp be bs gh bi bt bu bh bfun ret flight kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total h heading
+ SP SE SS SI ST SU SH SF FF NDGLOBAL RETP RETI HP HI APPROX
+ LKP LKD LKI LKV LKA LPEX LPEY LSEX LSEY LRSX LRSY LRAX LRAY LIX LIY LT LU HEAD CAST RVS WR AIX AIY ACX ACY.
+ set(decl:=fn_params S.f_guidance_pid_h_run++fn_vars S.f_guidance_pid_h_run).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ {pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as A;rewrite ALLOC in A;exact A. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,
+ e!id=Some(b,ty)/\~Mem.valid_block m b/\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ {intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as A;rewrite ALLOC in A;destruct A as(b&L&FR&VB&RP);exists b;auto. }
+ destruct
+From Stdlib Require Import List Bool Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+From PidPositionSafety Require Import ConditionalBlock.
+Definition phase_world:world:=World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Lemma allocation_deterministic:forall ge env m vars e1 ma1 e2 ma2,
+ alloc_variables ge env m vars e1 ma1 ->alloc_variables ge env m vars e2 ma2 ->e1=e2 /\ma1=ma2.
+Proof.
+ intros ge env m vars e1 ma1 e2 ma2 A1 A2.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A1)as D1.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma parameters_deterministic:forall ge e m params args mf1 mf2,
+ bind_parameters ge e m params args mf1 ->bind_parameters ge e m params args mf2 ->mf1=mf2.
+Proof.
+ intros ge e m params args mf1 mf2 B1 B2.
+ pose proof(Cexec.sem_bind_parameters_complete ge phase_world e m params args mf1 B1)as D1.
+ pose proof(Cexec.sem_bind_parameters_complete ge phase_world e m params args mf2 B2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma internal_dispatch_transition:forall ge f args m e ma mb k,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f)) ->
+ alloc_variables ge empty_env m(fn_params f++fn_vars f)e ma ->
+ bind_parameters ge e ma(fn_params f)args mb ->
+ unique_transition ge(Callstate(Internal f)args k m)(State f(fn_body f)k e mb).
+Proof.
+ intros ge f args m e ma mb k NAMES ALLOC BIND;split.
+ - right;eapply step_internal_function;[exact NAMES|exact ALLOC|exact BIND].
+ - intros t next[ES|SS];[inversion ES|].
+   inversion SS;subst;split;[reflexivity|].
+   match goal with
+   |A:alloc_variables ge empty_env m(fn_params f++fn_vars f)?ee ?mx
+    |-State _ _ _ ?ee _=_ =>
+     destruct(allocation_deterministic ge empty_env m _ e ma ee mx ALLOC A)as[EE MM];subst ee mx end.
+   match goal with
+   |B:bind_parameters ge e ma(fn_params f)args ?mx |-State _ _ _ _ ?mx=_=>
+    pose proof(parameters_deterministic ge e ma(fn_params f)args mb mx BIND B)as EQ;subst mx;reflexivity end.
+Qed.
+Lemma return_void_transition:forall ge f k e m mf,
+ is_call_cont k ->Mem.free_list m(blocks_of_env ge e)=Some mf ->
+ unique_transition ge(State f(Sreturn None)k e m)(Returnstate Vundef k mf).
+Proof.
+ intros ge f k e m mf CALL FREE.
+ assert(CC:call_cont k=k)by(destruct k;cbn in CALL|-*;try contradiction;reflexivity).
+ split.
+ - pose proof(Csem.step_return_0 ge f k e m mf FREE)as STEP;rewrite CC in STEP;right;exact STEP.
+ - intros t next[ES|SS];[inversion ES|inversion SS;subst].
+   all:cbn in CALL;try contradiction;repeat match goal with H:_\/_|-_=>destruct H end;try discriminate.
+   split;[reflexivity|].
+   match goal with F:Mem.free_list _ _=Some ?mx|-_=>rewrite FREE in F;injection F as EQ;subst mx end.
+   rewrite CC;reflexivity.
+Qed.
+Theorem allocated_void_call_certificate:forall ge f args m e ma mb bodym mf,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f)) ->
+ alloc_variables ge empty_env m(fn_params f++fn_vars f)e ma ->
+ bind_parameters ge e ma(fn_params f)args mb ->
+ Mem.free_list bodym(blocks_of_env ge e)=Some mf ->
+ (forall k,exists P,certificate ge P(State f(Sreturn None)k e bodym)/\
+   P(State f(fn_body f)k e mb)) ->
+ forall k,is_call_cont k ->exists Q,certificate ge Q(Returnstate Vundef k mf)/\
+ Q(Callstate(Internal f)args k m).
+Proof.
+ intros ge f args m e ma mb bodym mf NAMES AV BIND FREE BODY k BASE.
+ destruct(BODY k)as[P[CP IP]].
+ pose proof(return_void_transition ge f k e bodym mf BASE FREE)as CLEAN.
+ pose proof(singleton_bridge_certificate ge _ _ CLEAN)as CC.
+ pose proof(ConditionalBlock.join_certificate ge P _ _ _ CP CC ltac:(left;reflexivity))as JOIN.
+ eapply ConditionalBlock.prepend_transition.
+ - exact(internal_dispatch_transition ge f args m e ma mb k NAMES AV BIND).
+ - exact JOIN.
+ - left;exact IP.
+Qed.
+Print Assumptions allocated_void_call_certificate.
+

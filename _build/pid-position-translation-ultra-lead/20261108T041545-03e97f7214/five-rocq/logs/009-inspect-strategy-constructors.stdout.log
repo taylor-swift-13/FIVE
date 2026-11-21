@@ -1,0 +1,1859 @@
+Inductive
+eval_expression (ge : genv)
+  : env ->
+    Memory.Mem.mem ->
+    Csyntax.expr -> Events.trace -> Memory.Mem.mem -> Values.val -> Prop :=
+    eval_expression_intro : forall (e : env) (m : Memory.Mem.mem)
+                              (a : Csyntax.expr) (t : Events.trace)
+                              (m' : Memory.Mem.mem) 
+                              (a' : Csyntax.expr) 
+                              (v : Values.val),
+                            eval_expr ge e m RV a t m' a' ->
+                            eval_simple_rvalue ge e m' a' v ->
+                            eval_expression ge e m a t m' v
+  with eval_expr (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           kind ->
+           Csyntax.expr ->
+           Events.trace -> Memory.Mem.mem -> Csyntax.expr -> Prop :=
+    eval_val : forall (e : env) (m : Memory.Mem.mem) 
+                 (v : Values.val) (ty : Ctypes.type),
+               eval_expr ge e m RV (Csyntax.Eval v ty) Events.E0 m
+                 (Csyntax.Eval v ty)
+  | eval_var : forall (e : env) (m : Memory.Mem.mem) 
+                 (x : AST.ident) (ty : Ctypes.type),
+               eval_expr ge e m LV (Csyntax.Evar x ty) Events.E0 m
+                 (Csyntax.Evar x ty)
+  | eval_field : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr) 
+                   (f : AST.ident) (ty : Ctypes.type),
+                 eval_expr ge e m RV a t m' a' ->
+                 eval_expr ge e m LV (Csyntax.Efield a f ty) t m'
+                   (Csyntax.Efield a' f ty)
+  | eval_valof : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                   (ty : Ctypes.type),
+                 Ctypes.type_is_volatile (Csyntax.typeof a) = false ->
+                 eval_expr ge e m LV a t m' a' ->
+                 eval_expr ge e m RV (Csyntax.Evalof a ty) t m'
+                   (Csyntax.Evalof a' ty)
+  | eval_valof_volatile : forall (e : env) (m : Memory.Mem.mem)
+                            (a : Csyntax.expr) (t1 : Events.trace)
+                            (m' : Memory.Mem.mem) 
+                            (a' : Csyntax.expr) (ty : Ctypes.type)
+                            (b : Values.block) (ofs : Integers.Ptrofs.int)
+                            (bf : Ctypes.bitfield) 
+                            (t2 : Events.trace) (v : Values.val),
+                          Ctypes.type_is_volatile (Csyntax.typeof a) = true ->
+                          eval_expr ge e m LV a t1 m' a' ->
+                          eval_simple_lvalue ge e m' a' b ofs bf ->
+                          deref_loc ge (Csyntax.typeof a) m' b ofs bf t2 v ->
+                          ty = Csyntax.typeof a ->
+                          eval_expr ge e m RV (Csyntax.Evalof a ty)
+                            (Events.Eapp t1 t2) m' 
+                            (Csyntax.Eval v ty)
+  | eval_deref : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                   (ty : Ctypes.type),
+                 eval_expr ge e m RV a t m' a' ->
+                 eval_expr ge e m LV (Csyntax.Ederef a ty) t m'
+                   (Csyntax.Ederef a' ty)
+  | eval_addrof : forall (e : env) (m : Memory.Mem.mem) 
+                    (a : Csyntax.expr) (t : Events.trace)
+                    (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                    (ty : Ctypes.type),
+                  eval_expr ge e m LV a t m' a' ->
+                  eval_expr ge e m RV (Csyntax.Eaddrof a ty) t m'
+                    (Csyntax.Eaddrof a' ty)
+  | eval_unop : forall (e : env) (m : Memory.Mem.mem) 
+                  (a : Csyntax.expr) (t : Events.trace) 
+                  (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                  (op : Cop.unary_operation) (ty : Ctypes.type),
+                eval_expr ge e m RV a t m' a' ->
+                eval_expr ge e m RV (Csyntax.Eunop op a ty) t m'
+                  (Csyntax.Eunop op a' ty)
+  | eval_binop : forall (e : env) (m : Memory.Mem.mem) 
+                   (a1 : Csyntax.expr) (t1 : Events.trace)
+                   (m' : Memory.Mem.mem) (a1' a2 : Csyntax.expr)
+                   (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                   (a2' : Csyntax.expr) (op : Cop.binary_operation)
+                   (ty : Ctypes.type),
+                 eval_expr ge e m RV a1 t1 m' a1' ->
+                 eval_expr ge e m' RV a2 t2 m'' a2' ->
+                 eval_expr ge e m RV (Csyntax.Ebinop op a1 a2 ty)
+                   (Events.Eapp t1 t2) m'' (Csyntax.Ebinop op a1' a2' ty)
+  | eval_cast : forall (e : env) (m : Memory.Mem.mem) 
+                  (a : Csyntax.expr) (t : Events.trace) 
+                  (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                  (ty : Ctypes.type),
+                eval_expr ge e m RV a t m' a' ->
+                eval_expr ge e m RV (Csyntax.Ecast a ty) t m'
+                  (Csyntax.Ecast a' ty)
+  | eval_seqand_true : forall (e : env) (m : Memory.Mem.mem)
+                         (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                         (t1 : Events.trace) (m' : Memory.Mem.mem)
+                         (a1' : Csyntax.expr) (v1 : Values.val)
+                         (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                         (a2' : Csyntax.expr) (v2 v : Values.val),
+                       eval_expr ge e m RV a1 t1 m' a1' ->
+                       eval_simple_rvalue ge e m' a1' v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a1) m' = Some true ->
+                       eval_expr ge e m' RV a2 t2 m'' a2' ->
+                       eval_simple_rvalue ge e m'' a2' v2 ->
+                       Cop.sem_cast v2 (Csyntax.typeof a2) Ctypes.type_bool
+                         m'' =
+                       Some v ->
+                       eval_expr ge e m RV (Csyntax.Eseqand a1 a2 ty)
+                         (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_seqand_false : forall (e : env) (m : Memory.Mem.mem)
+                          (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                          (t1 : Events.trace) (m' : Memory.Mem.mem)
+                          (a1' : Csyntax.expr) (v1 : Values.val),
+                        eval_expr ge e m RV a1 t1 m' a1' ->
+                        eval_simple_rvalue ge e m' a1' v1 ->
+                        Cop.bool_val v1 (Csyntax.typeof a1) m' = Some false ->
+                        eval_expr ge e m RV (Csyntax.Eseqand a1 a2 ty) t1 m'
+                          (Csyntax.Eval (Values.Vint Integers.Int.zero) ty)
+  | eval_seqor_false : forall (e : env) (m : Memory.Mem.mem)
+                         (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                         (t1 : Events.trace) (m' : Memory.Mem.mem)
+                         (a1' : Csyntax.expr) (v1 : Values.val)
+                         (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                         (a2' : Csyntax.expr) (v2 v : Values.val),
+                       eval_expr ge e m RV a1 t1 m' a1' ->
+                       eval_simple_rvalue ge e m' a1' v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a1) m' = Some false ->
+                       eval_expr ge e m' RV a2 t2 m'' a2' ->
+                       eval_simple_rvalue ge e m'' a2' v2 ->
+                       Cop.sem_cast v2 (Csyntax.typeof a2) Ctypes.type_bool
+                         m'' =
+                       Some v ->
+                       eval_expr ge e m RV (Csyntax.Eseqor a1 a2 ty)
+                         (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_seqor_true : forall (e : env) (m : Memory.Mem.mem)
+                        (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                        (t1 : Events.trace) (m' : Memory.Mem.mem)
+                        (a1' : Csyntax.expr) (v1 : Values.val),
+                      eval_expr ge e m RV a1 t1 m' a1' ->
+                      eval_simple_rvalue ge e m' a1' v1 ->
+                      Cop.bool_val v1 (Csyntax.typeof a1) m' = Some true ->
+                      eval_expr ge e m RV (Csyntax.Eseqor a1 a2 ty) t1 m'
+                        (Csyntax.Eval (Values.Vint Integers.Int.one) ty)
+  | eval_condition : forall (e : env) (m : Memory.Mem.mem)
+                       (a1 a2 a3 : Csyntax.expr) (ty : Ctypes.type)
+                       (t1 : Events.trace) (m' : Memory.Mem.mem)
+                       (a1' : Csyntax.expr) (v1 : Values.val)
+                       (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                       (a' : Csyntax.expr) (v' : Values.val) 
+                       (b : bool) (v : Values.val),
+                     eval_expr ge e m RV a1 t1 m' a1' ->
+                     eval_simple_rvalue ge e m' a1' v1 ->
+                     Cop.bool_val v1 (Csyntax.typeof a1) m' = Some b ->
+                     eval_expr ge e m' RV (if b then a2 else a3) t2 m'' a' ->
+                     eval_simple_rvalue ge e m'' a' v' ->
+                     Cop.sem_cast v' (Csyntax.typeof (if b then a2 else a3))
+                       ty m'' =
+                     Some v ->
+                     eval_expr ge e m RV (Csyntax.Econdition a1 a2 a3 ty)
+                       (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_sizeof : forall (e : env) (m : Memory.Mem.mem)
+                    (ty' ty : Ctypes.type),
+                  eval_expr ge e m RV (Csyntax.Esizeof ty' ty) Events.E0 m
+                    (Csyntax.Esizeof ty' ty)
+  | eval_alignof : forall (e : env) (m : Memory.Mem.mem)
+                     (ty' ty : Ctypes.type),
+                   eval_expr ge e m RV (Csyntax.Ealignof ty' ty) Events.E0 m
+                     (Csyntax.Ealignof ty' ty)
+  | eval_assign : forall (e : env) (m : Memory.Mem.mem) 
+                    (l r : Csyntax.expr) (ty : Ctypes.type)
+                    (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                    (l' : Csyntax.expr) (t2 : Events.trace)
+                    (m2 : Memory.Mem.mem) (r' : Csyntax.expr)
+                    (b : Values.block) (ofs : Integers.Ptrofs.int)
+                    (bf : Ctypes.bitfield) (v v1 v' : Values.val)
+                    (t3 : Events.trace) (m3 : Memory.Mem.mem),
+                  eval_expr ge e m LV l t1 m1 l' ->
+                  eval_expr ge e m1 RV r t2 m2 r' ->
+                  eval_simple_lvalue ge e m2 l' b ofs bf ->
+                  eval_simple_rvalue ge e m2 r' v ->
+                  Cop.sem_cast v (Csyntax.typeof r) (Csyntax.typeof l) m2 =
+                  Some v1 ->
+                  assign_loc ge (Csyntax.typeof l) m2 b ofs bf v1 t3 m3 v' ->
+                  ty = Csyntax.typeof l ->
+                  eval_expr ge e m RV (Csyntax.Eassign l r ty)
+                    (Events.Eapp t1 (Events.Eapp t2 t3)) m3
+                    (Csyntax.Eval v' ty)
+  | eval_assignop : forall (e : env) (m : Memory.Mem.mem)
+                      (op : Cop.binary_operation) 
+                      (l r : Csyntax.expr) (tyres ty : Ctypes.type)
+                      (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                      (l' : Csyntax.expr) (t2 : Events.trace)
+                      (m2 : Memory.Mem.mem) (r' : Csyntax.expr)
+                      (b : Values.block) (ofs : Integers.Ptrofs.int)
+                      (bf : Ctypes.bitfield) (v1 v2 v3 v4 v' : Values.val)
+                      (t3 t4 : Events.trace) (m3 : Memory.Mem.mem),
+                    eval_expr ge e m LV l t1 m1 l' ->
+                    eval_expr ge e m1 RV r t2 m2 r' ->
+                    eval_simple_lvalue ge e m2 l' b ofs bf ->
+                    deref_loc ge (Csyntax.typeof l) m2 b ofs bf t3 v1 ->
+                    eval_simple_rvalue ge e m2 r' v2 ->
+                    Cop.sem_binary_operation ge op v1 
+                      (Csyntax.typeof l) v2 (Csyntax.typeof r) m2 =
+                    Some v3 ->
+                    Cop.sem_cast v3 tyres (Csyntax.typeof l) m2 = Some v4 ->
+                    assign_loc ge (Csyntax.typeof l) m2 b ofs bf v4 t4 m3 v' ->
+                    ty = Csyntax.typeof l ->
+                    eval_expr ge e m RV (Csyntax.Eassignop op l r tyres ty)
+                      (Events.Eapp t1 (Events.Eapp t2 (Events.Eapp t3 t4)))
+                      m3 (Csyntax.Eval v' ty)
+  | eval_postincr : forall (e : env) (m : Memory.Mem.mem)
+                      (id : Cop.incr_or_decr) (l : Csyntax.expr)
+                      (ty : Ctypes.type) (t1 : Events.trace)
+                      (m1 : Memory.Mem.mem) (l' : Csyntax.expr)
+                      (b : Values.block) (ofs : Integers.Ptrofs.int)
+                      (bf : Ctypes.bitfield) (v1 v2 v3 v' : Values.val)
+                      (m2 : Memory.Mem.mem) (t2 t3 : Events.trace),
+                    eval_expr ge e m LV l t1 m1 l' ->
+                    eval_simple_lvalue ge e m1 l' b ofs bf ->
+                    deref_loc ge ty m1 b ofs bf t2 v1 ->
+                    Cop.sem_incrdecr ge id v1 ty m1 = Some v2 ->
+                    Cop.sem_cast v2 (Cop.incrdecr_type ty) ty m1 = Some v3 ->
+                    assign_loc ge ty m1 b ofs bf v3 t3 m2 v' ->
+                    ty = Csyntax.typeof l ->
+                    eval_expr ge e m RV (Csyntax.Epostincr id l ty)
+                      (Events.Eapp t1 (Events.Eapp t2 t3)) m2
+                      (Csyntax.Eval v1 ty)
+  | eval_comma : forall (e : env) (m : Memory.Mem.mem) 
+                   (r1 r2 : Csyntax.expr) (ty : Ctypes.type)
+                   (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                   (r1' : Csyntax.expr) (v1 : Values.val) 
+                   (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                   (r2' : Csyntax.expr),
+                 eval_expr ge e m RV r1 t1 m1 r1' ->
+                 eval_simple_rvalue ge e m1 r1' v1 ->
+                 eval_expr ge e m1 RV r2 t2 m2 r2' ->
+                 ty = Csyntax.typeof r2 ->
+                 eval_expr ge e m RV (Csyntax.Ecomma r1 r2 ty)
+                   (Events.Eapp t1 t2) m2 r2'
+  | eval_call : forall (e : env) (m : Memory.Mem.mem) 
+                  (rf : Csyntax.expr) (rargs : Csyntax.exprlist)
+                  (ty : Ctypes.type) (t1 : Events.trace)
+                  (m1 : Memory.Mem.mem) (rf' : Csyntax.expr)
+                  (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                  (rargs' : Csyntax.exprlist) (vf : Values.val)
+                  (vargs : list Values.val) (targs : list Ctypes.type)
+                  (tres : Ctypes.type) (cconv : AST.calling_convention)
+                  (fd : Csyntax.fundef) (t3 : Events.trace)
+                  (m3 : Memory.Mem.mem) (vres : Values.val),
+                eval_expr ge e m RV rf t1 m1 rf' ->
+                eval_exprlist ge e m1 rargs t2 m2 rargs' ->
+                eval_simple_rvalue ge e m2 rf' vf ->
+                eval_simple_list ge e m2 rargs' targs vargs ->
+                Cop.classify_fun (Csyntax.typeof rf) =
+                Cop.fun_case_f targs tres cconv ->
+                Globalenvs.Genv.find_funct ge vf = Some fd ->
+                Csyntax.type_of_fundef fd = Ctypes.Tfunction targs tres cconv ->
+                eval_funcall ge m2 fd vargs t3 m3 vres ->
+                eval_expr ge e m RV (Csyntax.Ecall rf rargs ty)
+                  (Events.Eapp t1 (Events.Eapp t2 t3)) m3
+                  (Csyntax.Eval vres ty)
+  with eval_exprlist (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           Csyntax.exprlist ->
+           Events.trace -> Memory.Mem.mem -> Csyntax.exprlist -> Prop :=
+    eval_nil : forall (e : env) (m : Memory.Mem.mem),
+               eval_exprlist ge e m Csyntax.Enil Events.E0 m Csyntax.Enil
+  | eval_cons : forall (e : env) (m : Memory.Mem.mem) 
+                  (a1 : Csyntax.expr) (al : Csyntax.exprlist)
+                  (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                  (a1' : Csyntax.expr) (t2 : Events.trace)
+                  (m2 : Memory.Mem.mem) (al' : Csyntax.exprlist),
+                eval_expr ge e m RV a1 t1 m1 a1' ->
+                eval_exprlist ge e m1 al t2 m2 al' ->
+                eval_exprlist ge e m (Csyntax.Econs a1 al)
+                  (Events.Eapp t1 t2) m2 (Csyntax.Econs a1' al')
+  with exec_stmt (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           Csyntax.statement ->
+           Events.trace -> Memory.Mem.mem -> outcome -> Prop :=
+    exec_Sskip : forall (e : env) (m : Memory.Mem.mem),
+                 exec_stmt ge e m Csyntax.Sskip Events.E0 m Out_normal
+  | exec_Sdo : forall (e : env) (m : Memory.Mem.mem) 
+                 (a : Csyntax.expr) (t : Events.trace) 
+                 (m' : Memory.Mem.mem) (v : Values.val),
+               eval_expression ge e m a t m' v ->
+               exec_stmt ge e m (Csyntax.Sdo a) t m' Out_normal
+  | exec_Sseq_1 : forall (e : env) (m : Memory.Mem.mem)
+                    (s1 s2 : Csyntax.statement) (t1 : Events.trace)
+                    (m1 : Memory.Mem.mem) (t2 : Events.trace)
+                    (m2 : Memory.Mem.mem) (out : outcome),
+                  exec_stmt ge e m s1 t1 m1 Out_normal ->
+                  exec_stmt ge e m1 s2 t2 m2 out ->
+                  exec_stmt ge e m (Csyntax.Ssequence s1 s2)
+                    (Events.Eapp t1 t2) m2 out
+  | exec_Sseq_2 : forall (e : env) (m : Memory.Mem.mem)
+                    (s1 s2 : Csyntax.statement) (t1 : Events.trace)
+                    (m1 : Memory.Mem.mem) (out : outcome),
+                  exec_stmt ge e m s1 t1 m1 out ->
+                  out <> Out_normal ->
+                  exec_stmt ge e m (Csyntax.Ssequence s1 s2) t1 m1 out
+  | exec_Sifthenelse : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s1 s2 : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v1 : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (b : bool) 
+                         (out : outcome),
+                       eval_expression ge e m a t1 m1 v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a) m1 = Some b ->
+                       exec_stmt ge e m1 (if b then s1 else s2) t2 m2 out ->
+                       exec_stmt ge e m (Csyntax.Sifthenelse a s1 s2)
+                         (Events.Eapp t1 t2) m2 out
+  | exec_Sreturn_none : forall (e : env) (m : Memory.Mem.mem),
+                        exec_stmt ge e m (Csyntax.Sreturn None) Events.E0 m
+                          (Out_return None)
+  | exec_Sreturn_some : forall (e : env) (m : Memory.Mem.mem)
+                          (a : Csyntax.expr) (t : Events.trace)
+                          (m' : Memory.Mem.mem) (v : Values.val),
+                        eval_expression ge e m a t m' v ->
+                        exec_stmt ge e m (Csyntax.Sreturn (Some a)) t m'
+                          (Out_return (Some (v, Csyntax.typeof a)))
+  | exec_Sbreak : forall (e : env) (m : Memory.Mem.mem),
+                  exec_stmt ge e m Csyntax.Sbreak Events.E0 m Out_break
+  | exec_Scontinue : forall (e : env) (m : Memory.Mem.mem),
+                     exec_stmt ge e m Csyntax.Scontinue Events.E0 m
+                       Out_continue
+  | exec_Swhile_false : forall (e : env) (m : Memory.Mem.mem)
+                          (a : Csyntax.expr) (s : Csyntax.statement)
+                          (t : Events.trace) (m' : Memory.Mem.mem)
+                          (v : Values.val),
+                        eval_expression ge e m a t m' v ->
+                        Cop.bool_val v (Csyntax.typeof a) m' = Some false ->
+                        exec_stmt ge e m (Csyntax.Swhile a s) t m' Out_normal
+  | exec_Swhile_stop : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (out' out : outcome),
+                       eval_expression ge e m a t1 m1 v ->
+                       Cop.bool_val v (Csyntax.typeof a) m1 = Some true ->
+                       exec_stmt ge e m1 s t2 m2 out' ->
+                       out_break_or_return out' out ->
+                       exec_stmt ge e m (Csyntax.Swhile a s)
+                         (Events.Eapp t1 t2) m2 out
+  | exec_Swhile_loop : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (out1 : outcome)
+                         (t3 : Events.trace) (m3 : Memory.Mem.mem)
+                         (out : outcome),
+                       eval_expression ge e m a t1 m1 v ->
+                       Cop.bool_val v (Csyntax.typeof a) m1 = Some true ->
+                       exec_stmt ge e m1 s t2 m2 out1 ->
+                       out_normal_or_continue out1 ->
+                       exec_stmt ge e m2 (Csyntax.Swhile a s) t3 m3 out ->
+                       exec_stmt ge e m (Csyntax.Swhile a s)
+                         (Events.Eapp t1 (Events.Eapp t2 t3)) m3 out
+  | exec_Sdowhile_false : forall (e : env) (m : Memory.Mem.mem)
+                            (s : Csyntax.statement) 
+                            (a : Csyntax.expr) (t1 : Events.trace)
+                            (m1 : Memory.Mem.mem) 
+                            (out1 : outcome) (t2 : Events.trace)
+                            (m2 : Memory.Mem.mem) 
+                            (v : Values.val),
+                          exec_stmt ge e m s t1 m1 out1 ->
+                          out_normal_or_continue out1 ->
+                          eval_expression ge e m1 a t2 m2 v ->
+                          Cop.bool_val v (Csyntax.typeof a) m2 = Some false ->
+                          exec_stmt ge e m (Csyntax.Sdowhile a s)
+                            (Events.Eapp t1 t2) m2 Out_normal
+  | exec_Sdowhile_stop : forall (e : env) (m : Memory.Mem.mem)
+                           (s : Csyntax.statement) 
+                           (a : Csyntax.expr) (t : Events.trace)
+                           (m1 : Memory.Mem.mem) (out1 out : outcome),
+                         exec_stmt ge e m s t m1 out1 ->
+                         out_break_or_return out1 out ->
+                         exec_stmt ge e m (Csyntax.Sdowhile a s) t m1 out
+  | exec_Sdowhile_loop : forall (e : env) (m : Memory.Mem.mem)
+                           (s : Csyntax.statement) 
+                           (a : Csyntax.expr) (t1 : Events.trace)
+                           (m1 : Memory.Mem.mem) (out1 : outcome)
+                           (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                           (v : Values.val) (t3 : Events.trace)
+                           (m3 : Memory.Mem.mem) (out : outcome),
+                         exec_stmt ge e m s t1 m1 out1 ->
+                         out_normal_or_continue out1 ->
+                         eval_expression ge e m1 a t2 m2 v ->
+                         Cop.bool_val v (Csyntax.typeof a) m2 = Some true ->
+                         exec_stmt ge e m2 (Csyntax.Sdowhile a s) t3 m3 out ->
+                         exec_stmt ge e m (Csyntax.Sdowhile a s)
+                           (Events.Eapp t1 (Events.Eapp t2 t3)) m3 out
+  | exec_Sfor_start : forall (e : env) (m : Memory.Mem.mem)
+                        (s a1 : Csyntax.statement) 
+                        (a2 : Csyntax.expr) (a3 : Csyntax.statement)
+                        (out : outcome) (m1 m2 : Memory.Mem.mem)
+                        (t1 t2 : Events.trace),
+                      exec_stmt ge e m a1 t1 m1 Out_normal ->
+                      exec_stmt ge e m1 (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                        t2 m2 out ->
+                      exec_stmt ge e m (Csyntax.Sfor a1 a2 a3 s)
+                        (Events.Eapp t1 t2) m2 out
+  | exec_Sfor_false : forall (e : env) (m : Memory.Mem.mem)
+                        (s : Csyntax.statement) (a2 : Csyntax.expr)
+                        (a3 : Csyntax.statement) (t : Events.trace)
+                        (m' : Memory.Mem.mem) (v : Values.val),
+                      eval_expression ge e m a2 t m' v ->
+                      Cop.bool_val v (Csyntax.typeof a2) m' = Some false ->
+                      exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s) t
+                        m' Out_normal
+  | exec_Sfor_stop : forall (e : env) (m : Memory.Mem.mem)
+                       (s : Csyntax.statement) (a2 : Csyntax.expr)
+                       (a3 : Csyntax.statement) (t1 : Events.trace)
+                       (m1 : Memory.Mem.mem) (v : Values.val)
+                       (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                       (out1 out : outcome),
+                     eval_expression ge e m a2 t1 m1 v ->
+                     Cop.bool_val v (Csyntax.typeof a2) m1 = Some true ->
+                     exec_stmt ge e m1 s t2 m2 out1 ->
+                     out_break_or_return out1 out ->
+                     exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       (Events.Eapp t1 t2) m2 out
+  | exec_Sfor_loop : forall (e : env) (m : Memory.Mem.mem)
+                       (s : Csyntax.statement) (a2 : Csyntax.expr)
+                       (a3 : Csyntax.statement) (t1 : Events.trace)
+                       (m1 : Memory.Mem.mem) (v : Values.val)
+                       (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                       (out1 : outcome) (t3 : Events.trace)
+                       (m3 : Memory.Mem.mem) (t4 : Events.trace)
+                       (m4 : Memory.Mem.mem) (out : outcome),
+                     eval_expression ge e m a2 t1 m1 v ->
+                     Cop.bool_val v (Csyntax.typeof a2) m1 = Some true ->
+                     exec_stmt ge e m1 s t2 m2 out1 ->
+                     out_normal_or_continue out1 ->
+                     exec_stmt ge e m2 a3 t3 m3 Out_normal ->
+                     exec_stmt ge e m3 (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       t4 m4 out ->
+                     exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       (Events.Eapp t1 (Events.Eapp t2 (Events.Eapp t3 t4)))
+                       m4 out
+  | exec_Sswitch : forall (e : env) (m : Memory.Mem.mem) 
+                     (a : Csyntax.expr) (sl : Csyntax.labeled_statements)
+                     (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                     (v : Values.val) (n : BinNums.Z) 
+                     (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                     (out : outcome),
+                   eval_expression ge e m a t1 m1 v ->
+                   Cop.sem_switch_arg v (Csyntax.typeof a) = Some n ->
+                   exec_stmt ge e m1
+                     (seq_of_labeled_statement (select_switch n sl)) t2 m2
+                     out ->
+                   exec_stmt ge e m (Csyntax.Sswitch a sl)
+                     (Events.Eapp t1 t2) m2 (outcome_switch out)
+  with eval_funcall (ge : genv)
+         : Memory.Mem.mem ->
+           Csyntax.fundef ->
+           list Values.val ->
+           Events.trace -> Memory.Mem.mem -> Values.val -> Prop :=
+    eval_funcall_internal : forall (m : Memory.Mem.mem)
+                              (f : Csyntax.function)
+                              (vargs : list Values.val) 
+                              (t : Events.trace) (e : env)
+                              (m1 m2 m3 : Memory.Mem.mem) 
+                              (out : outcome) (vres : Values.val)
+                              (m4 : Memory.Mem.mem),
+                            Coqlib.list_norepet
+                              (Csyntax.var_names (Csyntax.fn_params f) ++
+                               Csyntax.var_names (Csyntax.fn_vars f)) ->
+                            alloc_variables ge empty_env m
+                              (Csyntax.fn_params f ++ Csyntax.fn_vars f) e m1 ->
+                            bind_parameters ge e m1 
+                              (Csyntax.fn_params f) vargs m2 ->
+                            exec_stmt ge e m2 (Csyntax.fn_body f) t m3 out ->
+                            outcome_result_value out 
+                              (Csyntax.fn_return f) vres m3 ->
+                            Memory.Mem.free_list m3 (blocks_of_env ge e) =
+                            Some m4 ->
+                            eval_funcall ge m (Ctypes.Internal f) vargs t m4
+                              vres
+  | eval_funcall_external : forall (m : Memory.Mem.mem)
+                              (ef : AST.external_function)
+                              (targs : list Ctypes.type) 
+                              (tres : Ctypes.type)
+                              (cconv : AST.calling_convention)
+                              (vargs : list Values.val) 
+                              (t : Events.trace) (vres : Values.val)
+                              (m' : Memory.Mem.mem),
+                            Events.external_call ef
+                              (Globalenvs.Genv.to_senv ge) vargs m t vres m' ->
+                            eval_funcall ge m
+                              (Ctypes.External ef targs tres cconv) vargs t
+                              m' vres.
+
+Arguments eval_expression ge _ _ _ _ _ _
+Arguments eval_expression_intro ge e m a t m' a' v _ _
+Arguments eval_expr ge _ _ _ _ _ _ _
+Arguments eval_val ge e m v ty
+Arguments eval_var ge e m x ty
+Arguments eval_field ge e m a t m' a' f ty _
+Arguments eval_valof ge e m a t m' a' ty _ _
+Arguments eval_valof_volatile ge e m a t1 m' a' ty b ofs bf t2 v _ _ _ _ _
+Arguments eval_deref ge e m a t m' a' ty _
+Arguments eval_addrof ge e m a t m' a' ty _
+Arguments eval_unop ge e m a t m' a' op ty _
+Arguments eval_binop ge e m a1 t1 m' a1' a2 t2 m'' a2' op ty _ _
+Arguments eval_cast ge e m a t m' a' ty _
+Arguments eval_seqand_true ge e m a1 a2 ty t1 m' a1' 
+  v1 t2 m'' a2' v2 v _ _ _ _ _ _
+Arguments eval_seqand_false ge e m a1 a2 ty t1 m' a1' v1 _ _ _
+Arguments eval_seqor_false ge e m a1 a2 ty t1 m' a1' 
+  v1 t2 m'' a2' v2 v _ _ _ _ _ _
+Arguments eval_seqor_true ge e m a1 a2 ty t1 m' a1' v1 _ _ _
+Arguments eval_condition ge e m a1 a2 a3 ty t1 m' 
+  a1' v1 t2 m'' a' v' b%_bool_scope v _ _ _ _ _ _
+Arguments eval_sizeof ge e m ty' ty
+Arguments eval_alignof ge e m ty' ty
+Arguments eval_assign ge e m l r ty t1 m1 l' t2 m2 
+  r' b ofs bf v v1 v' t3 m3 _ _ _ _ _ _ _
+Arguments eval_assignop ge e m op l r tyres ty t1 
+  m1 l' t2 m2 r' b ofs bf v1 v2 v3 v4 v' t3 t4 m3 
+  _ _ _ _ _ _ _ _ _
+Arguments eval_postincr ge e m id l ty t1 m1 l' b 
+  ofs bf v1 v2 v3 v' m2 t2 t3 _ _ _ _ _ _ _
+Arguments eval_comma ge e m r1 r2 ty t1 m1 r1' v1 t2 m2 r2' _ _ _ _
+Arguments eval_call ge e m rf rargs ty t1 m1 rf' t2 
+  m2 rargs' vf (vargs targs)%_list_scope tres cconv 
+  fd t3 m3 vres _ _ _ _ _ _ _ _
+Arguments eval_exprlist ge _ _ _ _ _ _
+Arguments eval_nil ge e m
+Arguments eval_cons ge e m a1 al t1 m1 a1' t2 m2 al' _ _
+Arguments exec_stmt ge _ _ _ _ _ _
+Arguments exec_Sskip ge e m
+Arguments exec_Sdo ge e m a t m' v _
+Arguments exec_Sseq_1 ge e m s1 s2 t1 m1 t2 m2 out _ _
+Arguments exec_Sseq_2 ge e m s1 s2 t1 m1 out _ _
+Arguments exec_Sifthenelse ge e m a s1 s2 t1 m1 v1 
+  t2 m2 b%_bool_scope out _ _ _
+Arguments exec_Sreturn_none ge e m
+Arguments exec_Sreturn_some ge e m a t m' v _
+Arguments exec_Sbreak ge e m
+Arguments exec_Scontinue ge e m
+Arguments exec_Swhile_false ge e m a s t m' v _ _
+Arguments exec_Swhile_stop ge e m a s t1 m1 v t2 m2 out' out _ _ _ _
+Arguments exec_Swhile_loop ge e m a s t1 m1 v t2 m2 out1 t3 m3 out _ _ _ _ _
+Arguments exec_Sdowhile_false ge e m s a t1 m1 out1 t2 m2 v _ _ _ _
+Arguments exec_Sdowhile_stop ge e m s a t m1 out1 out _ _
+Arguments exec_Sdowhile_loop ge e m s a t1 m1 out1 
+  t2 m2 v t3 m3 out _ _ _ _ _
+Arguments exec_Sfor_start ge e m s a1 a2 a3 out m1 m2 t1 t2 _ _
+Arguments exec_Sfor_false ge e m s a2 a3 t m' v _ _
+Arguments exec_Sfor_stop ge e m s a2 a3 t1 m1 v t2 m2 out1 out _ _ _ _
+Arguments exec_Sfor_loop ge e m s a2 a3 t1 m1 v t2 
+  m2 out1 t3 m3 t4 m4 out _ _ _ _ _ _
+Arguments exec_Sswitch ge e m a sl t1 m1 v n%_Z_scope t2 m2 out _ _ _
+Arguments eval_funcall ge _ _ _%_list_scope _ _ _
+Arguments eval_funcall_internal ge m f vargs%_list_scope 
+  t e m1 m2 m3 out vres m4 _ _ _ _ _ _
+Arguments eval_funcall_external ge m ef targs%_list_scope 
+  tres cconv vargs%_list_scope t vres m' _
+Inductive
+eval_expression (ge : genv)
+  : env ->
+    Memory.Mem.mem ->
+    Csyntax.expr -> Events.trace -> Memory.Mem.mem -> Values.val -> Prop :=
+    eval_expression_intro : forall (e : env) (m : Memory.Mem.mem)
+                              (a : Csyntax.expr) (t : Events.trace)
+                              (m' : Memory.Mem.mem) 
+                              (a' : Csyntax.expr) 
+                              (v : Values.val),
+                            eval_expr ge e m RV a t m' a' ->
+                            eval_simple_rvalue ge e m' a' v ->
+                            eval_expression ge e m a t m' v
+  with eval_expr (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           kind ->
+           Csyntax.expr ->
+           Events.trace -> Memory.Mem.mem -> Csyntax.expr -> Prop :=
+    eval_val : forall (e : env) (m : Memory.Mem.mem) 
+                 (v : Values.val) (ty : Ctypes.type),
+               eval_expr ge e m RV (Csyntax.Eval v ty) Events.E0 m
+                 (Csyntax.Eval v ty)
+  | eval_var : forall (e : env) (m : Memory.Mem.mem) 
+                 (x : AST.ident) (ty : Ctypes.type),
+               eval_expr ge e m LV (Csyntax.Evar x ty) Events.E0 m
+                 (Csyntax.Evar x ty)
+  | eval_field : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr) 
+                   (f : AST.ident) (ty : Ctypes.type),
+                 eval_expr ge e m RV a t m' a' ->
+                 eval_expr ge e m LV (Csyntax.Efield a f ty) t m'
+                   (Csyntax.Efield a' f ty)
+  | eval_valof : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                   (ty : Ctypes.type),
+                 Ctypes.type_is_volatile (Csyntax.typeof a) = false ->
+                 eval_expr ge e m LV a t m' a' ->
+                 eval_expr ge e m RV (Csyntax.Evalof a ty) t m'
+                   (Csyntax.Evalof a' ty)
+  | eval_valof_volatile : forall (e : env) (m : Memory.Mem.mem)
+                            (a : Csyntax.expr) (t1 : Events.trace)
+                            (m' : Memory.Mem.mem) 
+                            (a' : Csyntax.expr) (ty : Ctypes.type)
+                            (b : Values.block) (ofs : Integers.Ptrofs.int)
+                            (bf : Ctypes.bitfield) 
+                            (t2 : Events.trace) (v : Values.val),
+                          Ctypes.type_is_volatile (Csyntax.typeof a) = true ->
+                          eval_expr ge e m LV a t1 m' a' ->
+                          eval_simple_lvalue ge e m' a' b ofs bf ->
+                          deref_loc ge (Csyntax.typeof a) m' b ofs bf t2 v ->
+                          ty = Csyntax.typeof a ->
+                          eval_expr ge e m RV (Csyntax.Evalof a ty)
+                            (Events.Eapp t1 t2) m' 
+                            (Csyntax.Eval v ty)
+  | eval_deref : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                   (ty : Ctypes.type),
+                 eval_expr ge e m RV a t m' a' ->
+                 eval_expr ge e m LV (Csyntax.Ederef a ty) t m'
+                   (Csyntax.Ederef a' ty)
+  | eval_addrof : forall (e : env) (m : Memory.Mem.mem) 
+                    (a : Csyntax.expr) (t : Events.trace)
+                    (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                    (ty : Ctypes.type),
+                  eval_expr ge e m LV a t m' a' ->
+                  eval_expr ge e m RV (Csyntax.Eaddrof a ty) t m'
+                    (Csyntax.Eaddrof a' ty)
+  | eval_unop : forall (e : env) (m : Memory.Mem.mem) 
+                  (a : Csyntax.expr) (t : Events.trace) 
+                  (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                  (op : Cop.unary_operation) (ty : Ctypes.type),
+                eval_expr ge e m RV a t m' a' ->
+                eval_expr ge e m RV (Csyntax.Eunop op a ty) t m'
+                  (Csyntax.Eunop op a' ty)
+  | eval_binop : forall (e : env) (m : Memory.Mem.mem) 
+                   (a1 : Csyntax.expr) (t1 : Events.trace)
+                   (m' : Memory.Mem.mem) (a1' a2 : Csyntax.expr)
+                   (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                   (a2' : Csyntax.expr) (op : Cop.binary_operation)
+                   (ty : Ctypes.type),
+                 eval_expr ge e m RV a1 t1 m' a1' ->
+                 eval_expr ge e m' RV a2 t2 m'' a2' ->
+                 eval_expr ge e m RV (Csyntax.Ebinop op a1 a2 ty)
+                   (Events.Eapp t1 t2) m'' (Csyntax.Ebinop op a1' a2' ty)
+  | eval_cast : forall (e : env) (m : Memory.Mem.mem) 
+                  (a : Csyntax.expr) (t : Events.trace) 
+                  (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                  (ty : Ctypes.type),
+                eval_expr ge e m RV a t m' a' ->
+                eval_expr ge e m RV (Csyntax.Ecast a ty) t m'
+                  (Csyntax.Ecast a' ty)
+  | eval_seqand_true : forall (e : env) (m : Memory.Mem.mem)
+                         (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                         (t1 : Events.trace) (m' : Memory.Mem.mem)
+                         (a1' : Csyntax.expr) (v1 : Values.val)
+                         (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                         (a2' : Csyntax.expr) (v2 v : Values.val),
+                       eval_expr ge e m RV a1 t1 m' a1' ->
+                       eval_simple_rvalue ge e m' a1' v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a1) m' = Some true ->
+                       eval_expr ge e m' RV a2 t2 m'' a2' ->
+                       eval_simple_rvalue ge e m'' a2' v2 ->
+                       Cop.sem_cast v2 (Csyntax.typeof a2) Ctypes.type_bool
+                         m'' =
+                       Some v ->
+                       eval_expr ge e m RV (Csyntax.Eseqand a1 a2 ty)
+                         (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_seqand_false : forall (e : env) (m : Memory.Mem.mem)
+                          (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                          (t1 : Events.trace) (m' : Memory.Mem.mem)
+                          (a1' : Csyntax.expr) (v1 : Values.val),
+                        eval_expr ge e m RV a1 t1 m' a1' ->
+                        eval_simple_rvalue ge e m' a1' v1 ->
+                        Cop.bool_val v1 (Csyntax.typeof a1) m' = Some false ->
+                        eval_expr ge e m RV (Csyntax.Eseqand a1 a2 ty) t1 m'
+                          (Csyntax.Eval (Values.Vint Integers.Int.zero) ty)
+  | eval_seqor_false : forall (e : env) (m : Memory.Mem.mem)
+                         (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                         (t1 : Events.trace) (m' : Memory.Mem.mem)
+                         (a1' : Csyntax.expr) (v1 : Values.val)
+                         (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                         (a2' : Csyntax.expr) (v2 v : Values.val),
+                       eval_expr ge e m RV a1 t1 m' a1' ->
+                       eval_simple_rvalue ge e m' a1' v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a1) m' = Some false ->
+                       eval_expr ge e m' RV a2 t2 m'' a2' ->
+                       eval_simple_rvalue ge e m'' a2' v2 ->
+                       Cop.sem_cast v2 (Csyntax.typeof a2) Ctypes.type_bool
+                         m'' =
+                       Some v ->
+                       eval_expr ge e m RV (Csyntax.Eseqor a1 a2 ty)
+                         (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_seqor_true : forall (e : env) (m : Memory.Mem.mem)
+                        (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                        (t1 : Events.trace) (m' : Memory.Mem.mem)
+                        (a1' : Csyntax.expr) (v1 : Values.val),
+                      eval_expr ge e m RV a1 t1 m' a1' ->
+                      eval_simple_rvalue ge e m' a1' v1 ->
+                      Cop.bool_val v1 (Csyntax.typeof a1) m' = Some true ->
+                      eval_expr ge e m RV (Csyntax.Eseqor a1 a2 ty) t1 m'
+                        (Csyntax.Eval (Values.Vint Integers.Int.one) ty)
+  | eval_condition : forall (e : env) (m : Memory.Mem.mem)
+                       (a1 a2 a3 : Csyntax.expr) (ty : Ctypes.type)
+                       (t1 : Events.trace) (m' : Memory.Mem.mem)
+                       (a1' : Csyntax.expr) (v1 : Values.val)
+                       (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                       (a' : Csyntax.expr) (v' : Values.val) 
+                       (b : bool) (v : Values.val),
+                     eval_expr ge e m RV a1 t1 m' a1' ->
+                     eval_simple_rvalue ge e m' a1' v1 ->
+                     Cop.bool_val v1 (Csyntax.typeof a1) m' = Some b ->
+                     eval_expr ge e m' RV (if b then a2 else a3) t2 m'' a' ->
+                     eval_simple_rvalue ge e m'' a' v' ->
+                     Cop.sem_cast v' (Csyntax.typeof (if b then a2 else a3))
+                       ty m'' =
+                     Some v ->
+                     eval_expr ge e m RV (Csyntax.Econdition a1 a2 a3 ty)
+                       (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_sizeof : forall (e : env) (m : Memory.Mem.mem)
+                    (ty' ty : Ctypes.type),
+                  eval_expr ge e m RV (Csyntax.Esizeof ty' ty) Events.E0 m
+                    (Csyntax.Esizeof ty' ty)
+  | eval_alignof : forall (e : env) (m : Memory.Mem.mem)
+                     (ty' ty : Ctypes.type),
+                   eval_expr ge e m RV (Csyntax.Ealignof ty' ty) Events.E0 m
+                     (Csyntax.Ealignof ty' ty)
+  | eval_assign : forall (e : env) (m : Memory.Mem.mem) 
+                    (l r : Csyntax.expr) (ty : Ctypes.type)
+                    (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                    (l' : Csyntax.expr) (t2 : Events.trace)
+                    (m2 : Memory.Mem.mem) (r' : Csyntax.expr)
+                    (b : Values.block) (ofs : Integers.Ptrofs.int)
+                    (bf : Ctypes.bitfield) (v v1 v' : Values.val)
+                    (t3 : Events.trace) (m3 : Memory.Mem.mem),
+                  eval_expr ge e m LV l t1 m1 l' ->
+                  eval_expr ge e m1 RV r t2 m2 r' ->
+                  eval_simple_lvalue ge e m2 l' b ofs bf ->
+                  eval_simple_rvalue ge e m2 r' v ->
+                  Cop.sem_cast v (Csyntax.typeof r) (Csyntax.typeof l) m2 =
+                  Some v1 ->
+                  assign_loc ge (Csyntax.typeof l) m2 b ofs bf v1 t3 m3 v' ->
+                  ty = Csyntax.typeof l ->
+                  eval_expr ge e m RV (Csyntax.Eassign l r ty)
+                    (Events.Eapp t1 (Events.Eapp t2 t3)) m3
+                    (Csyntax.Eval v' ty)
+  | eval_assignop : forall (e : env) (m : Memory.Mem.mem)
+                      (op : Cop.binary_operation) 
+                      (l r : Csyntax.expr) (tyres ty : Ctypes.type)
+                      (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                      (l' : Csyntax.expr) (t2 : Events.trace)
+                      (m2 : Memory.Mem.mem) (r' : Csyntax.expr)
+                      (b : Values.block) (ofs : Integers.Ptrofs.int)
+                      (bf : Ctypes.bitfield) (v1 v2 v3 v4 v' : Values.val)
+                      (t3 t4 : Events.trace) (m3 : Memory.Mem.mem),
+                    eval_expr ge e m LV l t1 m1 l' ->
+                    eval_expr ge e m1 RV r t2 m2 r' ->
+                    eval_simple_lvalue ge e m2 l' b ofs bf ->
+                    deref_loc ge (Csyntax.typeof l) m2 b ofs bf t3 v1 ->
+                    eval_simple_rvalue ge e m2 r' v2 ->
+                    Cop.sem_binary_operation ge op v1 
+                      (Csyntax.typeof l) v2 (Csyntax.typeof r) m2 =
+                    Some v3 ->
+                    Cop.sem_cast v3 tyres (Csyntax.typeof l) m2 = Some v4 ->
+                    assign_loc ge (Csyntax.typeof l) m2 b ofs bf v4 t4 m3 v' ->
+                    ty = Csyntax.typeof l ->
+                    eval_expr ge e m RV (Csyntax.Eassignop op l r tyres ty)
+                      (Events.Eapp t1 (Events.Eapp t2 (Events.Eapp t3 t4)))
+                      m3 (Csyntax.Eval v' ty)
+  | eval_postincr : forall (e : env) (m : Memory.Mem.mem)
+                      (id : Cop.incr_or_decr) (l : Csyntax.expr)
+                      (ty : Ctypes.type) (t1 : Events.trace)
+                      (m1 : Memory.Mem.mem) (l' : Csyntax.expr)
+                      (b : Values.block) (ofs : Integers.Ptrofs.int)
+                      (bf : Ctypes.bitfield) (v1 v2 v3 v' : Values.val)
+                      (m2 : Memory.Mem.mem) (t2 t3 : Events.trace),
+                    eval_expr ge e m LV l t1 m1 l' ->
+                    eval_simple_lvalue ge e m1 l' b ofs bf ->
+                    deref_loc ge ty m1 b ofs bf t2 v1 ->
+                    Cop.sem_incrdecr ge id v1 ty m1 = Some v2 ->
+                    Cop.sem_cast v2 (Cop.incrdecr_type ty) ty m1 = Some v3 ->
+                    assign_loc ge ty m1 b ofs bf v3 t3 m2 v' ->
+                    ty = Csyntax.typeof l ->
+                    eval_expr ge e m RV (Csyntax.Epostincr id l ty)
+                      (Events.Eapp t1 (Events.Eapp t2 t3)) m2
+                      (Csyntax.Eval v1 ty)
+  | eval_comma : forall (e : env) (m : Memory.Mem.mem) 
+                   (r1 r2 : Csyntax.expr) (ty : Ctypes.type)
+                   (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                   (r1' : Csyntax.expr) (v1 : Values.val) 
+                   (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                   (r2' : Csyntax.expr),
+                 eval_expr ge e m RV r1 t1 m1 r1' ->
+                 eval_simple_rvalue ge e m1 r1' v1 ->
+                 eval_expr ge e m1 RV r2 t2 m2 r2' ->
+                 ty = Csyntax.typeof r2 ->
+                 eval_expr ge e m RV (Csyntax.Ecomma r1 r2 ty)
+                   (Events.Eapp t1 t2) m2 r2'
+  | eval_call : forall (e : env) (m : Memory.Mem.mem) 
+                  (rf : Csyntax.expr) (rargs : Csyntax.exprlist)
+                  (ty : Ctypes.type) (t1 : Events.trace)
+                  (m1 : Memory.Mem.mem) (rf' : Csyntax.expr)
+                  (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                  (rargs' : Csyntax.exprlist) (vf : Values.val)
+                  (vargs : list Values.val) (targs : list Ctypes.type)
+                  (tres : Ctypes.type) (cconv : AST.calling_convention)
+                  (fd : Csyntax.fundef) (t3 : Events.trace)
+                  (m3 : Memory.Mem.mem) (vres : Values.val),
+                eval_expr ge e m RV rf t1 m1 rf' ->
+                eval_exprlist ge e m1 rargs t2 m2 rargs' ->
+                eval_simple_rvalue ge e m2 rf' vf ->
+                eval_simple_list ge e m2 rargs' targs vargs ->
+                Cop.classify_fun (Csyntax.typeof rf) =
+                Cop.fun_case_f targs tres cconv ->
+                Globalenvs.Genv.find_funct ge vf = Some fd ->
+                Csyntax.type_of_fundef fd = Ctypes.Tfunction targs tres cconv ->
+                eval_funcall ge m2 fd vargs t3 m3 vres ->
+                eval_expr ge e m RV (Csyntax.Ecall rf rargs ty)
+                  (Events.Eapp t1 (Events.Eapp t2 t3)) m3
+                  (Csyntax.Eval vres ty)
+  with eval_exprlist (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           Csyntax.exprlist ->
+           Events.trace -> Memory.Mem.mem -> Csyntax.exprlist -> Prop :=
+    eval_nil : forall (e : env) (m : Memory.Mem.mem),
+               eval_exprlist ge e m Csyntax.Enil Events.E0 m Csyntax.Enil
+  | eval_cons : forall (e : env) (m : Memory.Mem.mem) 
+                  (a1 : Csyntax.expr) (al : Csyntax.exprlist)
+                  (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                  (a1' : Csyntax.expr) (t2 : Events.trace)
+                  (m2 : Memory.Mem.mem) (al' : Csyntax.exprlist),
+                eval_expr ge e m RV a1 t1 m1 a1' ->
+                eval_exprlist ge e m1 al t2 m2 al' ->
+                eval_exprlist ge e m (Csyntax.Econs a1 al)
+                  (Events.Eapp t1 t2) m2 (Csyntax.Econs a1' al')
+  with exec_stmt (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           Csyntax.statement ->
+           Events.trace -> Memory.Mem.mem -> outcome -> Prop :=
+    exec_Sskip : forall (e : env) (m : Memory.Mem.mem),
+                 exec_stmt ge e m Csyntax.Sskip Events.E0 m Out_normal
+  | exec_Sdo : forall (e : env) (m : Memory.Mem.mem) 
+                 (a : Csyntax.expr) (t : Events.trace) 
+                 (m' : Memory.Mem.mem) (v : Values.val),
+               eval_expression ge e m a t m' v ->
+               exec_stmt ge e m (Csyntax.Sdo a) t m' Out_normal
+  | exec_Sseq_1 : forall (e : env) (m : Memory.Mem.mem)
+                    (s1 s2 : Csyntax.statement) (t1 : Events.trace)
+                    (m1 : Memory.Mem.mem) (t2 : Events.trace)
+                    (m2 : Memory.Mem.mem) (out : outcome),
+                  exec_stmt ge e m s1 t1 m1 Out_normal ->
+                  exec_stmt ge e m1 s2 t2 m2 out ->
+                  exec_stmt ge e m (Csyntax.Ssequence s1 s2)
+                    (Events.Eapp t1 t2) m2 out
+  | exec_Sseq_2 : forall (e : env) (m : Memory.Mem.mem)
+                    (s1 s2 : Csyntax.statement) (t1 : Events.trace)
+                    (m1 : Memory.Mem.mem) (out : outcome),
+                  exec_stmt ge e m s1 t1 m1 out ->
+                  out <> Out_normal ->
+                  exec_stmt ge e m (Csyntax.Ssequence s1 s2) t1 m1 out
+  | exec_Sifthenelse : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s1 s2 : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v1 : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (b : bool) 
+                         (out : outcome),
+                       eval_expression ge e m a t1 m1 v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a) m1 = Some b ->
+                       exec_stmt ge e m1 (if b then s1 else s2) t2 m2 out ->
+                       exec_stmt ge e m (Csyntax.Sifthenelse a s1 s2)
+                         (Events.Eapp t1 t2) m2 out
+  | exec_Sreturn_none : forall (e : env) (m : Memory.Mem.mem),
+                        exec_stmt ge e m (Csyntax.Sreturn None) Events.E0 m
+                          (Out_return None)
+  | exec_Sreturn_some : forall (e : env) (m : Memory.Mem.mem)
+                          (a : Csyntax.expr) (t : Events.trace)
+                          (m' : Memory.Mem.mem) (v : Values.val),
+                        eval_expression ge e m a t m' v ->
+                        exec_stmt ge e m (Csyntax.Sreturn (Some a)) t m'
+                          (Out_return (Some (v, Csyntax.typeof a)))
+  | exec_Sbreak : forall (e : env) (m : Memory.Mem.mem),
+                  exec_stmt ge e m Csyntax.Sbreak Events.E0 m Out_break
+  | exec_Scontinue : forall (e : env) (m : Memory.Mem.mem),
+                     exec_stmt ge e m Csyntax.Scontinue Events.E0 m
+                       Out_continue
+  | exec_Swhile_false : forall (e : env) (m : Memory.Mem.mem)
+                          (a : Csyntax.expr) (s : Csyntax.statement)
+                          (t : Events.trace) (m' : Memory.Mem.mem)
+                          (v : Values.val),
+                        eval_expression ge e m a t m' v ->
+                        Cop.bool_val v (Csyntax.typeof a) m' = Some false ->
+                        exec_stmt ge e m (Csyntax.Swhile a s) t m' Out_normal
+  | exec_Swhile_stop : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (out' out : outcome),
+                       eval_expression ge e m a t1 m1 v ->
+                       Cop.bool_val v (Csyntax.typeof a) m1 = Some true ->
+                       exec_stmt ge e m1 s t2 m2 out' ->
+                       out_break_or_return out' out ->
+                       exec_stmt ge e m (Csyntax.Swhile a s)
+                         (Events.Eapp t1 t2) m2 out
+  | exec_Swhile_loop : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (out1 : outcome)
+                         (t3 : Events.trace) (m3 : Memory.Mem.mem)
+                         (out : outcome),
+                       eval_expression ge e m a t1 m1 v ->
+                       Cop.bool_val v (Csyntax.typeof a) m1 = Some true ->
+                       exec_stmt ge e m1 s t2 m2 out1 ->
+                       out_normal_or_continue out1 ->
+                       exec_stmt ge e m2 (Csyntax.Swhile a s) t3 m3 out ->
+                       exec_stmt ge e m (Csyntax.Swhile a s)
+                         (Events.Eapp t1 (Events.Eapp t2 t3)) m3 out
+  | exec_Sdowhile_false : forall (e : env) (m : Memory.Mem.mem)
+                            (s : Csyntax.statement) 
+                            (a : Csyntax.expr) (t1 : Events.trace)
+                            (m1 : Memory.Mem.mem) 
+                            (out1 : outcome) (t2 : Events.trace)
+                            (m2 : Memory.Mem.mem) 
+                            (v : Values.val),
+                          exec_stmt ge e m s t1 m1 out1 ->
+                          out_normal_or_continue out1 ->
+                          eval_expression ge e m1 a t2 m2 v ->
+                          Cop.bool_val v (Csyntax.typeof a) m2 = Some false ->
+                          exec_stmt ge e m (Csyntax.Sdowhile a s)
+                            (Events.Eapp t1 t2) m2 Out_normal
+  | exec_Sdowhile_stop : forall (e : env) (m : Memory.Mem.mem)
+                           (s : Csyntax.statement) 
+                           (a : Csyntax.expr) (t : Events.trace)
+                           (m1 : Memory.Mem.mem) (out1 out : outcome),
+                         exec_stmt ge e m s t m1 out1 ->
+                         out_break_or_return out1 out ->
+                         exec_stmt ge e m (Csyntax.Sdowhile a s) t m1 out
+  | exec_Sdowhile_loop : forall (e : env) (m : Memory.Mem.mem)
+                           (s : Csyntax.statement) 
+                           (a : Csyntax.expr) (t1 : Events.trace)
+                           (m1 : Memory.Mem.mem) (out1 : outcome)
+                           (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                           (v : Values.val) (t3 : Events.trace)
+                           (m3 : Memory.Mem.mem) (out : outcome),
+                         exec_stmt ge e m s t1 m1 out1 ->
+                         out_normal_or_continue out1 ->
+                         eval_expression ge e m1 a t2 m2 v ->
+                         Cop.bool_val v (Csyntax.typeof a) m2 = Some true ->
+                         exec_stmt ge e m2 (Csyntax.Sdowhile a s) t3 m3 out ->
+                         exec_stmt ge e m (Csyntax.Sdowhile a s)
+                           (Events.Eapp t1 (Events.Eapp t2 t3)) m3 out
+  | exec_Sfor_start : forall (e : env) (m : Memory.Mem.mem)
+                        (s a1 : Csyntax.statement) 
+                        (a2 : Csyntax.expr) (a3 : Csyntax.statement)
+                        (out : outcome) (m1 m2 : Memory.Mem.mem)
+                        (t1 t2 : Events.trace),
+                      exec_stmt ge e m a1 t1 m1 Out_normal ->
+                      exec_stmt ge e m1 (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                        t2 m2 out ->
+                      exec_stmt ge e m (Csyntax.Sfor a1 a2 a3 s)
+                        (Events.Eapp t1 t2) m2 out
+  | exec_Sfor_false : forall (e : env) (m : Memory.Mem.mem)
+                        (s : Csyntax.statement) (a2 : Csyntax.expr)
+                        (a3 : Csyntax.statement) (t : Events.trace)
+                        (m' : Memory.Mem.mem) (v : Values.val),
+                      eval_expression ge e m a2 t m' v ->
+                      Cop.bool_val v (Csyntax.typeof a2) m' = Some false ->
+                      exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s) t
+                        m' Out_normal
+  | exec_Sfor_stop : forall (e : env) (m : Memory.Mem.mem)
+                       (s : Csyntax.statement) (a2 : Csyntax.expr)
+                       (a3 : Csyntax.statement) (t1 : Events.trace)
+                       (m1 : Memory.Mem.mem) (v : Values.val)
+                       (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                       (out1 out : outcome),
+                     eval_expression ge e m a2 t1 m1 v ->
+                     Cop.bool_val v (Csyntax.typeof a2) m1 = Some true ->
+                     exec_stmt ge e m1 s t2 m2 out1 ->
+                     out_break_or_return out1 out ->
+                     exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       (Events.Eapp t1 t2) m2 out
+  | exec_Sfor_loop : forall (e : env) (m : Memory.Mem.mem)
+                       (s : Csyntax.statement) (a2 : Csyntax.expr)
+                       (a3 : Csyntax.statement) (t1 : Events.trace)
+                       (m1 : Memory.Mem.mem) (v : Values.val)
+                       (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                       (out1 : outcome) (t3 : Events.trace)
+                       (m3 : Memory.Mem.mem) (t4 : Events.trace)
+                       (m4 : Memory.Mem.mem) (out : outcome),
+                     eval_expression ge e m a2 t1 m1 v ->
+                     Cop.bool_val v (Csyntax.typeof a2) m1 = Some true ->
+                     exec_stmt ge e m1 s t2 m2 out1 ->
+                     out_normal_or_continue out1 ->
+                     exec_stmt ge e m2 a3 t3 m3 Out_normal ->
+                     exec_stmt ge e m3 (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       t4 m4 out ->
+                     exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       (Events.Eapp t1 (Events.Eapp t2 (Events.Eapp t3 t4)))
+                       m4 out
+  | exec_Sswitch : forall (e : env) (m : Memory.Mem.mem) 
+                     (a : Csyntax.expr) (sl : Csyntax.labeled_statements)
+                     (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                     (v : Values.val) (n : BinNums.Z) 
+                     (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                     (out : outcome),
+                   eval_expression ge e m a t1 m1 v ->
+                   Cop.sem_switch_arg v (Csyntax.typeof a) = Some n ->
+                   exec_stmt ge e m1
+                     (seq_of_labeled_statement (select_switch n sl)) t2 m2
+                     out ->
+                   exec_stmt ge e m (Csyntax.Sswitch a sl)
+                     (Events.Eapp t1 t2) m2 (outcome_switch out)
+  with eval_funcall (ge : genv)
+         : Memory.Mem.mem ->
+           Csyntax.fundef ->
+           list Values.val ->
+           Events.trace -> Memory.Mem.mem -> Values.val -> Prop :=
+    eval_funcall_internal : forall (m : Memory.Mem.mem)
+                              (f : Csyntax.function)
+                              (vargs : list Values.val) 
+                              (t : Events.trace) (e : env)
+                              (m1 m2 m3 : Memory.Mem.mem) 
+                              (out : outcome) (vres : Values.val)
+                              (m4 : Memory.Mem.mem),
+                            Coqlib.list_norepet
+                              (Csyntax.var_names (Csyntax.fn_params f) ++
+                               Csyntax.var_names (Csyntax.fn_vars f)) ->
+                            alloc_variables ge empty_env m
+                              (Csyntax.fn_params f ++ Csyntax.fn_vars f) e m1 ->
+                            bind_parameters ge e m1 
+                              (Csyntax.fn_params f) vargs m2 ->
+                            exec_stmt ge e m2 (Csyntax.fn_body f) t m3 out ->
+                            outcome_result_value out 
+                              (Csyntax.fn_return f) vres m3 ->
+                            Memory.Mem.free_list m3 (blocks_of_env ge e) =
+                            Some m4 ->
+                            eval_funcall ge m (Ctypes.Internal f) vargs t m4
+                              vres
+  | eval_funcall_external : forall (m : Memory.Mem.mem)
+                              (ef : AST.external_function)
+                              (targs : list Ctypes.type) 
+                              (tres : Ctypes.type)
+                              (cconv : AST.calling_convention)
+                              (vargs : list Values.val) 
+                              (t : Events.trace) (vres : Values.val)
+                              (m' : Memory.Mem.mem),
+                            Events.external_call ef
+                              (Globalenvs.Genv.to_senv ge) vargs m t vres m' ->
+                            eval_funcall ge m
+                              (Ctypes.External ef targs tres cconv) vargs t
+                              m' vres.
+
+Arguments eval_expression ge _ _ _ _ _ _
+Arguments eval_expression_intro ge e m a t m' a' v _ _
+Arguments eval_expr ge _ _ _ _ _ _ _
+Arguments eval_val ge e m v ty
+Arguments eval_var ge e m x ty
+Arguments eval_field ge e m a t m' a' f ty _
+Arguments eval_valof ge e m a t m' a' ty _ _
+Arguments eval_valof_volatile ge e m a t1 m' a' ty b ofs bf t2 v _ _ _ _ _
+Arguments eval_deref ge e m a t m' a' ty _
+Arguments eval_addrof ge e m a t m' a' ty _
+Arguments eval_unop ge e m a t m' a' op ty _
+Arguments eval_binop ge e m a1 t1 m' a1' a2 t2 m'' a2' op ty _ _
+Arguments eval_cast ge e m a t m' a' ty _
+Arguments eval_seqand_true ge e m a1 a2 ty t1 m' a1' 
+  v1 t2 m'' a2' v2 v _ _ _ _ _ _
+Arguments eval_seqand_false ge e m a1 a2 ty t1 m' a1' v1 _ _ _
+Arguments eval_seqor_false ge e m a1 a2 ty t1 m' a1' 
+  v1 t2 m'' a2' v2 v _ _ _ _ _ _
+Arguments eval_seqor_true ge e m a1 a2 ty t1 m' a1' v1 _ _ _
+Arguments eval_condition ge e m a1 a2 a3 ty t1 m' 
+  a1' v1 t2 m'' a' v' b%_bool_scope v _ _ _ _ _ _
+Arguments eval_sizeof ge e m ty' ty
+Arguments eval_alignof ge e m ty' ty
+Arguments eval_assign ge e m l r ty t1 m1 l' t2 m2 
+  r' b ofs bf v v1 v' t3 m3 _ _ _ _ _ _ _
+Arguments eval_assignop ge e m op l r tyres ty t1 
+  m1 l' t2 m2 r' b ofs bf v1 v2 v3 v4 v' t3 t4 m3 
+  _ _ _ _ _ _ _ _ _
+Arguments eval_postincr ge e m id l ty t1 m1 l' b 
+  ofs bf v1 v2 v3 v' m2 t2 t3 _ _ _ _ _ _ _
+Arguments eval_comma ge e m r1 r2 ty t1 m1 r1' v1 t2 m2 r2' _ _ _ _
+Arguments eval_call ge e m rf rargs ty t1 m1 rf' t2 
+  m2 rargs' vf (vargs targs)%_list_scope tres cconv 
+  fd t3 m3 vres _ _ _ _ _ _ _ _
+Arguments eval_exprlist ge _ _ _ _ _ _
+Arguments eval_nil ge e m
+Arguments eval_cons ge e m a1 al t1 m1 a1' t2 m2 al' _ _
+Arguments exec_stmt ge _ _ _ _ _ _
+Arguments exec_Sskip ge e m
+Arguments exec_Sdo ge e m a t m' v _
+Arguments exec_Sseq_1 ge e m s1 s2 t1 m1 t2 m2 out _ _
+Arguments exec_Sseq_2 ge e m s1 s2 t1 m1 out _ _
+Arguments exec_Sifthenelse ge e m a s1 s2 t1 m1 v1 
+  t2 m2 b%_bool_scope out _ _ _
+Arguments exec_Sreturn_none ge e m
+Arguments exec_Sreturn_some ge e m a t m' v _
+Arguments exec_Sbreak ge e m
+Arguments exec_Scontinue ge e m
+Arguments exec_Swhile_false ge e m a s t m' v _ _
+Arguments exec_Swhile_stop ge e m a s t1 m1 v t2 m2 out' out _ _ _ _
+Arguments exec_Swhile_loop ge e m a s t1 m1 v t2 m2 out1 t3 m3 out _ _ _ _ _
+Arguments exec_Sdowhile_false ge e m s a t1 m1 out1 t2 m2 v _ _ _ _
+Arguments exec_Sdowhile_stop ge e m s a t m1 out1 out _ _
+Arguments exec_Sdowhile_loop ge e m s a t1 m1 out1 
+  t2 m2 v t3 m3 out _ _ _ _ _
+Arguments exec_Sfor_start ge e m s a1 a2 a3 out m1 m2 t1 t2 _ _
+Arguments exec_Sfor_false ge e m s a2 a3 t m' v _ _
+Arguments exec_Sfor_stop ge e m s a2 a3 t1 m1 v t2 m2 out1 out _ _ _ _
+Arguments exec_Sfor_loop ge e m s a2 a3 t1 m1 v t2 
+  m2 out1 t3 m3 t4 m4 out _ _ _ _ _ _
+Arguments exec_Sswitch ge e m a sl t1 m1 v n%_Z_scope t2 m2 out _ _ _
+Arguments eval_funcall ge _ _ _%_list_scope _ _ _
+Arguments eval_funcall_internal ge m f vargs%_list_scope 
+  t e m1 m2 m3 out vres m4 _ _ _ _ _ _
+Arguments eval_funcall_external ge m ef targs%_list_scope 
+  tres cconv vargs%_list_scope t vres m' _
+Inductive
+eval_expression (ge : genv)
+  : env ->
+    Memory.Mem.mem ->
+    Csyntax.expr -> Events.trace -> Memory.Mem.mem -> Values.val -> Prop :=
+    eval_expression_intro : forall (e : env) (m : Memory.Mem.mem)
+                              (a : Csyntax.expr) (t : Events.trace)
+                              (m' : Memory.Mem.mem) 
+                              (a' : Csyntax.expr) 
+                              (v : Values.val),
+                            eval_expr ge e m RV a t m' a' ->
+                            eval_simple_rvalue ge e m' a' v ->
+                            eval_expression ge e m a t m' v
+  with eval_expr (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           kind ->
+           Csyntax.expr ->
+           Events.trace -> Memory.Mem.mem -> Csyntax.expr -> Prop :=
+    eval_val : forall (e : env) (m : Memory.Mem.mem) 
+                 (v : Values.val) (ty : Ctypes.type),
+               eval_expr ge e m RV (Csyntax.Eval v ty) Events.E0 m
+                 (Csyntax.Eval v ty)
+  | eval_var : forall (e : env) (m : Memory.Mem.mem) 
+                 (x : AST.ident) (ty : Ctypes.type),
+               eval_expr ge e m LV (Csyntax.Evar x ty) Events.E0 m
+                 (Csyntax.Evar x ty)
+  | eval_field : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr) 
+                   (f : AST.ident) (ty : Ctypes.type),
+                 eval_expr ge e m RV a t m' a' ->
+                 eval_expr ge e m LV (Csyntax.Efield a f ty) t m'
+                   (Csyntax.Efield a' f ty)
+  | eval_valof : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                   (ty : Ctypes.type),
+                 Ctypes.type_is_volatile (Csyntax.typeof a) = false ->
+                 eval_expr ge e m LV a t m' a' ->
+                 eval_expr ge e m RV (Csyntax.Evalof a ty) t m'
+                   (Csyntax.Evalof a' ty)
+  | eval_valof_volatile : forall (e : env) (m : Memory.Mem.mem)
+                            (a : Csyntax.expr) (t1 : Events.trace)
+                            (m' : Memory.Mem.mem) 
+                            (a' : Csyntax.expr) (ty : Ctypes.type)
+                            (b : Values.block) (ofs : Integers.Ptrofs.int)
+                            (bf : Ctypes.bitfield) 
+                            (t2 : Events.trace) (v : Values.val),
+                          Ctypes.type_is_volatile (Csyntax.typeof a) = true ->
+                          eval_expr ge e m LV a t1 m' a' ->
+                          eval_simple_lvalue ge e m' a' b ofs bf ->
+                          deref_loc ge (Csyntax.typeof a) m' b ofs bf t2 v ->
+                          ty = Csyntax.typeof a ->
+                          eval_expr ge e m RV (Csyntax.Evalof a ty)
+                            (Events.Eapp t1 t2) m' 
+                            (Csyntax.Eval v ty)
+  | eval_deref : forall (e : env) (m : Memory.Mem.mem) 
+                   (a : Csyntax.expr) (t : Events.trace)
+                   (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                   (ty : Ctypes.type),
+                 eval_expr ge e m RV a t m' a' ->
+                 eval_expr ge e m LV (Csyntax.Ederef a ty) t m'
+                   (Csyntax.Ederef a' ty)
+  | eval_addrof : forall (e : env) (m : Memory.Mem.mem) 
+                    (a : Csyntax.expr) (t : Events.trace)
+                    (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                    (ty : Ctypes.type),
+                  eval_expr ge e m LV a t m' a' ->
+                  eval_expr ge e m RV (Csyntax.Eaddrof a ty) t m'
+                    (Csyntax.Eaddrof a' ty)
+  | eval_unop : forall (e : env) (m : Memory.Mem.mem) 
+                  (a : Csyntax.expr) (t : Events.trace) 
+                  (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                  (op : Cop.unary_operation) (ty : Ctypes.type),
+                eval_expr ge e m RV a t m' a' ->
+                eval_expr ge e m RV (Csyntax.Eunop op a ty) t m'
+                  (Csyntax.Eunop op a' ty)
+  | eval_binop : forall (e : env) (m : Memory.Mem.mem) 
+                   (a1 : Csyntax.expr) (t1 : Events.trace)
+                   (m' : Memory.Mem.mem) (a1' a2 : Csyntax.expr)
+                   (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                   (a2' : Csyntax.expr) (op : Cop.binary_operation)
+                   (ty : Ctypes.type),
+                 eval_expr ge e m RV a1 t1 m' a1' ->
+                 eval_expr ge e m' RV a2 t2 m'' a2' ->
+                 eval_expr ge e m RV (Csyntax.Ebinop op a1 a2 ty)
+                   (Events.Eapp t1 t2) m'' (Csyntax.Ebinop op a1' a2' ty)
+  | eval_cast : forall (e : env) (m : Memory.Mem.mem) 
+                  (a : Csyntax.expr) (t : Events.trace) 
+                  (m' : Memory.Mem.mem) (a' : Csyntax.expr)
+                  (ty : Ctypes.type),
+                eval_expr ge e m RV a t m' a' ->
+                eval_expr ge e m RV (Csyntax.Ecast a ty) t m'
+                  (Csyntax.Ecast a' ty)
+  | eval_seqand_true : forall (e : env) (m : Memory.Mem.mem)
+                         (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                         (t1 : Events.trace) (m' : Memory.Mem.mem)
+                         (a1' : Csyntax.expr) (v1 : Values.val)
+                         (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                         (a2' : Csyntax.expr) (v2 v : Values.val),
+                       eval_expr ge e m RV a1 t1 m' a1' ->
+                       eval_simple_rvalue ge e m' a1' v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a1) m' = Some true ->
+                       eval_expr ge e m' RV a2 t2 m'' a2' ->
+                       eval_simple_rvalue ge e m'' a2' v2 ->
+                       Cop.sem_cast v2 (Csyntax.typeof a2) Ctypes.type_bool
+                         m'' =
+                       Some v ->
+                       eval_expr ge e m RV (Csyntax.Eseqand a1 a2 ty)
+                         (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_seqand_false : forall (e : env) (m : Memory.Mem.mem)
+                          (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                          (t1 : Events.trace) (m' : Memory.Mem.mem)
+                          (a1' : Csyntax.expr) (v1 : Values.val),
+                        eval_expr ge e m RV a1 t1 m' a1' ->
+                        eval_simple_rvalue ge e m' a1' v1 ->
+                        Cop.bool_val v1 (Csyntax.typeof a1) m' = Some false ->
+                        eval_expr ge e m RV (Csyntax.Eseqand a1 a2 ty) t1 m'
+                          (Csyntax.Eval (Values.Vint Integers.Int.zero) ty)
+  | eval_seqor_false : forall (e : env) (m : Memory.Mem.mem)
+                         (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                         (t1 : Events.trace) (m' : Memory.Mem.mem)
+                         (a1' : Csyntax.expr) (v1 : Values.val)
+                         (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                         (a2' : Csyntax.expr) (v2 v : Values.val),
+                       eval_expr ge e m RV a1 t1 m' a1' ->
+                       eval_simple_rvalue ge e m' a1' v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a1) m' = Some false ->
+                       eval_expr ge e m' RV a2 t2 m'' a2' ->
+                       eval_simple_rvalue ge e m'' a2' v2 ->
+                       Cop.sem_cast v2 (Csyntax.typeof a2) Ctypes.type_bool
+                         m'' =
+                       Some v ->
+                       eval_expr ge e m RV (Csyntax.Eseqor a1 a2 ty)
+                         (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_seqor_true : forall (e : env) (m : Memory.Mem.mem)
+                        (a1 a2 : Csyntax.expr) (ty : Ctypes.type)
+                        (t1 : Events.trace) (m' : Memory.Mem.mem)
+                        (a1' : Csyntax.expr) (v1 : Values.val),
+                      eval_expr ge e m RV a1 t1 m' a1' ->
+                      eval_simple_rvalue ge e m' a1' v1 ->
+                      Cop.bool_val v1 (Csyntax.typeof a1) m' = Some true ->
+                      eval_expr ge e m RV (Csyntax.Eseqor a1 a2 ty) t1 m'
+                        (Csyntax.Eval (Values.Vint Integers.Int.one) ty)
+  | eval_condition : forall (e : env) (m : Memory.Mem.mem)
+                       (a1 a2 a3 : Csyntax.expr) (ty : Ctypes.type)
+                       (t1 : Events.trace) (m' : Memory.Mem.mem)
+                       (a1' : Csyntax.expr) (v1 : Values.val)
+                       (t2 : Events.trace) (m'' : Memory.Mem.mem)
+                       (a' : Csyntax.expr) (v' : Values.val) 
+                       (b : bool) (v : Values.val),
+                     eval_expr ge e m RV a1 t1 m' a1' ->
+                     eval_simple_rvalue ge e m' a1' v1 ->
+                     Cop.bool_val v1 (Csyntax.typeof a1) m' = Some b ->
+                     eval_expr ge e m' RV (if b then a2 else a3) t2 m'' a' ->
+                     eval_simple_rvalue ge e m'' a' v' ->
+                     Cop.sem_cast v' (Csyntax.typeof (if b then a2 else a3))
+                       ty m'' =
+                     Some v ->
+                     eval_expr ge e m RV (Csyntax.Econdition a1 a2 a3 ty)
+                       (Events.Eapp t1 t2) m'' (Csyntax.Eval v ty)
+  | eval_sizeof : forall (e : env) (m : Memory.Mem.mem)
+                    (ty' ty : Ctypes.type),
+                  eval_expr ge e m RV (Csyntax.Esizeof ty' ty) Events.E0 m
+                    (Csyntax.Esizeof ty' ty)
+  | eval_alignof : forall (e : env) (m : Memory.Mem.mem)
+                     (ty' ty : Ctypes.type),
+                   eval_expr ge e m RV (Csyntax.Ealignof ty' ty) Events.E0 m
+                     (Csyntax.Ealignof ty' ty)
+  | eval_assign : forall (e : env) (m : Memory.Mem.mem) 
+                    (l r : Csyntax.expr) (ty : Ctypes.type)
+                    (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                    (l' : Csyntax.expr) (t2 : Events.trace)
+                    (m2 : Memory.Mem.mem) (r' : Csyntax.expr)
+                    (b : Values.block) (ofs : Integers.Ptrofs.int)
+                    (bf : Ctypes.bitfield) (v v1 v' : Values.val)
+                    (t3 : Events.trace) (m3 : Memory.Mem.mem),
+                  eval_expr ge e m LV l t1 m1 l' ->
+                  eval_expr ge e m1 RV r t2 m2 r' ->
+                  eval_simple_lvalue ge e m2 l' b ofs bf ->
+                  eval_simple_rvalue ge e m2 r' v ->
+                  Cop.sem_cast v (Csyntax.typeof r) (Csyntax.typeof l) m2 =
+                  Some v1 ->
+                  assign_loc ge (Csyntax.typeof l) m2 b ofs bf v1 t3 m3 v' ->
+                  ty = Csyntax.typeof l ->
+                  eval_expr ge e m RV (Csyntax.Eassign l r ty)
+                    (Events.Eapp t1 (Events.Eapp t2 t3)) m3
+                    (Csyntax.Eval v' ty)
+  | eval_assignop : forall (e : env) (m : Memory.Mem.mem)
+                      (op : Cop.binary_operation) 
+                      (l r : Csyntax.expr) (tyres ty : Ctypes.type)
+                      (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                      (l' : Csyntax.expr) (t2 : Events.trace)
+                      (m2 : Memory.Mem.mem) (r' : Csyntax.expr)
+                      (b : Values.block) (ofs : Integers.Ptrofs.int)
+                      (bf : Ctypes.bitfield) (v1 v2 v3 v4 v' : Values.val)
+                      (t3 t4 : Events.trace) (m3 : Memory.Mem.mem),
+                    eval_expr ge e m LV l t1 m1 l' ->
+                    eval_expr ge e m1 RV r t2 m2 r' ->
+                    eval_simple_lvalue ge e m2 l' b ofs bf ->
+                    deref_loc ge (Csyntax.typeof l) m2 b ofs bf t3 v1 ->
+                    eval_simple_rvalue ge e m2 r' v2 ->
+                    Cop.sem_binary_operation ge op v1 
+                      (Csyntax.typeof l) v2 (Csyntax.typeof r) m2 =
+                    Some v3 ->
+                    Cop.sem_cast v3 tyres (Csyntax.typeof l) m2 = Some v4 ->
+                    assign_loc ge (Csyntax.typeof l) m2 b ofs bf v4 t4 m3 v' ->
+                    ty = Csyntax.typeof l ->
+                    eval_expr ge e m RV (Csyntax.Eassignop op l r tyres ty)
+                      (Events.Eapp t1 (Events.Eapp t2 (Events.Eapp t3 t4)))
+                      m3 (Csyntax.Eval v' ty)
+  | eval_postincr : forall (e : env) (m : Memory.Mem.mem)
+                      (id : Cop.incr_or_decr) (l : Csyntax.expr)
+                      (ty : Ctypes.type) (t1 : Events.trace)
+                      (m1 : Memory.Mem.mem) (l' : Csyntax.expr)
+                      (b : Values.block) (ofs : Integers.Ptrofs.int)
+                      (bf : Ctypes.bitfield) (v1 v2 v3 v' : Values.val)
+                      (m2 : Memory.Mem.mem) (t2 t3 : Events.trace),
+                    eval_expr ge e m LV l t1 m1 l' ->
+                    eval_simple_lvalue ge e m1 l' b ofs bf ->
+                    deref_loc ge ty m1 b ofs bf t2 v1 ->
+                    Cop.sem_incrdecr ge id v1 ty m1 = Some v2 ->
+                    Cop.sem_cast v2 (Cop.incrdecr_type ty) ty m1 = Some v3 ->
+                    assign_loc ge ty m1 b ofs bf v3 t3 m2 v' ->
+                    ty = Csyntax.typeof l ->
+                    eval_expr ge e m RV (Csyntax.Epostincr id l ty)
+                      (Events.Eapp t1 (Events.Eapp t2 t3)) m2
+                      (Csyntax.Eval v1 ty)
+  | eval_comma : forall (e : env) (m : Memory.Mem.mem) 
+                   (r1 r2 : Csyntax.expr) (ty : Ctypes.type)
+                   (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                   (r1' : Csyntax.expr) (v1 : Values.val) 
+                   (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                   (r2' : Csyntax.expr),
+                 eval_expr ge e m RV r1 t1 m1 r1' ->
+                 eval_simple_rvalue ge e m1 r1' v1 ->
+                 eval_expr ge e m1 RV r2 t2 m2 r2' ->
+                 ty = Csyntax.typeof r2 ->
+                 eval_expr ge e m RV (Csyntax.Ecomma r1 r2 ty)
+                   (Events.Eapp t1 t2) m2 r2'
+  | eval_call : forall (e : env) (m : Memory.Mem.mem) 
+                  (rf : Csyntax.expr) (rargs : Csyntax.exprlist)
+                  (ty : Ctypes.type) (t1 : Events.trace)
+                  (m1 : Memory.Mem.mem) (rf' : Csyntax.expr)
+                  (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                  (rargs' : Csyntax.exprlist) (vf : Values.val)
+                  (vargs : list Values.val) (targs : list Ctypes.type)
+                  (tres : Ctypes.type) (cconv : AST.calling_convention)
+                  (fd : Csyntax.fundef) (t3 : Events.trace)
+                  (m3 : Memory.Mem.mem) (vres : Values.val),
+                eval_expr ge e m RV rf t1 m1 rf' ->
+                eval_exprlist ge e m1 rargs t2 m2 rargs' ->
+                eval_simple_rvalue ge e m2 rf' vf ->
+                eval_simple_list ge e m2 rargs' targs vargs ->
+                Cop.classify_fun (Csyntax.typeof rf) =
+                Cop.fun_case_f targs tres cconv ->
+                Globalenvs.Genv.find_funct ge vf = Some fd ->
+                Csyntax.type_of_fundef fd = Ctypes.Tfunction targs tres cconv ->
+                eval_funcall ge m2 fd vargs t3 m3 vres ->
+                eval_expr ge e m RV (Csyntax.Ecall rf rargs ty)
+                  (Events.Eapp t1 (Events.Eapp t2 t3)) m3
+                  (Csyntax.Eval vres ty)
+  with eval_exprlist (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           Csyntax.exprlist ->
+           Events.trace -> Memory.Mem.mem -> Csyntax.exprlist -> Prop :=
+    eval_nil : forall (e : env) (m : Memory.Mem.mem),
+               eval_exprlist ge e m Csyntax.Enil Events.E0 m Csyntax.Enil
+  | eval_cons : forall (e : env) (m : Memory.Mem.mem) 
+                  (a1 : Csyntax.expr) (al : Csyntax.exprlist)
+                  (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                  (a1' : Csyntax.expr) (t2 : Events.trace)
+                  (m2 : Memory.Mem.mem) (al' : Csyntax.exprlist),
+                eval_expr ge e m RV a1 t1 m1 a1' ->
+                eval_exprlist ge e m1 al t2 m2 al' ->
+                eval_exprlist ge e m (Csyntax.Econs a1 al)
+                  (Events.Eapp t1 t2) m2 (Csyntax.Econs a1' al')
+  with exec_stmt (ge : genv)
+         : env ->
+           Memory.Mem.mem ->
+           Csyntax.statement ->
+           Events.trace -> Memory.Mem.mem -> outcome -> Prop :=
+    exec_Sskip : forall (e : env) (m : Memory.Mem.mem),
+                 exec_stmt ge e m Csyntax.Sskip Events.E0 m Out_normal
+  | exec_Sdo : forall (e : env) (m : Memory.Mem.mem) 
+                 (a : Csyntax.expr) (t : Events.trace) 
+                 (m' : Memory.Mem.mem) (v : Values.val),
+               eval_expression ge e m a t m' v ->
+               exec_stmt ge e m (Csyntax.Sdo a) t m' Out_normal
+  | exec_Sseq_1 : forall (e : env) (m : Memory.Mem.mem)
+                    (s1 s2 : Csyntax.statement) (t1 : Events.trace)
+                    (m1 : Memory.Mem.mem) (t2 : Events.trace)
+                    (m2 : Memory.Mem.mem) (out : outcome),
+                  exec_stmt ge e m s1 t1 m1 Out_normal ->
+                  exec_stmt ge e m1 s2 t2 m2 out ->
+                  exec_stmt ge e m (Csyntax.Ssequence s1 s2)
+                    (Events.Eapp t1 t2) m2 out
+  | exec_Sseq_2 : forall (e : env) (m : Memory.Mem.mem)
+                    (s1 s2 : Csyntax.statement) (t1 : Events.trace)
+                    (m1 : Memory.Mem.mem) (out : outcome),
+                  exec_stmt ge e m s1 t1 m1 out ->
+                  out <> Out_normal ->
+                  exec_stmt ge e m (Csyntax.Ssequence s1 s2) t1 m1 out
+  | exec_Sifthenelse : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s1 s2 : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v1 : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (b : bool) 
+                         (out : outcome),
+                       eval_expression ge e m a t1 m1 v1 ->
+                       Cop.bool_val v1 (Csyntax.typeof a) m1 = Some b ->
+                       exec_stmt ge e m1 (if b then s1 else s2) t2 m2 out ->
+                       exec_stmt ge e m (Csyntax.Sifthenelse a s1 s2)
+                         (Events.Eapp t1 t2) m2 out
+  | exec_Sreturn_none : forall (e : env) (m : Memory.Mem.mem),
+                        exec_stmt ge e m (Csyntax.Sreturn None) Events.E0 m
+                          (Out_return None)
+  | exec_Sreturn_some : forall (e : env) (m : Memory.Mem.mem)
+                          (a : Csyntax.expr) (t : Events.trace)
+                          (m' : Memory.Mem.mem) (v : Values.val),
+                        eval_expression ge e m a t m' v ->
+                        exec_stmt ge e m (Csyntax.Sreturn (Some a)) t m'
+                          (Out_return (Some (v, Csyntax.typeof a)))
+  | exec_Sbreak : forall (e : env) (m : Memory.Mem.mem),
+                  exec_stmt ge e m Csyntax.Sbreak Events.E0 m Out_break
+  | exec_Scontinue : forall (e : env) (m : Memory.Mem.mem),
+                     exec_stmt ge e m Csyntax.Scontinue Events.E0 m
+                       Out_continue
+  | exec_Swhile_false : forall (e : env) (m : Memory.Mem.mem)
+                          (a : Csyntax.expr) (s : Csyntax.statement)
+                          (t : Events.trace) (m' : Memory.Mem.mem)
+                          (v : Values.val),
+                        eval_expression ge e m a t m' v ->
+                        Cop.bool_val v (Csyntax.typeof a) m' = Some false ->
+                        exec_stmt ge e m (Csyntax.Swhile a s) t m' Out_normal
+  | exec_Swhile_stop : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (out' out : outcome),
+                       eval_expression ge e m a t1 m1 v ->
+                       Cop.bool_val v (Csyntax.typeof a) m1 = Some true ->
+                       exec_stmt ge e m1 s t2 m2 out' ->
+                       out_break_or_return out' out ->
+                       exec_stmt ge e m (Csyntax.Swhile a s)
+                         (Events.Eapp t1 t2) m2 out
+  | exec_Swhile_loop : forall (e : env) (m : Memory.Mem.mem)
+                         (a : Csyntax.expr) (s : Csyntax.statement)
+                         (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                         (v : Values.val) (t2 : Events.trace)
+                         (m2 : Memory.Mem.mem) (out1 : outcome)
+                         (t3 : Events.trace) (m3 : Memory.Mem.mem)
+                         (out : outcome),
+                       eval_expression ge e m a t1 m1 v ->
+                       Cop.bool_val v (Csyntax.typeof a) m1 = Some true ->
+                       exec_stmt ge e m1 s t2 m2 out1 ->
+                       out_normal_or_continue out1 ->
+                       exec_stmt ge e m2 (Csyntax.Swhile a s) t3 m3 out ->
+                       exec_stmt ge e m (Csyntax.Swhile a s)
+                         (Events.Eapp t1 (Events.Eapp t2 t3)) m3 out
+  | exec_Sdowhile_false : forall (e : env) (m : Memory.Mem.mem)
+                            (s : Csyntax.statement) 
+                            (a : Csyntax.expr) (t1 : Events.trace)
+                            (m1 : Memory.Mem.mem) 
+                            (out1 : outcome) (t2 : Events.trace)
+                            (m2 : Memory.Mem.mem) 
+                            (v : Values.val),
+                          exec_stmt ge e m s t1 m1 out1 ->
+                          out_normal_or_continue out1 ->
+                          eval_expression ge e m1 a t2 m2 v ->
+                          Cop.bool_val v (Csyntax.typeof a) m2 = Some false ->
+                          exec_stmt ge e m (Csyntax.Sdowhile a s)
+                            (Events.Eapp t1 t2) m2 Out_normal
+  | exec_Sdowhile_stop : forall (e : env) (m : Memory.Mem.mem)
+                           (s : Csyntax.statement) 
+                           (a : Csyntax.expr) (t : Events.trace)
+                           (m1 : Memory.Mem.mem) (out1 out : outcome),
+                         exec_stmt ge e m s t m1 out1 ->
+                         out_break_or_return out1 out ->
+                         exec_stmt ge e m (Csyntax.Sdowhile a s) t m1 out
+  | exec_Sdowhile_loop : forall (e : env) (m : Memory.Mem.mem)
+                           (s : Csyntax.statement) 
+                           (a : Csyntax.expr) (t1 : Events.trace)
+                           (m1 : Memory.Mem.mem) (out1 : outcome)
+                           (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                           (v : Values.val) (t3 : Events.trace)
+                           (m3 : Memory.Mem.mem) (out : outcome),
+                         exec_stmt ge e m s t1 m1 out1 ->
+                         out_normal_or_continue out1 ->
+                         eval_expression ge e m1 a t2 m2 v ->
+                         Cop.bool_val v (Csyntax.typeof a) m2 = Some true ->
+                         exec_stmt ge e m2 (Csyntax.Sdowhile a s) t3 m3 out ->
+                         exec_stmt ge e m (Csyntax.Sdowhile a s)
+                           (Events.Eapp t1 (Events.Eapp t2 t3)) m3 out
+  | exec_Sfor_start : forall (e : env) (m : Memory.Mem.mem)
+                        (s a1 : Csyntax.statement) 
+                        (a2 : Csyntax.expr) (a3 : Csyntax.statement)
+                        (out : outcome) (m1 m2 : Memory.Mem.mem)
+                        (t1 t2 : Events.trace),
+                      exec_stmt ge e m a1 t1 m1 Out_normal ->
+                      exec_stmt ge e m1 (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                        t2 m2 out ->
+                      exec_stmt ge e m (Csyntax.Sfor a1 a2 a3 s)
+                        (Events.Eapp t1 t2) m2 out
+  | exec_Sfor_false : forall (e : env) (m : Memory.Mem.mem)
+                        (s : Csyntax.statement) (a2 : Csyntax.expr)
+                        (a3 : Csyntax.statement) (t : Events.trace)
+                        (m' : Memory.Mem.mem) (v : Values.val),
+                      eval_expression ge e m a2 t m' v ->
+                      Cop.bool_val v (Csyntax.typeof a2) m' = Some false ->
+                      exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s) t
+                        m' Out_normal
+  | exec_Sfor_stop : forall (e : env) (m : Memory.Mem.mem)
+                       (s : Csyntax.statement) (a2 : Csyntax.expr)
+                       (a3 : Csyntax.statement) (t1 : Events.trace)
+                       (m1 : Memory.Mem.mem) (v : Values.val)
+                       (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                       (out1 out : outcome),
+                     eval_expression ge e m a2 t1 m1 v ->
+                     Cop.bool_val v (Csyntax.typeof a2) m1 = Some true ->
+                     exec_stmt ge e m1 s t2 m2 out1 ->
+                     out_break_or_return out1 out ->
+                     exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       (Events.Eapp t1 t2) m2 out
+  | exec_Sfor_loop : forall (e : env) (m : Memory.Mem.mem)
+                       (s : Csyntax.statement) (a2 : Csyntax.expr)
+                       (a3 : Csyntax.statement) (t1 : Events.trace)
+                       (m1 : Memory.Mem.mem) (v : Values.val)
+                       (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                       (out1 : outcome) (t3 : Events.trace)
+                       (m3 : Memory.Mem.mem) (t4 : Events.trace)
+                       (m4 : Memory.Mem.mem) (out : outcome),
+                     eval_expression ge e m a2 t1 m1 v ->
+                     Cop.bool_val v (Csyntax.typeof a2) m1 = Some true ->
+                     exec_stmt ge e m1 s t2 m2 out1 ->
+                     out_normal_or_continue out1 ->
+                     exec_stmt ge e m2 a3 t3 m3 Out_normal ->
+                     exec_stmt ge e m3 (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       t4 m4 out ->
+                     exec_stmt ge e m (Csyntax.Sfor Csyntax.Sskip a2 a3 s)
+                       (Events.Eapp t1 (Events.Eapp t2 (Events.Eapp t3 t4)))
+                       m4 out
+  | exec_Sswitch : forall (e : env) (m : Memory.Mem.mem) 
+                     (a : Csyntax.expr) (sl : Csyntax.labeled_statements)
+                     (t1 : Events.trace) (m1 : Memory.Mem.mem)
+                     (v : Values.val) (n : BinNums.Z) 
+                     (t2 : Events.trace) (m2 : Memory.Mem.mem)
+                     (out : outcome),
+                   eval_expression ge e m a t1 m1 v ->
+                   Cop.sem_switch_arg v (Csyntax.typeof a) = Some n ->
+                   exec_stmt ge e m1
+                     (seq_of_labeled_statement (select_switch n sl)) t2 m2
+                     out ->
+                   exec_stmt ge e m (Csyntax.Sswitch a sl)
+                     (Events.Eapp t1 t2) m2 (outcome_switch out)
+  with eval_funcall (ge : genv)
+         : Memory.Mem.mem ->
+           Csyntax.fundef ->
+           list Values.val ->
+           Events.trace -> Memory.Mem.mem -> Values.val -> Prop :=
+    eval_funcall_internal : forall (m : Memory.Mem.mem)
+                              (f : Csyntax.function)
+                              (vargs : list Values.val) 
+                              (t : Events.trace) (e : env)
+                              (m1 m2 m3 : Memory.Mem.mem) 
+                              (out : outcome) (vres : Values.val)
+                              (m4 : Memory.Mem.mem),
+                            Coqlib.list_norepet
+                              (Csyntax.var_names (Csyntax.fn_params f) ++
+                               Csyntax.var_names (Csyntax.fn_vars f)) ->
+                            alloc_variables ge empty_env m
+                              (Csyntax.fn_params f ++ Csyntax.fn_vars f) e m1 ->
+                            bind_parameters ge e m1 
+                              (Csyntax.fn_params f) vargs m2 ->
+                            exec_stmt ge e m2 (Csyntax.fn_body f) t m3 out ->
+                            outcome_result_value out 
+                              (Csyntax.fn_return f) vres m3 ->
+                            Memory.Mem.free_list m3 (blocks_of_env ge e) =
+                            Some m4 ->
+                            eval_funcall ge m (Ctypes.Internal f) vargs t m4
+                              vres
+  | eval_funcall_external : forall (m : Memory.Mem.mem)
+                              (ef : AST.external_function)
+                              (targs : list Ctypes.type) 
+                              (tres : Ctypes.type)
+                              (cconv : AST.calling_convention)
+                              (vargs : list Values.val) 
+                              (t : Events.trace) (vres : Values.val)
+                              (m' : Memory.Mem.mem),
+                            Events.external_call ef
+                              (Globalenvs.Genv.to_senv ge) vargs m t vres m' ->
+                            eval_funcall ge m
+                              (Ctypes.External ef targs tres cconv) vargs t
+                              m' vres.
+
+Arguments eval_expression ge _ _ _ _ _ _
+Arguments eval_expression_intro ge e m a t m' a' v _ _
+Arguments eval_expr ge _ _ _ _ _ _ _
+Arguments eval_val ge e m v ty
+Arguments eval_var ge e m x ty
+Arguments eval_field ge e m a t m' a' f ty _
+Arguments eval_valof ge e m a t m' a' ty _ _
+Arguments eval_valof_volatile ge e m a t1 m' a' ty b ofs bf t2 v _ _ _ _ _
+Arguments eval_deref ge e m a t m' a' ty _
+Arguments eval_addrof ge e m a t m' a' ty _
+Arguments eval_unop ge e m a t m' a' op ty _
+Arguments eval_binop ge e m a1 t1 m' a1' a2 t2 m'' a2' op ty _ _
+Arguments eval_cast ge e m a t m' a' ty _
+Arguments eval_seqand_true ge e m a1 a2 ty t1 m' a1' 
+  v1 t2 m'' a2' v2 v _ _ _ _ _ _
+Arguments eval_seqand_false ge e m a1 a2 ty t1 m' a1' v1 _ _ _
+Arguments eval_seqor_false ge e m a1 a2 ty t1 m' a1' 
+  v1 t2 m'' a2' v2 v _ _ _ _ _ _
+Arguments eval_seqor_true ge e m a1 a2 ty t1 m' a1' v1 _ _ _
+Arguments eval_condition ge e m a1 a2 a3 ty t1 m' 
+  a1' v1 t2 m'' a' v' b%_bool_scope v _ _ _ _ _ _
+Arguments eval_sizeof ge e m ty' ty
+Arguments eval_alignof ge e m ty' ty
+Arguments eval_assign ge e m l r ty t1 m1 l' t2 m2 
+  r' b ofs bf v v1 v' t3 m3 _ _ _ _ _ _ _
+Arguments eval_assignop ge e m op l r tyres ty t1 
+  m1 l' t2 m2 r' b ofs bf v1 v2 v3 v4 v' t3 t4 m3 
+  _ _ _ _ _ _ _ _ _
+Arguments eval_postincr ge e m id l ty t1 m1 l' b 
+  ofs bf v1 v2 v3 v' m2 t2 t3 _ _ _ _ _ _ _
+Arguments eval_comma ge e m r1 r2 ty t1 m1 r1' v1 t2 m2 r2' _ _ _ _
+Arguments eval_call ge e m rf rargs ty t1 m1 rf' t2 
+  m2 rargs' vf (vargs targs)%_list_scope tres cconv 
+  fd t3 m3 vres _ _ _ _ _ _ _ _
+Arguments eval_exprlist ge _ _ _ _ _ _
+Arguments eval_nil ge e m
+Arguments eval_cons ge e m a1 al t1 m1 a1' t2 m2 al' _ _
+Arguments exec_stmt ge _ _ _ _ _ _
+Arguments exec_Sskip ge e m
+Arguments exec_Sdo ge e m a t m' v _
+Arguments exec_Sseq_1 ge e m s1 s2 t1 m1 t2 m2 out _ _
+Arguments exec_Sseq_2 ge e m s1 s2 t1 m1 out _ _
+Arguments exec_Sifthenelse ge e m a s1 s2 t1 m1 v1 
+  t2 m2 b%_bool_scope out _ _ _
+Arguments exec_Sreturn_none ge e m
+Arguments exec_Sreturn_some ge e m a t m' v _
+Arguments exec_Sbreak ge e m
+Arguments exec_Scontinue ge e m
+Arguments exec_Swhile_false ge e m a s t m' v _ _
+Arguments exec_Swhile_stop ge e m a s t1 m1 v t2 m2 out' out _ _ _ _
+Arguments exec_Swhile_loop ge e m a s t1 m1 v t2 m2 out1 t3 m3 out _ _ _ _ _
+Arguments exec_Sdowhile_false ge e m s a t1 m1 out1 t2 m2 v _ _ _ _
+Arguments exec_Sdowhile_stop ge e m s a t m1 out1 out _ _
+Arguments exec_Sdowhile_loop ge e m s a t1 m1 out1 
+  t2 m2 v t3 m3 out _ _ _ _ _
+Arguments exec_Sfor_start ge e m s a1 a2 a3 out m1 m2 t1 t2 _ _
+Arguments exec_Sfor_false ge e m s a2 a3 t m' v _ _
+Arguments exec_Sfor_stop ge e m s a2 a3 t1 m1 v t2 m2 out1 out _ _ _ _
+Arguments exec_Sfor_loop ge e m s a2 a3 t1 m1 v t2 
+  m2 out1 t3 m3 t4 m4 out _ _ _ _ _ _
+Arguments exec_Sswitch ge e m a sl t1 m1 v n%_Z_scope t2 m2 out _ _ _
+Arguments eval_funcall ge _ _ _%_list_scope _ _ _
+Arguments eval_funcall_internal ge m f vargs%_list_scope 
+  t e m1 m2 m3 out vres m4 _ _ _ _ _ _
+Arguments eval_funcall_external ge m ef targs%_list_scope 
+  tres cconv vargs%_list_scope t vres m' _
+Inductive
+alloc_variables (ge : genv)
+  : env ->
+    Memory.Mem.mem ->
+    list (AST.ident * Ctypes.type) -> env -> Memory.Mem.mem -> Prop :=
+    alloc_variables_nil : forall (e : env) (m : Memory.Mem.mem),
+                          alloc_variables ge e m nil e m
+  | alloc_variables_cons : forall
+                             (e : Maps.PTree.tree
+                                    (Values.block * Ctypes.type))
+                             (m : Memory.Mem.mem) 
+                             (id : BinNums.positive) 
+                             (ty : Ctypes.type)
+                             (vars : list (AST.ident * Ctypes.type))
+                             (m1 : Memory.Mem.mem') 
+                             (b1 : Values.block) (m2 : Memory.Mem.mem)
+                             (e2 : env),
+                           Memory.Mem.alloc m BinNums.Z0
+                             (Ctypes.sizeof ge ty) =
+                           (m1, b1) ->
+                           alloc_variables ge (Maps.PTree.set id (b1, ty) e)
+                             m1 vars e2 m2 ->
+                           alloc_variables ge e m ((id, ty) :: vars) e2 m2.
+
+Arguments alloc_variables ge _ _ _%_list_scope _ _
+Arguments alloc_variables_nil ge e m
+Arguments alloc_variables_cons ge e m id%_positive_scope 
+  ty vars%_list_scope m1 b1 m2 e2 _ _
+Inductive
+bind_parameters (ge : genv) (e : env)
+  : Memory.Mem.mem ->
+    list (AST.ident * Ctypes.type) ->
+    list Values.val -> Memory.Mem.mem -> Prop :=
+    bind_parameters_nil : forall m : Memory.Mem.mem,
+                          bind_parameters ge e m nil nil m
+  | bind_parameters_cons : forall (m : Memory.Mem.mem)
+                             (id : BinNums.positive) 
+                             (ty : Ctypes.type)
+                             (params : list (AST.ident * Ctypes.type))
+                             (v1 : Values.val) (vl : list Values.val)
+                             (v1' : Values.val) (b : Values.block)
+                             (m1 m2 : Memory.Mem.mem),
+                           Maps.PTree.get id e = Some (b, ty) ->
+                           assign_loc ge ty m b Integers.Ptrofs.zero
+                             Ctypes.Full v1 Events.E0 m1 v1' ->
+                           bind_parameters ge e m1 params vl m2 ->
+                           bind_parameters ge e m 
+                             ((id, ty) :: params) 
+                             (v1 :: vl) m2.
+
+Arguments bind_parameters ge e _ (_ _)%_list_scope _
+Arguments bind_parameters_nil ge e m
+Arguments bind_parameters_cons ge e m id%_positive_scope 
+  ty params%_list_scope v1 vl%_list_scope v1' b m1 
+  m2 _ _ _
+Inductive
+eval_simple_lvalue (ge : genv) (e : env) (m : Memory.Mem.mem)
+  : Csyntax.expr ->
+    Values.block -> Integers.Ptrofs.int -> Ctypes.bitfield -> Prop :=
+    esl_loc : forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+                (ty : Ctypes.type) (bf : Ctypes.bitfield),
+              eval_simple_lvalue ge e m (Csyntax.Eloc b ofs bf ty) b ofs bf
+  | esl_var_local : forall (x : BinNums.positive) 
+                      (ty : Ctypes.type) (b : Values.block),
+                    Maps.PTree.get x e = Some (b, ty) ->
+                    eval_simple_lvalue ge e m (Csyntax.Evar x ty) b
+                      Integers.Ptrofs.zero Ctypes.Full
+  | esl_var_global : forall (x : BinNums.positive) 
+                       (ty : Ctypes.type) (b : Values.block),
+                     Maps.PTree.get x e = None ->
+                     Globalenvs.Genv.find_symbol ge x = Some b ->
+                     eval_simple_lvalue ge e m (Csyntax.Evar x ty) b
+                       Integers.Ptrofs.zero Ctypes.Full
+  | esl_deref : forall (r : Csyntax.expr) (ty : Ctypes.type)
+                  (b : Values.block) (ofs : Integers.Ptrofs.int),
+                eval_simple_rvalue ge e m r (Values.Vptr b ofs) ->
+                eval_simple_lvalue ge e m (Csyntax.Ederef r ty) b ofs
+                  Ctypes.Full
+  | esl_field_struct : forall (r : Csyntax.expr) (f : AST.ident)
+                         (ty : Ctypes.type) (b : Values.block)
+                         (ofs : Integers.Ptrofs.int) 
+                         (id : AST.ident) (co : Ctypes.composite)
+                         (a : Ctypes.attr) (delta : BinNums.Z)
+                         (bf : Ctypes.bitfield),
+                       eval_simple_rvalue ge e m r (Values.Vptr b ofs) ->
+                       Csyntax.typeof r = Ctypes.Tstruct id a ->
+                       Maps.PTree.get id ge = Some co ->
+                       Ctypes.field_offset ge f (Ctypes.co_members co) =
+                       Errors.OK (delta, bf) ->
+                       eval_simple_lvalue ge e m (Csyntax.Efield r f ty) b
+                         (Integers.Ptrofs.add ofs
+                            (Integers.Ptrofs.repr delta))
+                         bf
+  | esl_field_union : forall (r : Csyntax.expr) (f : AST.ident)
+                        (ty : Ctypes.type) (b : Values.block)
+                        (ofs : Integers.Ptrofs.int) 
+                        (id : AST.ident) (co : Ctypes.composite)
+                        (a : Ctypes.attr) (delta : BinNums.Z)
+                        (bf : Ctypes.bitfield),
+                      eval_simple_rvalue ge e m r (Values.Vptr b ofs) ->
+                      Csyntax.typeof r = Ctypes.Tunion id a ->
+                      Ctypes.union_field_offset ge f (Ctypes.co_members co) =
+                      Errors.OK (delta, bf) ->
+                      Maps.PTree.get id ge = Some co ->
+                      eval_simple_lvalue ge e m (Csyntax.Efield r f ty) b
+                        (Integers.Ptrofs.add ofs (Integers.Ptrofs.repr delta))
+                        bf
+  with eval_simple_rvalue (ge : genv) (e : env) (m : Memory.Mem.mem)
+         : Csyntax.expr -> Values.val -> Prop :=
+    esr_val : forall (v : Values.val) (ty : Ctypes.type),
+              eval_simple_rvalue ge e m (Csyntax.Eval v ty) v
+  | esr_rvalof : forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+                   (bf : Ctypes.bitfield) (l : Csyntax.expr)
+                   (ty : Ctypes.type) (v : Values.val),
+                 eval_simple_lvalue ge e m l b ofs bf ->
+                 ty = Csyntax.typeof l ->
+                 Ctypes.type_is_volatile ty = false ->
+                 deref_loc ge ty m b ofs bf Events.E0 v ->
+                 eval_simple_rvalue ge e m (Csyntax.Evalof l ty) v
+  | esr_addrof : forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+                   (l : Csyntax.expr) (ty : Ctypes.type),
+                 eval_simple_lvalue ge e m l b ofs Ctypes.Full ->
+                 eval_simple_rvalue ge e m (Csyntax.Eaddrof l ty)
+                   (Values.Vptr b ofs)
+  | esr_unop : forall (op : Cop.unary_operation) (r1 : Csyntax.expr)
+                 (ty : Ctypes.type) (v1 v : Values.val),
+               eval_simple_rvalue ge e m r1 v1 ->
+               Cop.sem_unary_operation op v1 (Csyntax.typeof r1) m = Some v ->
+               eval_simple_rvalue ge e m (Csyntax.Eunop op r1 ty) v
+  | esr_binop : forall (op : Cop.binary_operation) 
+                  (r1 r2 : Csyntax.expr) (ty : Ctypes.type)
+                  (v1 v2 v : Values.val),
+                eval_simple_rvalue ge e m r1 v1 ->
+                eval_simple_rvalue ge e m r2 v2 ->
+                Cop.sem_binary_operation ge op v1 
+                  (Csyntax.typeof r1) v2 (Csyntax.typeof r2) m =
+                Some v ->
+                eval_simple_rvalue ge e m (Csyntax.Ebinop op r1 r2 ty) v
+  | esr_cast : forall (ty : Ctypes.type) (r1 : Csyntax.expr)
+                 (v1 v : Values.val),
+               eval_simple_rvalue ge e m r1 v1 ->
+               Cop.sem_cast v1 (Csyntax.typeof r1) ty m = Some v ->
+               eval_simple_rvalue ge e m (Csyntax.Ecast r1 ty) v
+  | esr_sizeof : forall ty1 ty : Ctypes.type,
+                 eval_simple_rvalue ge e m (Csyntax.Esizeof ty1 ty)
+                   (Values.Vptrofs
+                      (Integers.Ptrofs.repr (Ctypes.sizeof ge ty1)))
+  | esr_alignof : forall ty1 ty : Ctypes.type,
+                  eval_simple_rvalue ge e m (Csyntax.Ealignof ty1 ty)
+                    (Values.Vptrofs
+                       (Integers.Ptrofs.repr (Ctypes.alignof ge ty1))).
+
+Arguments eval_simple_lvalue ge e m _ _ _ _
+Arguments esl_loc ge e m b ofs ty bf
+Arguments esl_var_local ge e m x%_positive_scope ty b _
+Arguments esl_var_global ge e m x%_positive_scope ty b _ _
+Arguments esl_deref ge e m r ty b ofs _
+Arguments esl_field_struct ge e m r f ty b ofs id 
+  co a delta%_Z_scope bf _ _ _ _
+Arguments esl_field_union ge e m r f ty b ofs id co 
+  a delta%_Z_scope bf _ _ _ _
+Arguments eval_simple_rvalue ge e m _ _
+Arguments esr_val ge e m v ty
+Arguments esr_rvalof ge e m b ofs bf l ty v _ _ _ _
+Arguments esr_addrof ge e m b ofs l ty _
+Arguments esr_unop ge e m op r1 ty v1 v _ _
+Arguments esr_binop ge e m op r1 r2 ty v1 v2 v _ _ _
+Arguments esr_cast ge e m ty r1 v1 v _ _
+Arguments esr_sizeof ge e m ty1 ty
+Arguments esr_alignof ge e m ty1 ty

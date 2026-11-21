@@ -1,0 +1,110 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import BigstepSupport StackCleanup FunctionAllocation.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreSemantics FlightSemantics ControllerPrefix CoreCall ReturnSemantics.
+From PidPositionSafety Require Import FactoryCall.
+From PidPositionTranslationAttempt002 Require Import ClampSemantics PrefixFields EntryAllocation EntryIntegration EntryReturn CoreInputs.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+Definition entry_axis_command m gh(D:core_initial_data m gh)(flight:bool)(r p s v acc i:int):int:=
+ controller_command flight(cid_kp _ _ D)(cid_kd _ _ D)(cid_ki _ _ D)(cid_kv _ _ D)(cid_ka _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608))s acc i(Int.repr 1429)(Int.repr 3216).
+Definition entry_axis_integral m gh(D:core_initial_data m gh)(flight:bool)(r p s v i:int):int:=
+ next_integral flight i(cid_ki _ _ D)
+ (pd_bits(cid_kp _ _ D)(cid_kd _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608)))(Int.repr 1429).
+
+Theorem original_entry_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_reaches_core_call m gh ret flight GOOD)
+ as(e&front&be&bs&sb&rx&ry&px&py&sx&sy&vx&vy&br&bf&bg&temp&
+ SE&SS&STATE&RX&RY&PX&PY&SX&SY&VX&VY&PATH&PEX&PEY&SEX&SEY&
+ LR&LF&LG&LC&RES&GH&FLIGHT&SEP&FRESH&FREE&FRAME&PERM&UNSH).
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid SP)as IP.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_pos_err SE)as IE.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_speed_err SS)as IS.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_trim_att_integrator SI)as II.
+ pose proof(Genv.find_invert_symbol E.ge S._traj_max_bank ST)as IT.
+ pose proof(Genv.find_invert_symbol E.ge S._total_max_bank SU)as IU.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_h SH)as IH.
+ cbv[S._guidance_pid S._guidance_pid_pos_err S._guidance_pid_speed_err S._guidance_pid_trim_att_integrator S._traj_max_bank S._total_max_bank S._guidance_h]in IP,IE,IS,II,IT,IU,IH.
+ assert(GP:gh<>bp)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid bp GOOD SP ltac:(discriminate))).
+ assert(GE:gh<>be)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_pos_err be GOOD SE ltac:(discriminate))).
+ assert(GS:gh<>bs)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_speed_err bs GOOD SS ltac:(discriminate))).
+ assert(GI:gh<>bi)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_trim_att_integrator bi GOOD SI ltac:(discriminate))).
+ assert(GT:gh<>bt)by(exact(inputgood_guidance_separate m gh ret S._traj_max_bank bt GOOD ST ltac:(discriminate))).
+ assert(GU:gh<>bu)by(exact(inputgood_guidance_separate m gh ret S._total_max_bank bu GOOD SU ltac:(discriminate))).
+ assert(ND:NoDup[bp;be;bs;gh;bi;bt;bu]).
+ { let rec distinct := lazymatch goal with
+   | |-NoDup []=>apply NoDup_nil
+   | |-NoDup(_::_)=>apply NoDup_cons;[cbn;intuition congruence|distinct]
+   end in distinct. }
+ assert(VP:Mem.valid_block m bp)by(eapply loaded_block;exact KP).
+ assert(VI:Mem.valid_block m bi)by(eapply loaded_block;exact IX).
+ assert(TP:temp<>bp)by(intro EQ;subst temp;exact(FRESH S.__res__1 bp sp_type LC VP)).
+ assert(TI:temp<>bi)by(intro EQ;subst temp;exact(FRESH S.__res__1 bi sp_type LC VI)).
+ assert(BRP:br<>bp)by(intro EQ;subst br;exact(FRESH S.__res bp(tptr sp_type)LR VP)).
+ assert(BRI:br<>bi)by(intro EQ;subst br;exact(FRESH S.__res bi(tptr sp_type)LR VI)).
+ assert(BRT:br<>temp)by(eapply environment_distinct;[exact SEP| |exact LR|exact LC];discriminate).
+ assert(WPF:Mem.range_perm front bp 0 48 Cur Writable)by(intros ofs R;apply PERM;apply WP;exact R).
+ assert(WIF:Mem.range_perm front bi 0 8 Cur Writable)by(intros ofs R;apply PERM;apply WI;exact R).
+ assert(WTEMP:Mem.range_perm front temp 0 36 Cur Writable).
+ { pose proof(FREE S.__res__1 temp sp_type LC)as W.
+   rewrite PrefixFields.prefix_ge_ce in W;change(Mem.range_perm front temp 0 36 Cur Freeable)in W.
+   intros ofs R;eapply Mem.perm_implies;[apply W;exact R|constructor]. }
+ assert(WRET0:Mem.range_perm m ret 0 36 Cur Writable).
+ { destruct GOOD as[LEG _];assert(W:Mem.range_perm m ret 0(sizeof ce sp_type)Cur Writable)by(unfold InputGoodLegacy in LEG;tauto);exact W. }
+ assert(WRET:Mem.range_perm front ret 0 36 Cur Writable)by(intros ofs R;apply PERM;apply WRET0;exact R).
+ assert(VRET:Mem.valid_block m ret)by(exact(range_block m ret 0 36 Writable ltac:(lia)WRET0)).
+ assert(TR:temp<>ret)by(intro EQ;subst temp;exact(FRESH S.__res__1 ret sp_type LC VRET)).
+ assert(RETGLOBAL:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct GOOD as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(PR:bp<>ret)by(intro EQ;subst bp;apply(RETGLOBAL S._guidance_pid);exact SP).
+ assert(IR:bi<>ret)by(intro EQ;subst bi;apply(RETGLOBAL S._guidance_pid_trim_att_integrator);exact SI).
+ assert(FRAMED:forall id b ch ofs v,Genv.find_symbol E.ge id=Some b ->
+ id<>S._guidance_pid_pos_err ->id<>S._guidance_pid_speed_err ->
+ Mem.load ch m b ofs=Some v ->Mem.load ch front b ofs=Some v).
+ { intros id b ch ofs v SYMBOL NE NS LOAD;apply FRAME;[exact LOAD| |].
+   - eapply Genv.global_addresses_distinct;[exact NE|exact SYMBOL|exact SE].
+   - eapply Genv.global_addresses_distinct;[exact NS|exact SYMBOL|exact SS]. }
+ assert(AIX:Mem.valid_access front Mint32 bi 0 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|0);try(exists 0;reflexivity);cbn;lia. }
+ assert(AIY:Mem.valid_access front Mint32 bi 4 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|4);try(exists 1;reflexivity);cbn;lia. }
+ assert(ACX:Mem.valid_access front Mint32 bp 32 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|32);try(exists 8;reflexivity);cbn;lia. }
+ assert(ACY:Mem.valid_access front Mint32 bp 36 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|36);try(exists 9;reflexivity);cbn;lia. }
+ assert(RVEC:Mem.range_perm front bp 32 40 Cur Readable).
+ { intros ofs R;eapply Mem.perm_implies;[apply WPF;lia|constructor]. }

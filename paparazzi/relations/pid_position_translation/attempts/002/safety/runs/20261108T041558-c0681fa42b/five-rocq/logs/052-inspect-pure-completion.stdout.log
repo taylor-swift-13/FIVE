@@ -1,0 +1,146 @@
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+From FiveGuidanceAllOrder Require Import PureSyntax.
+Import ListNotations.
+
+(** This denotation is used to establish uniqueness of normal executions.
+    Execution remains the complete error-preserving operational model. *)
+Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
+
+Section DENOTATION.
+Variable ge: genv.
+Variable e: env.
+Variable m: mem.
+
+Fixpoint pure_rval (a: expr): option val :=
+  match a with
+  | Eval v _ => Some v
+  | Evalof l ty =>
+      if type_eq ty (typeof l) then
+      match pure_lval l with
+      | Some (b,ofs,bf) =>
+          match Cexec.do_deref_loc ge quiet_world ty m b ofs bf with
+          | Some (_,_,v) => Some v | None => None end
+      | None => None end else None
+  | Eaddrof l _ =>
+      match pure_lval l with Some (b,ofs,Full) => Some (Vptr b ofs) | _ => None end
+  | Eunop op a _ =>
+      match pure_rval a with Some v => sem_unary_operation op v (typeof a) m | None => None end
+  | Ebinop op a b _ =>
+      match pure_rval a, pure_rval b with
+      | Some v, Some w => sem_binary_operation ge op v (typeof a) w (typeof b) m
+      | _,_ => None end
+  | Ecast a ty =>
+      match pure_rval a with Some v => sem_cast v (typeof a) ty m | None => None end
+  | Esizeof ty _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty)))
+  | Ealignof ty _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty)))
+  | _ => None
+  end
+with pure_lval (a: expr): option (block * ptrofs * bitfield) :=
+  match a with
+  | Eloc b ofs bf _ => Some (b,ofs,bf)
+  | Evar id ty =>
+      match PTree.get id e with
+      | Some (b,ty') => if type_eq ty ty' then Some (b,Ptrofs.zero,Full) else None
+      | None => match Genv.find_symbol ge id with Some b => Some (b,Ptrofs.zero,Full) | None => None end end
+  | Ederef a _ =>
+      match pure_rval a with Some (Vptr b ofs) => Some (b,ofs,Full) | _ => None end
+  | Efield a id _ =>
+      match pure_rval a with
+      | Some (Vptr b ofs) =>
+          match typeof a with
+          | Tstruct sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | Tunion sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match union_field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | _ => None end
+      | _ => None end
+  | _ => None
+  end.
+
+Definition pure_eq (k: kind) (a b: expr): Prop :=
+  match k with RV => pure_rval a = pure_rval b | LV => pure_lval a = pure_lval b end.
+
+Lemma context_type_eq:
+  forall from to C, context from to C -> forall a b,
+14:Lemma pure_eval_big : forall a ge e m,
+16: (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+17: (forall b ofs bf, pure_lval ge e m a=Some(b,ofs,bf) -> eval_simple_lvalue ge e m a b ofs bf).
+25: split; intros; cbn [pure_rval pure_lval] in H; try discriminate.
+49:Lemma lift_immediate : forall ge e m from to C a,
+59:Lemma literal_r_inv : forall a, literal RV a=true -> exists v ty,a=Eval v ty.
+61:Lemma literal_l_inv : forall a, literal LV a=true -> exists b ofs bf ty,a=Eloc b ofs bf ty.
+66: | H:eval_simple_rvalue _ _ _ (Eval _ _) _ |- _ => inversion H; subst; clear H
+67: | H:eval_simple_lvalue _ _ _ (Eloc _ _ _ _) _ _ _ |- _ => inversion H; subst; clear H
+69:Lemma big_immediate : forall ge e m,
+70: (forall a v,eval_simple_rvalue ge e m a v -> imm_safe ge e RV a m) /\
+71: (forall a b ofs bf,eval_simple_lvalue ge e m a b ofs bf -> imm_safe ge e LV a m).
+73: intros ge e m; apply eval_simple_rvalue_lvalue_ind; intros.
+131: | RV=>exists v,eval_simple_rvalue ge e m a v
+132: | LV=>exists b ofs bf,eval_simple_lvalue ge e m a b ofs bf end.
+134:Lemma big_context_hole : forall from to C,
+141: | B:eval_simple_rvalue _ _ _ _ _ |- _=>inversion B; subst
+142: | B:eval_simple_lvalue _ _ _ _ _ _ _ |- _=>inversion B; subst
+147:Lemma pure_not_stuck : forall ge e m a v,
+148: simple a=true -> pure_rval ge e m a=Some v -> Csem.not_stuck ge e a m.
+159:Lemma simple_immediate : forall ge e m a,
+160: simple a=true -> pure_rval ge e m a<>None -> imm_safe ge e RV a m.
+162: intros ge e m a S D. destruct (pure_rval ge e m a) eqn:E; [|contradiction].
+166:Lemma flat_split : forall a,flat_expr a=true ->
+173:Lemma flat_immediate : forall ge e m a v m',
+178: - rewrite (flat_eval_simple ge e m a S) in E.
+179:   eapply simple_immediate; eauto. destruct(pure_rval ge e m a); congruence.
+183:   match goal with R:pure_rval _ _ _ _=Some _ |- _=>
+202:Lemma flat_not_stuck : forall ge e m a v m',
+207: - rewrite(flat_eval_simple ge e m a S) in EV.
+208:   destruct(pure_rval ge e m a) eqn:E; try discriminate.
+212:   assert(RIGHT:exists w,pure_rval ge e m r=Some w).
+2629-              t (ExprState f (C (Ecall a1 (exprlist_app al2 al') ty)) k e m').
+2630-Proof. exact (proj1 (proj2 (proj2 bigstep_to_steps))). Qed.
+2631-
+2632:Lemma exec_stmt_to_steps:
+2633-   forall e m s t m' out,
+2634-   exec_stmt e m s t m' out ->
+2635-   forall f k,
+2636-   exists S,
+2637-   star step ge (State f s k e m) t S /\ outcome_state_match e m' f k out S.
+2638-Proof. exact (proj1 (proj2 (proj2 (proj2 bigstep_to_steps)))). Qed.
+2639-
+2640-Lemma eval_funcall_to_steps:
+2641-  forall m fd args t m' res,
+2642-  eval_funcall m fd args t m' res ->
+--
+2886-  eapply forever_N_plus. apply plus_one; right; constructor.
+2887-  eapply COS; eauto. traceEq.
+2888-(* seq 2 *)
+2889:  destruct (exec_stmt_to_steps _ _ _ _ _ _ H0 f (Kseq s2 k)) as [S1 [A1 B1]]; auto. inv B1.
+2890-  eapply forever_N_plus.
+2891-  eapply plus_left. right; constructor.
+2892-  eapply star_right. eauto. right; constructor.
+2893-  reflexivity. reflexivity.
+2894-  eapply COS; eauto. traceEq.
+2895-(* if test *)
+15:Lemma simple_eval_expr_refl : forall ge e m,
+30:Lemma simple_expression : forall ge e m a v,
+37:Lemma atomic_assign : forall ge e m l r ty b ofs bf v vc v' mf,
+52:Lemma atomic_assignop : forall ge e m op l r tyres ty b ofs bf vl vr vop vc v' mf,
+69:Lemma sequence_normal : forall ge e a b m ma mf out,
+74:Lemma read_scalar : forall ge e m l ty chunk b ofs v,
+80:Lemma assign_scalar : forall ge m ty chunk b ofs v mf,
+87:Lemma strategy_star_csem : forall ge a t b,
+94:Lemma funcall_original_normal : forall ge m fd args t mf res,
+107:Lemma stores_to_trans : forall P m ma mf,
+110:Lemma stores_to_access : forall P m mf, stores_to P m mf -> access_preserved m mf.
+115:Lemma stores_to_load_frame : forall P m mf, stores_to P m mf ->
+122:Lemma sequence_normal_inv : forall ge e a b m mf,
+132:Lemma statement_prefix_path : forall ge e m a mf,
+146:Lemma stores_to_weaken : forall P Q m mf,

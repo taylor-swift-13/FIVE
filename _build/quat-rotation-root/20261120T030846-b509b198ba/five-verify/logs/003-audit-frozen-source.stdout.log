@@ -1,0 +1,70 @@
+ENTRY float_quat_vmult
+{"entry": "float_quat_vmult", "signature": "void float_quat_vmult(struct FloatVect3 *v_out, const struct FloatQuat *q, const struct FloatVect3 *v_in)", "source": "prepare/source/float_quat_vmult.c", "sha256": "64c3359619e2f8de1f8c0b16ace92ab01c969fb7d408981bd68ba0fb7b8d80ff", "dependencies": [{"path": "prepare/source/quat_types.h", "sha256": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f"}], "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a", "external_bindings": [], "callees": [], "c_dialect": "C99", "preprocess_options": [], "target": {"semantics": "CompCert Csem/Cexec", "arch": "x86", "bitsize": 64, "system": "linux", "endianness": "little", "float32": "IEEE754 binary32", "rounding": "round-to-nearest-ties-to-even", "nan_policy": "CompCert 3.17 x86-64 Archi/Floats recorded by manifest"}, "source_preservation": "Original double 0.5, original double M_SQRT2 and original integer constants retained unchanged; no reassociation or float replacement."}
+/* Exact pinned original Paparazzi entry; extraction.json records provenance. */
+#include "quat_types.h"
+
+void float_quat_vmult(struct FloatVect3 *v_out, const struct FloatQuat *q, const struct FloatVect3 *v_in)
+{
+  const float qi2_M1_2  = q->qi * q->qi - 0.5;
+  const float qiqx = q->qi * q->qx;
+  const float qiqy = q->qi * q->qy;
+  const float qiqz = q->qi * q->qz;
+  float m01  = q->qx * q->qy; /* aka qxqy */
+  float m02  = q->qx * q->qz; /* aka qxqz */
+  float m12  = q->qy * q->qz; /* aka qyqz */
+
+  const float m00  = qi2_M1_2 + q->qx * q->qx;
+  const float m10  = m01 - qiqz;
+  const float m20  = m02 + qiqy;
+  const float m21  = m12 - qiqx;
+  m01 += qiqz;
+  m02 -= qiqy;
+  m12 += qiqx;
+  const float m11  = qi2_M1_2 + q->qy * q->qy;
+  const float m22  = qi2_M1_2 + q->qz * q->qz;
+  v_out->x = 2 * (m00 * v_in->x + m01 * v_in->y + m02 * v_in->z);
+  v_out->y = 2 * (m10 * v_in->x + m11 * v_in->y + m12 * v_in->z);
+  v_out->z = 2 * (m20 * v_in->x + m21 * v_in->y + m22 * v_in->z);
+}
+
+ENTRY float_rmat_of_quat
+{"entry": "float_rmat_of_quat", "signature": "void float_rmat_of_quat(struct FloatRMat *rm, const struct FloatQuat *q)", "source": "prepare/source/float_rmat_of_quat.c", "sha256": "5d5e765cf53bd21025c740ed40c0ef5d7f2650b85c30fd125911826efb03e44e", "dependencies": [{"path": "prepare/source/quat_types.h", "sha256": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f"}], "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a", "external_bindings": [], "callees": [], "c_dialect": "C99", "preprocess_options": [], "target": {"semantics": "CompCert Csem/Cexec", "arch": "x86", "bitsize": 64, "system": "linux", "endianness": "little", "float32": "IEEE754 binary32", "rounding": "round-to-nearest-ties-to-even", "nan_policy": "CompCert 3.17 x86-64 Archi/Floats recorded by manifest"}, "source_preservation": "Original double 0.5, original double M_SQRT2 and original integer constants retained unchanged; no reassociation or float replacement."}
+/* Exact pinned original Paparazzi entry; extraction.json records provenance. */
+#include "quat_types.h"
+
+void float_rmat_of_quat(struct FloatRMat *rm, const struct FloatQuat *q)
+{
+  const float _a = M_SQRT2 * q->qi;
+  const float _b = M_SQRT2 * q->qx;
+  const float _c = M_SQRT2 * q->qy;
+  const float _d = M_SQRT2 * q->qz;
+  const float a2_1 = _a * _a - 1;
+  const float ab = _a * _b;
+  const float ac = _a * _c;
+  const float ad = _a * _d;
+  const float bc = _b * _c;
+  const float bd = _b * _d;
+  const float cd = _c * _d;
+  RMAT_ELMT(*rm, 0, 0) = a2_1 + _b * _b;
+  RMAT_ELMT(*rm, 0, 1) = bc + ad;
+  RMAT_ELMT(*rm, 0, 2) = bd - ac;
+  RMAT_ELMT(*rm, 1, 0) = bc - ad;
+  RMAT_ELMT(*rm, 1, 1) = a2_1 + _c * _c;
+  RMAT_ELMT(*rm, 1, 2) = cd + ab;
+  RMAT_ELMT(*rm, 2, 0) = bd + ac;
+  RMAT_ELMT(*rm, 2, 1) = cd - ab;
+  RMAT_ELMT(*rm, 2, 2) = a2_1 + _d * _d;
+}
+
+ENTRY float_rmat_vmult
+{"entry": "float_rmat_vmult", "signature": "void float_rmat_vmult(struct FloatVect3 *vb, const struct FloatRMat *m_a2b, const struct FloatVect3 *va)", "source": "prepare/source/float_rmat_vmult.c", "sha256": "468a207dd8dd04f0da2f5425a49e3a33db4c49eaeab003be650c883772284ab7", "dependencies": [{"path": "prepare/source/quat_types.h", "sha256": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f"}], "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a", "external_bindings": [], "callees": [], "c_dialect": "C99", "preprocess_options": [], "target": {"semantics": "CompCert Csem/Cexec", "arch": "x86", "bitsize": 64, "system": "linux", "endianness": "little", "float32": "IEEE754 binary32", "rounding": "round-to-nearest-ties-to-even", "nan_policy": "CompCert 3.17 x86-64 Archi/Floats recorded by manifest"}, "source_preservation": "Original double 0.5, original double M_SQRT2 and original integer constants retained unchanged; no reassociation or float replacement."}
+/* Exact pinned original Paparazzi entry; extraction.json records provenance. */
+#include "quat_types.h"
+
+void float_rmat_vmult(struct FloatVect3 *vb, const struct FloatRMat *m_a2b, const struct FloatVect3 *va)
+{
+  vb->x = m_a2b->m[0] * va->x + m_a2b->m[1] * va->y + m_a2b->m[2] * va->z;
+  vb->y = m_a2b->m[3] * va->x + m_a2b->m[4] * va->y + m_a2b->m[5] * va->z;
+  vb->z = m_a2b->m[6] * va->x + m_a2b->m[7] * va->y + m_a2b->m[8] * va->z;
+}
+

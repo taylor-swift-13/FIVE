@@ -1,0 +1,115 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/state_speed_ecef_provenance/support/setters
+was previously bound to StateSpeedMemory.setters; it is remapped to
+StateSpeedSetterSupport [overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/models/stateGetSpeedEcef_f/rocq/support/Layout.v", line 87, characters 64-75:
+Error:
+In environment
+e : PTree.tree (block * type)
+m : mem
+sb : block
+axis : ident
+delta : Z
+i : int
+NONE : e ! S._state = None
+SYM : Genv.find_symbol ge S._state = Some sb
+AX : layout S._NedCoor_i axis = Some (delta, Full)
+RANGE : 0 <= delta <= 8
+LOAD : Mem.load Mint32 m sb (296 + delta) = Some (Vint i)
+WORD : pure_rval ge e m (ned_word axis) = Some (Vint i)
+Unable to unify "Some (Vsingle (decode i))" with
+ "match
+    sem_cast ?va (typeof (Ecast (ned_word axis) tfloat))
+      (binarith_type
+         (classify_binarith (typeof (Ecast (ned_word axis) tfloat))
+            (typeof denominator)))
+      m
+  with
+  | Some v1' =>
+      match
+        sem_cast (Vint (Int.repr 524288)) (typeof denominator)
+          (binarith_type
+             (classify_binarith (typeof (Ecast (ned_word axis) tfloat))
+                (typeof denominator)))
+          m
+      with
+      | Some v2' =>
+          match
+            classify_binarith (typeof (Ecast (ned_word axis) tfloat))
+              (typeof denominator)
+          with
+          | bin_case_i sg =>
+              match v1' with
+              | Vint n1 =>
+                  match v2' with
+                  | Vint n2 =>
+                      (fun (sg0 : signedness) (n3 n4 : int) =>
+                       match sg0 with
+                       | Signed =>
+                           if
+                            Int.eq n4 Int.zero
+                            || Int.eq n3 (Int.repr Int.min_signed) &&
+                               Int.eq n4 Int.mone
+                           then None
+                           else Some (Vint (Int.divs n3 n4))
+                       | Unsigned =>
+                           if Int.eq n4 Int.zero
+                           then None
+                           else Some (Vint (Int.divu n3 n4))
+                       end) sg n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_case_l sg =>
+              match v1' with
+              | Vlong n1 =>
+                  match v2' with
+                  | Vlong n2 =>
+                      (fun (sg0 : signedness) (n3 n4 : int64) =>
+                       match sg0 with
+                       | Signed =>
+                           if
+                            Int64.eq n4 Int64.zero
+                            || Int64.eq n3 (Int64.repr Int64.min_signed) &&
+                               Int64.eq n4 Int64.mone
+                           then None
+                           else Some (Vlong (Int64.divs n3 n4))
+                       | Unsigned =>
+                           if Int64.eq n4 Int64.zero
+                           then None
+                           else Some (Vlong (Int64.divu n3 n4))
+                       end) sg n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_case_f =>
+              match v1' with
+              | Vfloat n1 =>
+                  match v2' with
+                  | Vfloat n2 =>
+                      (fun n3 n4 : float => Some (Vfloat (Float.div n3 n4)))
+                        n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_case_s =>
+              match v1' with
+              | Vsingle n1 =>
+                  match v2' with
+                  | Vsingle n2 =>
+                      (fun n3 n4 : float32 =>
+                       Some (Vsingle (Float32.div n3 n4))) n1 n2
+                  | _ => None
+                  end
+              | _ => None
+              end
+          | bin_default => None
+          end
+      | None => None
+      end
+  | None => None
+  end".
+

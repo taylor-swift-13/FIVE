@@ -1,0 +1,470 @@
+FILE safety/ObservedReadonly.v
+From Stdlib Require Import Classical.
+From compcert Require Import Values Memory Events Csem.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+Section READONLY.
+Variable ge:genv.
+Variables L R F:Type.
+Variable pre:L->R->F->Csem.state.
+Variable call:L->R->Csem.state.
+Variable frame:L->R->cont.
+Variable post:L->R->Csem.state.
+Variable initial target:Csem.state.
+Variable observe:Csem.state->Prop.
+Hypothesis initial_observed:observe initial.
+Hypothesis pre_observed:forall l r f,observe(pre l r f).
+Variable result:val.
+Variable m:mem.
+Variable l0:L.
+Variable r0:R.
+Variable f0:F.
+Definition pre_or_call(s:Csem.state):Prop:=
+ (exists l r f,s=pre l r f)\/(exists l r,s=call l r).
+Hypothesis pre_progress:forall l r f,exists t next,
+ Csem.step ge(pre l r f)t next /\pre_or_call next.
+Hypothesis pre_all_successors:forall l r f t next,
+ Csem.step ge(pre l r f)t next ->pre_or_call next.
+Hypothesis initial_unique:unique_transition ge initial(pre l0 r0 f0).
+Hypothesis callees:forall l r,exists P,
+ certificate ge P(Returnstate result(frame l r)m) /\P(call l r)/\(forall s,P s->observe s).
+Hypothesis returns:forall l r,
+ unique_transition ge(Returnstate result(frame l r)m)(post l r).
+Hypothesis postphases:forall l r,exists Q,certificate ge Q target /\Q(post l r)/\(forall s,Q s->observe s).
+Definition active_callee(s:Csem.state):Prop:=
+ exists l r P,certificate ge P(Returnstate result(frame l r)m) /\P(call l r)/\(forall z,P z->observe z)/\P s.
+Definition active_post(s:Csem.state):Prop:=
+ exists l r Q,certificate ge Q target /\Q(post l r)/\(forall z,Q z->observe z)/\Q s.
+Definition invariant(s:Csem.state):Prop:=
+ s=initial\/(exists l r f,s=pre l r f)\/active_callee s\/active_post s.
+Lemma enter_callee:forall l r,active_callee(call l r).
+Proof. intros;destruct(callees l r)as[P[C[I OBS]]];exists l,r,P;auto. Qed.
+Lemma enter_post:forall l r,active_post(post l r).
+Proof. intros;destruct(postphases l r)as[Q[C[I OBS]]];exists l,r,Q;auto. Qed.
+Lemma classify_pre:forall s,pre_or_call s ->
+ (exists l r f,s=pre l r f)\/active_callee s.
+Proof.
+ intros s[PRE|[l[r EQ]]];auto;subst;right;apply enter_callee.
+Qed.
+Theorem readonly_assignment_certificate:certificate ge invariant target.
+Proof.
+ split.
+ - intros s[START|[PRE|[CALLEE|POST]]].
+   + subst;right;exists E0,(pre l0 r0 f0);split;[exact(proj1 initial_unique)|].
+     right;left;exists l0,r0,f0;reflexivity.
+   + destruct PRE as[l[r[f EQ]]];subst s.
+     destruct(pre_progress l r f)as[t[next[STEP CL]]].
+     right;exists t,next;split;auto;destruct(classify_pre _ CL)as[P|C].
+     * right;left;exact P.
+     * right;right;left;exact C.
+   + destruct CALLEE as[l[r[P[C[INCUR[OBS IN]]]]]].
+     destruct(proj1 C s IN)as[EQ|[t[next[STEP PN]]]].
+     * subst;right;exists E0,(post l r);split;[exact(proj1(returns l r))|].
+       right;right;right;apply enter_post.
+     * right;exists t,next;split;auto;right;right;left;exists l,r,P;auto.
+   + destruct POST as[l[r[Q[C[QI[OBS IN]]]]]].
+     destruct(proj1 C s IN)as[EQ|[t[next[STEP QN]]]];[auto|].
+     right;exists t,next;split;auto;right;right;right;exists l,r,Q;auto.
+ - intros s t next[START|[PRE|[CALLEE|POST]]]NF STEP.
+   + subst;destruct(proj2 initial_unique t next STEP)as[TT EQ];subst.
+     right;left;exists l0,r0,f0;reflexivity.
+   + destruct PRE as[l[r[f EQ]]];subst.
+     destruct(classify_pre _ (pre_all_successors l r f t next STEP))as[P|C].
+     * right;left;exact P.
+     * right;right;left;exact C.
+   + destruct CALLEE as[l[r[P[C[INCUR[OBS IN]]]]]].
+     destruct(classic(s=Returnstate result(frame l r)m))as[EQ|NE].
+     * subst;destruct(proj2(returns l r)t next STEP)as[TT EQ];subst.
+       right;right;right;apply enter_post.
+     * right;right;left;exists l,r,P;split;[exact C|];split;[exact INCUR|];split;[exact OBS|].
+       eapply(proj2 C);eauto.
+   + destruct POST as[l[r[Q[C[QI[OBS IN]]]]]];right;right;right;exists l,r,Q.
+     split;[exact C|];split;[exact QI|];split;[exact OBS|];eapply(proj2 C);eauto.
+Qed.
+Theorem initial_member:invariant initial.
+Proof. left;reflexivity. Qed.
+Theorem observations:forall s,invariant s ->observe s.
+Proof.
+ intros s[START|[PRE|[CAL|POST]]].
+ - subst;exact initial_observed.
+ - destruct PRE as[l[r[f EQ]]];subst;apply pre_observed.
+ - destruct CAL as[l[r[P[C[PI[OBS IN]]]]]];apply OBS;exact IN.
+ - destruct POST as[l[r[Q[C[QI[OBS IN]]]]]];apply OBS;exact IN.
+Qed.
+End READONLY.
+Print Assumptions readonly_assignment_certificate.
+
+FILE safety/TaggedCallee.v
+From Stdlib Require Import List Bool.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Csyntax Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution ContinuationLift PhaseComposition.
+Definition function_scope(f:function)(s:Csem.state):Prop:=match s with
+| State f' _ _ _ _|ExprState f' _ _ _ _=>f'=f
+| Callstate fd _ _ _=>fd=Internal f
+| _=>True end.
+Lemma normal_scope_step:forall ge f s t next,
+ normal_state s=true ->function_scope f s ->Csem.step ge s t next ->function_scope f next.
+Proof.
+ intros ge f s t next NORMAL SCOPE[ES|SS].
+ - inversion ES;subst;cbn[function_scope]in*;try exact SCOPE;try exact I.
+   exfalso;eapply normal_no_callred;[exact NORMAL|eassumption|reflexivity|eassumption].
+ - inversion SS;subst;cbn[function_scope normal_state]in*;try discriminate;try exact SCOPE;try exact I.
+   injection SCOPE as FF;subst;reflexivity.
+Qed.
+Definition tagged_callee_invariant(ge:genv)(f:function)(base:cont)(v:val)(mf:mem)(s:Csem.state):Prop:=
+ exists raw,s=plug_state base raw/\execution_invariant ge raw/\state_eval ge raw=Some(v,mf)/\function_scope f raw.
+Lemma tagged_callee_entry:forall ge f base initial tw v mf,
+ normal_state initial=true ->call_names initial ->function_scope f initial ->
+ star Csem.step ge initial tw(Returnstate v Kstop mf) ->
+ tagged_callee_invariant ge f base v mf(plug_state base initial).
+Proof.
+ intros ge f base initial tw v mf NO NA SC PA.
+ destruct(callee_invariant_entry ge base initial tw v mf NO NA PA)as[raw[EQ[INV DEN]]].
+ pose proof(all_order_normal_correspondence ge initial tw v mf NO PA)as DI.
+ exists initial;split;[reflexivity|];split.
+ - split;[exact NO|];split;[exact NA|exists(v,mf);exact DI].
+ - auto.
+Qed.
+Lemma tagged_callee_scope:forall ge f base v mf s,
+ tagged_callee_invariant ge f base v mf s ->function_scope f s.
+Proof.
+ intros ge f base v mf s[raw[EQ[INV[DEN SC]]]];subst s;destruct raw;cbn[plug_state function_scope]in*;exact SC.
+Qed.
+Theorem tagged_callee_progress:forall ge f base v mf s,
+ is_call_cont base ->tagged_callee_invariant ge f base v mf s ->
+ s=Returnstate v base mf\/exists t next,Csem.step ge s t next/\tagged_callee_invariant ge f base v mf next.
+Proof.
+ intros ge f base v mf s BASE[raw[EQ[INV[DEN SC]]]];subst s.
+ destruct(invariant_progress ge raw INV)as[[vr[mr RET]]|[t[next STEP]]].
+ - subst raw;cbn[state_eval]in DEN;inversion DEN;subst;left;reflexivity.
+ - right;exists t,(plug_state base next);split.
+   + apply plug_normal_step;[exact BASE|exact(proj1 INV)|exact STEP].
+   + exists next;split;[reflexivity|];split.
+     * eapply invariant_preserved;[exact INV|exact STEP].
+     * split;[exact(proj2(normal_step_forward _ _ _ _ _ (proj1 INV)DEN STEP))|].
+       eapply normal_scope_step;[exact(proj1 INV)|exact SC|exact STEP].
+Qed.
+Theorem tagged_callee_successors:forall ge f base v mf s t next,
+ is_call_cont base ->tagged_callee_invariant ge f base v mf s ->
+ s<>Returnstate v base mf ->Csem.step ge s t next ->
+ tagged_callee_invariant ge f base v mf next.
+Proof.
+ intros ge f base v mf s t next BASE[raw[EQ[INV[DEN SC]]]]NF STEP;subst s.
+ assert(NR:~normal_return raw).
+ { intros[vr[mr RET]];subst raw;cbn[state_eval]in DEN;inversion DEN;subst;apply NF;reflexivity. }
+ destruct(plug_step_inverse ge base raw t next BASE(proj1 INV)NR STEP)as[raw'[EQ STEP']].
+ exists raw';split;[exact EQ|];split.
+ - eapply invariant_preserved;[exact INV|exact STEP'].
+ - split;[exact(proj2(normal_step_forward _ _ _ _ _ (proj1 INV)DEN STEP'))|].
+   eapply normal_scope_step;[exact(proj1 INV)|exact SC|exact STEP'].
+Qed.
+Print Assumptions tagged_callee_successors.
+
+FILE safety/HiddenResultComplete.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation PureProgress AtomicDenotation BlockExecution PhaseComposition FactorShell.
+From PidPositionSafety Require Import HiddenResultLhs HiddenResultContext HiddenResultPre HiddenResultPost ReadonlyPhases.
+Import ListNotations.
+Module A:=HiddenResultPre.
+Module B:=HiddenResultPost.
+Module L:=HiddenResultLhs.
+Section COMPLETE.
+Variable ge:genv.
+Variable caller leaf:function.
+Variable e:env.
+Variable k:cont.
+Variable m mc mf:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable params:list type.
+Variable cc:AST.calling_convention.
+Variable vf:val.
+Variable values:list val.
+Variable fn:expr.
+Variable args:exprlist.
+Variable post:expr.
+Variable v vc copied:val.
+Local Notation sty:=(L.sty sid).
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_before:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis res_after:Cexec.do_deref_loc ge quiet_world(tptr sty)mc br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis find_leaf:Genv.find_funct ge vf=Some(Internal leaf).
+Hypothesis leaf_type:type_of_fundef(Internal leaf)=Tfunction params tvoid cc.
+Hypothesis prepared_initial:A.prepared ge e m params cc vf values fn args.
+Hypothesis post_type:typeof post=sty.
+Hypothesis post_simple:simple post=true.
+Hypothesis post_value:pure_rval ge e mc post=Some v.
+Hypothesis cast_value:sem_cast v sty sty mc=Some vc.
+Hypothesis store_copy:Cexec.do_assign_loc ge quiet_world sty mc ret Ptrofs.zero Full vc=
+ Some(quiet_world,E0,mf,copied).
+Hypothesis callee_certificate:forall base,is_call_cont base ->
+ exists P,certificate ge P(Returnstate Vundef base mc)/\
+ P(Callstate(Internal leaf)values base m).
+Definition prepared_pair:Type:={p:expr*exprlist|A.prepared ge e m params cc vf values(fst p)(snd p)}.
+Definition start_pair:prepared_pair:=exist _ (fn,args)prepared_initial.
+Definition Pre(st:L.lhs_stage)(r:prepared_pair)(_:unit):Csem.state:=
+ A.pre_state caller e k m sid ires br ret post st(fst(proj1_sig r))(snd(proj1_sig r)).
+Definition Frame(st:L.lhs_stage)(_:prepared_pair):cont:=
+ A.frame caller e k sid ires br ret post st.
+Definition Call(st:L.lhs_stage)(r:prepared_pair):Csem.state:=
+ Callstate(Internal leaf)values(Frame st r)m.
+Definition Post(st:L.lhs_stage)(_:prepared_pair):Csem.state:=
+ B.post_state caller e k mc sid ires br ret post st.
+Definition Initial:Csem.state:=State caller
+ (Sdo(hidden_expr(L.lhs sid ires br ret L.H0)fn args post sty))k e m.
+Definition target:=State caller Sskip k e mf.
+Lemma convert_class:forall next,
+ A.pre_or_call ge caller leaf e k m sid ires br ret params cc vf values post next ->
+ ReadonlyPhases.pre_or_call L.lhs_stage prepared_pair unit Pre Call next.
+Proof.
+ intros next[[st[fn'[al'[P EQ]]]]|[st EQ]].
+ - left;exists st,(exist _ (fn',al')P),tt;exact EQ.
+ - right;exists st,start_pair;exact EQ.
+Qed.
+Theorem hidden_result_assignment_certificate:
+ exists P,certificate ge P target/\P Initial.
+Proof.
+ assert(PP:forall st r u,exists t next,Csem.step ge(Pre st r u)t next/\
+ ReadonlyPhases.pre_or_call L.lhs_stage prepared_pair unit Pre Call next).
+ { intros st[[f al]P]u.
+   destruct(A.pre_progress ge caller leaf e k m sid ires br ret params cc vf values post
+   local_res res_before find_leaf leaf_type st f al P)as[t[next[STEP CL]]].
+   exists t,next;split;[exact STEP|apply convert_class;exact CL]. }
+ assert(PC:forall st r u t next,Csem.step ge(Pre st r u)t next ->
+ ReadonlyPhases.pre_or_call L.lhs_stage prepared_pair unit Pre Call next).
+ { intros st[[f al]P]u t next STEP;apply convert_class.
+   exact(proj2(A.pre_all_successors ge caller leaf e k m sid ires br ret params cc vf values post
+   local_res res_before find_leaf leaf_type st f al t next P STEP)). }
+ assert(CAL:forall st r,exists P,certificate ge P(Returnstate Vundef(Frame st r)mc)/\P(Call st r)).
+ { intros;apply callee_certificate;exact I. }
+ assert(RET:forall st r,unique_transition ge(Returnstate Vundef(Frame st r)mc)(Post st r)).
+ { intros;unfold Frame,A.frame,Post,B.post_state,B.comma_expr;split;[right;apply Csem.step_returnstate|].
+   intros t next STEP;exact(FactorShell.return_call_step_unique ge Vundef caller e
+   (fun hole=>Eassign(L.lhs sid ires br ret st)(Ecomma hole post sty)sty)tvoid(Kdo k)mc t next STEP). }
+ assert(POST:forall st r,exists Q,certificate ge Q target/\Q(Post st r)).
+ { intros;eexists;split.
+   - exact(B.post_certificate ge caller e k mc mf sid ires br ret post v vc copied
+     local_res res_after post_type post_simple post_value cast_value store_copy).
+   - apply B.post_initial. }
+ eexists;split.
+ - eapply ReadonlyPhases.readonly_assignment_certificate
+   with(pre:=Pre)(call:=Call)(frame:=Frame)(post:=Post)(initial:=Initial)
+   (result:=Vundef)(m:=mc)(l0:=L.H0)(r0:=start_pair)(f0:=tt).
+   + exact PP.
+   + exact PC.
+   + split;[right;apply Csem.step_do_1|].
+     intros t next STEP;eapply FactorShell.do_step_unique;exact STEP.
+   + exact CAL.
+   + exact RET.
+   + exact POST.
+ - left;reflexivity.
+Qed.
+End COMPLETE.
+Print Assumptions hidden_result_assignment_certificate.
+
+FILE safety/HiddenResultPre.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation PureProgress CallfreeExecution.
+From PidPositionSafety Require Import PureCallArguments HiddenResultLhs HiddenResultContext.
+Import ListNotations.
+Module L:=HiddenResultLhs.
+Section PRE.
+Variable ge:genv.
+Variable caller leaf:function.
+Variable e:env.
+Variable k:cont.
+Variable m:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable params:list type.
+Variable cc:AST.calling_convention.
+Variable vf:val.
+Variable values:list val.
+Variable post:expr.
+Local Notation sty:=(L.sty sid).
+Local Notation LH:=(L.lhs sid ires br ret).
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_deref:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis find_leaf:Genv.find_funct ge vf=Some(Internal leaf).
+Hypothesis leaf_type:type_of_fundef(Internal leaf)=Tfunction params tvoid cc.
+Record prepared(fn:expr)(al:exprlist):Prop:={
+ prepared_fn_simple:simple fn=true;
+ prepared_args_simple:simplelist al=true;
+ prepared_fn_value:eval_simple_rvalue ge e m fn vf;
+ prepared_arg_values:eval_simple_list ge e m al params values;
+ prepared_class:classify_fun(typeof fn)=fun_case_f params tvoid cc
+}.
+Definition pre_expr(st:L.lhs_stage)(fn:expr)(al:exprlist):expr:=
+ hidden_expr(LH st)fn al post sty.
+Definition pre_state(st:L.lhs_stage)(fn:expr)(al:exprlist):Csem.state:=
+ ExprState caller(pre_expr st fn al)(Kdo k)e m.
+Definition frame(st:L.lhs_stage):cont:=
+ Kcall caller e(fun hole=>Eassign(LH st)(Ecomma hole post sty)sty)tvoid(Kdo k).
+Definition pre_or_call(s:Csem.state):Prop:=
+ (exists st fn al,prepared fn al /\s=pre_state st fn al)\/
+ (exists st,s=Callstate(Internal leaf)values(frame st)m).
+Lemma pre_immediate:forall st fn al,prepared fn al ->
+ imm_safe ge e RV(pre_expr st fn al)m.
+Proof.
+ intros st fn al[SF SA FV AV CL];unfold pre_expr,hidden_expr.
+ eapply lift_immediate with(from:=RV)(a:=Ecall fn al tvoid)
+ (C:=fun x=>Eassign(LH st)(Ecomma x post sty)sty).
+ - constructor;constructor;constructor.
+ - reflexivity.
+ - eapply call_immediate;[exact FV|exact AV|exact CL|exact find_leaf|exact leaf_type].
+Qed.
+Lemma pre_not_stuck:forall st fn al,prepared fn al ->
+ not_stuck ge e(pre_expr st fn al)m.
+Proof.
+ intros st fn al P from C a CT EQ.
+ pose proof(hidden_context_decompose from C a(LH st)fn al post sty CT (eq_sym EQ))as HH.
+ destruct P as[SF SA FV AV CL].
+ inversion HH;subst.
+ - apply pre_immediate;constructor;assumption.
+ - eapply big_subexpression_safe;[eassumption|rewrite <-H0;apply L.lhs_simple|].
+   rewrite <-H0;unfold big_defined;exists ret,Ptrofs.zero,Full;eapply L.lhs_big;[exact local_res|exact res_deref].
+ - eapply lift_immediate with(from:=RV)(a:=Ecall fn al tvoid)(C:=fun x=>Ecomma x post sty).
+   + constructor;constructor.
+   + reflexivity.
+   + eapply call_immediate;[exact FV|exact AV|exact CL|exact find_leaf|exact leaf_type].
+ - eapply call_immediate;[exact FV|exact AV|exact CL|exact find_leaf|exact leaf_type].
+ - eapply big_subexpression_safe;[eassumption|exact SF|].
+   unfold big_defined;eexists;exact FV.
+ - eapply arguments_subexpression_safe;eauto.
+Qed.
+Lemma prepared_function_replace:forall fn fn' al,
+ prepared fn al ->typeof fn=typeof fn' ->simple fn'=true ->
+ pure_rval ge e m fn=pure_rval ge e m fn' ->prepared fn' al.
+Proof.
+ intros fn fn' al[SF SA FV AV CL]TY SN EQ;constructor;auto.
+ - eapply rval_transport;[exact SF|exact SN|exact EQ|exact FV].
+ - rewrite <-TY;exact CL.
+Qed.
+Lemma prepared_arguments_replace:forall fn al al',
+ prepared fn al ->simplelist al'=true ->eval_simple_list ge e m al' params values ->
+ prepared fn al'.
+Proof. intros fn al al'[SF SA FV AV CL]SN EV;constructor;assumption. Qed.
+Lemma pre_lred_context:forall st fn al C a b mf,
+ prepared fn al ->context LV RV C ->C a=pre_expr st fn al ->
+ lred ge e a m b mf ->
+ mf=m /\exists st' fn' al',prepared fn' al'/\C b=pre_expr st' fn' al'.
+Proof.
+ intros st fn al C a b mf P CT EQ RED.
+ pose proof P as P0;destruct P as[SF SA FV AV CL].
+ pose proof(hidden_context_decompose LV C a(LH st)fn al post sty CT EQ)as HH.
+ inversion HH;subst.
+
+Definition pre_expr(st:L.lhs_stage)(fn:expr)(al:exprlist):expr:=
+Definition pre_state(st:L.lhs_stage)(fn:expr)(al:exprlist):Csem.state:=
+Definition frame(st:L.lhs_stage):cont:=
+Definition pre_or_call(s:Csem.state):Prop:=
+Lemma pre_immediate:forall st fn al,prepared fn al ->
+Lemma pre_not_stuck:forall st fn al,prepared fn al ->
+Lemma prepared_function_replace:forall fn fn' al,
+Lemma prepared_arguments_replace:forall fn al al',
+Lemma pre_lred_context:forall st fn al C a b mf,
+Lemma pre_rred_context:forall st fn al C a b t mf,
+Lemma pre_call_context:forall st fn al C a fd args ty,
+Theorem pre_all_successors:forall st fn al t next,
+Theorem pre_progress:forall st fn al,prepared fn al ->
+FILE safety/HiddenResultPost.v
+From Stdlib Require Import List Bool ZArith Classical.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation PureProgress AtomicDenotation BlockExecution PhaseComposition CallfreeExecution.
+From PidPositionSafety Require Import PureSound PureCallArguments HiddenResultLhs AtomicPhase.
+Import ListNotations.
+Module L:=HiddenResultLhs.
+Definition comma_expr(l post:expr)(ty:type):expr:=Eassign l(Ecomma(Eval Vundef tvoid)post ty)ty.
+Inductive comma_hole(l post:expr)(ty:type):kind->(expr->expr)->expr->Prop:=
+| ch_whole:comma_hole l post ty RV(fun x=>x)(comma_expr l post ty)
+| ch_lhs:forall from D a,context from LV D ->l=D a ->
+ comma_hole l post ty from(fun x=>Eassign(D x)(Ecomma(Eval Vundef tvoid)post ty)ty)a
+| ch_comma:comma_hole l post ty RV(fun x=>Eassign l x ty)(Ecomma(Eval Vundef tvoid)post ty)
+| ch_literal:comma_hole l post ty RV(fun x=>Eassign l(Ecomma x post ty)ty)(Eval Vundef tvoid).
+Lemma comma_context_decompose:forall from C a l post ty,
+ context from RV C ->C a=comma_expr l post ty ->comma_hole l post ty from C a.
+Proof.
+ intros from C a l post ty CT EQ;unfold comma_expr in EQ.
+ inversion CT;subst;cbn in EQ;try discriminate.
+ - subst a;constructor.
+ - inversion EQ;subst;eapply ch_lhs;[eassumption|reflexivity].
+ - inversion EQ;subst.
+   match goal with CT0:Csem.context _ RV ?D,EQ0:?D a=Ecomma _ _ _|-_=>
+   inversion CT0;subst;cbn in EQ0;try discriminate end.
+   + subst a;constructor.
+   + match goal with E:Ecomma _ _ _=Ecomma _ _ _|-_=>inversion E;subst end.
+     match goal with CT1:Csem.context _ RV ?D,EQ1:?D a=Eval _ _|-_=>
+     inversion CT1;subst;cbn in EQ1;try discriminate end.
+     subst a;constructor.
+Qed.
+Section POST.
+Variable ge:genv.
+Variable caller:function.
+Variable e:env.
+Variable k:cont.
+Variable m mf:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable post:expr.
+Variable v vc copied:val.
+Local Notation sty:=(L.sty sid).
+Local Notation LH:=(L.lhs sid ires br ret).
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_deref:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis post_type:typeof post=sty.
+Hypothesis post_simple:simple post=true.
+Hypothesis post_value:pure_rval ge e m post=Some v.
+Hypothesis cast_value:sem_cast v sty sty m=Some vc.
+Hypothesis store_copy:Cexec.do_assign_loc ge quiet_world sty m ret Ptrofs.zero Full vc=
+ Some(quiet_world,E0,mf,copied).
+Definition normalized(st:L.lhs_stage):expr:=Eassign(LH st)post sty.
+Definition post_state(st:L.lhs_stage):Csem.state:=ExprState caller(comma_expr(LH st)post sty)(Kdo k)e m.
+Definition target:=State caller Sskip k e mf.
+Lemma normalized_atomic:forall st,atomic_expr(normalized st)=true.
+Proof. intros;unfold normalized;cbn[atomic_expr];rewrite L.lhs_simple,post_simple,L.lhs_type;reflexivity. Qed.
+Lemma normalized_value:forall st,atomic_eval ge e m(normalized st)=Some(copied,mf).
+Proof.
+ intros st;unfold normalized;cbn[atomic_eval];rewrite L.lhs_type,L.type_eq_diag,post_value.
+ assert(LV:pure_lval ge e m(LH st)=Some(ret,Ptrofs.zero,Full)).
+ { apply(proj2(simple_big_denotation ge e m));[eapply L.lhs_big;[exact local_res|exact res_deref]|apply L.lhs_simple]. }
+ rewrite LV;unfold commit;rewrite post_type,cast_value,store_copy;reflexivity.
+Qed.
+Lemma normalized_certificate:forall st,
+ certificate ge(block_context_invariant ge k caller e mf)target /\
+ block_context_invariant ge k caller e mf(ExprState caller(normalized st)(Kdo k)e m).
+Proof. intros;apply atomic_expression_certificate with(v:=copied);[apply normalized_atomic|apply normalized_value]. Qed.
+Definition post_or_normal(s:Csem.state):Prop:=
+ (exists st,s=post_state st)\/
+ (exists st,s=ExprState caller(normalized st)(Kdo k)e m).
+Lemma comma_safe:imm_safe ge e RV(Ecomma(Eval Vundef tvoid)post sty)m.
+Proof. intros;eapply imm_safe_rred with(C:=fun x=>x).
+ - apply red_comma;exact post_type.
+ - constructor.
+Qed.
+Lemma post_not_stuck:forall st,not_stuck ge e(comma_expr(LH st)post sty)m.
+Proof.
+ intros st from C a CT EQ.
+ pose proof(comma_context_decompose from C a(LH st)post sty CT(eq_sym EQ))as HH.
+ inversion HH;subst.
+ - unfold comma_expr;eapply l
+Definition comma_expr(l post:expr)(ty:type):expr:=Eassign l(Ecomma(Eval Vundef tvoid)post ty)ty.
+Lemma comma_context_decompose:forall from C a l post ty,
+Definition normalized(st:L.lhs_stage):expr:=Eassign(LH st)post sty.
+Definition post_state(st:L.lhs_stage):Csem.state:=ExprState caller(comma_expr(LH st)post sty)(Kdo k)e m.
+Definition target:=State caller Sskip k e mf.
+Lemma normalized_atomic:forall st,atomic_expr(normalized st)=true.
+Lemma normalized_value:forall st,atomic_eval ge e m(normalized st)=Some(copied,mf).
+Lemma normalized_certificate:forall st,
+Definition post_or_normal(s:Csem.state):Prop:=
+Lemma comma_safe:imm_safe ge e RV(Ecomma(Eval Vundef tvoid)post sty)m.
+Lemma post_not_stuck:forall st,not_stuck ge e(comma_expr(LH st)post sty)m.
+Lemma post_all_successors:forall st t next,Csem.step ge(post_state st)t next ->
+Lemma post_progress:forall st,exists t next,Csem.step ge(post_state st)t next/\post_or_normal next.
+Definition invariant(s:Csem.state):Prop:=(exists st,s=post_state st)\/block_context_invariant ge k caller e mf s.
+Theorem post_certificate:certificate ge invariant target.
+Theorem post_initial:forall st,invariant(post_state st).

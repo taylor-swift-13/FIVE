@@ -1,0 +1,238 @@
+Inductive kind : Type := LV | RV.
+
+Inductive context: kind -> kind -> (expr -> expr) -> Prop :=
+  | ctx_top: forall k,
+      context k k (fun x => x)
+  | ctx_deref: forall k C ty,
+      context k RV C -> context k LV (fun x => Ederef (C x) ty)
+  | ctx_field: forall k C f ty,
+      context k RV C -> context k LV (fun x => Efield (C x) f ty)
+  | ctx_rvalof: forall k C ty,
+      context k LV C -> context k RV (fun x => Evalof (C x) ty)
+  | ctx_addrof: forall k C ty,
+      context k LV C -> context k RV (fun x => Eaddrof (C x) ty)
+  | ctx_unop: forall k C op ty,
+      context k RV C -> context k RV (fun x => Eunop op (C x) ty)
+  | ctx_binop_left: forall k C op e2 ty,
+      context k RV C -> context k RV (fun x => Ebinop op (C x) e2 ty)
+  | ctx_binop_right: forall k C op e1 ty,
+      context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+  | ctx_cast: forall k C ty,
+      context k RV C -> context k RV (fun x => Ecast (C x) ty)
+  | ctx_seqand: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+  | ctx_seqor: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+  | ctx_condition: forall k C r2 r3 ty,
+      context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+  | ctx_assign_left: forall k C e2 ty,
+      context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+  | ctx_assign_right: forall k C e1 ty,
+      context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+  | ctx_assignop_left: forall k C op e2 tyres ty,
+      context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+  | ctx_assignop_right: forall k C op e1 tyres ty,
+      context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+  | ctx_postincr: forall k C id ty,
+      context k LV C -> context k RV (fun x => Epostincr id (C x) ty)
+  | ctx_call_left: forall k C el ty,
+      context k RV C -> context k RV (fun x => Ecall (C x) el ty)
+  | ctx_call_right: forall k C e1 ty,
+      contextlist k C -> context k RV (fun x => Ecall e1 (C x) ty)
+  | ctx_builtin: forall k C ef tyargs ty,
+      contextlist k C -> context k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+  | ctx_comma: forall k C e2 ty,
+      context k RV C -> context k RV (fun x => Ecomma (C x) e2 ty)
+  | ctx_paren: forall k C tycast ty,
+      context k RV C -> context k RV (fun x => Eparen (C x) tycast ty)
+
+with contextlist: kind -> (expr -> exprlist) -> Prop :=
+  | ctx_list_head: forall k C el,
+      context k RV C -> contextlist k (fun x => Econs (C x) el)
+  | ctx_list_tail: forall k C e1,
+      contextlist k C -> contextlist k (fun x => Econs e1 (C x)).
+
+(** In a nondeterministic semantics, expressions can go wrong according
+  to one reduction order while being defined according to another.
+  Consider for instance [(x = 1) + (10 / x)] where [x] is initially [0].
+  This expression goes wrong if evaluated right-to-left, but is defined
+  if evaluated left-to-right.  Since our compiler is going to pick one
+  particular evaluation order, we must make sure that all orders are safe,
+  i.e. never evaluate a subexpression that goes wrong.
+
+  Being safe is a stronger requirement than just not getting stuck during
+  reductions.  Consider [f() + (10 / x)], where [f()] does not terminate.
+  This expression is never stuck because the evaluation of [f()] can make
+  infinitely many transitions.  Yet it contains a subexpression [10 / x]
+  that can go wrong if [x = 0], and the compiler may choose to evaluate
+  [10 / x] first, before calling [f()].
+
+  Therefore, we must make sure that not only an expression cannot get stuck,
+  but none of its subexpressions can either.  We say that a subexpression
+  is not immediately stuck if it is a value (of the appropriate kind)
+  or it can reduce (at head or within). *)
+
+Inductive imm_safe: kind -> expr -> mem -> Prop :=
+Qed.
+
+End LOCAL_EXEC.
+
+Definition callback_free_state (S: state): Prop :=
+  match S with
+  | ExprState _ a _ _ _ => no_builtin a = true
+  | Callstate (External _ _ _ _) _ _ _ => False
+  | _ => True
+  end.
+
+Section LOCAL_STATES.
+Variable ge: genv.
+Variable do_external_function do_inline_assembly:
+  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+Local Notation do_step := (Cexec.do_step ge do_external_function do_inline_assembly).
+Local Notation step_expr := (Cexec.step_expr ge do_external_function do_inline_assembly).
+Ltac myinv :=
+  match goal with
+  | [ |- In _ nil -> _ ] => let X := fresh "X" in intro X; elim X
+  | [ |- In _ (ret _ _) -> _ ] =>
+        let X := fresh "X" in
+        intro X; elim X; clear X;
+        [let EQ := fresh "EQ" in intro EQ; unfold ret in EQ; inv EQ; myinv | myinv]
+  rewrite (sem_bind_parameters_complete ge _ _ _ _ _ _ H2)...
+Qed.
+
+
+Definition silent_state (S: state): Prop := forall t S', Csem.step ge S t S' -> t = E0.
+
+Theorem pure_do_step_exact:
+  forall w S t S', callback_free_state S -> silent_state S ->
+  ((exists rule, In (TR rule t S') (do_step w S)) <-> Csem.step ge S t S').
+Proof.
+  intros w S t S' NB HS; split.
+  - intros [rule IN]. destruct (pure_do_step_sound w S rule t S' NB IN) as [OK|[HT [SS CR]]]; auto.
+    destruct CR as [u [U [ST IMP]]].
+    specialize (HS _ _ ST); subst u. exfalso. apply (IMP w); constructor.
+  - intros ST. apply pure_do_step_complete with (w' := w); auto.
+    specialize (HS _ _ ST); subst t; constructor.
+Qed.
+End LOCAL_STATES.
+3306:Definition f_pprz_itrig_sin := {|
+     cc_default)) ::
+ (___builtin_membar,
+   Gfun(External (EF_builtin "__builtin_membar"
+                   (mksignature nil AST.Xvoid cc_default)) nil tvoid
+     cc_default)) ::
+ (___builtin_va_start,
+   Gfun(External (EF_builtin "__builtin_va_start"
+                   (mksignature (AST.Xptr :: nil) AST.Xvoid cc_default))
+     ((tptr tvoid) :: nil) tvoid cc_default)) ::
+ (___builtin_va_arg,
+   Gfun(External (EF_builtin "__builtin_va_arg"
+                   (mksignature (AST.Xptr :: AST.Xint :: nil) AST.Xvoid
+                     cc_default)) ((tptr tvoid) :: tuint :: nil) tvoid
+     cc_default)) ::
+ (___builtin_va_copy,
+   Gfun(External (EF_builtin "__builtin_va_copy"
+                   (mksignature (AST.Xptr :: AST.Xptr :: nil) AST.Xvoid
+                     cc_default)) ((tptr tvoid) :: (tptr tvoid) :: nil) tvoid
+     cc_default)) ::
+ (___builtin_va_end,
+   Gfun(External (EF_builtin "__builtin_va_end"
+                   (mksignature (AST.Xptr :: nil) AST.Xvoid cc_default))
+     ((tptr tvoid) :: nil) tvoid cc_default)) ::
+ (___builtin_unreachable,
+   Gfun(External (EF_builtin "__builtin_unreachable"
+                   (mksignature nil AST.Xvoid cc_default)) nil tvoid
+     cc_default)) ::
+ (___builtin_expect,
+   Gfun(External (EF_builtin "__builtin_expect"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___builtin_fmax,
+   Gfun(External (EF_builtin "__builtin_fmax"
+                   (mksignature (AST.Xfloat :: AST.Xfloat :: nil) AST.Xfloat
+                     cc_default)) (tdouble :: tdouble :: nil) tdouble
+     cc_default)) ::
+ (___builtin_fmin,
+   Gfun(External (EF_builtin "__builtin_fmin"
+                   (mksignature (AST.Xfloat :: AST.Xfloat :: nil) AST.Xfloat
+                     cc_default)) (tdouble :: tdouble :: nil) tdouble
+     cc_default)) ::
+ (___builtin_fmadd,
+   Gfun(External (EF_builtin "__builtin_fmadd"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fmsub,
+   Gfun(External (EF_builtin "__builtin_fmsub"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fnmadd,
+   Gfun(External (EF_builtin "__builtin_fnmadd"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fnmsub,
+   Gfun(External (EF_builtin "__builtin_fnmsub"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_read16_reversed,
+   Gfun(External (EF_builtin "__builtin_read16_reversed"
+                   (mksignature (AST.Xptr :: nil) AST.Xint16unsigned
+                     cc_default)) ((tptr tushort) :: nil) tushort
+     cc_default)) ::
+ (___builtin_read32_reversed,
+   Gfun(External (EF_builtin "__builtin_read32_reversed"
+                   (mksignature (AST.Xptr :: nil) AST.Xint cc_default))
+     ((tptr tuint) :: nil) tuint cc_default)) ::
+ (___builtin_write16_reversed,
+   Gfun(External (EF_builtin "__builtin_write16_reversed"
+                   (mksignature (AST.Xptr :: AST.Xint16unsigned :: nil)
+                     AST.Xvoid cc_default))
+     ((tptr tushort) :: tushort :: nil) tvoid cc_default)) ::
+ (___builtin_write32_reversed,
+   Gfun(External (EF_builtin "__builtin_write32_reversed"
+                   (mksignature (AST.Xptr :: AST.Xint :: nil) AST.Xvoid
+                     cc_default)) ((tptr tuint) :: tuint :: nil) tvoid
+     cc_default)) ::
+ (___builtin_debug,
+   Gfun(External (EF_external "__builtin_debug"
+                   (mksignature (AST.Xint :: nil) AST.Xvoid
+                     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
+     (tint :: nil) tvoid
+     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
+ (_pprz_trig_int, Gvar v_pprz_trig_int) ::
+ (_pprz_itrig_sin, Gfun(Internal f_pprz_itrig_sin)) :: nil).
+
+Definition public_idents : list ident :=
+(_pprz_itrig_sin :: _pprz_trig_int :: ___builtin_debug ::
+ ___builtin_write32_reversed :: ___builtin_write16_reversed ::
+ ___builtin_read32_reversed :: ___builtin_read16_reversed ::
+ ___builtin_fnmsub :: ___builtin_fnmadd :: ___builtin_fmsub ::
+ ___builtin_fmadd :: ___builtin_fmin :: ___builtin_fmax ::
+ ___builtin_expect :: ___builtin_unreachable :: ___builtin_va_end ::
+ ___builtin_va_copy :: ___builtin_va_arg :: ___builtin_va_start ::
+ ___builtin_membar :: ___builtin_annot_intval :: ___builtin_annot ::
+ ___builtin_sel :: ___builtin_memcpy_aligned :: ___builtin_sqrt ::
+ ___builtin_fsqrt :: ___builtin_fabsf :: ___builtin_fabs ::
+ ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz :: ___builtin_clzll ::
+ ___builtin_clzl :: ___builtin_clz :: ___builtin_bswap16 ::
+ ___builtin_bswap32 :: ___builtin_bswap :: ___builtin_bswap64 ::
+ ___builtin_ais_annot :: ___compcert_i64_umulh :: ___compcert_i64_smulh ::
+ ___compcert_i64_sar :: ___compcert_i64_shr :: ___compcert_i64_shl ::
+ ___compcert_i64_umod :: ___compcert_i64_smod :: ___compcert_i64_udiv ::
+ ___compcert_i64_sdiv :: ___compcert_i64_utof :: ___compcert_i64_stof ::
+ ___compcert_i64_utod :: ___compcert_i64_stod :: ___compcert_i64_dtou ::
+ ___compcert_i64_dtos :: ___compcert_va_composite ::
+ ___compcert_va_float64 :: ___compcert_va_int64 :: ___compcert_va_int32 ::
+ nil).
+
+Definition prog : Csyntax.program := 
+  mkprogram composites global_definitions public_idents _main Logic.I.
+
+

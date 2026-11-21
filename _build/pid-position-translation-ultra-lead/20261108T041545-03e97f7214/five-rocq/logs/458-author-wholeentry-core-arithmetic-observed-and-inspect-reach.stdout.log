@@ -1,0 +1,57 @@
+From Stdlib Require Import ZArith.
+From compcert Require Import AST Integers Values Memory Events Ctypes Cop Csyntax Csyntaxdefs Csem Smallstep.
+From FiveGuidanceAllOrder Require Import PhaseComposition BlockExecution.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionSafety Require Import EntryOverflowGoal SubtractionObservation.
+Open Scope Z_scope.
+Definition OriginalEntryObservedCertificateGoal:Prop:=
+ forall m gh ret flight,InputGood m gh ret ->
+ exists mf P,certificate Execution.ge P(Returnstate Vundef Kstop mf)/\
+ P(Execution.entry(call_args gh ret flight)m)/\
+ (forall s,P s->subtraction_observation Execution.ge Source.f_guidance_pid_h_run_pos s).
+Theorem entry_subtraction_events_from_certificate:
+ OriginalEntryObservedCertificateGoal ->EntrySubtractionEventGoal.
+Proof.
+ intros CERTIFICATES m gh ret flight GOOD t C x y k e ma PATH CT.
+ destruct(CERTIFICATES m gh ret flight GOOD)as[mf[P[CERT[INITIAL OBS]]]].
+ pose proof(certificate_reachable Execution.ge P _ _ CERT INITIAL
+ (return_stop_nostep Execution.ge Vundef mf)t _ PATH)as REACHED.
+ exact(OBS _ REACHED eq_refl C x y CT eq_refl).
+Qed.
+Print Assumptions entry_subtraction_events_from_certificate.
+
+From Stdlib Require Import List.
+From compcert Require Import AST Integers Values Memory Events Ctypes Cop Csyntax Csyntaxdefs Csem Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationProblem Require Import Spec.
+From CoreCBMC Require Import ArithmeticTree ArithmeticObservation CoreArithmeticGoals.
+Definition CoreArithmeticObservationGoal:Prop:=
+ forall m gh ret flight,InputGood m gh ret ->forall t s,
+ star Csem.step Execution.ge(Execution.entry(call_args gh ret flight)m)t s ->
+ arithmetic_observation Execution.ge Source.f_guidance_pid_h_run s.
+Lemma core_observer_binary_event:CoreArithmeticObservationGoal ->
+ forall op,CoreBinaryEventGoal op.
+Proof.
+ intros OBS op m gh ret flight GOOD t C x y k e ma PATH CT.
+ pose proof(OBS m gh ret flight GOOD t _ PATH)as SAFE.
+ specialize(SAFE eq_refl);destruct SAFE as[BIN UNI].
+ exact(BIN C op(Vint x)tint(Vint y)tint tint CT eq_refl).
+Qed.
+Lemma core_observer_unary_event:CoreArithmeticObservationGoal ->
+ forall op,CoreUnaryEventGoal op.
+Proof.
+ intros OBS op m gh ret flight GOOD t C x k e ma PATH CT.
+ pose proof(OBS m gh ret flight GOOD t _ PATH)as SAFE.
+ specialize(SAFE eq_refl);destruct SAFE as[BIN UNI].
+ exact(UNI C op(Vint x)tint tint CT eq_refl).
+Qed.
+Lemma core_observer_site:CoreArithmeticObservationGoal ->
+ forall site,original_site_bound site ->source_integer_site site=true ->
+ CoreArithmeticSiteGoal site.
+Proof.
+ intros OBS site BOUND INT;split;[exact BOUND|];split;[exact INT|].
+ destruct(site_kind site);[apply core_observer_binary_event|apply core_observer_unary_event|apply core_observer_binary_event];exact OBS.
+Qed.
+Print Assumptions core_observer_site.
+

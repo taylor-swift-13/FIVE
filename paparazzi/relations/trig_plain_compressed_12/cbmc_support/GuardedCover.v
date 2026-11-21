@@ -1,0 +1,188 @@
+From Stdlib Require Import List Arith Lia Wellfounded String.
+From compcert Require Import Coqlib AST Values Memory Events Ctypes Cop Csyntax Csem Cexec Smallstep.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From PprzTrigRelationSupport Require Import PlainCore PureEval PureProgress Total BranchPure.
+From PprzTrigInitSupport Require Import Control.
+From PprzTrigCBMC Require Import TypedGuards SourceObservations Cutpoint MathCoverage.
+Import ListNotations.
+Local Open Scope string_scope.
+Definition state_math_guard(ge:Csem.genv)(s:Csem.state):Prop:=match s with
+ ExprState _ a _ e m=>math_guarded ge e m a|_=>True end.
+Inductive guarded_covers(ge:Csem.genv)(P:Csem.state->Prop):Csem.state->Prop:=
+| guarded_here:forall s,state_math_guard ge s->P s->guarded_covers ge P s
+| guarded_next:forall s,state_math_guard ge s->(exists t next,Csem.step ge s t next)->
+ (forall t next,Csem.step ge s t next->guarded_covers ge P next)->guarded_covers ge P s.
+Lemma guarded_covers_forget : forall ge P s,guarded_covers ge P s->covers ge P s.
+Proof. intros ge P s H;induction H;[constructor;assumption|apply covers_next;assumption]. Qed.
+Lemma guarded_covers_current : forall ge P s,guarded_covers ge P s->state_math_guard ge s.
+Proof. intros ge P s H;inversion H;assumption. Qed.
+Inductive guarded_total(ge:Csem.genv)(Q:val->mem->Prop):Csem.state->Prop:=
+| guarded_final:forall v m,Q v m->guarded_total ge Q(Returnstate v Kstop m)
+| guarded_total_next:forall s,state_math_guard ge s->(exists t next,Csem.step ge s t next)->
+ (forall t next,Csem.step ge s t next->guarded_total ge Q next)->guarded_total ge Q s.
+Theorem guarded_total_every_prefix : forall ge Q s tr current,
+ guarded_total ge Q s->star Csem.step ge s tr current->state_math_guard ge current.
+Proof.
+ intros ge Q s tr current T PATH;revert T;induction PATH;intros GT.
+ - inversion GT;subst;try exact I;assumption.
+ - apply IHPATH;inversion GT;subst;[exfalso;eapply Total.final_nostep;eauto|eauto].
+Qed.
+Theorem guarded_covers_bind : forall ge P Q s,
+ guarded_covers ge P s->(forall current,P current->guarded_total ge Q current)->guarded_total ge Q s.
+Proof. intros ge P Q s H END;induction H;[apply END;assumption|apply guarded_total_next;auto]. Qed.
+Theorem guarded_prefix_binary_guard : forall ge Q s tr f a k e m op l r,
+ guarded_total ge Q s->star Csem.step ge s tr(ExprState f a k e m)->
+ BinaryOperationOccurrence a op l r->binary_math_guard op l r.
+Proof.
+ intros ge Q s tr f a k e m op l r T PATH[C[tl[trt[ty[CTX EQ]]]]];subst a.
+ pose proof(guarded_total_every_prefix ge Q s tr _ T PATH)as MG.
+ pose proof(proj1 general_math_context_hole RV RV C CTX ge e m _ MG)as[_[_ G]].
+ exact(G l r eq_refl eq_refl).
+Qed.
+Theorem guarded_prefix_unary_guard : forall ge Q s tr f a k e m op v,
+ guarded_total ge Q s->star Csem.step ge s tr(ExprState f a k e m)->
+ UnaryOperationOccurrence a op v->unary_math_guard op v.
+Proof.
+ intros ge Q s tr f a k e m op v T PATH[C[tl[ty[CTX EQ]]]];subst a.
+ pose proof(guarded_total_every_prefix ge Q s tr _ T PATH)as MG.
+ pose proof(proj1 general_math_context_hole RV RV C CTX ge e m _ MG)as[_ G].
+ exact(G v eq_refl).
+Qed.
+Lemma singleton_guarded : forall ge P s next rule,
+ state_math_guard ge s->callback_free_state s->silent_state ge s->
+ Cexec.do_step ge Control.none_callback Control.none_callback Control.quiet s=[TR rule E0 next]->
+ guarded_covers ge P next->guarded_covers ge P s.
+Proof.
+ intros ge P s next rule G CB SIL DS END;apply guarded_next;[exact G| |].
+ - exists E0,next;apply(proj1(FiveShared.pure_semantics.SemanticsSupport.pure_do_step_exact ge Control.none_callback Control.none_callback Control.quiet s E0 next CB SIL)). exists rule;rewrite DS;cbn;auto.
+ - intros t s' STEP;destruct(proj2(FiveShared.pure_semantics.SemanticsSupport.pure_do_step_exact ge Control.none_callback Control.none_callback Control.quiet s t s' CB SIL)STEP)as[r IN].
+   rewrite DS in IN;cbn in IN;destruct IN as[EQ|BAD];[inversion EQ;subst;exact END|contradiction].
+Qed.
+Lemma math_estep_expression : forall ge f a k e m t a' m',
+ branch_simple a=true->math_guarded ge e m a->Csem.estep ge(ExprState f a k e m)t(ExprState f a' k e m')->math_guarded ge e m' a'.
+Proof. intros;destruct(math_estep _ _ _ _ _ _ _ _ H H0 H1)as[B|[b[E[S M]]]];[discriminate|inversion E;subst;exact M]. Qed.
+Lemma math_flat_estep_expression : forall ge f a k e m t a' m',
+ branch_flat a=true->math_guarded ge e m a->Csem.estep ge(ExprState f a k e m)t(ExprState f a' k e m')->
+ branch_flat a'=true /\math_guarded ge e m' a'.
+Proof. intros;destruct(math_flat_estep _ _ _ _ _ _ _ _ H H0 H1)as[B|[b[mm[E[S M]]]]];[discriminate|inversion E;subst;auto]. Qed.
+Theorem math_observation_prefix_guarded : forall ge Q f e m k a v,
+ branch_simple a=true ->branch_rval ge e m a=Some v ->math_guarded ge e m a ->
+ guarded_covers ge Q(ExprState f(Eval v(typeof a))k e m)->guarded_covers ge Q(ExprState f a k e m).
+Proof.
+ intros ge Q f e m k.
+ apply(well_founded_induction(well_founded_ltof _ branch_rank)
+  (fun a=>forall v,branch_simple a=true->branch_rval ge e m a=Some v->math_guarded ge e m a->
+   guarded_covers ge Q(ExprState f(Eval v(typeof a))k e m)->guarded_covers ge Q(ExprState f a k e m))).
+ intros a IH v SA EV MG END;destruct a eqn:EA;try discriminate SA;try discriminate EV.
+ all:try(simpl in EV;inversion EV;subst;exact END).
+ all:apply guarded_next;[exact MG| |].
+ all:try(eapply branch_nonvalue_progress;eauto;intros;discriminate).
+ all:intros t next STEP;destruct STEP as[ES|SS].
+ all:try(inversion SS;subst;discriminate).
+ all:destruct(branch_estep _ _ _ _ _ _ _ _ SA ES)as[BAD|[a'[EQ[TY[SA' EV']]]]].
+ all:try(exfalso;eapply(branch_estep_not_stuck _ _ _ _ _ _ _ _ _ SA EV ES);exact BAD).
+ all:subst next;apply IH with(v:=v);auto.
+ all:try(unfold ltof;eapply branch_estep_rank;eauto).
+ all:try(rewrite <-EV';exact EV).
+ all:try solve[match goal with ES:Csem.estep ?GG(ExprState ?FF ?AA ?KK ?EE ?MM)?TT(ExprState ?FF ?BB ?KK ?EE ?NN),SA:branch_simple ?AA=true,MG:math_guarded ?GG ?EE ?MM ?AA|-_=>exact(math_estep_expression GG FF AA KK EE MM TT BB NN SA MG ES)end].
+ all:rewrite TY;exact END.
+Qed.
+Theorem math_flat_prefix_guarded : forall ge Q f e k a m v mf,
+ flat_expr a=true -> core_expr a=true ->branch_flat a=true ->math_guarded ge e m a -> flat_eval ge e m a=Some(v,mf) ->
+ guarded_covers ge Q (ExprState f (Eval v (typeof a)) k e mf) ->
+ guarded_covers ge Q (ExprState f a k e m).
+Proof.
+ intros ge Q f e k.
+ apply(well_founded_induction(well_founded_ltof _ expr_rank)
+  (fun a=>forall m v mf,flat_expr a=true -> core_expr a=true ->branch_flat a=true ->math_guarded ge e m a ->
+   flat_eval ge e m a=Some(v,mf) ->
+   guarded_covers ge Q (ExprState f (Eval v (typeof a)) k e mf) -> guarded_covers ge Q (ExprState f a k e m))).
+ intros a IH m v mf FL CO BF MG EV END.
+ destruct a eqn:EA;try discriminate FL.
+ all: try (simpl in EV;inversion EV;subst;exact END).
+ all: apply guarded_next;[exact MG| |].
+ all: try (eapply flat_nonvalue_progress;eauto;intros;discriminate).
+ all: intros t next STEP;destruct STEP as[ES|SS].
+ all: try(inversion SS;subst;discriminate).
+ all: destruct(flat_estep _ _ _ _ _ _ _ _ FL CO ES) as[BAD|[a'[m'[EQ[TY[FL'[CO' EV']]]]]]].
+ all: try(exfalso;eapply(flat_estep_not_stuck _ _ _ _ _ _ _ _ _ _ FL EV ES);exact BAD).
+ all: subst next;apply IH with(v:=v)(mf:=mf);auto.
+ all: try(unfold ltof;eapply flat_estep_rank;eauto).
+ all: try(rewrite <-EV';exact EV).
+ all: try(exact(proj1(math_flat_estep_expression _ _ _ _ _ _ _ _ _ BF MG ES))).
+ all: try(exact(proj2(math_flat_estep_expression _ _ _ _ _ _ _ _ _ BF MG ES))).
+ all: rewrite TY;exact END.
+Qed.
+
+Lemma sequence_guarded : forall ge P f a b k e m,
+ guarded_covers ge P(State f a(Kseq b k)e m)->guarded_covers ge P(State f(Ssequence a b)k e m).
+Proof. intros;eapply singleton_guarded with(rule:="step_seq");eauto using Control.statement_silent;reflexivity. Qed.
+Lemma skip_sequence_guarded : forall ge P f a k e m,
+ guarded_covers ge P(State f a k e m)->guarded_covers ge P(State f Sskip(Kseq a k)e m).
+Proof. intros;eapply singleton_guarded with(rule:="step_skip_seq");eauto using Control.statement_silent;reflexivity. Qed.
+Lemma do_guarded : forall ge P f a k e m,
+ guarded_covers ge P(ExprState f a(Kdo k)e m)->guarded_covers ge P(State f(Sdo a)k e m).
+Proof. intros;eapply singleton_guarded with(rule:="step_do_1");eauto using Control.statement_silent;reflexivity. Qed.
+Lemma do_value_guarded : forall ge P f v ty k e m,
+ guarded_covers ge P(State f Sskip k e m)->guarded_covers ge P(ExprState f(Eval v ty)(Kdo k)e m).
+Proof. intros;eapply singleton_guarded with(rule:="step_do_2");eauto using Control.literal_silent;reflexivity. Qed.
+Lemma if_start_guarded : forall ge P f a yes no k e m,
+ guarded_covers ge P(ExprState f a(Kifthenelse yes no k)e m)->guarded_covers ge P(State f(Sifthenelse a yes no)k e m).
+Proof. intros;eapply singleton_guarded with(rule:="step_ifthenelse_1");eauto using Control.statement_silent;reflexivity. Qed.
+Lemma if_value_guarded : forall ge P f v ty yes no k e m choice,
+ bool_val v ty m=Some choice->guarded_covers ge P(State f(if choice then yes else no)k e m)->
+ guarded_covers ge P(ExprState f(Eval v ty)(Kifthenelse yes no k)e m).
+Proof.
+ intros ge P f v ty yes no k e m choice B END.
+ eapply singleton_guarded with(rule:="step_ifthenelse_2");
+ try exact I;try apply Control.literal_silent;try reflexivity.
+ - unfold Cexec.do_step;cbn -[bool_val];rewrite B;reflexivity.
+ - exact END.
+Qed.
+Lemma return_start_guarded : forall ge P f a k e m,
+ guarded_covers ge P(ExprState f a(Kreturn k)e m)->guarded_covers ge P(State f(Sreturn(Some a))k e m).
+Proof. intros;eapply singleton_guarded with(rule:="step_return_1");eauto using Control.statement_silent;reflexivity. Qed.
+Lemma internal_guarded : forall ge P f args k m e m1 m2,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f))->
+ do_alloc_variables ge empty_env m(fn_params f++fn_vars f)=(e,m1)->
+ sem_bind_parameters ge Control.quiet e m1(fn_params f)args=Some m2 ->
+ guarded_covers ge P(State f(fn_body f)k e m2)->guarded_covers ge P(Callstate(Internal f)args k m).
+Proof.
+ intros ge P f args k m e m1 m2 NR AV BP END.
+ eapply singleton_guarded with(rule:="step_internal_function");try exact I;try apply Control.internal_silent.
+ - cbn[Cexec.do_step];destruct(list_norepet_dec ident_eq(var_names(fn_params f)++var_names(fn_vars f)));[rewrite AV,BP;reflexivity|contradiction].
+ - exact END.
+Qed.
+Lemma while_start_guarded : forall ge Q f a body k e m,
+  guarded_covers ge Q (ExprState f a (Kwhile1 a body k) e m) ->
+  guarded_covers ge Q (State f (Swhile a body) k e m).
+Proof.
+  intros; eapply singleton_guarded with (rule:="step_while");
+    eauto using statement_silent; reflexivity.
+Qed.
+
+Lemma while_false_value_guarded : forall ge Q f a body v ty k e m,
+  bool_val v ty m = Some false ->
+  guarded_covers ge Q (State f Sskip k e m) ->
+  guarded_covers ge Q (ExprState f (Eval v ty) (Kwhile1 a body k) e m).
+Proof.
+  intros; eapply singleton_guarded with (rule:="step_while_false");
+    eauto using literal_silent; try reflexivity.
+  unfold Cexec.do_step; cbn -[bool_val]; rewrite H; reflexivity.
+Qed.
+
+
+Lemma if_math_guarded : forall ge Q f a yes no k e m v choice,
+ branch_simple a=true->branch_rval ge e m a=Some v->math_guarded ge e m a->
+ bool_val v(typeof a)m=Some choice->guarded_covers ge Q(State f(if choice then yes else no)k e m)->
+ guarded_covers ge Q(State f(Sifthenelse a yes no)k e m).
+Proof. intros;apply if_start_guarded;eapply math_observation_prefix_guarded;eauto;eapply if_value_guarded;eauto. Qed.
+Lemma while_false_math_guarded : forall ge Q f a body k e m v,
+ branch_simple a=true->branch_rval ge e m a=Some v->math_guarded ge e m a->
+ bool_val v(typeof a)m=Some false->guarded_covers ge Q(State f Sskip k e m)->
+ guarded_covers ge Q(State f(Swhile a body)k e m).
+Proof. intros;apply while_start_guarded;eapply math_observation_prefix_guarded;eauto;eapply while_false_value_guarded;eauto. Qed.
+Lemma do_flat_math_guarded : forall ge Q f a k e m v mf,
+ flat_expr a=true->core_expr a=true->branch_flat a=true->math_guarded ge e m a->flat_eval ge e m a=Some(v,mf)->
+ guarded_covers ge Q(State f Sskip k e mf)->guarded_covers ge Q(State f(Sdo a)k e m).
+Proof. intros;apply do_guarded;eapply math_flat_prefix_guarded;eauto;apply do_value_guarded;assumption. Qed.

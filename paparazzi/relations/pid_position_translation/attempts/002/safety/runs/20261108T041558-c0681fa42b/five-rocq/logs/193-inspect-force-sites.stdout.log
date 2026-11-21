@@ -1,0 +1,39 @@
+    guidance_pid.cmd_earth.y += (guidance_pid_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+  } else {
+    INT_VECT2_ZERO(guidance_pid_trim_att_integrator);
+  }
+
+  /* compute a better approximation of force commands by taking thrust into account */
+  if (guidance_pid.approx_force_by_thrust && in_flight) {
+    static int32_t thrust_cmd_filt;
+    // FIXME strong coupling with guidance_v here !!!
+    int32_t vertical_thrust = (stabilization.cmd[COMMAND_THRUST] * guidance_v.thrust_coeff) >> INT32_TRIG_FRAC;
+    thrust_cmd_filt = (thrust_cmd_filt * GUIDANCE_H_THRUST_CMD_FILTER + vertical_thrust) /
+                      (GUIDANCE_H_THRUST_CMD_FILTER + 1);
+    guidance_pid.cmd_earth.x = ANGLE_BFP_OF_REAL(atan2f((guidance_pid.cmd_earth.x * MAX_PPRZ / INT32_ANGLE_PI_2),
+                             thrust_cmd_filt));
+    guidance_pid.cmd_earth.y = ANGLE_BFP_OF_REAL(atan2f((guidance_pid.cmd_earth.y * MAX_PPRZ / INT32_ANGLE_PI_2),
+                             thrust_cmd_filt));
+  }
+
+  VECT2_STRIM(guidance_pid.cmd_earth, -total_max_bank, total_max_bank);
+36:Theorem all_normal_reference_positions_preserved :
+37- forall m gh ret flight mf,InputGood m gh ret ->NormalCall gh ret flight m mf ->
+38- forall axis,In axis[S._x;S._y] ->
+39- load_path Mint32 mf gh gh_type(ref_pos axis)=load_path Mint32 m gh gh_type(ref_pos axis).
+40-Proof.
+41- intros m gh ret flight mf GOOD CALL.
+42- destruct(all_normal_error_and_reference_results m gh ret flight mf GOOD CALL)
+43- as(rx&ry&px&py&sx&sy&vx&vy&sb&STATE&RX&RY&PX&PY&SX&SY&VX&VY&EX&EY&ESX&ESY&FRX&FRY).
+44- intros axis IN;destruct IN as[<-|[<-|[]]];unfold ref_pos;[rewrite RX,FRX|rewrite RY,FRY];reflexivity.
+45-Qed.
+46-
+47-Theorem all_normal_position_errors_equal :
+48- forall gh ret a b dx dy flight af bf,
+49- InputPair gh ret a b dx dy ->NormalCall gh ret flight a af ->NormalCall gh ret flight b bf ->
+50- forall axis,In axis[S._x;S._y] ->
+51- same_loaded_int32
+52- (load_global Mint32 af S._guidance_pid_pos_err vec_type[axis])
+53- (load_global Mint32 bf S._guidance_pid_pos_err vec_type[axis]).
+--
+74:Print Assumptions all_normal_reference_positions_preserved.

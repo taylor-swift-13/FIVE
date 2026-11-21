@@ -1,0 +1,218 @@
+210-Theorem ground_all_successor_termination : GroundTerminationGoal.
+211-Proof. intros gh ret m GOOD;exact(proved_all_successor_termination gh ret m false GOOD). Qed.
+212-Print Assumptions ground_integral_independence.
+213-Print Assumptions ground_relational_frame.
+214-Print Assumptions ground_no_error.
+215-Print Assumptions ground_all_successor_termination.
+216-
+217-(** Updating either historical value does not alter the original input domain. *)
+218:Lemma inputgood_store_integral_x : forall m gh ret bi mf fresh,
+219- InputGood m gh ret ->
+220- Genv.find_symbol E.ge S._guidance_pid_trim_att_integrator=Some bi ->
+221- Genv.find_var_info E.ge bi=Some S.v_guidance_pid_trim_att_integrator ->
+222- -100000000<=Int.signed fresh<=100000000 ->
+223- Mem.store Mint32 m bi 0(Vint fresh)=Some mf ->InputGood mf gh ret.
+224-Proof.
+225- intros m gh ret bi mf fresh GOOD SI VI BOUND STORE.
+226- destruct GOOD as[LEG[IP SAFE]].
+227- destruct LEG as(GR&UNIQUE&RETS&GH&RET&GLOBALS&WR&CACHE&APP&HEAD&GAINS&AXES).
+228- assert(GI:gh<>bi).
+229- { intro EQ;subst gh;pose proof(UNIQUE _ SI)as BAD;discriminate. }
+230- assert(PATH:forall ch b ty path,b<>bi ->load_path ch mf b ty path=load_path ch m b ty path).
+231- { intros ch b ty path NE;unfold load_path;destruct(path_info ty path)as[[ft ofs]|];[|reflexivity].
+232-   eapply Mem.load_store_other;[exact STORE|left;exact NE]. }
+233- assert(GLOBAL:forall ch id ty path,id<>S._guidance_pid_trim_att_integrator ->
+234- load_global ch mf id ty path=load_global ch m id ty path).
+235- { intros ch id ty path NE;unfold load_global;destruct(Genv.find_symbol E.ge id)as[b|]eqn:SB;[|reflexivity].
+236-   apply PATH;eapply Genv.global_addresses_distinct;[exact NE|exact SB|exact SI]. }
+237- assert(PERM:forall b ofs k pm,Mem.perm mf b ofs k pm <->Mem.perm m b ofs k pm).
+238- { intros;split;intro H;[eapply Mem.perm_store_2|eapply Mem.perm_store_1];eauto. }
+239- assert(GLOBALS':global_bytes_initialized mf).
+240- { eapply global_contract_after_store;[exact GLOBALS| |exact STORE].
+241-   intros b gv VAR RO EQ;subst b;rewrite VI in VAR;injection VAR as <-;discriminate. }
+242- assert(WR':writable_controller_globals mf).
+243- { intros id IN;destruct(WR id IN)as[b[gv[SB[VB RP]]]];exists b,gv;repeat split;try assumption.
+244-   intros ofs R;apply PERM;apply RP;exact R. }
+245- assert(CACHE':caches_valid mf).
+246- { destruct CACHE as[ps[ss[P[S0[PP SS]]]]];exists ps,ss.
+247-   rewrite!GLOBAL by discriminate;auto. }
+248- assert(APP':load_global Mint8unsigned mf S._guidance_pid pid_type[S._approx_force_by_thrust]=Some(Vint Int.zero)).
+249- { rewrite GLOBAL by discriminate;exact APP. }
+250- assert(HEAD':heading_safe mf).
+251- { destruct HEAD as[h[H RANGE]];exists h;rewrite GLOBAL by discriminate;auto. }
+252- assert(GAINS':forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka] ->bounded_global mf S._guidance_pid pid_type[gain]0 100).
+253- { intros gain IN;destruct(GAINS gain IN)as[v[L R]];exists v;split;[rewrite GLOBAL by discriminate;exact L|exact R]. }
+254- assert(AXES':forall axis,In axis[S._x;S._y]->
+255- bounded_global mf S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+256- bounded_path mf gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+257- bounded_path mf gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+258- bounded_global mf S._state state_type[S._ned_speed_i;axis](-10000)10000).
+259- { intros axis IN;destruct(AXES axis IN)as[II[RS[RA VS]]];split.
+260-   - destruct IN as[<-|[<-|[]]].
+261-     + exists fresh;split;[unfold load_global;rewrite SI;change(Mem.load Mint32 mf bi 0=Some(Vint fresh));exact(Mem.load_store_same _ _ _ _ _ _ STORE)|exact BOUND].
+262-     + destruct II as[i[IL IR]];exists i;split;[|exact IR].
+263-       unfold load_global in *;rewrite SI in *;change(Mem.load Mint32 mf bi 4=Some(Vint i)).
+264-       rewrite(Mem.load_store_other _ _ _ _ _ _ STORE Mint32 bi 4)by(right;right;cbn;lia);exact IL.
+265-   - destruct RS as[s[SL SR]];destruct RA as[a[AL AR]];destruct VS as[v[VL VR]].
+266-     split;[exists s;split;[rewrite PATH by exact GI;exact SL|exact SR]|].
+267-     split;[exists a;split;[rewrite PATH by exact GI;exact AL|exact AR]|].
+268-     exists v;split;[rewrite GLOBAL by discriminate;exact VL|exact VR]. }
+269- assert(SAFE':position_subtractions_safe mf gh).
+270- { intros axis IN;destruct(SAFE axis IN)as[r[p[R[P B]]]];exists r,p.
+271-   rewrite PATH by exact GI;rewrite GLOBAL by discriminate;auto. }
+272- assert(IP':initialized_positions mf gh).
+273- { intros axis IN;destruct(IP axis IN)as[r[p[R P]]];exists r,p.
+274-   rewrite PATH by exact GI;rewrite GLOBAL by discriminate;auto. }
+275- assert(GH':Mem.range_perm mf gh 0(sizeof ce gh_type)Cur Readable).
+276- { intros ofs R;apply PERM;apply GH;exact R. }
+277- assert(RET':Mem.range_perm mf ret 0(sizeof ce sp_type)Cur Writable).
+278- { intros ofs R;apply PERM;apply RET;exact R. }
+279- unfold InputGood;split;[unfold InputGoodLegacy;tauto|exact(conj IP' SAFE')].
+280-Qed.
+281-Theorem ground_different_integrals_nonvacuity : GroundNonvacuityGoal.
+282-Proof.
+283- destruct canonical_input_nonvacuity as(gh&ret&a&unused&dx&dy&PAIR&REST).
+284- pose proof(proj1 PAIR)as GOOD.
+285- destruct(inputgood_core_initial_data a gh ret GOOD)as[D _].
+286- destruct(actual_global_variable_binding S._guidance_pid_trim_att_integrator S.v_guidance_pid_trim_att_integrator ltac:(vm_compute;reflexivity))as[bi[SI VI]].
+287- assert(EI:bi=cid_i _ _ D)by(pose proof(cid_i_symbol _ _ D);congruence);subst bi.
+288- set(ix:=cid_ix _ _ D);set(iy:=cid_iy _ _ D).
+289- assert(OLD:old_integrals a ix iy).
+290- { unfold old_integrals,load_global;rewrite(cid_i_symbol _ _ D);split;[exact(cid_integral_x _ _ D)|exact(cid_integral_y _ _ D)]. }
+291- assert(FRESH:exists fresh,-100000000<=Int.signed fresh<=100000000 /\ix<>fresh).
+292- { destruct(Int.eq_dec ix Int.zero)as[EQ|NE].
+293-   - exists Int.one;split;[change(-100000000<=1<=100000000);lia|subst ix;rewrite EQ;discriminate].
+294-   - exists Int.zero;split;[rewrite Int.signed_zero;lia|exact NE]. }
+295- destruct FRESH as[fresh[BOUND DIFF]].
+296- assert(VA:Mem.valid_access a Mint32(cid_i _ _ D)0 Writable).
+297- { apply scalar_access_inside with(n:=8);[exact(cid_i_writable _ _ D)|lia|cbn;lia|exists 0;reflexivity]. }
+298- destruct(Mem.valid_access_store a Mint32(cid_i _ _ D)0(Vint fresh)VA)as[b STORE].
+299: assert(GOODB:InputGood b gh ret)by(eapply inputgood_store_integral_x;[exact GOOD|exact(cid_i_symbol _ _ D)|exact VI|exact BOUND|exact STORE]).
+300- assert(NEW:old_integrals b fresh iy).
+301- { unfold old_integrals,load_global;rewrite(cid_i_symbol _ _ D);split.
+302-   - exact(Mem.load_store_same _ _ _ _ _ _ STORE).
+303-   - change(Mem.load Mint32 b(cid_i _ _ D)4=Some(Vint iy)).
+304-     rewrite(Mem.load_store_other _ _ _ _ _ _ STORE Mint32(cid_i _ _ D)4)by(right;right;cbn;lia);exact(cid_integral_y _ _ D). }
+305- assert(FRAME:same_except_integrals_and_return ret a b).
+306- { split;[rewrite(Mem.nextblock_store _ _ _ _ _ _ STORE);reflexivity|];split.
+307-   - intros blk ofs k pm;split;intro P;[eapply Mem.perm_store_1|eapply Mem.perm_store_2];eauto.
+308-   - intros blk ofs NT NR;rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ STORE blk ofs 1);[reflexivity|].
+309-     destruct(peq blk(cid_i _ _ D))as[EQ|NE];[subst blk;right;right|left;exact NE].
+310-     assert(NRANGE:~0<=ofs<8)by(intro R;apply NT;split;[exact(cid_i_symbol _ _ D)|exact R]).
+311-     cbn;lia. }
+312- assert(BASE:GroundBasePair gh ret a b)by(exact(conj GOOD(conj GOODB FRAME))).
+313- exists gh,ret,a,b,ix,iy,fresh,iy;split;[exact(conj BASE(conj OLD NEW))|];split;[exact DIFF|].
+314- exact(constructed_ground gh ret a b BASE).
+315-Qed.
+316-Print Assumptions ground_different_integrals_nonvacuity.
+   split;[unfold load_global;rewrite SS;exact PY|].
+   split.
+   - intros axis IN;destruct IN as[<-|[<-|[]]];repeat split;try assumption;
+     unfold load_global;first[rewrite SS;assumption|rewrite SI;assumption].
+   - split;[unfold load_global;rewrite SP;exact KP|].
+     split;[unfold load_global;rewrite SP;exact KD|].
+     split;[unfold load_global;rewrite SP;exact KI|].
+     split;[unfold load_global;rewrite SP;exact KV|].
+     split;[unfold load_global;rewrite SP;exact KA|].
+     unfold load_global;rewrite SH;witness_zero_path HZERO. }
+
+ destruct(symbolic_updates_exist base gh sb bp bi A kp ki WG WS WP WI)as[m RUN].
+ exists gh,ret,m;split;[apply GOOD;[lia|exact RUN]|].
+ split.
+ - assert(RAW:raw_writes(fun _=>True)base m).
+   { eapply replay_stores_raw;[exact RUN|];unfold symbolic_updates;witness_forall ltac:(exact I). }
+   intros z R;apply(proj1(raw_writes_perm _ _ _ RAW gh z Cur Writable));apply WG;exact R.
+ - intros b gv VAR;split;[exact(GVAR b gv VAR)|].
+   exact(GVARRET b gv VAR).
+Qed.
+Print Assumptions symbolic_initial_private_writable_exists.
+
+From PidAlternatingProblem Require Import Spec.
+Lemma symbolic_to_alternating : forall m gh ret A kp ki,
+ SymbolicInitial m gh ret A kp ki ->AlternatingInput m gh ret A kp ki Int.zero.
+Proof.
+ intros m gh ret A kp ki(GOOD&RX&RY&PX&PY&AXES&KP&KD&KI&KV&KA&HEAD).
+ assert(AXES0:forall axis,In axis[S._x;S._y] ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;axis]=Some(Vint Int.zero) /\
+ load_path Mint32 m gh gh_type[S._ref;S._accel;axis]=Some(Vint Int.zero) /\
+ load_global Mint32 m S._state state_type[S._ned_speed_i;axis]=Some(Vint Int.zero)).
+ { intros axis IN;destruct(AXES axis IN)as(SPEED&ACCEL&VEL&INT);auto. }
+ pose proof(proj2(proj2(proj2(AXES S._x ltac:(cbn;auto)))))as IX.
+ pose proof(proj2(proj2(proj2(AXES S._y ltac:(cbn;auto)))))as IY.
+ unfold AlternatingInput,integral_load;repeat(first[assumption|split]).
+Qed.
+Theorem initial_private_writable_input_exists : forall A kp ki,Parameters A kp ki ->
+ exists gh ret m,AlternatingInput m gh ret A kp ki Int.zero /\
+ Mem.range_perm m gh 0 84 Cur Writable /\PrivateBlocks gh ret.
+Proof.
+ intros A kp ki(AR&KPR&KIR).
+ destruct(symbolic_initial_private_writable_exists A kp ki AR KPR KIR)as(gh&ret&m&INPUT&WG&PRIVATE).
+ exists gh,ret,m;split;[apply symbolic_to_alternating;exact INPUT|split;assumption].
+Qed.
+Theorem initial_input_exists : InitialExistenceGoal.
+Proof.
+ intros A kp ki PARAM;destruct(initial_private_writable_input_exists A kp ki PARAM)as(gh&ret&m&INPUT&WG&PRIVATE);eauto.
+Qed.
+Print Assumptions initial_private_writable_input_exists.
+Print Assumptions initial_input_exists.
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Integers Floats Values Memory Globalenvs.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+
+(** A deliberately restricted, admissible slice of full sign reversal:
+    only x reference position is nonzero; the physical measurements, all
+    velocities, accelerations, initial integrals and heading are zero.
+    Both executions use the same flight flag and identical gains. *)
+Definition MirrorInput (m:mem)(gh ret:block)(r:Z):Prop:=
+ InputGood m gh ret /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint(Int.repr r)) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint Int.zero) /\
+ load_global Mint32 m S._state state_type[S._ned_pos_i;S._x]=Some(Vint Int.zero) /\
+ load_global Mint32 m S._state state_type[S._ned_pos_i;S._y]=Some(Vint Int.zero) /\
+ (forall axis,In axis[S._x;S._y]->
+  load_path Mint32 m gh gh_type[S._ref;S._speed;axis]=Some(Vint Int.zero) /\
+  load_path Mint32 m gh gh_type[S._ref;S._accel;axis]=Some(Vint Int.zero) /\
+  load_global Mint32 m S._state state_type[S._ned_speed_i;axis]=Some(Vint Int.zero) /\
+  load_global Mint32 m S._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint Int.zero)) /\
+ load_global Mint32 m S._guidance_pid pid_type[S._kp]=Some(Vint Int.one) /\
+ load_global Mint32 m S._guidance_pid pid_type[S._kd]=Some(Vint Int.zero) /\
+ load_global Mint32 m S._guidance_pid pid_type[S._ki]=Some(Vint Int.one) /\
+ load_global Mint32 m S._guidance_pid pid_type[S._kv]=Some(Vint Int.zero) /\
+ load_global Mint32 m S._guidance_pid pid_type[S._ka]=Some(Vint Int.zero) /\
+ load_global Mfloat32 m S._guidance_h gh_type[S._sp;S._heading]=Some(Vsingle Float32.zero).
+Definition MirroredPair gh ret a b r:Prop:=
+ MirrorInput a gh ret r /\ MirrorInput b gh ret (-r) /\
+ same_except_positions_and_return gh ret a b.
+Definition ObservedX (ret:block)(m:mem)(cmd integral:Z):Prop:=
+ load_path Mint32 m ret sp_type[S._type]=Some(Vint(Int.repr 2)) /\
+ load_path Mint32 m ret sp_type[S._format]=Some(Vint Int.zero) /\
+ load_path Mint32 m ret sp_type[S._sp;S._ltp_i;S._vect;S._x]=Some(Vint(Int.repr cmd)) /\
+ load_global Mint32 m S._guidance_pid pid_type[S._cmd_earth;S._x]=Some(Vint(Int.repr cmd)) /\
+ load_global Mint32 m S._guidance_pid_trim_att_integrator vec_type[S._x]=Some(Vint(Int.repr integral)).
+Definition OppositeReturnedX ret a b:Prop:=
+ exists x y,
+ load_path Mint32 a ret sp_type[S._sp;S._ltp_i;S._vect;S._x]=Some(Vint x) /\
+ load_path Mint32 b ret sp_type[S._sp;S._ltp_i;S._vect;S._x]=Some(Vint y) /\
+ Int.signed y = -Int.signed x.
+Definition StrictSymmetryGoal:Prop:=
+ forall gh ret a b r af bf, MirroredPair gh ret a b r ->
+ NormalCall gh ret true a af ->NormalCall gh ret true b bf ->
+ OppositeReturnedX ret af bf.
+Definition ActualCounterexampleGoal:Prop:=
+ exists gh ret a b af bf,
+ MirroredPair gh ret a b 64 /\
+ NormalCall gh ret true a af /\NormalCall gh ret true b bf /\
+ ObservedX ret af 1 1 /\ObservedX ret bf (-2) (-1) /\
+ ~OppositeReturnedX ret af bf.
+Definition StrictSymmetryRefutedGoal:Prop:=~StrictSymmetryGoal.

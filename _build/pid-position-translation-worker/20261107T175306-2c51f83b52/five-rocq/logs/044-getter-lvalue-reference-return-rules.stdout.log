@@ -1,0 +1,62 @@
+
+Section SIMPLE_EXPRS.
+
+Variable e: env.
+Variable m: mem.
+
+Inductive eval_simple_lvalue: expr -> block -> ptrofs -> bitfield -> Prop :=
+  | esl_loc: forall b ofs ty bf,
+      eval_simple_lvalue (Eloc b ofs bf ty) b ofs bf
+  | esl_var_local: forall x ty b,
+      e!x = Some(b, ty) ->
+      eval_simple_lvalue (Evar x ty) b Ptrofs.zero Full
+  | esl_var_global: forall x ty b,
+      e!x = None ->
+      Genv.find_symbol ge x = Some b ->
+      eval_simple_lvalue (Evar x ty) b Ptrofs.zero Full
+  | esl_deref: forall r ty b ofs,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      eval_simple_lvalue (Ederef r ty) b ofs Full
+  | esl_field_struct: forall r f ty b ofs id co a delta bf,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      typeof r = Tstruct id a ->
+      ge.(genv_cenv)!id = Some co ->
+      field_offset ge f (co_members co) = OK (delta, bf) ->
+      eval_simple_lvalue (Efield r f ty) b (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+  | esl_field_union: forall r f ty b ofs id co a delta bf,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      typeof r = Tunion id a ->
+      union_field_offset ge f (co_members co) = OK (delta, bf) ->
+      ge.(genv_cenv)!id = Some co ->
+      eval_simple_lvalue (Efield r f ty) b (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+
+with eval_simple_rvalue: expr -> val -> Prop :=
+  | esr_val: forall v ty,
+      eval_simple_rvalue (Eval v ty) v
+  | esr_rvalof: forall b ofs bf l ty v,
+69:  | deref_loc_reference:
+70-      access_mode ty = By_reference ->
+71-      deref_loc ty m b ofs Full E0 (Vptr b ofs)
+72-  | deref_loc_copy:
+73-      access_mode ty = By_copy ->
+74-      deref_loc ty m b ofs Full E0 (Vptr b ofs)
+75-  | deref_loc_bitfield: forall sz sg pos width v,
+76-      load_bitfield ty sz sg pos width m (Vptr b ofs) v ->
+77-      deref_loc ty m b ofs (Bits sz sg pos width) E0 v.
+78-
+79-(** Symmetrically, [assign_loc ty m b ofs bf v t m' v'] returns the
+80-  memory state after storing the value [v] in the datum
+81-  of type [ty] residing in memory [m] at block [b], offset [ofs],
+82-  and bitfield designation [bf].
+83-  This is allowed only if [ty] indicates an access by value or by copy.
+84-  [m'] is the updated memory state and [t] the trace of observables
+85-  (nonempty if this is a volatile store).
+86-  [v'] is the result value of the assignment.  It is equal to [v]
+87-  if [bf] is [Full], and to [v] normalized to the width and signedness
+88-  of the bitfield [bf] otherwise.
+89-*)
+90-
+91-Inductive assign_loc (ty: type) (m: mem) (b: block) (ofs: ptrofs):
+92-                              bitfield -> val -> trace -> mem -> val -> Prop :=
+93-  | assign_loc_value: forall v chunk m',
+94-      access_mode ty = By_value chunk ->

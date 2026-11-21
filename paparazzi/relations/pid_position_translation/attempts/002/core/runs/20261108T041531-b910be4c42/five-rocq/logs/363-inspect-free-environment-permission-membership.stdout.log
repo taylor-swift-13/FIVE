@@ -1,0 +1,18 @@
+Lemma free_list_bytes_frame:forall regions m mf,
+ Mem.free_list m regions=Some mf ->
+ forall b ofs n,~In b(map region_block regions)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros regions;induction regions as[|[[head lo]hi]regions IH];intros m mf FREE b ofs n OUT.
+ - cbn[Mem.free_list]in FREE;injection FREE as<-;reflexivity.
+ - cbn[Mem.free_list]in FREE;destruct(Mem.free m head lo hi)as[ma|]eqn:F;try discriminate.
+   rewrite(IH ma mf FREE b ofs n)by(cbn in OUT;tauto).
+   eapply Mem.loadbytes_free;[exact F|left;cbn in OUT;intuition congruence].
+Qed.
+Lemma free_environment_bytes_frame:forall ge e m mf,
+ Mem.free_list m(blocks_of_env ge e)=Some mf ->
+ forall b ofs n,(forall id ty,e!id=Some(b,ty)->False)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge e m mf FREE b ofs n OUT;apply(free_list_bytes_frame _ _ _ FREE);intro IN.
+ unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+ cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+Qed.

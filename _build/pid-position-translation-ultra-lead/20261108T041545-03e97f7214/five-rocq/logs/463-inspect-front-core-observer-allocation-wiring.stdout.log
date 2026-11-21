@@ -1,0 +1,89 @@
+ations)->e!id=None).
+Proof.
+ intros m gh ret flight GOOD.
+ destruct(original_entry_setup m gh ret flight)as[SETUP _].
+ destruct SETUP as[e ma mb br bf bg bs AL BIND LR LF LG LS SEP FRESH FREE RPTR GPTR FVAL OLDLOAD OLDPERM OLDBYTES].
+ assert(WR:writable_controller_globals m).
+ { destruct GOOD as[G _];unfold InputGoodLegacy in G;tauto. }
+ destruct(WR S._guidance_pid_pos_err ltac:(cbn;auto))as[pb[pgv[SP[PV PWRITE]]]].
+ destruct(WR S._guidance_pid_speed_err ltac:(cbn;auto))as[vb[vgv[SV[VV VWRITE]]]].
+ destruct actual_state_symbol as[sb STATE].
+ destruct(inputgood_cached_flags m gh ret sb GOOD STATE)as[flags[sflags[POSC[SPDC[VALID SVALID]]]]].
+ destruct(inputgood_position_values m gh ret sb GOOD STATE)as[rx[ry[px[py[RX[RY[PX PY]]]]]]].
+ destruct(inputgood_speed_values m gh ret sb GOOD STATE)as[sx[sy[vx[vy[SX[SY[VX VY]]]]]]].
+ assert(SAFEPX:NumericBounds.signed32(Int.signed rx-Int.signed px)).
+ { eapply(inputgood_fixed_subtraction_safe false m gh ret S._x rx px);
+   [exact GOOD|cbn;auto|exact RX|].
+   unfold load_global;rewrite STATE;exact PX. }
+ assert(SAFEPY:NumericBounds.signed32(Int.signed ry-Int.signed py)).
+ { eapply(inputgood_fixed_subtraction_safe false m gh ret S._y ry py);
+   [exact GOOD|cbn;auto|exact RY|].
+   unfold load_global;rewrite STATE;exact PY. }
+ assert(SAFESX:NumericBounds.signed32(Int.signed sx-Int.signed vx)).
+ { eapply(inputgood_fixed_subtraction_safe true m gh ret S._x sx vx);
+   [exact GOOD|cbn;auto|exact SX|].
+   unfold load_global;rewrite STATE;exact VX. }
+ assert(SAFESY:NumericBounds.signed32(Int.signed sy-Int.signed vy)).
+ { eapply(inputgood_fixed_subtraction_safe true m gh ret S._y sy vy);
+   [exact GOOD|cbn;auto|exact SY|].
+   unfold load_global;rewrite STATE;exact VY. }
+ assert(WP:Mem.range_perm m pb 0 8 Cur Writable)
+ by(exact(inputgood_error_global_writable m gh ret S._guidance_pid_pos_err pb GOOD ltac:(cbn;auto)SP)).
+ assert(WV:Mem.range_perm m vb 0 8 Cur Writable)
+ by(exact(inputgood_error_global_writable m gh ret S._guidance_pid_speed_err vb GOOD ltac:(cbn;auto)SV)).
+ assert(VPB:Mem.valid_block m pb)by(exact(range_block m pb 0 8 Writable ltac:(lia)WP)).
+ assert(VVB:Mem.valid_block m vb)by(exact(range_block m vb 0 8 Writable ltac:(lia)WV)).
+ assert(VSB:Mem.valid_block m sb)by(eapply loaded_block;exact POSC).
+ assert(VGH:Mem.valid_block m gh).
+ { eapply loaded_block with(ch:=Mint32)(o:=44)(v:=Vint rx);exact RX. }
+ assert(NBG:~Mem.valid_block m bg)by(eapply FRESH;exact LG).
+ assert(DPGH:gh<>pb)by(eapply inputgood_guidance_separate;[exact GOOD|exact SP|discriminate]).
+ assert(DVGH:gh<>vb)by(eapply inputgood_guidance_separate;[exact GOOD|exact SV|discriminate]).
+ assert(DSGH:gh<>sb)by(eapply inputgood_guidance_separate;[exact GOOD|exact STATE|discriminate]).
+ assert(DPV:pb<>vb)by(eapply Genv.global_addresses_distinct with(id1:=S._guidance_pid_pos_err)(id2:=S._guidance_pid_speed_err);[|exact SP|exact SV];discriminate).
+ assert(DPS:pb<>sb)by(eapply Genv.global_addresses_distinct with(id1:=S._guidance_pid_pos_err)(id2:=S._state);[|exact SP|exact STATE];discriminate).
+ assert(DVS:vb<>sb)by(eapply Genv.global_addresses_distinct with(id1:=S._guidance_pid_speed_err)(id2:=S._state);[|exact SV|exact STATE];discriminate).
+ assert(ND:NoDup[bg;gh;pb;vb;sb]).
+ { repeat constructor;cbn in *;intuition congruence. }
+ assert(UNSH:forall id,~In id(map fst entry_declarations)->e!id=None)
+ by(intros;eapply entry_environment_unshadowed;eauto).
+ assert(LP:e!S._guidance_pid_pos_err=None)by(apply UNSH;unfold entry_declarations;cbn;intuition discriminate).
+ assert(LV:e!S._guidance_pid_speed_err=None)by(apply UNSH;unfold entry_declarations;cbn;intuition discriminate).
+ assert(GP:e!S._stateGetPositionNed_i=None)by(apply UNSH;unfold entry_declarations;cbn;intuition discriminate).
+ assert(GV:e!S._stateGetSpeedNed_i=None)by(apply UNSH;unfold entry_declarations;cbn;intuition discriminate).
+ assert(RXB:load_path Mint32 mb gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx)).
+ { change(Mem.load Mint32 mb gh 44=Some(Vint rx));apply OLDLOAD;exact RX. }
+ assert(RYB:load_path Mint32 mb gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry)).
+ { change(Mem.load Mint32 mb gh 48=Some(Vint ry));apply OLDLOAD;exact RY. }
+ assert(SXB:load_path Mint32 mb gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx)).
+ { change(Mem.load Mint32 mb gh 52=Some(Vint sx));apply OLDLOAD;exact SX. }
+ assert(SYB:load_path Mint32 mb gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy)).
+ { change(Mem.load Mint32 mb gh 56=Some(Vint sy));apply OLDLOAD;exact SY. }
+ destruct(FrontObserved.original_front_core_observed e mb bg gh pb vb sb rx ry px py sx sy vx vy flags sflags
+ LG LP LV GP GV SP SV STATE ND GPTR RXB RYB SXB SYB
+ ltac:(apply OLDLOAD;exact PX)ltac:(apply OLDLOAD;exact PY)
+ ltac:(apply OLDLOAD;exact VX)ltac:(apply OLDLOAD;exact VY)
+ ltac:(apply OLDLOAD;exact POSC)ltac:(apply OLDLOAD;exact SPDC)
+ VALID SVALID SAFEPX SAFEPY SAFESX SAFESY ltac:(unfold Mem.range_perm;intros ofs R;apply OLDPERM;apply WP;exact R)ltac:(unfold Mem.range_perm;intros ofs R;apply OLDPERM;apply WV;exact R))
+ as[mf[PATH[EX[EY[EVX[EVY WRITE]]]]]].
+ assert(LOCALOUT:forall id b ty,e!id=Some(b,ty)->~(b=pb\/b=vb)).
+ { intros id b ty LOOK[EQ|EQ];subst b;apply(FRESH id _ ty LOOK);assumption. }
+ exists e,mf,pb,vb,sb,rx,ry,px,py,sx,sy,vx,vy,br,bf,bg,bs.
+ repeat split;try assumption.
+ - destruct(PATH Kstop)as[P[CP[PI OP]]].
+   eapply prepend_subtraction_certificate.
+   + eapply entry_internal_dispatch_transition;[repeat constructor;cbn;intuition discriminate|exact AL|exact BIND].
+   + exact CP.
+   + exact PI.
+   + exact I.
+   + exact OP.
+ - rewrite(raw_writes_load_frame _ _ _ WRITE Mint64 br 0)by(eapply LOCALOUT;exact LR);exact RPTR.
+ - rewrite(raw_writes_load_frame _ _ _ WRITE Mint64 bg 0)by(eapply LOCALOUT;exact LG);exact GPTR.
+ - rewrite(raw_writes_load_frame _ _ _ WRITE Mbool bf 0)by(eapply LOCALOUT;exact LF);exact FVAL.
+ - intros;apply(raw_writes_range _ _ _ WRITE);eapply FREE;eauto.
+ - intros ch b ofs v LOAD DP DV.
+   rewrite(raw_writes_load_frame _ _ _ WRITE ch b ofs)by(tauto);apply OLDLOAD;exact LOAD.
+ - intros b ofs k p PERM;apply(proj1(raw_writes_perm _ _ _ WRITE b ofs k p));apply OLDPERM;exact PERM.
+Qed.
+Print Assumptions inputgood_entry_front_core_observed.
+

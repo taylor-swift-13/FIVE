@@ -1,0 +1,145 @@
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"
+(** Restricted form of the CompCert Cexec animator correctness proof.
+    Original Cexec.v copyright INRIA; distributed under the CompCert license. *)
+From Coq Require Import Bool List ZArith Classical String.
+From compcert Require Import Axioms Coqlib Decidableplus Errors Maps Integers Floats AST Values Memory Events Globalenvs Builtins Determinism Ctypes Cop Csyntax Csem Cexec.
+Import ListNotations.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+
+Definition executable_builtin (ef: external_function): bool :=
+ match ef with
+ | EF_builtin name sg | EF_runtime name sg =>
+   match lookup_builtin_function name sg with Some _ => true | None => false end
+ | _ => false end.
+
+(** Syntactic closure only: no conditions on values, memory, permissions or definedness. *)
+Fixpoint no_builtin (a: expr): bool :=
+  match a with
+  | Ebuiltin ef _ al _ => executable_builtin ef && no_builtin_list al
+  | Efield a _ _ | Evalof a _ | Ederef a _ | Eaddrof a _
+  | Eunop _ a _ | Ecast a _ | Epostincr _ a _ | Eparen a _ _ => no_builtin a
+  | Ebinop _ a b _ | Eseqand a b _ | Eseqor a b _
+  | Eassign a b _ | Eassignop _ a b _ _ | Ecomma a b _ => no_builtin a && no_builtin b
+  | Econdition a b c _ => no_builtin a && no_builtin b && no_builtin c
+  | Ecall a al _ => no_builtin a && no_builtin_list al
+  | _ => true
+  end
+with no_builtin_list (al: exprlist): bool :=
+  match al with Enil => true | Econs a al => no_builtin a && no_builtin_list al end.
+
+Section LOCAL_EXEC.
+Variable ge: genv.
+Variable do_external_function do_inline_assembly:
+  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+Variable e: env.
+Variable w: world.
+Local Notation step_expr := (Cexec.step_expr ge do_external_function do_inline_assembly e w).
+Local Notation step_exprlist := (Cexec.step_exprlist ge do_external_function do_inline_assembly e w).
+
+Lemma executable_builtin_sound:
+ forall ef w args m w2 t v m2,
+ executable_builtin ef = true ->
+ Cexec.do_external ge do_external_function do_inline_assembly ef w args m = Some(w2,t,v,m2) ->
+ external_call ef ge args m t v m2 /\ possible_trace w t w2.
+Proof.
+ intros ef w0 args m0 w2 t v m2 HB; destruct ef; simpl in HB; try discriminate;
+ unfold Cexec.do_external, Cexec.do_builtin_or_external;
+ unfold external_call, builtin_or_external_sem;
+ destruct (lookup_builtin_function name sg) as [bf|] eqn:LOOK; try discriminate;
+ destruct (builtin_function_sem bf args) eqn:RES; intros E; inversion E; subst;
+ split; constructor; auto.
+Qed.
+Lemma executable_builtin_complete:
+ forall ef w args m w2 t v m2,
+ executable_builtin ef = true -> external_call ef ge args m t v m2 ->
+ possible_trace w t w2 ->
+ Cexec.do_external ge do_external_function do_inline_assembly ef w args m = Some(w2,t,v,m2).
+Proof.
+ intros ef w0 args m0 w2 t v m2 HB; destruct ef; simpl in HB; try discriminate;
+ unfold external_call, builtin_or_external_sem;
+ unfold Cexec.do_external, Cexec.do_builtin_or_external;
+ destruct (lookup_builtin_function name sg) as [bf|] eqn:LOOK; try discriminate;
+ intros E PT; inversion E; subst; inversion PT; subst; try congruence.
+ all: rewrite H; reflexivity.
+Qed.
+
+Local Hint Constructors context Csem.contextlist : core.
+Ltac unpack_nb := repeat match goal with H: _ && _ = true |- _ => apply andb_true_iff in H; let A := fresh "NB" in let B := fresh "NB" in destruct H as [A B] end.
+Ltac pure_myinv :=
+  match goal with
+  | [ H: False |- _ ] => destruct H
+  | [ H: _ /\ _ |- _ ] => destruct H; pure_myinv
+  | [ H: exists _, _ |- _ ] => destruct H; pure_myinv
+  | _ => idtac
+  end.
+Theorem pure_step_expr_sound:
+  forall a k m, no_builtin a = true -> reducts_ok ge e w k a m (step_expr k a m)
+with pure_step_exprlist_sound:
+  forall al m, no_builtin_list al = true -> list_reducts_ok ge e w al m (step_exprlist al m).
+Proof with (try (apply not_invert_ok; simpl; intro; pure_myinv; intuition congruence; fail)).
+  induction a; intros k m NB; simpl in NB; unpack_nb; try discriminate; simpl; destruct k; try (apply wrong_kind_ok; simpl; congruence).
+(* Eval *)
+  split; intros. tauto. simpl; congruence.
+(* Evar *)
+  destruct (e!x) as [[b ty']|] eqn:?.
+  destruct (type_eq ty ty')...
+  subst. apply topred_ok; auto. apply red_var_local; auto.
+  destruct (Genv.find_symbol ge x) as [b|] eqn:?...
+  apply topred_ok; auto. apply red_var_global; auto.
+(* Efield *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?.
+  rewrite (is_val_inv _ _ _ Heqo).
+  destruct v...
+  destruct ty'...
+  (* top struct *)
+  destruct (ge.(genv_cenv)!i0) as [co|] eqn:?...
+  destruct (field_offset ge f (co_members co)) as [[delta bf]|] eqn:?...
+  apply topred_ok; auto. eapply red_field_struct; eauto.
+  (* top union *)
+  destruct (ge.(genv_cenv)!i0) as [co|] eqn:?...
+  destruct (union_field_offset ge f (co_members co)) as [[delta bf]|] eqn:?...
+  apply topred_ok; auto. eapply red_field_union; eauto.
+  (* in depth *)
+  eapply incontext_ok; eauto.
+(* Evalof *)
+  destruct (is_loc a) as [[[[b ofs] bf] ty']  | ] eqn:?. rewrite (is_loc_inv _ _ _ _ _ Heqo).
+  (* top *)
+  destruct (type_eq ty ty')... subst ty'.
+  destruct (do_deref_loc ge w ty m b ofs bf) as [[[w' t] v] | ] eqn:?.
+  exploit do_deref_loc_sound; eauto. intros [A B].
+  apply topred_ok; auto. red. split. apply red_rvalof; auto. exists w'; auto.
+  apply not_invert_ok; simpl; intros; pure_myinv. exploit do_deref_loc_complete; eauto. congruence.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* Ederef *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct v... apply topred_ok; auto. apply red_deref; auto.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* Eaddrof *)
+  destruct (is_loc a) as [[[[b ofs] bf ] ty'] | ] eqn:?. rewrite (is_loc_inv _ _ _ _ _ Heqo).
+  (* top *)
+  destruct bf... 
+  apply topred_ok; auto. split. apply red_addrof; auto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* unop *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct (sem_unary_operation op v ty' m) as [v'|] eqn:?...
+  apply topred_ok; auto. split. apply red_unop; auto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* binop *)
+  destruct (is_val a1) as [[v1 ty1] | ] eqn:?.
+  destruct (is_val a2) as [[v2 ty2] | ] eqn:?.
+  rewrite (is_val_inv _ _ _ Heqo). rewrite (is_val_inv _ _ _ Heqo0).
+  (* top *)
+  destruct (sem_binary_operation ge op v1 ty1 v2 ty2 m) as [v|] eqn:?...
+  apply topred_ok; auto. split. apply red_binop; auto. exists w; constructor.

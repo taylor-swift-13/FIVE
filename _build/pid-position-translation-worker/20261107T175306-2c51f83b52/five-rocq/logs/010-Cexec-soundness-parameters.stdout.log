@@ -1,0 +1,46 @@
+424-- rewrite H1; rewrite H2. apply do_volatile_store_complete; auto.
+425-- rewrite H1. destruct (check_assign_copy ty b ofs b' ofs').
+426-  inv H0. rewrite H5; rewrite H6; auto.
+427-  elim n. red; tauto.
+428-- inv H0. inv H1. 
+429-  unfold proj_sumbool; rewrite ! zle_true, ! zlt_true by lia. cbn.
+430-  rewrite ! dec_eq_true.
+431-  cbn in H4; rewrite H4. cbn in H5; rewrite H5. auto.
+432-Qed.
+433-
+434-(** External calls *)
+435-
+436:Variable do_external_function:
+437-  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+438-
+439:Hypothesis do_external_function_sound:
+440-  forall id sg ge vargs m t vres m' w w',
+441-  do_external_function id sg ge w vargs m = Some(w', t, vres, m') ->
+442-  external_functions_sem id sg ge vargs m t vres m' /\ possible_trace w t w'.
+443-
+444:Hypothesis do_external_function_complete:
+445-  forall id sg ge vargs m t vres m' w w',
+446-  external_functions_sem id sg ge vargs m t vres m' ->
+447-  possible_trace w t w' ->
+448-  do_external_function id sg ge w vargs m = Some(w', t, vres, m').
+449-
+450-Variable do_inline_assembly:
+451-  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+452-
+453-Hypothesis do_inline_assembly_sound:
+454-  forall txt sg ge vargs m t vres m' w w',
+455-  do_inline_assembly txt sg ge w vargs m = Some(w', t, vres, m') ->
+456-  inline_assembly_sem txt sg ge vargs m t vres m' /\ possible_trace w t w'.
+2151-        [let EQ := fresh "EQ" in intro EQ; unfold ret in EQ; inv EQ; myinv | myinv]
+2152-  | [ |- In _ (_ :: nil) -> _ ] =>
+2153-        let X := fresh "X" in
+2154-        intro X; elim X; clear X; [let EQ := fresh "EQ" in intro EQ; inv EQ; myinv | myinv]
+2155-  | [ |- In _ (match ?x with Some _ => _ | None => _ end) -> _ ] => destruct x eqn:?; myinv
+2156-  | [ |- In _ (match ?x with false => _ | true => _ end) -> _ ] => destruct x eqn:?; myinv
+2157-  | [ |- In _ (match ?x with left _ => _ | right _ => _ end) -> _ ] => destruct x; myinv
+2158-  | _ => idtac
+2159-  end.
+2160-
+2161-Local Hint Extern 3 => exact I : core.
+2162-
+2163:Theorem do_step_sound:

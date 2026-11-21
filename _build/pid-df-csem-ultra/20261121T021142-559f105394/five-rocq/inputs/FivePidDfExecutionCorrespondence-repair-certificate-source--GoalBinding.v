@@ -1,0 +1,18 @@
+Require Import FivePidDfExecutionCorrespondence.Spec.
+Require Import FivePidDfExecutionCorrespondence.Proof.
+Definition goal_0 : FivePidDfExecutionCorrespondence.Spec.domain_preservation_goal := FivePidDfExecutionCorrespondence.Proof.domain_preservation.
+Print Assumptions goal_0.
+Definition goal_1 : FivePidDfExecutionCorrespondence.Spec.floating_point_correspondence_goal := FivePidDfExecutionCorrespondence.Proof.floating_point_correspondence.
+Print Assumptions goal_1.
+Definition goal_2 : FivePidDfExecutionCorrespondence.Spec.machine_integer_correspondence_goal := FivePidDfExecutionCorrespondence.Proof.machine_integer_correspondence.
+Print Assumptions goal_2.
+Definition goal_3 : FivePidDfExecutionCorrespondence.Spec.memory_access_correspondence_goal := FivePidDfExecutionCorrespondence.Proof.memory_access_correspondence.
+Print Assumptions goal_3.
+Definition goal_4 : FivePidDfExecutionCorrespondence.Spec.control_and_exhaustion_correspondence_goal := FivePidDfExecutionCorrespondence.Proof.control_and_exhaustion_correspondence.
+Print Assumptions goal_4.
+Definition goal_5 : FivePidDfExecutionCorrespondence.Spec.normal_result_and_memory_correspondence_goal := FivePidDfExecutionCorrespondence.Proof.normal_result_and_memory_correspondence.
+Print Assumptions goal_5.
+Definition goal_6 : FivePidDfExecutionCorrespondence.Spec.invalid_operation_correspondence_goal := FivePidDfExecutionCorrespondence.Proof.invalid_operation_correspondence.
+Print Assumptions goal_6.
+Definition goal_7 : FivePidDfExecutionCorrespondence.Spec.whole_execution_correspondence_goal := FivePidDfExecutionCorrespondence.Proof.whole_execution_correspondence.
+Print Assumptions goal_7.

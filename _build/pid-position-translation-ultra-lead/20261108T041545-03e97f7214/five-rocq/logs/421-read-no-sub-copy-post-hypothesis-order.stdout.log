@@ -1,0 +1,72 @@
+Section POST.
+Variable ge:genv.
+Variable caller:function.
+Variable e:env.
+Variable k:cont.
+Variable m mf:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable post:expr.
+Variable v vc copied:val.
+Local Notation sty:=(L.sty sid).
+Local Notation LH:=(L.lhs sid ires br ret).
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_deref:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis post_type:typeof post=sty.
+Hypothesis post_simple:simple post=true.
+Hypothesis post_nosub:no_sub post=true.
+Hypothesis post_value:pure_rval ge e m post=Some v.
+Hypothesis cast_value:sem_cast v sty sty m=Some vc.
+Hypothesis store_copy:Cexec.do_assign_loc ge quiet_world sty m ret Ptrofs.zero Full vc=
+ Some(quiet_world,E0,mf,copied).
+Definition normalized(st:L.lhs_stage):expr:=Eassign(LH st)post sty.
+Definition post_state(st:L.lhs_stage):Csem.state:=ExprState caller(comma_expr(LH st)post sty)(Kdo k)e m.
+Definition target:=State caller Sskip k e mf.
+Lemma normalized_atomic:forall st,atomic_expr(normalized st)=true.
+Proof. intros;unfold normalized;cbn[atomic_expr];rewrite L.lhs_simple,post_simple,L.lhs_type;reflexivity. Qed.
+Lemma normalized_value:forall st,atomic_eval ge e m(normalized st)=Some(copied,mf).
+Proof.
+ intros st;unfold normalized;cbn[atomic_eval];rewrite L.lhs_type,L.type_eq_diag,post_value.
+ assert(LV:pure_lval ge e m(LH st)=Some(ret,Ptrofs.zero,Full)).
+ { apply(proj2(simple_big_denotation ge e m));[eapply L.lhs_big;[exact local_res|exact res_deref]|apply L.lhs_simple]. }
+ rewrite LV;unfold commit;rewrite post_type,cast_value,store_copy;reflexivity.
+Qed.
+Lemma normalized_nosub:forall st,no_sub(normalized st)=true.
+Proof.
+ intros;unfold normalized;destruct st;cbn[no_sub L.lhs];rewrite post_nosub;reflexivity.
+Qed.
+Lemma normalized_certificate:forall st,
+ certificate ge(no_sub_atomic_invariant ge caller e k mf copied)target /\
+ no_sub_atomic_invariant ge caller e k mf copied(ExprState caller(normalized st)(Kdo k)e m).
+Proof.
+ intros;split;[apply no_sub_atomic_certificate|].
+ eapply no_sub_atomic_initial;[apply normalized_atomic|apply normalized_value|apply normalized_nosub].
+Qed.
+Definition post_or_normal(s:Csem.state):Prop:=
+ (exists st,s=post_state st)\/
+ (exists st,s=ExprState caller(normalized st)(Kdo k)e m).
+Lemma comma_safe:imm_safe ge e RV(Ecomma(Eval Vundef tvoid)post sty)m.
+Proof. intros;eapply imm_safe_rred with(C:=fun x=>x).
+ - apply red_comma;exact post_type.
+ - constructor.
+Qed.
+Lemma post_not_stuck:forall st,not_stuck ge e(comma_expr(LH st)post sty)m.
+Proof.
+ intros st from C a CT EQ.
+ pose proof(comma_context_decompose from C a(LH st)post sty CT(eq_sym EQ))as HH.
+ inversion HH;subst.
+ - unfold comma_expr;eapply lift_immediate with(from:=RV)(a:=Ecomma(Eval Vundef tvoid)post sty)
+   (C:=fun x=>Eassign(LH st)x sty);[constructor;constructor|reflexivity|apply comma_safe].
+ - eapply big_subexpression_safe;[exact H|rewrite <-H0;apply L.lhs_simple|].
+   rewrite <-H0;un
+Theorem post_observation:forall f' a k' e' ma,
+ invariant(ExprState f' a k' e' ma) ->no_sub a=true.
+Proof.
+ intros f' a k' e' ma[[st EQ]|POST].
+ - unfold post_state in EQ;injection EQ as FF AA KK EE MM;subst;apply comma_nosub.
+ - eapply no_sub_atomic_observation;exact POST.
+Qed.
+End POST.
+Print Assumptions post_certificate.
+

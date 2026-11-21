@@ -1,0 +1,187 @@
+RELATION True
+FILE paparazzi/relations/lowpass_roundoff_bound/support/Numerical.v
+Definition r32 (f:float32) : R := B2R 24 128 f.
+Definition finite (f:float32) : Prop := is_finite 24 128 f = true.
+Definition one : float32 := Float32.of_bits (Int.repr 1065353216).
+Definition step (c li lo x:float32) : float32 :=
+ Float32.div
+  (Float32.add (Float32.add x li) (Float32.mul (Float32.sub c one) lo))
+  (Float32.add one c).
+Definition finite (f:float32) : Prop := is_finite 24 128 f = true.
+Definition one : float32 := Float32.of_bits (Int.repr 1065353216).
+Definition step (c li lo x:float32) : float32 :=
+ Float32.div
+  (Float32.add (Float32.add x li) (Float32.mul (Float32.sub c one) lo))
+  (Float32.add one c).
+Definition u : R := 1/16777216.
+Lemma abs_error (a b e:R) :
+ Rabs (a-b)<=e -> Rabs a<=Rabs b+e.
+Proof.
+ intro H; replace a with (b+(a-b)) by ring.
+ eapply Rle_trans; [apply Rabs_triang|lra].
+Qed.
+Lemma abs_pair (a b ea eb:R) :
+Lemma abs_pair (a b ea eb:R) :
+ Rabs a<=ea -> Rabs b<=eb -> Rabs(a+b)<=ea+eb.
+Proof. intros; eapply Rle_trans; [apply Rabs_triang|lra]. Qed.
+Lemma absdiff_pair (a b c ea eb:R) :
+ Rabs (a-b)<=ea -> Rabs (b-c)<=eb -> Rabs(a-c)<=ea+eb.
+Proof.
+ intros; replace (a-c) with ((a-b)+(b-c)) by ring.
+Lemma absdiff_pair (a b c ea eb:R) :
+ Rabs (a-b)<=ea -> Rabs (b-c)<=eb -> Rabs(a-c)<=ea+eb.
+Proof.
+ intros; replace (a-c) with ((a-b)+(b-c)) by ring.
+ now apply abs_pair.
+Qed.
+Lemma abs_product (a b ea eb:R) :
+Lemma abs_product (a b ea eb:R) :
+ Rabs a<=ea -> Rabs b<=eb -> 0<=ea -> 0<=eb -> Rabs(a*b)<=ea*eb.
+Proof.
+ intros; rewrite Rabs_mult; apply Rmult_le_compat; try apply Rabs_pos; assumption.
+Qed.
+
+Section RealRound.
+Lemma real_step_bounds : forall C L O X,
+ 1<=C<=2 -> Rabs L<=1 ->Rabs O<=2 ->Rabs X<=1 ->
+ let a:=rn(C-1) in let s:=rn(X+L) in
+ let p:=rn(a*O) in let n:=rn(s+p) in let d:=rn(1+C) in
+ Rabs(n/d)<=2 /\ Rabs(rn(n/d))<=2 /\
+ Rabs(rn(n/d)-(X+L+(C-1)*O)/(1+C))<=1/1048576.
+Proof.
+FILE paparazzi/relations/lowpass_roundoff_bound/support/Recurrence.v
+Lemma coefficient_contraction:forall c,
+ 1<=c<=2 -> 0<1+c /\ 0<=(c-1)/(1+c)<=/2.
+Proof.
+ intros c C;split;[lra|].
+ split;[unfold Rdiv;apply Rmult_le_pos;[lra|left;apply Rinv_0_lt_compat;lra]|].
+ apply (Rmult_le_reg_r (1+c));[lra|].
+ unfold Rdiv;rewrite Rmult_assoc,Rinv_l by lra; nra.
+Lemma reference_difference:forall c x li y z,
+ 1<=c<=2 ->
+ reference_step c x li y-reference_step c x li z=
+ ((c-1)/(1+c))*(y-z).
+Proof. intros;unfold reference_step;field;lra. Qed.
+
+Lemma envelope_zero:forall d,envelope d O=0.
+Lemma envelope_zero:forall d,envelope d O=0.
+Proof. intros;unfold envelope;simpl;ring. Qed.
+Lemma envelope_step:forall d n,
+ envelope d (S n)=d+(/2)*envelope d n.
+Proof. intros;unfold envelope;cbn[pow];field. Qed.
+Lemma envelope_bounds:forall d n,0<=d->0<=envelope d n<=2*d.
+Proof.
+Lemma envelope_step:forall d n,
+ envelope d (S n)=d+(/2)*envelope d n.
+Proof. intros;unfold envelope;cbn[pow];field. Qed.
+Lemma envelope_bounds:forall d n,0<=d->0<=envelope d n<=2*d.
+Proof.
+ intros d n D.
+ assert(P:0<=(/2)^n<=1).
+Lemma envelope_bounds:forall d n,0<=d->0<=envelope d n<=2*d.
+Proof.
+ intros d n D.
+ assert(P:0<=(/2)^n<=1).
+ { induction n;cbn[pow];nra. }
+ unfold envelope;nra.
+Qed.
+Theorem arbitrary_horizon_roundoff:forall c x y0 (actual:nat->R) delta,
+ 1<=c<=2 -> 0<=delta ->
+ actual O=y0 ->
+ (forall n,
+ Rabs(actual(S n)-reference_step c (x(S n))(x n)(actual n))<=delta) ->
+ forall n,Rabs(actual n-reference c x y0 n)<=envelope delta n.
+Proof.
+FILE paparazzi/relations/lowpass_roundoff_bound/support/FloatBounds.v
+Definition r32 (x : float32) : R := B2R 24 128 x.
+Definition finite (x : float32) : Prop := is_finite 24 128 x = true.
+Definition RN (x : R) : R := round radix2 (FLT_exp (-149) 24) ZnearestE x.
+Definition u : R := bpow radix2 (-24).
+Definition eta : R := bpow radix2 (-150).
+
+Lemma RN_error : forall x, Rabs (RN x - x) <= u * Rabs x + eta.
+Definition finite (x : float32) : Prop := is_finite 24 128 x = true.
+Definition RN (x : R) : R := round radix2 (FLT_exp (-149) 24) ZnearestE x.
+Definition u : R := bpow radix2 (-24).
+Definition eta : R := bpow radix2 (-150).
+
+Lemma RN_error : forall x, Rabs (RN x - x) <= u * Rabs x + eta.
+Proof.
+Definition RN (x : R) : R := round radix2 (FLT_exp (-149) 24) ZnearestE x.
+Definition u : R := bpow radix2 (-24).
+Definition eta : R := bpow radix2 (-150).
+
+Lemma RN_error : forall x, Rabs (RN x - x) <= u * Rabs x + eta.
+Proof.
+  intro x.
+Lemma RN_error : forall x, Rabs (RN x - x) <= u * Rabs x + eta.
+Proof.
+  intro x.
+  destruct (error_N_FLT radix2 (-149) 24 ltac:(lia) (fun z => negb (Z.even z)) x)
+    as [e [d [He [Hd [Hed Hr]]]]].
+  change (RN x = x * (1 + e) + d) in Hr.
+  assert (Hu : /2 * bpow radix2 (-24 + 1) = u).
+Lemma RN_le : forall x y, x <= y -> RN x <= RN y.
+Proof. intros x y H. unfold RN. now apply round_le. Qed.
+
+Lemma RN_fix_generic : forall x,
+  generic_format radix2 (FLT_exp (-149) 24) x -> RN x = x.
+Proof. intros x H. unfold RN. now apply round_generic. Qed.
+
+Lemma RN_fix_generic : forall x,
+  generic_format radix2 (FLT_exp (-149) 24) x -> RN x = x.
+Proof. intros x H. unfold RN. now apply round_generic. Qed.
+
+Lemma RN_abs_bound_pow : forall x k, (-149 <= k)%Z ->
+  Rabs x <= bpow radix2 k -> Rabs (RN x) <= bpow radix2 k.
+Proof.
+Lemma RN_abs_bound_pow : forall x k, (-149 <= k)%Z ->
+  Rabs x <= bpow radix2 k -> Rabs (RN x) <= bpow radix2 k.
+Proof.
+  intros x k Hk Hx. unfold RN.
+  apply abs_round_le_generic; [|exact Hx].
+  apply generic_format_bpow. unfold FLT_exp. lia.
+Qed.
+Lemma RN_abs_le_2 : forall x, Rabs x <= 2 -> Rabs (RN x) <= 2.
+Proof. intro x. change 2 with (bpow radix2 1). apply RN_abs_bound_pow. lia. Qed.
+
+Lemma RN_abs_le_8 : forall x, Rabs x <= 8 -> Rabs (RN x) <= 8.
+Proof. intro x. change 8 with (bpow radix2 3). apply RN_abs_bound_pow. lia. Qed.
+
+Lemma RN_safe : forall x, Rabs x <= 8 ->
+Lemma RN_abs_le_8 : forall x, Rabs x <= 8 -> Rabs (RN x) <= 8.
+Proof. intro x. change 8 with (bpow radix2 3). apply RN_abs_bound_pow. lia. Qed.
+
+Lemma RN_safe : forall x, Rabs x <= 8 ->
+  Rlt_bool (Rabs (RN x)) (bpow radix2 128) = true.
+Proof.
+  intros x Hx. apply Rlt_bool_true.
+Lemma RN_safe : forall x, Rabs x <= 8 ->
+  Rlt_bool (Rabs (RN x)) (bpow radix2 128) = true.
+Proof.
+  intros x Hx. apply Rlt_bool_true.
+  eapply Rle_lt_trans; [apply RN_abs_le_8; exact Hx|].
+  change 8 with (bpow radix2 3). apply bpow_lt. lia.
+Qed.
+FILE paparazzi/relations/lowpass_roundoff_bound/support/CallMemory.v
+Lemma update_alloc_nodup:NoDup(map fst update_declarations).
+Proof. vm_compute;repeat constructor;simpl;intuition discriminate. Qed.
+Lemma free_list_preserves_valid:forall regions m mf,
+ Mem.free_list m regions=Some mf->forall q,Mem.valid_block m q->Mem.valid_block mf q.
+Proof.
+ induction regions as[|[[b lo]hi] regions IH];intros m mf FREE q VALID.
+ - cbn[Mem.free_list]in FREE;injection FREE as<-;exact VALID.
+Lemma free_list_preserves_valid:forall regions m mf,
+ Mem.free_list m regions=Some mf->forall q,Mem.valid_block m q->Mem.valid_block mf q.
+Proof.
+ induction regions as[|[[b lo]hi] regions IH];intros m mf FREE q VALID.
+ - cbn[Mem.free_list]in FREE;injection FREE as<-;exact VALID.
+ - cbn[Mem.free_list]in FREE;destruct(Mem.free m b lo hi)as[ma|]eqn:F;try discriminate.
+   eapply IH;[exact FREE|];eapply Mem.valid_block_free_1;eauto.
+Theorem update_call_summary_valid:forall m b p tc li lo value,
+ Initialized m b p tc li lo ->
+ exists mf,state_eval Execution.ge(Execution.entry(Args b p value)m)=Some(Vsingle(output tc li lo value),mf) /\Post m mf b p tc li lo value /\ (forall q,Mem.valid_block m q->Mem.valid_block mf q).
+Proof.
+ intros m b p tc li lo value INIT;pose proof(proj1 INIT)as P.
+ pose proof(field_access m b p 4 P ltac:(simpl;auto))as W4.
+ pose proof(field_access m b p 8 P ltac:(simpl;auto))as W8.

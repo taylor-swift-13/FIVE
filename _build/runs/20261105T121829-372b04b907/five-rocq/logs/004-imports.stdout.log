@@ -1,0 +1,262 @@
+_build/retired-example-attempts-20261105/examples/relations/sum2_sum3/attempts/001/check.py
+_build/retired-example-attempts-20261105/examples/relations/sum2_sum3/attempts/002/check.py
+==> examples/models/sum3/rocq/support/Core.v <==
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Integers Floats Values Memory Events Globalenvs
+ Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+From FiveSum3Proof Require Import PureProgress.
+From FiveSum3Proof Require Import Invariant.
+From FiveSum3Proof Require Import Entry.
+Import ListNotations.
+
+(* A calling-interface precondition, not a numeric input restriction. *)
+Definition sum3_pre(args:list val):Prop :=
+ exists a b c:float32,args=[Vsingle a;Vsingle b;Vsingle c].
+Definition entry(args:list val)(m:mem):Csem.state :=
+ Callstate(Internal sum3_function)args Kstop m.
+
+Theorem sum3_all_reachable_no_error : forall args m,
+ sum3_pre args -> forall t reached,
+ star Csem.step sum3_ge(entry args m)t reached -> ~source_error reached.
+Proof.
+ intros args m [a[b[c EQ]]]t reached PATH;subst args.
+ apply invariant_excludes_error.
+ eapply reachable_invariant;[apply typed_entry_establishes_invariant|exact PATH].
+
+==> examples/models/sum3/rocq/support/Entry.v <==
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory
+ Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+From FiveSum3Proof Require Import PureProgress.
+From FiveSum3Proof Require Import Invariant.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+Definition frame_env (ba bb bc:block):env :=
+ PTree.set Source._c (bc,tfloat)
+ (PTree.set Source._b (bb,tfloat)
+ (PTree.set Source._a (ba,tfloat) empty_env)).
+Lemma frame_lookup : forall ba bb bc,
+ PTree.get Source._a(frame_env ba bb bc)=Some(ba,tfloat) /\
+ PTree.get Source._b(frame_env ba bb bc)=Some(bb,tfloat) /\
+ PTree.get Source._c(frame_env ba bb bc)=Some(bc,tfloat).
+Proof. intros;repeat split;reflexivity. Qed.
+
+Lemma read_parameter : forall ge e m id bx f,
+ PTree.get id e=Some(bx,tfloat) ->
+ Mem.load Mfloat32 m bx 0=Some(Vsingle f) ->
+
+==> examples/models/sum3/rocq/support/Functional.v <==
+From Stdlib Require Import ZArith.
+From compcert Require Import Integers Floats.
+
+(* Pure binary32 calculation corresponding to the concrete CBMC inputs.
+   A theorem connecting this value to a Csem return is a separate obligation. *)
+Definition sum3_concrete_model : float32 :=
+  Float32.add
+    (Float32.add (Float32.of_bits (Int.repr 1266679808))
+                 (Float32.of_bits (Int.repr 1065353216)))
+    (Float32.of_bits (Int.repr 3414163456)).
+
+Theorem sum3_concrete_bits :
+  Float32.to_bits sum3_concrete_model = Int.zero.
+Proof. vm_compute. reflexivity. Qed.
+
+Print Assumptions sum3_concrete_bits.
+
+==> examples/models/sum3/rocq/support/Invariant.v <==
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+From FiveSum3Proof Require Import PureProgress.
+Import ListNotations.
+
+(** An annotation of execution states. Its denotation is derived from the
+    structural caller precondition; it is not assumed at the public entry. *)
+Definition execution_invariant (s:Csem.state) : Prop :=
+ source_state s /\ normal_state s=true /\ exists result,state_eval sum3_ge s=Some result.
+Definition normal_return(s:Csem.state) := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state) := ~normal_return s /\ nostep Csem.step sum3_ge s.
+
+Lemma not_stuck_excludes_stuck : forall ge f a k e m t,
+ Csem.not_stuck ge e a m -> ~Csem.estep ge (ExprState f a k e m) t Stuckstate.
+Proof.
+ intros ge f a k e m t NS BAD; inversion BAD; subst.
+ match goal with N:~imm_safe _ _ ?K ?sub _, CT:Csem.context ?K RV ?C |- _ =>
+ apply N; exact(NS K C sub CT eq_refl) end.
+Qed.
+
+Lemma normal_estep_forward : forall ge f a k e m t s' result,
+
+==> examples/models/sum3/rocq/support/NoError.v <==
+From Stdlib Require Import List.
+From compcert Require Import AST Values Memory Events Ctypes Csem Smallstep.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof Require Import Invariant.
+From FiveSum3Proof Require Import Core.
+From FiveSum3 Require Import Execution.
+Import ListNotations.
+
+Definition generated_step := Execution.model_step Execution.no_external Execution.no_external Execution.quiet_world.
+Theorem step_exact : forall s t s',source_state s ->
+ (generated_step tt s t s' <-> Csem.step Execution.ge s t s').
+Proof. intros;change(Core.model_step tt s t s' <-> Csem.step sum3_ge s t s');apply Core.step_exact;assumption. Qed.
+
+Lemma source_path_to_model : forall s t s',source_state s ->
+ star Csem.step sum3_ge s t s' -> star generated_step tt s t s'.
+Proof.
+ intros s t s' SOURCE PATH;revert SOURCE;induction PATH;intros SOURCE.
+ - constructor.
+ - eapply star_step.
+   + apply(proj2(step_exact _ _ _ SOURCE));exact H.
+   + apply IHPATH;exact(proj2(source_step_invariant _ _ _ _ SOURCE H)).
+   + exact H0.
+Qed.
+Theorem whole_execution : forall args m t s,
+ star generated_step tt(Execution.entry args m)t s <->
+
+==> examples/models/sum3/rocq/support/NormalCorrespondence.v <==
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+Import ListNotations.
+
+(** This denotation is used to establish uniqueness of normal executions.
+    Execution remains the complete error-preserving operational model. *)
+Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
+
+Section DENOTATION.
+Variable ge: genv.
+Variable e: env.
+Variable m: mem.
+
+Fixpoint pure_rval (a: expr): option val :=
+  match a with
+  | Eval v _ => Some v
+  | Evalof l ty =>
+      if type_eq ty (typeof l) then
+      match pure_lval l with
+      | Some (b,ofs,bf) =>
+          match Cexec.do_deref_loc ge quiet_world ty m b ofs bf with
+          | Some (_,_,v) => Some v | None => None end
+
+==> examples/models/sum3/rocq/support/PureProgress.v <==
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+Import ListNotations.
+
+Ltac option_cases E :=
+ repeat match type of E with
+ | context [match ?x with _ => _ end] =>
+   let EQ := fresh "EQ" in destruct x eqn:EQ; try discriminate
+ end.
+
+Lemma pure_eval_big : forall a ge e m,
+ simple a=true ->
+ (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+ (forall b ofs bf, pure_lval ge e m a=Some(b,ofs,bf) -> eval_simple_lvalue ge e m a b ofs bf).
+Proof.
+ induction a; intros ge e m SIMPLE; simpl in SIMPLE; core_unpack; try discriminate;
+ repeat match goal with
+ | IH: forall ge e m, simple ?a=true -> _ /\ _ |- _ =>
+   let R:=fresh "RV" in let L:=fresh "LV" in
+   pose proof (IH ge e m ltac:(assumption)) as [R L]; clear IH
+ end;
+
+==> examples/models/sum3/rocq/support/SourceInvariant.v <==
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+Import ListNotations.
+
+(** These predicates constrain syntax only.  Values, argument lists, memories,
+    allocation, initialization, alignment and permissions remain arbitrary. *)
+Definition nv (ty: type) := negb (type_is_volatile ty).
+Fixpoint core_expr (a: expr): bool :=
+  match a with
+  | Eval _ ty | Evar _ ty | Eloc _ _ _ ty => nv ty
+  | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+  | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty && core_expr a
+  | Ebinop _ a b ty | Eassign a b ty => nv ty && core_expr a && core_expr b
+  | _ => false
+  end.
+Fixpoint core_stmt (s: statement): bool :=
+  match s with
+  | Sskip | Sreturn None => true
+  | Sdo a | Sreturn (Some a) => core_expr a
+  | Ssequence a b => core_stmt a && core_stmt b
+  | _ => false
+  end.
+Fixpoint core_cont (k: cont): bool :=
+From compcert Require Import Values Memory Events Csem Smallstep.
+
+(** Property definitions over the ORIGINAL CompCert C semantics.
+    These are propositions to prove, not proofs or an executable replacement. *)
+Definition normal_return (s : Csem.state) : Prop :=
+  exists v m, s = Returnstate v Kstop m.
+
+Definition source_error (ge : Csem.genv) (s : Csem.state) : Prop :=
+  ~ normal_return s /\ nostep Csem.step ge s.
+
+Definition no_error (ge : Csem.genv) (initial : Csem.state) : Prop :=
+  forall t s,
+    star Csem.step ge initial t s -> ~ source_error ge s.
+
+(** Acc recurses on predecessors of its relation.  Hence the intentional
+    argument order: a C successor is a predecessor of [successor].
+    Every possible Csem step is covered, including every observable trace.
+    There is no fuel bound and no selected evaluation strategy. *)
+Definition successor (ge : Csem.genv) (next current : Csem.state) : Prop :=
+  exists t, Csem.step ge current t next.
+
+Definition terminates (ge : Csem.genv) (initial : Csem.state) : Prop :=
+  Acc (successor ge) initial.
+
+(** Termination alone allows a finite execution ending in an error.
+    Safety alone allows divergence.  The conjunction is the requested pair:
+    all maximal executions are finite and end in a normal function return.
+    No equivalence or program-specific theorem is claimed here. *)
+Definition safe_termination (ge : Csem.genv) (initial : Csem.state) : Prop :=
+  no_error ge initial /\ terminates ge initial.
+# termination problem
+
+The generated `Acc` goal uses the same calling convention and quantifies over every Csem successor. No termination proof attempt was recorded.
+
+Spec SHA-256: `5e1633a2e947d270c2811cc7909f1f99d4a08087107102e83f977b412fe099c4`.
+
+## Model configuration
+
+| Field | Value |
+| --- | --- |
+| Entry | `sum3` / `f_sum3` |
+| Namespace | `FiveSum3` |
+| Target | CompCert 3.17 Csem/Cexec, x86-64 Linux, standard ABI, little endian, IEEE 754 binary32, nearest ties to even |
+| Rocq | 9.2 (rebuild environment), OCaml 4.14.2 |
+| Frontend options | No explicit frontend or preprocessor arguments |
+| External bindings | None |
+| Bindings SHA-256 | c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4 |
+| align/model/compcert-manifest.json SHA-256 | c4c5a5b39e4c0cf2f1e05ce18f6454af9652b2bd4d1dac1b0f9bc0f8d87f04f2 |
+| align/model/Source.v SHA-256 | 73e34704b1ea03671de34f619daa475cc70dff336f1720e64c431995008d373e |
+| align/model/Execution.v SHA-256 | cac05564097b235e3c31d3bf9a826b8bfd1929b2d9dba7368737baa4a0f79ebe |
+| align/model/proof/Obligations.v SHA-256 | e2f1294af7aea0efa22eba759d46d1526a44ffbbe0e7b051ace62c2535ccf921 |
+| prepare/source/sum3.c SHA-256 | 25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03 |
+
+The backend manifest records tool and CompCert semantic dependency hashes, including the NaN policy inputs.

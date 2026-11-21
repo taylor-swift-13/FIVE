@@ -1,0 +1,46 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import BigstepSupport StackCleanup FunctionAllocation.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp FlightSemantics CoreTail ControllerPrefix ReturnSemantics CoreBody.
+From PidPositionSafety Require Import FactoryCall CoreBodyAllOrder FunctionPhases.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+Import ListNotations.
+Open Scope Z_scope.
+Lemma nodup_app_separated:forall(A:Type)(xs ys:list A),NoDup xs ->NoDup ys ->
+ (forall x,In x xs ->~In x ys) ->NoDup(xs++ys).
+Proof.
+ intros A xs ys ND;induction ND;intros NY SEP;cbn;[exact NY|constructor].
+ - intro IN;apply in_app_iff in IN as[IN|IN];[contradiction|exact(SEP x ltac:(left;reflexivity)IN)].
+ - apply IHND;[exa
+ro);Vptr gh Ptrofs.zero]
+    m e ma mb bodym mf ltac:(repeat constructor;simpl;intuition discriminate)AV BIND FREE BODY base BASE).
+ - split.
+   + unfold active_fields in*;destruct ACTIVE as[L0[L4[L8[L12[L16[L24[L28 L32]]]]]]].
+     repeat split;rewrite FRAMEFREE by(apply OUT;exact V_ret);assumption.
+   + split;[rewrite FRAMEFREE by(apply OUT;exact V_bi);exact IX|].
+     split;[rewrite FRAMEFREE by(apply OUT;exact V_bi);exact IY|].
+     split;[rewrite FRAMEFREE by(apply OUT;exact V_bp);exact CX|].
+     split;[rewrite FRAMEFREE by(apply OUT;exact V_bp);exact CY|].
+     split.
+     * intros ch b ofs p VA;apply ACCESSFREE.
+       -- apply OUT;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|constructor].
+       -- apply BODYKEEP;apply(raw_writes_access _ _ _ BW).
+          pose proof(allocation_access ge decl empty_env m ch b ofs p VA)as A;rewrite ALLOC in A;exact A.
+     * split.
+       -- intros ch b ofs VB DBP DBI DRET.
+          rewrite FRAMEFREE by(apply OUT;exact VB).
+          rewrite FRAME by(first[assumption|apply OLDMB;exact VB|intro EQ;subst;contradiction]).
+          rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact VB).
+          pose proof(allocation_load_frame ge decl empty_env m ch b ofs VB)as A;rewrite ALLOC in A;exact A.
+       -- intros b ofs n VB DBP DBI DRET NN.
+          rewrite(free_environment_bytes_frame ge e bodym mf FREE b ofs n)by(apply OUT;exact VB).
+          rewrite BFRAME by(first[assumption|apply OLDMB;exact VB|intro EQ;subst;contradiction]).
+          rewrite(raw_writes_bytes_frame _ _ _ BW)by(first[assumption|apply OLDOUT;exact VB]).
+          pose proof(allocation_bytes_frame ge decl empty_env m b ofs n VB)as A;rewrite ALLOC in A;exact A.
+Qed.
+
+Print Assumptions original_h_run_funcall_certificate.
+

@@ -1,0 +1,15 @@
+struct PID_df {
+  float u[2]; ///< output
+  float e[3]; ///< input
+  float g[3]; ///< controller gains
+};
+
+float update_pid_df(struct PID_df *pid, float value)
+{
+  pid->e[2] = pid->e[1];
+  pid->e[1] = pid->e[0];
+  pid->e[0] = value;
+  pid->u[1] = pid->u[0];
+  pid->u[0] = pid->u[1] + pid->g[0] * pid->e[0] + pid->g[1] * pid->e[1] + pid->g[2] * pid->e[2];
+  return pid->u[0];
+}

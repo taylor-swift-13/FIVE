@@ -1,0 +1,115 @@
+                                     _cmd_earth (Tstruct _Int32Vect2 noattr))
+                                   (Tstruct _Int32Vect2 noattr)) _x tint)
+                               tint) tint) tint) tint))
+                  (Sdo (Eassign
+                         (Efield
+                           (Evalof
+                             (Efield
+                               (Evalof
+                                 (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                 (Tstruct _GuidancePID noattr)) _cmd_earth
+                               (Tstruct _Int32Vect2 noattr))
+                             (Tstruct _Int32Vect2 noattr)) _y tint)
+                         (Econdition
+                           (Ebinop Olt
+                             (Evalof
+                               (Efield
+                                 (Evalof
+                                   (Efield
+                                     (Evalof
+                                       (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                       (Tstruct _GuidancePID noattr))
+                                     _cmd_earth (Tstruct _Int32Vect2 noattr))
+                                   (Tstruct _Int32Vect2 noattr)) _y tint)
+                               tint)
+                             (Eunop Oneg
+                               (Evalof (Evar _total_max_bank tint) tint)
+                               tint) tint)
+                           (Eunop Oneg
+                             (Evalof (Evar _total_max_bank tint) tint) tint)
+                           (Econdition
+                             (Ebinop Ogt
+                               (Evalof
+                                 (Efield
+                                   (Evalof
+                                     (Efield
+                                       (Evalof
+                                         (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                         (Tstruct _GuidancePID noattr))
+                                       _cmd_earth
+                                       (Tstruct _Int32Vect2 noattr))
+                                     (Tstruct _Int32Vect2 noattr)) _y tint)
+                                 tint)
+                               (Evalof (Evar _total_max_bank tint) tint)
+                               tint)
+                             (Evalof (Evar _total_max_bank tint) tint)
+                             (Evalof
+                               (Efield
+                                 (Evalof
+                                   (Efield
+                                     (Evalof
+                                       (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                       (Tstruct _GuidancePID noattr))
+                                     _cmd_earth (Tstruct _Int32Vect2 noattr))
+                                   (Tstruct _Int32Vect2 noattr)) _y tint)
+                               tint) tint) tint) tint)))
+                (Ssequence
+                  (Sdo (Eassign
+                         (Ederef
+                           (Evalof
+                             (Evar __res (tptr (Tstruct _StabilizationSetpoint noattr)))
+                             (tptr (Tstruct _StabilizationSetpoint noattr)))
+                           (Tstruct _StabilizationSetpoint noattr))
+                         (Ecomma
+                           (Ecall
+                             (Evalof
+                               (Evar _stab_sp_from_ltp_i (Tfunction
+                                                           ((tptr (Tstruct _StabilizationSetpoint noattr)) ::
+                                                            (tptr (Tstruct _Int32Vect2 noattr)) ::
+                                                            tint :: nil)
+                                                           tvoid
+                                                           {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
+                               (Tfunction
+                                 ((tptr (Tstruct _StabilizationSetpoint noattr)) ::
+                                  (tptr (Tstruct _Int32Vect2 noattr)) ::
+                                  tint :: nil) tvoid
+                                 {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
+                             (Econs
+                               (Eaddrof
+                                 (Evar __res__1 (Tstruct _StabilizationSetpoint noattr))
+                                 (tptr (Tstruct _StabilizationSetpoint noattr)))
+                               (Econs
+                                 (Eaddrof
+                                   (Efield
+                                     (Evalof
+                                       (Evar _guidance_pid (Tstruct _GuidancePID noattr))
+                                       (Tstruct _GuidancePID noattr))
+                                     _cmd_earth (Tstruct _Int32Vect2 noattr))
+                                   (tptr (Tstruct _Int32Vect2 noattr)))
+                                 (Econs
+                                   (Ebinop Omul
+                                     (Evalof
+                                       (Efield
+                                         (Evalof
+                                           (Efield
+                                             (Evalof
+                                               (Evar _guidance_h (Tstruct _HorizontalGuidance noattr))
+                                               (Tstruct _HorizontalGuidance noattr))
+                                             _sp
+                                             (Tstruct _HorizontalGuidanceSetpoint noattr))
+                                           (Tstruct _HorizontalGuidanceSetpoint noattr))
+                                         _heading tfloat) tfloat)
+                                     (Ebinop Oshl
+                                       (Eval (Vint (Int.repr 1)) tint)
+                                       (Eval (Vint (Int.repr 12)) tint) tint)
+                                     tfloat) Enil))) tvoid)
+                           (Evalof
+                             (Evar __res__1 (Tstruct _StabilizationSetpoint noattr))
+                             (Tstruct _StabilizationSetpoint noattr))
+                           (Tstruct _StabilizationSetpoint noattr))
+                         (Tstruct _StabilizationSetpoint noattr)))
+                  (Sreturn None))))))))))
+|}.
+
+Definition f_guidance_pid_h_run_pos := {|
+  fn_return := tvoid;

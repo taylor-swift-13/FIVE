@@ -1,0 +1,192 @@
+    def __init__(self, folder):
+        self.folder = Path(folder).resolve()
+        if not (self.folder/'run.json').is_file():
+            raise ValueError('Not a FIVE run directory')
+
+    def read(self,name):
+        key = SECTIONS.get(name,'inputs' if name == 'inputs/manifest.json' else None)
+        if key:
+            return json.loads((self.folder/'run.json').read_text())[key]
+        return json.loads((self.folder/name).read_text())
+
+    def capture(self, path, role, area='evidence'):
+        original = Path(path).resolve()
+        if not original.exists():
+            raise FileNotFoundError(f'Required artifact missing: {original}')
+        safe_role = re.sub(r'[^A-Za-z0-9_.-]+','-',role)
+        target = self.folder/area/f'{safe_role}--{original.name}'
+        if original.is_dir():
+            shutil.copytree(original,target)
+            files = sorted(p for p in target.rglob('*') if p.is_file())
+            value = hashlib.sha256(''.join(str(p.relative_to(target))+':'+sha(p)+'\n' for p in files).encode()).hexdigest()
+            return {'role':role,'source':str(original),'path':str(target.relative_to(self.folder)),
+                    'sha256_tree':value,'bytes':sum(p.stat().st_size for p in files)}
+        shutil.copyfile(original,target)
+        record = {'role':role,'source':str(original),'path':str(target.relative_to(self.folder)),
+                  'sha256':sha(target),'bytes':target.stat().st_size}
+        if area == 'inputs':
+            manifest = self.read('inputs/manifest.json')
+            manifest.append(record)
+            dump(self.folder/'inputs/manifest.json',manifest)
+        return record
+
+    def evidence(self, name, data):
+        dump(self.folder/'evidence'/name,data)
+
+    def command(self,args,label,timeout=180,cwd=None,combined_log=None):
+        if not args or not all(isinstance(a,str) for a in args):
+            raise ValueError('Command must be a nonempty argv string list')
+        commands = self.read('commands.json')
+        seq = len(commands)+1
+        stem = f'{seq:03d}-'+re.sub(r'[^A-Za-z0-9_.-]+','-',label)
+        stdout = self.folder/'logs'/f'{stem}.stdout.log'
+        stderr = self.folder/'logs'/f'{stem}.stderr.log'
+        resources = self.folder/'logs'/f'{stem}.time.log'
+        binary = shutil.which(args[0])
+        started_at, started = utc(), time.monotonic()
+        stop = threading.Event()
+        rss_samples = []
+        sample_errors = []
+        proc = None
+        status = 'failed'
+        exit_code = None
+        error = None
+        time_format = '{"max_process_rss_kib":%M,"user_seconds":%U,"system_seconds":%S,"elapsed_seconds":%e,"exit_code":%x}'
+        try:
+            with stdout.open('wb') as out, stderr.open('wb') as err:
+                proc = subprocess.Popen(['/usr/bin/time','-f',time_format,'-o',str(resources),'--',*args],
+                       cwd=cwd,stdout=out,stderr=err,start_new_session=True)
+                def sample():
+                    while not stop.is_set():
+                        try:
+                            rss_samples.append((time.monotonic(),tree_rss(proc.pid)))
+                        except Exception as exc:
+                            sample_errors.append(str(exc))
+                        stop.wait(0.01)
+                monitor = threading.Thread(target=sample,daemon=True)
+                monitor.start()
+                try:
+                    exit_code = proc.wait(timeout=timeout)
+                    status = 'passed' if exit_code == 0 else 'failed'
+                except subprocess.TimeoutExpired:
+                    status = 'timeout'
+                    # The tool and its workers share this newly created session.
+                    try:
+                        os.killpg(proc.pid,signal.SIGTERM)
+    def finish(self, verdict, summary, required_roles, missing=None):
+        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+            raise ValueError('Invalid verification verdict')
+        metadata = self.read('run.json')
+        boundary=metadata.get('codex_usage_boundary')
+        if boundary and not boundary.get('after'):
+            try:
+                from codex_usage import snapshot, receipt
+                import tempfile
+                boundary['after']=snapshot(boundary['session_file'])
+                metadata['codex_usage_boundary']=boundary
+                dump(self.folder/'run.json',metadata)
+                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+                    usage_file=Path(temporary)/'usage.json'
+                    dump(usage_file,usage)
+                    self.import_tokens(usage_file)
+                metadata=self.read('run.json')
+            except Exception as usage_error:
+                metadata=self.read('run.json')
+                metadata['tokens']={'status':'unavailable','source':{'kind':'codex-session-event','reference':boundary['session_file']},'events':[],'reason':str(usage_error)}
+                metadata['usage_capture_error']=str(usage_error)
+                dump(self.folder/'run.json',metadata)
+        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+        dump(self.folder/'run.json',metadata)
+        roles = {}
+        for role, path in required_roles.items():
+            try:
+                roles[role] = {'status':'present',**self.capture(path,role)}
+            except FileNotFoundError:
+                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+        # Child runs are linked (normally nested under stages/), never copied twice.
+        metrics = self.refresh_metrics()
+        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+             'note':'A passed verifier result does not imply all requested measurements are available.'})
+        from cost_audit import audit_run
+        cost_audit = audit_run(self.folder)
+        metadata = self.read('run.json')
+        metadata['cost_audit'] = cost_audit
+        if cost_audit['status'] != 'complete':
+            metadata['completeness']['measurements'] = 'partial'
+            metrics['measurement_status'] = 'partial'
+            dump(self.folder/'metrics.json',metrics)
+        dump(self.folder/'run.json',metadata)
+        self.render()
+        print(f'ARTIFACTS: {self.folder}',flush=True)
+
+    def render(self):
+        metrics = self.read('metrics.json')
+        meta = self.read('run.json')
+        result = meta.get('result',{'verdict':'running','summary':''})
+        peak = metrics['memory']['peak_process_tree_rss_sampled_bytes']
+        text = f"# {meta['skill']} / {meta['run_id']}\n\nVerification: {result['verdict']}\n\n{result['summary']}\n\n"
+        text += f"Wall time: {metrics['time']['wall_seconds']:.6f} s\n\nCPU tool time: {metrics['time']['cpu_tool_seconds']} s\n\nObserved tool-tree RSS peak: {peak if peak is not None else 'unavailable'} bytes\n\nModel tokens: {metrics['tokens']['status']}; total={metrics['tokens']['total_tokens']}\n\nMeasurement completeness: {metrics['measurement_status']}\n\n"
+        text += 'run.json contains scope, input/output hashes, commands, token evidence and remaining obligations. metrics.json contains resource measurements and their limits.\n'
+        if meta.get('cost_audit'):
+            text += '\nCost evidence audit: '+meta['cost_audit']['status']+'\n'
+            for issue in meta['cost_audit'].get('issues',[]):
+                text += '\n- '+issue+'\n'
+        (self.folder/'report.md').write_text(text)
+        inventory = []
+        for path in sorted(self.folder.rglob('*')):
+            if path.is_file() and path != self.folder/'run.json' and not path.name.endswith('.tmp'):
+                inventory.append({'path':str(path.relative_to(self.folder)),'bytes':path.stat().st_size,'sha256':sha(path)})
+        meta = self.read('run.json')
+        meta['artifacts'] = inventory
+        dump(self.folder/'run.json',meta)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+
+COREMETADATA
+scope.json {
+  "scope": "pid_position_translation attempt 002 core/factory actual Csem proof helper",
+  "actor": "/root/pid_core_ultra",
+  "requested_model": "gpt-6.1-sol",
+  "requested_reasoning_effort": "ultra",
+  "user_override_of_skill_default": "medium",
+  "parent_run": "_build/pid-position-translation-ultra-parent/20261108T041328-72f6bf20cf/five-verify"
+}
+
+runtime.json [
+  {
+    "type": "session_meta",
+    "timestamp": "2026-11-08T04:14:25.855Z",
+    "model": null,
+    "effort": null,
+    "reasoning_effort": null,
+    "source": {
+      "subagent": {
+        "thread_spawn": {
+          "parent_thread_id": "01a1a068-b2f7-7500-a3c6-86e0924879f5",
+          "depth": 1,
+          "agent_path": "/root/pid_core_ultra",
+          "agent_nickname": "Goodall",
+          "agent_role": null
+        }
+      }
+    },
+    "id": "01a1b95d-5be8-7542-aa7a-d78e5d2f45f4"
+  },
+  {
+    "type": "turn_context",
+    "timestamp": "2026-11-08T04:14:27.354Z",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "reasoning_effort": null,
+    "source": null,
+    "id": null
+  }
+]
+

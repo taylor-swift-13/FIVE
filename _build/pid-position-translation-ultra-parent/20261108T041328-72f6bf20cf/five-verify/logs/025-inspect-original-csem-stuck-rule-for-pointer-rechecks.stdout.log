@@ -1,0 +1,19 @@
+411:  Being safe is a stronger requirement than just not getting stuck during
+413:  This expression is never stuck because the evaluation of [f()] can make
+418:  Therefore, we must make sure that not only an expression cannot get stuck,
+420:  is not immediately stuck if it is a value (of the appropriate kind)
+423:Inductive imm_safe: kind -> expr -> mem -> Prop :=
+424:  | imm_safe_val: forall v ty m,
+425:      imm_safe RV (Eval v ty) m
+426:  | imm_safe_loc: forall b ofs bf ty m,
+427:      imm_safe LV (Eloc b ofs bf ty) m
+428:  | imm_safe_lred: forall to C e m e' m',
+431:      imm_safe to (C e) m
+432:  | imm_safe_rred: forall to C e m t e' m',
+435:      imm_safe to (C e) m
+436:  | imm_safe_callred: forall to C e m fd args ty,
+439:      imm_safe to (C e) m.
+441:Definition not_stuck (e: expr) (m: mem) : Prop :=
+443:  context k RV C -> e = C e' -> imm_safe k e' m.
+661:  | step_stuck: forall C f a k e m K,
+662:      context K RV C -> ~(imm_safe e K a m) ->

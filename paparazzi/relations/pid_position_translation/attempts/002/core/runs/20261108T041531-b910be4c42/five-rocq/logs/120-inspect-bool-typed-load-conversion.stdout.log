@@ -1,0 +1,41 @@
+Definition decode_val (chunk: memory_chunk) (vl: list memval) : val :=
+  match proj_bytes vl with
+  | Some bl =>
+      match chunk with
+      | Mbool => Val.norm_bool (Vint (Int.zero_ext 8 (Int.repr (decode_int bl))))
+      | Mint8signed => Vint(Int.sign_ext 8 (Int.repr (decode_int bl)))
+      | Mint8unsigned => Vint(Int.zero_ext 8 (Int.repr (decode_int bl)))
+      | Mint16signed => Vint(Int.sign_ext 16 (Int.repr (decode_int bl)))
+      | Mint16unsigned => Vint(Int.zero_ext 16 (Int.repr (decode_int bl)))
+      | Mint32 => Vint(Int.repr(decode_int bl))
+      | Mint64 => Vlong(Int64.repr(decode_int bl))
+      | Mfloat32 => Vsingle(Float32.of_bits (Int.repr (decode_int bl)))
+      | Mfloat64 => Vfloat(Float.of_bits (Int64.repr (decode_int bl)))
+      | Many32 => Vundef
+      | Many64 => Vundef
+      end
+  | None =>
+      match chunk with
+      | Mint32 => if Archi.ptr64 then Vundef else Val.load_result chunk (proj_value Q32 vl)
+      | Many32 => Val.load_result chunk (proj_value Q32 vl)
+      | Mint64 => if Archi.ptr64 then Val.load_result chunk (proj_value Q64 vl) else Vundef
+      | Many64 => Val.load_result chunk (proj_value Q64 vl)
+      | _ => Vundef
+      end
+  end.
+
+Ltac solve_encode_val_length :=
+  match goal with
+  | [ |- length (inj_bytes _) = _ ] => rewrite length_inj_bytes; solve_encode_val_length
+  | [ |- length (encode_int _ _) = _ ] => apply encode_int_length
+  | [ |- length (if ?x then _ else _) = _ ] => destruct x eqn:?; solve_encode_val_length
+  | _ => reflexivity
+  end.
+
+Lemma encode_val_length:
+  forall chunk v, length(encode_val chunk v) = size_chunk_nat c
+689   | Mbool => v = Val.norm_bool v
+704   load Mbool m b ofs = option_map Val.norm_bool (load Mint8unsigned m b ofs).
+707   change (size_chunk_nat Mbool) with (size_chunk_nat Mint8unsigned).
+709   destruct (valid_access_dec m Mbool b ofs Readable).
+1342   store Mbool m b ofs v = store Mint8unsigned m b ofs v.

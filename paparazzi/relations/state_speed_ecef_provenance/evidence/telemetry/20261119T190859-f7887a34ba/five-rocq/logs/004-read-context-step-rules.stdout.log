@@ -1,0 +1,287 @@
+286:   | red_assign: forall b ofs ty1 bf v2 ty2 m v t m' v',
+287:       sem_cast v2 ty2 ty1 m = Some v ->
+288:       assign_loc ty1 m b ofs bf v t m' v' ->
+289:       rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+290:          t (Eval v' ty1) m'
+291:   | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+292:       deref_loc ty1 m b ofs bf t v1 ->
+293:       rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+294:          t (Eassign (Eloc b ofs bf ty1)
+295:                     (Ebinop op (Eval v1 ty1) (Eval v2 ty2) tyres) ty1) m
+296:   | red_postincr: forall id b ofs ty bf m t v1 op,
+297:       deref_loc ty m b ofs bf t v1 ->
+298:       op = match id with Incr => Oadd | Decr => Osub end ->
+299:       rred (Epostincr id (Eloc b ofs bf ty) ty) m
+300:          t (Ecomma (Eassign (Eloc b ofs bf ty)
+301:                             (Ebinop op (Eval v1 ty)
+302:                                        (Eval (Vint Int.one) type_int32s)
+303:                                        (incrdecr_type ty))
+304:                            ty)
+305:                    (Eval v1 ty) ty) m
+306:   | red_comma: forall v ty1 r2 ty m,
+307:       typeof r2 = ty ->
+308:       rred (Ecomma (Eval v ty1) r2 ty) m
+309:         E0 r2 m
+310:   | red_paren: forall v1 ty1 ty2 ty m v,
+311:       sem_cast v1 ty1 ty2 m = Some v ->
+312:       rred (Eparen (Eval v1 ty1) ty2 ty) m
+313:         E0 (Eval v ty) m
+314:   | red_builtin: forall ef tyargs el ty m vargs t vres m',
+315:       cast_arguments m el tyargs vargs ->
+316:       external_call ef ge vargs m t vres m' ->
+317:       rred (Ebuiltin ef tyargs el ty) m
+318:          t (Eval vres ty) m'.
+319: 
+320: 
+321: (** Head reduction for function calls.
+322:     (More exactly, identification of function calls that can reduce.) *)
+323: 
+324: Inductive callred: expr -> mem -> fundef -> list val -> type -> Prop :=
+325:   | red_call: forall vf tyf m tyargs tyres cconv el ty fd vargs,
+326:       Genv.find_funct ge vf = Some fd ->
+327:       cast_arguments m el tyargs vargs ->
+328:       type_of_fundef fd = Tfunction tyargs tyres cconv ->
+329:       classify_fun tyf = fun_case_f tyargs tyres cconv ->
+330:       callred (Ecall (Eval vf tyf) el ty) m
+331:               fd vargs ty.
+332: 
+333: (** Reduction contexts.  In accordance with C's nondeterministic semantics,
+334:   we allow reduction both to the left and to the right of a binary operator.
+335:   To enforce C's notion of sequence point, reductions within a conditional
+336:   [a ? b : c] can only take place in [a], not in [b] nor [c];
+337:   reductions within a sequential "or" / "and" [a && b] or [a || b] can
+338:   only take place in [a], not in [b];
+339:   and reductions within a sequence [a, b] can only take place in [a],
+340:   not in [b].
+341: 
+342:   Reduction contexts are represented by functions [C] from expressions
+343:   to expressions, suitably constrained by the [context from to C]
+344:   predicate below.  Contexts are "kinded" with respect to l-values and
+345:   r-values: [from] is the kind of the hole in the context and [to] is
+346:   the kind of the term resulting from filling the hole.
+347: *)
+348: 
+349: Inductive kind : Type := LV | RV.
+350: 
+351: Inductive context: kind -> kind -> (expr -> expr) -> Prop :=
+352:   | ctx_top: forall k,
+353:       context k k (fun x => x)
+354:   | ctx_deref: forall k C ty,
+355:       context k RV C -> context k LV (fun x => Ederef (C x) ty)
+356:   | ctx_field: forall k C f ty,
+357:       context k RV C -> context k LV (fun x => Efield (C x) f ty)
+358:   | ctx_rvalof: forall k C ty,
+359:       context k LV C -> context k RV (fun x => Evalof (C x) ty)
+360:   | ctx_addrof: forall k C ty,
+361:       context k LV C -> context k RV (fun x => Eaddrof (C x) ty)
+362:   | ctx_unop: forall k C op ty,
+363:       context k RV C -> context k RV (fun x => Eunop op (C x) ty)
+364:   | ctx_binop_left: forall k C op e2 ty,
+365:       context k RV C -> context k RV (fun x => Ebinop op (C x) e2 ty)
+366:   | ctx_binop_right: forall k C op e1 ty,
+367:       context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+368:   | ctx_cast: forall k C ty,
+369:       context k RV C -> context k RV (fun x => Ecast (C x) ty)
+370:   | ctx_seqand: forall k C r2 ty,
+371:       context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+372:   | ctx_seqor: forall k C r2 ty,
+373:       context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+374:   | ctx_condition: forall k C r2 r3 ty,
+375:       context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+376:   | ctx_assign_left: forall k C e2 ty,
+377:       context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+378:   | ctx_assign_right: forall k C e1 ty,
+379:       context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+380:   | ctx_assignop_left: forall k C op e2 tyres ty,
+381:       context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+382:   | ctx_assignop_right: forall k C op e1 tyres ty,
+383:       context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+384:   | ctx_postincr: forall k C id ty,
+385:       context k LV C -> context k RV (fun x => Epostincr id (C x) ty)
+386:   | ctx_call_left: forall k C el ty,
+387:       context k RV C -> context k RV (fun x => Ecall (C x) el ty)
+388:   | ctx_call_right: forall k C e1 ty,
+389:       contextlist k C -> context k RV (fun x => Ecall e1 (C x) ty)
+390:   | ctx_builtin: forall k C ef tyargs ty,
+391:       contextlist k C -> context k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+392:   | ctx_comma: forall k C e2 ty,
+393:       context k RV C -> context k RV (fun x => Ecomma (C x) e2 ty)
+394:   | ctx_paren: forall k C tycast ty,
+395:       context k RV C -> context k RV (fun x => Eparen (C x) tycast ty)
+396: 
+397: with contextlist: kind -> (expr -> exprlist) -> Prop :=
+398:   | ctx_list_head: forall k C el,
+399:       context k RV C -> contextlist k (fun x => Econs (C x) el)
+400:   | ctx_list_tail: forall k C e1,
+401:       contextlist k C -> contextlist k (fun x => Econs e1 (C x)).
+402: 
+403: (** In a nondeterministic semantics, expressions can go wrong according
+404:   to one reduction order while being defined according to another.
+405:   Consider for instance [(x = 1) + (10 / x)] where [x] is initially [0].
+406:   This expression goes wrong if evaluated right-to-left, but is defined
+407:   if evaluated left-to-right.  Since our compiler is going to pick one
+408:   particular evaluation order, we must make sure that all orders are safe,
+409:   i.e. never evaluate a subexpression that goes wrong.
+410: 
+411:   Being safe is a stronger requirement than just not getting stuck during
+412:   reductions.  Consider [f() + (10 / x)], where [f()] does not terminate.
+413:   This expression is never stuck because the evaluation of [f()] can make
+414:   infinitely many transitions.  Yet it contains a subexpression [10 / x]
+415:   that can go wrong if [x = 0], and the compiler may choose to evaluate
+416:   [10 / x] first, before calling [f()].
+417: 
+418:   Therefore, we must make sure that not only an expression cannot get stuck,
+419:   but none of its subexpressions can either.  We say that a subexpression
+420:   is not immediately stuck if it is a value (of the appropriate kind)
+421:   or it can reduce (at head or within). *)
+422: 
+423: Inductive imm_safe: kind -> expr -> mem -> Prop :=
+424:   | imm_safe_val: forall v ty m,
+425:       imm_safe RV (Eval v ty) m
+426:   | imm_safe_loc: forall b ofs bf ty m,
+427:       imm_safe LV (Eloc b ofs bf ty) m
+428:   | imm_safe_lred: forall to C e m e' m',
+431:       imm_safe to (C e) m
+432:   | imm_safe_rred: forall to C e m t e' m',
+433:       rred e m t e' m' ->
+434:       context RV to C ->
+435:       imm_safe to (C e) m
+436:   | imm_safe_callred: forall to C e m fd args ty,
+437:       callred e m fd args ty ->
+438:       context RV to C ->
+439:       imm_safe to (C e) m.
+440: 
+441: Definition not_stuck (e: expr) (m: mem) : Prop :=
+442:   forall k C e' ,
+443:   context k RV C -> e = C e' -> imm_safe k e' m.
+444: 
+445: (** ** Derived forms. *)
+446: 
+447: (** The following are admissible reduction rules for some derived forms
+448:   of the CompCert C language.  They help showing that the derived forms
+449:   make sense. *)
+450: 
+451: Lemma red_selection:
+452:   forall v1 ty1 v2 ty2 v3 ty3 ty m b v2' v3',
+453:   ty <> Tvoid ->
+454:   bool_val v1 ty1 m = Some b ->
+455:   sem_cast v2 ty2 ty m = Some v2' ->
+456:   sem_cast v3 ty3 ty m = Some v3' ->
+457:   rred (Eselection (Eval v1 ty1) (Eval v2 ty2) (Eval v3 ty3) ty) m
+458:     E0 (Eval (if b then v2' else v3') ty) m.
+459: Proof.
+460:   intros. unfold Eselection.
+461:   set (t := typ_of_type ty).
+462:   set (x := inj_type t).
+463:   set (sg := [Xint; x; x ---> x]%asttyp).
+464:   assert (LK: lookup_builtin_function "__builtin_sel"%string sg = Some (BI_standard (BI_select t))).
+465:   { unfold sg, x, t; destruct ty as [ | ? ? ? | ? | [] ? | ? ? | ? ? ? | ? ? ? | ? ? | ? ? ];
+466:     simpl; unfold Tptr; destruct Archi.ptr64; reflexivity. }
+467:   set (v' := if b then v2' else v3').
+468:   assert (C: val_casted v' ty).
+469:   { unfold v'; destruct b; eapply cast_val_is_casted; eauto. }
+470:   assert (EQ: Val.normalize v' t = v').
+471:   { apply Val.normalize_idem. apply val_casted_has_type; auto. }
+472:   econstructor.
+473: - constructor. rewrite cast_bool_bool_val, H0. eauto.
+474:   constructor. eauto.
+475:   constructor. eauto.
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+Import ListNotations.
+
+(** These predicates constrain syntax only.  Values, argument lists, memories,
+    allocation, initialization, alignment and permissions remain arbitrary. *)
+Definition nv (ty: type) := negb (type_is_volatile ty).
+Fixpoint core_expr (a: expr): bool :=
+  match a with
+  | Eval _ ty | Evar _ ty | Eloc _ _ _ ty => nv ty
+  | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+  | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty && core_expr a
+  | Ebinop _ a b ty | Eassign a b ty => nv ty && core_expr a && core_expr b
+  | _ => false
+  end.
+Fixpoint core_stmt (s: statement): bool :=
+  match s with
+  | Sskip | Sreturn None => true
+  | Sdo a | Sreturn (Some a) => core_expr a
+  | Ssequence a b => core_stmt a && core_stmt b
+  | Sifthenelse a b c => core_expr a && core_stmt b && core_stmt c
+  | _ => false
+  end.
+Fixpoint core_cont (k: cont): bool :=
+  match k with
+  | Kstop => true
+  | Kseq s k => core_stmt s && core_cont k
+  | _ => false
+  end.
+Definition core_expr_cont (k: cont): bool :=
+  match k with Kdo k | Kreturn k => core_cont k
+ | Kifthenelse a b k => core_stmt a && core_stmt b && core_cont k
+ | _ => false end.
+
+Ltac core_unpack := repeat match goal with H: _ && _ = true |- _ =>
+  apply andb_true_iff in H; let A := fresh "CORE" in let B := fresh "CORE" in destruct H as [A B] end.
+Ltac core_build := repeat match goal with |- _ && _ = true => apply andb_true_iff; split end.
+
+Lemma core_expr_no_builtin:
+  forall a, core_expr a = true -> no_builtin a = true.
+Proof.
+  induction a; simpl; intros H; core_unpack; try discriminate; core_build; eauto.
+Qed.
+
+Lemma core_context_hole:
+  forall from to C, context from to C -> forall a,
+  core_expr (C a) = true -> core_expr a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+Qed.
+
+Lemma core_context_replace:
+  forall from to C, context from to C -> forall a b,
+  core_expr (C a) = true -> core_expr b = true -> core_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HA HB; core_unpack; try discriminate;
+    core_build; eauto.
+Qed.
+
+Lemma core_lred:
+  forall ge e a m a' m', core_expr a = true -> lred ge e a m a' m' -> core_expr a' = true.
+Proof.
+  intros ge e a m a' m' HA HR; inversion HR; subst; simpl in *; core_unpack; auto.
+Qed.
+
+Lemma deref_loc_silent:
+  forall ge ty m b ofs bf t v, nv ty = true -> deref_loc ge ty m b ofs bf t v -> t = E0.
+Proof.
+  intros ge ty m b ofs bf t v NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma assign_loc_silent:
+  forall ge ty m b ofs bf v t m' v', nv ty = true -> assign_loc ge ty m b ofs bf v t m' v' -> t = E0.
+Proof.
+  intros ge ty m b ofs bf v t m' v' NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma core_rred:
+  forall ge a m t a' m', core_expr a = true -> rred ge a m t a' m' ->
+  t = E0 /\ core_expr a' = true.
+Proof.
+  intros ge a m t a' m' HA HR; inversion HR; subst; simpl in HA; core_unpack; try discriminate;
+    split; simpl; eauto using deref_loc_silent, assign_loc_silent.
+Qed.
+Lemma core_no_callred:
+  forall ge a m fd args ty, core_expr a = true -> callred ge a m fd args ty -> False.
+Proof. intros ge a m fd args ty HA HR; inversion HR; subst; discriminate. Qed.
+
+Lemma core_cont_call:
+  forall k, core_cont k = true -> call_cont k = Kstop.
+Proof.
+  induction k; simpl; intros H; core_unpack; try discriminate; auto.
+Qed.
+Lemma core_cont_is_call:
+  forall k, core_cont k = true -> is_call_cont k -> k = Kstop.
+Proof. destruct k; simpl; intros; try discriminate; tauto. Qed.
+
+

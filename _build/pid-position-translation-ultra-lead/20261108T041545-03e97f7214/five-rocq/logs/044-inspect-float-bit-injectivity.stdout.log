@@ -1,0 +1,32 @@
+Float.to_of_bits:
+  forall b : Integers.Int64.int, Float.to_bits (Float.of_bits b) = b
+Float.of_to_bits: forall f : float, Float.of_bits (Float.to_bits f) = f
+Float.to_of_bits:
+  forall b : Integers.Int64.int, Float.to_bits (Float.of_bits b) = b
+Float.of_to_bits: forall f : float, Float.of_bits (Float.to_bits f) = f
+Float.eq_dec
+     : forall f1 f2 : float, {f1 = f2} + {f1 <> f2}
+Float.of_bits =
+fun b : Integers.Int64.int => Bits.b64_of_bits (Integers.Int64.unsigned b)
+     : Integers.Int64.int -> float
+
+Arguments Float.of_bits b
+Float.of_int =
+fun n : Integers.Int.int =>
+IEEE754_extra.BofZ
+  (BinInt.Z.pos
+     (BinNums.xI
+        (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+  (BinInt.Z.pos
+     (BinNums.xO
+        (BinNums.xO
+           (BinNums.xO
+              (BinNums.xO
+                 (BinNums.xO
+                    (BinNums.xO
+                       (BinNums.xO
+                          (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+  eq_refl eq_refl (Integers.Int.signed n)
+     : Integers.Int.int -> float
+
+Arguments Float.of_int n

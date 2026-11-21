@@ -1,0 +1,42 @@
+From Stdlib Require Import Bool List ZArith Classical.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Determinism Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import BlockExecution PhaseComposition.
+From FiveGuidanceEntry Require Import BigstepSupport.
+Require FiveGhSpeed.Source FiveGhAccel.Source.
+Require FiveGuidanceEntry.SymbolicPrefix FiveGuidanceEntry.AccelPrefix FiveGuidanceEntry.SaturationBody FiveGuidanceEntry.SaturationBodyAccel.
+Import ListNotations.
+Module Speed:=FiveGuidanceEntry.SymbolicPrefix.
+Module Accel:=FiveGuidanceEntry.AccelPrefix.
+Module SS:=FiveGhSpeed.Source.
+Module AS:=FiveGhAccel.Source.
+Fixpoint phase_sequence(blocks:list statement)(tail:statement):statement:=
+ match blocks with []=>tail|b::rest=>Ssequence b(phase_sequence rest tail)end.
+Definition speed_blocks:list statement:=
+ [Speed.source_pos_step;Speed.source_speed_step;Speed.pos_conversion SS._x;Speed.pos_conversion SS._y;
+ Speed.source_pos_add;Speed.source_speed_add;Speed.error_pair;Speed.raw_pair].
+Definition accel_blocks:list statement:=
+ [Accel.source_pos_step;Accel.source_speed_step;Accel.pos_conversion AS._x;Accel.pos_conversion AS._y;
+ Accel.source_pos_add;Accel.source_speed_add].
+Lemma speed_phase_shape:fn_body SS.f_gh_update_ref_from_speed_sp=
+ phase_sequence speed_blocks(Ssequence Speed.saturation_call Speed.after_saturation).
+Proof. reflexivity. Qed.
+Lemma accel_phase_shape:fn_body AS.f_gh_update_ref_from_accel_sp=
+ phase_sequence accel_blocks(Ssequence Accel.saturation_call Accel.after_saturation).
+Proof. reflexivity. Qed.
+Lemma speed_blocks_syntax:Forall(fun b=>block_stmt b=true)speed_blocks.
+Proof. repeat constructor;reflexivity. Qed.
+Lemma accel_blocks_syntax:Forall(fun b=>block_stmt b=true)accel_blocks.
+Proof. repeat constructor;reflexivity. Qed.
+Lemma speed_copy_syntax:block_stmt Speed.after_saturation=true.
+Proof. reflexivity. Qed.
+Lemma accel_copy_syntax:block_stmt Accel.after_saturation=true.
+Proof. reflexivity. Qed.
+Lemma speed_norm_syntax:block_stmt FiveGuidanceEntry.SaturationBody.norm_statement=true.
+Proof. reflexivity. Qed.
+Lemma speed_scale_syntax:block_stmt FiveGuidanceEntry.SaturationBody.scale_pair=true.
+Proof. reflexivity. Qed.
+Lemma accel_norm_syntax:block_stmt FiveGuidanceEntry.SaturationBodyAccel.norm_statement=true.
+Proof. reflexivity. Qed.
+Lemma accel_scale_syntax:block_stmt FiveGuidanceEntry.SaturationBodyAccel.scale_pair=true.
+Proof. reflexiv
+['paparazzi/models/gh_update_ref_from_speed_sp/align/model']

@@ -1,0 +1,14 @@
+47: destruct(conditional_estep ge e m f a k t next v CV STEP)as[ar[EQ[TT[TY VR]]]].
+48: exists ar;split;[exact EQ|];subst next;inversion STEP;subst.
+49: - lazymatch goal with LR:lred ge e ?sub m ?sub' ?mm,CT:Csem.context LV RV ?C|-_ =>
+50:   destruct(pure_lred ge e sub m sub' mm LR)as[MM[TYPE[SI DEN]]];
+51:   eapply conditional_tree_context_congr;[exact CT|symmetry;exact TYPE| |reflexivity|exact CV|exact TREE|];
+52:   [intros _;exact DEN|eapply arithmetic_lred;exact LR]end.
+53: - lazymatch goal with RR:rred ge ?sub m ?tr ?sub' m,CT:Csem.context RV RV ?C|-_ =>
+54:   pose proof(arithmetic_context_hole ge e m _ _ _ CT sub TREE)as HEAD;
+55:   eapply conditional_tree_context_congr;[exact CT| | |reflexivity|exact CV|exact TREE|];
+56:   [eapply arithmetic_rred_type;exact RR|
+57:    intros SI;destruct(pure_rred ge e sub m tr sub' m SI RR)as[_[_[_[_ DEN]]]]];exact DEN|
+58:    eapply arithmetic_rred;[exact HEAD|exact RR]]end.
+59:Qed.
+60:Print Assumptions conditional_tree_estep.

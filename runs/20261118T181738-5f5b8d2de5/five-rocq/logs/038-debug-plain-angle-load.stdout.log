@@ -1,0 +1,66 @@
+1 goal
+  
+  ge : genv
+  b : block
+  m : mem
+  a : int
+  LOAD : Mem.load Mint32 m b 0 = Some (Vint a)
+  ============================
+  (if type_eq tint tint
+   then
+    match
+      match (angle_env b) ! _angle with
+      | Some (b0, ty') =>
+          if type_eq tint ty' then Some (b0, Ptrofs.zero, Full) else None
+      | None =>
+          match Genv.find_symbol ge _angle with
+          | Some b0 => Some (b0, Ptrofs.zero, Full)
+          | None => None
+          end
+      end
+    with
+    | Some (b0, ofs, bf) =>
+        match
+          match bf with
+          | Full =>
+              match
+                (if zle (Ptrofs.unsigned ofs + 4) Ptrofs.modulus
+                 then Mem.load Mint32 m b0 (Ptrofs.unsigned ofs)
+                 else None)
+              with
+              | Some v => Some (quiet_world, E0, v)
+              | None => None
+              end
+          | Bits sz sg pos width =>
+              if
+               intsize_eq I32 sz &&
+               signedness_eq Signed
+                 (if zlt width (bitsize_intsize sz) then Signed else sg) &&
+               zle 0 pos && zlt 0 width && zle width (bitsize_intsize sz) &&
+               zle (pos + width) (bitsize_carrier sz)
+              then
+               match
+                 (if
+                   zle
+                     (Ptrofs.unsigned ofs + size_chunk (chunk_for_carrier sz))
+                     Ptrofs.modulus
+                  then
+                   Mem.load (chunk_for_carrier sz) m b0 (Ptrofs.unsigned ofs)
+                  else None)
+               with
+               | Some (Vint c) =>
+                   Some
+                     (quiet_world, E0,
+                      Vint (bitfield_extract sz sg pos width c))
+               | _ => None
+               end
+              else None
+          end
+        with
+        | Some (_, _, v) => Some v
+        | None => None
+        end
+    | None => None
+    end
+   else None) =
+  Some (Vint a)

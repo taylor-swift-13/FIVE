@@ -1,0 +1,281 @@
+guidance_pid_h_run.overflow.1 line855 overflow !overflow("*", int32_t, guidance_pid.kp, guidance_pid_pos_err.x)
+guidance_pid_h_run.overflow.2 line856 overflow !overflow("*", int32_t, guidance_pid.kd, guidance_pid_speed_err.x >> 2)
+guidance_pid_h_run.overflow.3 line855 overflow !overflow("+", int32_t, guidance_pid.kp * guidance_pid_pos_err.x >> 6, guidance_pid.kd * (guidance_pid_speed_err.x >> 2) >> 15)
+guidance_pid_h_run.overflow.4 line858 overflow !overflow("*", int32_t, guidance_pid.kp, guidance_pid_pos_err.y)
+guidance_pid_h_run.overflow.5 line859 overflow !overflow("*", int32_t, guidance_pid.kd, guidance_pid_speed_err.y >> 2)
+guidance_pid_h_run.overflow.6 line858 overflow !overflow("+", int32_t, guidance_pid.kp * guidance_pid_pos_err.y >> 6, guidance_pid.kd * (guidance_pid_speed_err.y >> 2) >> 15)
+guidance_pid_h_run.pointer_dereference.1 line861 pointer dereference !(__CPROVER_POINTER_OBJECT(((struct HorizontalGuidanceReference *)NULL)) == __CPROVER_POINTER_OBJECT(gh))
+guidance_pid_h_run.pointer_dereference.2 line861 pointer dereference !IS_INVALID_POINTER(gh)
+guidance_pid_h_run.pointer_dereference.3 line861 pointer dereference !(__CPROVER_POINTER_OBJECT(gh) == __CPROVER_POINTER_OBJECT(__CPROVER_deallocated))
+guidance_pid_h_run.pointer_dereference.4 line861 pointer dereference !(__CPROVER_POINTER_OBJECT(gh) == __CPROVER_POINTER_OBJECT(__CPROVER_dead_object))
+guidance_pid_h_run.pointer_dereference.5 line861 pointer dereference (unsigned __CPROVER_bitvector[65])__CPROVER_OBJECT_SIZE(gh) >= (unsigned __CPROVER_bitvector[65])(__CPROVER_POINTER_OFFSET(gh) + 44ul) + 24
+guidance_pid_h_run.pointer_dereference.6 line861 pointer dereference !(__CPROVER_POINTER_OBJECT(((struct HorizontalGuidanceReference *)NULL)) == __CPROVER_POINTER_OBJECT(gh)) || (char *)gh + 44l == ((char *)NULL)
+guidance_pid_h_run.overflow.7 line861 overflow !overflow("*", int32_t, guidance_pid.kv, gh->ref.speed.x)
+guidance_pid_h_run.overflow.8 line860 overflow !overflow("+", int32_t, pd_x, guidance_pid.kv * gh->ref.speed.x >> 17)
+guidance_pid_h_run.overflow.9 line862 overflow !overflow("*", int32_t, guidance_pid.ka, gh->ref.accel.x)
+guidance_pid_h_run.overflow.10 line861 overflow !overflow("+", int32_t, pd_x + (guidance_pid.kv * gh->ref.speed.x >> 17), guidance_pid.ka * gh->ref.accel.x >> 8)
+guidance_pid_h_run.overflow.11 line864 overflow !overflow("*", int32_t, guidance_pid.kv, gh->ref.speed.y)
+guidance_pid_h_run.overflow.12 line863 overflow !overflow("+", int32_t, pd_y, guidance_pid.kv * gh->ref.speed.y >> 17)
+guidance_pid_h_run.overflow.13 line865 overflow !overflow("*", int32_t, guidance_pid.ka, gh->ref.accel.y)
+guidance_pid_h_run.overflow.14 line864 overflow !overflow("+", int32_t, pd_y + (guidance_pid.kv * gh->ref.speed.y >> 17), guidance_pid.ka * gh->ref.accel.y >> 8)
+guidance_pid_h_run.overflow.15 line868 overflow !(traj_max_bank == -2147483648)
+guidance_pid_h_run.overflow.16 line868 overflow guidance_pid.cmd_earth.x < -traj_max_bank ==> !(traj_max_bank == -2147483648)
+guidance_pid_h_run.overflow.17 line868 overflow guidance_pid.cmd_earth.y < -traj_max_bank ==> !(traj_max_bank == -2147483648)
+guidance_pid_h_run.overflow.18 line876 overflow !overflow("*", int32_t, guidance_pid.ki, pd_x)
+guidance_pid_h_run.overflow.19 line876 overflow !overflow("+", int32_t, guidance_pid_trim_att_integrator.x, guidance_pid.ki * pd_x)
+guidance_pid_h_run.overflow.20 line877 overflow !overflow("*", int32_t, guidance_pid.ki, pd_y)
+guidance_pid_h_run.overflow.21 line877 overflow !overflow("+", int32_t, guidance_pid_trim_att_integrator.y, guidance_pid.ki * pd_y)
+guidance_pid_h_run.undefined-shift.1 line879 undefined-shift traj_max_bank >= 0
+guidance_pid_h_run.overflow.22 line879 overflow !(traj_max_bank >= 0) || traj_max_bank == 0 || (const int32_t)traj_max_bank << 16[31 + 32, 31] == 0
+guidance_pid_h_run.overflow.23 line879 overflow !(traj_max_bank << 16 == -2147483648)
+guidance_pid_h_run.undefined-shift.2 line879 undefined-shift guidance_pid_trim_att_integrator.x < -(traj_max_bank << 12 + 2 * 2) ==> traj_max_bank >= 0
+guidance_pid_h_run.overflow.24 line879 overflow guidance_pid_trim_att_integrator.x < -(traj_max_bank << 12 + 2 * 2) ==> !(traj_max_bank >= 0) || traj_max_bank == 0 || (const int32_t)traj_max_bank << 16[31 + 32, 31] == 0
+guidance_pid_h_run.overflow.25 line879 overflow guidance_pid_trim_att_integrator.x < -(traj_max_bank << 12 + 2 * 2) ==> !(traj_max_bank << 16 == -2147483648)
+guidance_pid_h_run.undefined-shift.3 line879 undefined-shift !(guidance_pid_trim_att_integrator.x < -(traj_max_bank << 12 + 2 * 2)) ==> traj_max_bank >= 0
+guidance_pid_h_run.overflow.26 line879 overflow !(guidance_pid_trim_att_integrator.x < -(traj_max_bank << 12 + 2 * 2)) ==> !(traj_max_bank >= 0) || traj_max_bank == 0 || (const int32_t)traj_max_bank << 16[31 + 32, 31] == 0
+guidance_pid_h_run.undefined-shift.4 line879 undefined-shift !(guidance_pid_trim_att_integrator.x < -(traj_max_bank << 12 + 2 * 2)) && guidance_pid_trim_att_integrator.x > traj_max_bank << 12 + 2 * 2 ==> traj_max_bank >= 0
+guidance_pid_h_run.overflow.27 line879 overflow !(guidance_pid_trim_att_integrator.x < -(traj_max_bank << 12 + 2 * 2)) && guidance_pid_trim_att_integrator.x > traj_max_bank << 12 + 2 * 2 ==> !(traj_max_bank >= 0) || traj_max_bank == 0 || (const int32_t)traj_max_bank << 16[31 + 32, 31] == 0
+guidance_pid_h_run.undefined-shift.5 line879 undefined-shift guidance_pid_trim_att_integrator.y < -(traj_max_bank << 12 + 2 * 2) ==> traj_max_bank >= 0
+guidance_pid_h_run.overflow.28 line879 overflow guidance_pid_trim_att_integrator.y < -(traj_max_bank << 12 + 2 * 2) ==> !(traj_max_bank >= 0) || traj_max_bank == 0 || (const int32_t)traj_max_bank << 16[31 + 32, 31] == 0
+guidance_pid_h_run.overflow.29 line879 overflow guidance_pid_trim_att_integrator.y < -(traj_max_bank << 12 + 2 * 2) ==> !(traj_max_bank << 16 == -2147483648)
+guidance_pid_h_run.undefined-shift.6 line879 undefined-shift !(guidance_pid_trim_att_integrator.y < -(traj_max_bank << 12 + 2 * 2)) ==> traj_max_bank >= 0
+guidance_pid_h_run.overflow.30 line879 overflow !(guidance_pid_trim_att_integrator.y < -(traj_max_bank << 12 + 2 * 2)) ==> !(traj_max_bank >= 0) || traj_max_bank == 0 || (const int32_t)traj_max_bank << 16[31 + 32, 31] == 0
+guidance_pid_h_run.undefined-shift.7 line879 undefined-shift !(guidance_pid_trim_att_integrator.y < -(traj_max_bank << 12 + 2 * 2)) && guidance_pid_trim_att_integrator.y > traj_max_bank << 12 + 2 * 2 ==> traj_max_bank >= 0
+guidance_pid_h_run.overflow.31 line879 overflow !(guidance_pid_trim_att_integrator.y < -(traj_max_bank << 12 + 2 * 2)) && guidance_pid_trim_att_integrator.y > traj_max_bank << 12 + 2 * 2 ==> !(traj_max_bank >= 0) || traj_max_bank == 0 || (const int32_t)traj_max_bank << 16[31 + 32, 31] == 0
+guidance_pid_h_run.overflow.32 line882 overflow !overflow("+", int32_t, guidance_pid.cmd_earth.x, guidance_pid_trim_att_integrator.x >> 16)
+guidance_pid_h_run.overflow.33 line883 overflow !overflow("+", int32_t, guidance_pid.cmd_earth.y, guidance_pid_trim_att_integrator.y >> 16)
+guidance_pid_h_run.overflow.34 line892 overflow !overflow("*", int32_t, stabilization.cmd[3l], guidance_v.thrust_coeff)
+guidance_pid_h_run.overflow.35 line893 overflow !overflow("*", int32_t, thrust_cmd_filt, 10)
+guidance_pid_h_run.overflow.36 line893 overflow !overflow("+", int32_t, thrust_cmd_filt * 10, vertical_thrust)
+guidance_pid_h_run.overflow.37 line895 overflow !overflow("*", int32_t, guidance_pid.cmd_earth.x, 9600)
+guidance_pid_h_run.overflow.38 line897 overflow !overflow("*", int32_t, guidance_pid.cmd_earth.y, 9600)
+guidance_pid_h_run.overflow.39 line901 overflow !(total_max_bank == -2147483648)
+guidance_pid_h_run.overflow.40 line901 overflow guidance_pid.cmd_earth.x < -total_max_bank ==> !(total_max_bank == -2147483648)
+guidance_pid_h_run.overflow.41 line901 overflow guidance_pid.cmd_earth.y < -total_max_bank ==> !(total_max_bank == -2147483648)
+
+ORIGINAL CORE
+831:   }
+832:   return &state.ned_speed_i;
+833: }
+834: 
+835: struct StabilizationSetpoint stab_sp_from_ltp_i(struct Int32Vect2 *vect, int32_t heading)
+836: {
+837:   struct StabilizationSetpoint sp = {
+838:     .type = STAB_SP_LTP,
+839:     .format = STAB_SP_INT,
+840:     .sp.ltp_i.vect = *vect,
+841:     .sp.ltp_i.heading = heading
+842:   };
+843:   return sp;
+844: }
+845: 
+846: static struct StabilizationSetpoint guidance_pid_h_run(bool in_flight, struct HorizontalGuidance *gh)
+847: {
+848:   /* maximum bank angle: default 20 deg, max 40 deg*/
+849:   static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
+850:                                        BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
+851:   static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
+852: 
+853:   /* run PID */
+854:   int32_t pd_x =
+855:     ((guidance_pid.kp * guidance_pid_pos_err.x) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+856:     ((guidance_pid.kd * (guidance_pid_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+857:   int32_t pd_y =
+858:     ((guidance_pid.kp * guidance_pid_pos_err.y) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+859:     ((guidance_pid.kd * (guidance_pid_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+860:   guidance_pid.cmd_earth.x = pd_x +
+861:                            ((guidance_pid.kv * gh->ref.speed.x) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE)) + /* speed feedforward gain */
+862:                            ((guidance_pid.ka * gh->ref.accel.x) >> (INT32_ACCEL_FRAC - GH_GAIN_SCALE));  /* acceleration feedforward gain */
+863:   guidance_pid.cmd_earth.y = pd_y +
+864:                            ((guidance_pid.kv * gh->ref.speed.y) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE)) + /* speed feedforward gain */
+865:                            ((guidance_pid.ka * gh->ref.accel.y) >> (INT32_ACCEL_FRAC - GH_GAIN_SCALE));  /* acceleration feedforward gain */
+866: 
+867:   /* trim max bank angle from PD */
+868:   VECT2_STRIM(guidance_pid.cmd_earth, -traj_max_bank, traj_max_bank);
+869: 
+870:   /* Update pos & speed error integral, zero it if not in_flight.
+871:    * Integrate twice as fast when not only POS but also SPEED are wrong,
+872:    * but do not integrate POS errors when the SPEED is already catching up.
+873:    */
+874:   if (in_flight) {
+875:     /* ANGLE_FRAC (12) * GAIN (8) * LOOP_FREQ (9) -> INTEGRATOR HIGH RES ANGLE_FRAX (28) */
+876:     guidance_pid_trim_att_integrator.x += (guidance_pid.ki * pd_x);
+877:     guidance_pid_trim_att_integrator.y += (guidance_pid.ki * pd_y);
+878:     /* saturate it  */
+879:     VECT2_STRIM(guidance_pid_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
+880:                 (traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
+881:     /* add it to the command */
+882:     guidance_pid.cmd_earth.x += (guidance_pid_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+883:     guidance_pid.cmd_earth.y += (guidance_pid_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+884:   } else {
+885:     INT_VECT2_ZERO(guidance_pid_trim_att_integrator);
+886:   }
+887: 
+888:   /* compute a better approximation of force commands by taking thrust into account */
+889:   if (guidance_pid.approx_force_by_thrust && in_flight) {
+890:     static int32_t thrust_cmd_filt;
+891:     // FIXME strong coupling with guidance_v here !!!
+892:     int32_t vertical_thrust = (stabilization.cmd[COMMAND_THRUST] * guidance_v.thrust_coeff) >> INT32_TRIG_FRAC;
+893:     thrust_cmd_filt = (thrust_cmd_filt * GUIDANCE_H_THRUST_CMD_FILTER + vertical_thrust) /
+894:                       (GUIDANCE_H_THRUST_CMD_FILTER + 1);
+895:     guidance_pid.cmd_earth.x = ANGLE_BFP_OF_REAL(atan2f((guidance_pid.cmd_earth.x * MAX_PPRZ / INT32_ANGLE_PI_2),
+896:                              thrust_cmd_filt));
+897:     guidance_pid.cmd_earth.y = ANGLE_BFP_OF_REAL(atan2f((guidance_pid.cmd_earth.y * MAX_PPRZ / INT32_ANGLE_PI_2),
+898:                              thrust_cmd_filt));
+899:   }
+900: 
+901:   VECT2_STRIM(guidance_pid.cmd_earth, -total_max_bank, total_max_bank);
+902: 
+903:   return stab_sp_from_ltp_i(&guidance_pid.cmd_earth, ANGLE_BFP_OF_REAL(guidance_h.sp.heading));
+904: }
+905: 
+906: struct StabilizationSetpoint guidance_pid_h_run_pos(bool in_flight, struct HorizontalGuidance *gh)
+907: {
+908:   /* compute position error    */
+909:   VECT2_DIFF(guidance_pid_pos_err, gh->ref.pos, *stateGetPositionNed_i());
+910:   /* saturate it               */
+911:   VECT2_STRIM(guidance_pid_pos_err, -MAX_POS_ERR, MAX_POS_ERR);
+912: 
+913:   /* compute speed error    */
+914:   VECT2_DIFF(guidance_pid_speed_err, gh->ref.speed, *stateGetSpeedNed_i());
+915:   /* saturate it               */
+EVIDENCE .agents/skills/five-verify/references/proof-evidence.md # Rocq 证明证据与最终验收
+
+five-align 交付模型、来源审计、spec-map 与待证目标；本文件规定 five-rocq 产出的证明证据以及 five-verify 的验收要求。模型生成阶段不要求这些定理已完成。
+
+## 全执行对应证据
+
+`execution-contract.json` 使用既有八类全执行义务。声明和对应关系由 align 交接；证明由 rocq 完成。最终声称全域执行对应时，每条必须 proof-backed、status proved，域与冻结 request 一致且 domain_restrictions 为空：
+
+```text
+execution_backend: compcert-csyntax-cexec
+backend_manifest_sha256: 当前 manifest hash
+alignment_issues: [{issue_id: 稳定ID, status: resolved, ...}]
+```
+
+execution_entry 绑定生成的 Execution.v/module/entry；source_semantics.source_sha256 至少包含原 C、Source.v 和 Execution.v，以及所用库适配器/规约/注册表。清楚列出可信外部库假设、world/volatile/I/O 范围。主 agent 审查命题充分性，metadata 本身不能证明命题覆盖完整。
+
+无真实问题时 alignment_issues 为空；最终验收时实际问题须关闭。移交给 rocq 的待证义务不在生成阶段虚报为已解决。
+
+## CBMC 独立重验结果
+
+align 的 `spec-map.json` 是属性映射；rocq 在实际证明或反驳后输出 `spec-recheck.json`，schema 为 `five-cbmc-rocq-recheck/1`：
+
+- request_sha256、backend_manifest_sha256 绑定同一请求和模型。
+- verification_method 为 traditional-bounded-model-checking。
+- cbmc_run、cbmc_command_id、cbmc_json 指向真实 CBMC 命令和原始 JSON stdout；cbmc_input_sha256 覆盖实际原 C/harness 等输入。
+- properties 覆盖全部实际 property ID，不漏项、不重复。scope 保留原前条件、位置、内存区域、调用/展开范围和观察；theorem 是模型侧真实命题，evidence 是证明记录。
+- 只有独立证据成立时才标 proved/refuted。现有完整重验门禁要求 SUCCESS 对应 proved、FAILURE 对应 refuted；UNKNOWN、超时、未完成或语义差异只能记 pending/gap，不能进入完整通过状态。
+- 实际 FAILURE 的 counterexample_replay 绑定原始 trace、输入位/字节、出错操作和修改前缀。可用 Csem 执行关系证明复现，不要求直接 vm_compute。未复现不伪造 reproduced。反例证实表示原属性不成立。
+
+CBMC 结论不是 Rocq 的公理，也不能以纯功能模型的相似断言代替执行层重验。
+
+## 内核与假设证据
+
+每个 evidence 的 kind 为 rocq-kernel-check，含 run、command_id、theorems、statement_artifacts、dependency_sha256。引用的 run.json 必须包含成功的实际 `rocq check`/`coqchk` 命令，检查所声称定理所在模块；禁止 admit/norec 等绕过检查选项。
+
+依赖和声明应匹配真实 proof run 的输入快照，且在该运行中实际编译，不能只重填当前 hash。记录 `Print Assumptions` 和继承假设；声明编译通过并不证明待证命题。执行对应和属性重验使用相同证据标准。
+
+## 最终门禁
+
+```sh
+python3 scripts/compcert-verify.py gate --request request.json \
+  --request-sha256 FROZEN_HASH --contract execution-contract.json \
+  --manifest _build/compcert/case/compcert-manifest.json \
+  --spec-recheck spec-recheck.json
+```
+
+门禁实施新鲜来源审计、外部支持清单检查、全执行对应证明记录检查、实际 CBMC 属性的 Rocq 重验及问题关闭核查。不要求 agent 审批。最终验证统一使用 `compcert-verify.py gate`，不作为 align 的生成阶段验收条件。
+
+门禁接受的范围是执行层与 CBMC 重验；独立的无错误、终止性和高层功能目标应另外核对相应 Rocq 定理的量词、前条件、实际证明/内核证据和当前依赖。不能因为 gate accepted 就把这些目标自动标为 proved。没有完整证据时给出范围明确的阶段报告和 pending 项。
+
+## Gold-standard completion and observation boundary
+
+The [shared case contract](case-contract.md) and its examples index define the normative problem/attempt layout. Validate the active attempt, preserving historical attempts and their original outcomes. A whole-task `COMPLETE` requires closure of every requested goal and every actual CBMC property ID under its original conditions, plus successful independent receipts bound to the exact current statements and dependencies. Checking one replacement assertion or a selected subset cannot close the original ledger. Counterexample replay may close an actual failed property as `refuted`, never as program correctness; unexplained UNKNOWN or semantic mismatch stays pending/gap. Generation-only requests correctly stop with declared pending obligations.
+
+Memory-property statements must identify target representation and endian, source/destination ranges, CompCert `memval`/`Mem.loadbytes` interpretation, actual write prefix, and frame conditions. A numerical equality alone does not establish byte-copy or assertion-expression properties. All-reachable-state safety and all-successor termination remain distinct from finite executions or existence of a normal return. Metadata and a successful gate do not replace review of those quantifiers or additional requested goals.
+
+
+INPUTGOOD
+Definition InputGoodLegacy (m:mem) (gh ret:block) : Prop :=
+ gh<>ret
+ /\ (forall id, Genv.find_symbol Execution.ge id=Some gh -> id=Source._guidance_h) /\ (forall id, Genv.find_symbol Execution.ge id<>Some ret)
+ /\ Mem.range_perm m gh 0 (sizeof ce gh_type) Cur Readable
+ /\ Mem.range_perm m ret 0 (sizeof ce sp_type) Cur Writable
+ /\ global_bytes_initialized m /\ writable_controller_globals m /\ caches_valid m
+ /\ load_global Mint8unsigned m Source._guidance_pid pid_type [Source._approx_force_by_thrust]=Some(Vint Int.zero)
+ /\ heading_safe m
+ /\ (forall gain, In gain [Source._kp;Source._kd;Source._ki;Source._kv;Source._ka] -> bounded_global m Source._guidance_pid pid_type [gain] 0 100)
+ /\ (forall axis, In axis [Source._x;Source._y] ->
+ bounded_global m Source._guidance_pid_trim_att_integrator vec_type [axis] (-100000000) 100000000
+ /\ bounded_path m gh gh_type [Source._ref;Source._speed;axis] (-10000) 10000
+ /\ bounded_path m gh gh_type [Source._ref;Source._accel;axis] (-10000) 10000
+ /\ bounded_global m Source._state state_type [Source._ned_speed_i;axis] (-10000) 10000).
+(** Attempt 002 correction: readability does not imply an initialized integer.
+    These are input facts; neither contains an execution or output premise. *)
+Definition initialized_positions (m:mem) (gh:block) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ exists r p,
+ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
+ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p).
+Definition position_subtractions_safe (m:mem) (gh:block) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ exists r p,
+ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
+ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p)
+ /\ signed32 (Int.signed r-Int.signed p).
+Definition InputGood (m:mem) (gh ret:block) : Prop :=
+ InputGoodLegacy m gh ret /\ initialized_positions m gh /\ position_subtractions_safe m gh.
+Definition AxisTranslation (gh:block) (a b:mem) (axis:ident) (delta:Z) : Prop :=
+ exists ra pa rb pb,
+ load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint pa)
+ /\ load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint rb)
+ /\ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint pb)
+ /\ physical_translation (Int.signed ra) (Int.signed pa) delta
+ /\ Int.signed rb=Int.signed ra+delta /\ Int.signed pb=Int.signed pa+delta.
+Definition InputPair (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputGood a gh ret /\ InputGood b gh ret
+ /\ same_except_positions_and_return gh ret a b
+ /\ AxisTranslation gh a b Source._x dx /\ AxisTranslation gh a b Source._y dy.
+Definition call_args (gh ret:block) (flight:bool) : list val :=
+ [Vptr ret Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero].
+Definition NormalCall (gh ret:block) (flight:bool) (m mf:mem) : Prop :=
+ exists t v, star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t (Returnstate v Kstop mf).
+Definition same_loaded_int32 (a b:option val) : Prop :=
+ exists v, a=Some(Vint v) /\ b=Some(Vint v).
+Definition ActiveReturnEqual (ret:block) (a b:mem) : Prop :=
+ load_path Mint32 a ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 b ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 a ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ load_path Mint32 b ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ forall path, In path [[Source._sp;Source._ltp_i;Source._vect;Source._x];[Source._sp;Source._ltp_i;Source._vect;Source._y];[Source._sp;Source._ltp_i;Source._heading]] ->
+ same_loaded_int32 (load_path Mint32 a ret sp_type path) (load_path Mint32 b ret sp_type path).
+Definition ControllerEqual (a b:mem) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ same_loaded_int32 (load_global Mint32 a Source._guidance_pid pid_type [Source._cmd_earth;axis]) (load_global Mint32 b Source._guidance_pid pid_type [Source._cmd_earth;axis])
+ /\ same_loaded_int32 (load_global Mint32 a Source._guidance_pid_trim_att_integrator vec_type [axis]) (load_global Mint32 b Source._guidance_pid_trim_att_integrator vec_type [axis]).
+Definition FinalRelation (gh ret:block) (a b:mem) : Prop := ControllerEqual a b /\ ActiveReturnEqual ret a b.
+Definition PositionTranslationGoal : Prop :=
+ forall gh ret a b dx dy flight, InputPair gh ret a b dx dy ->
+ (exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf)
+ /\ (forall af bf, NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> FinalRelation gh ret af bf).
+Definition NoErrorGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret -> forall t s,
+ star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t s -> ~Execution.source_error s.
+Definition AllSuccessorTerminationGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret ->
+ Acc (fun dst src=>exists t,Csem.step Execution.ge src t dst) (Execution.entry(call_args gh ret flight)m).
+Definition NonzeroInput (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputPair gh ret a b dx dy /\ dx<>0
+ /\ exists ra pa, load_path Mint32 a gh gh_type (ref_pos Source._x)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos Source._x)=Some(Vint pa)
+ /\ Int.signed ra-Int.signed pa<>0.
+Definition InputNonvacuityGoal : Prop := exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy.
+Definition NonzeroNonvacuityGoal : Prop :=
+ exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy
+ /\ forall flight, exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf /\ FinalRelation gh ret af bf.
+Definition RelationalFrameGoal : Prop :=
+ forall gh ret a b dx dy flight af bf, InputPair gh ret a b dx dy ->
+ NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> same_except_positions_and_return gh ret af bf.
+

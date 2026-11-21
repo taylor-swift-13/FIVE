@@ -1,0 +1,237 @@
+PureProgress.v h
+ | RV=>exists v,eval_simple_rvalue ge e m a v
+ | LV=>exists b ofs bf,eval_simple_lvalue ge e m a b ofs bf end.
+
+Lemma big_context_hole : forall from to C,
+ context from to C -> forall a ge e m,
+ simple(C a)=true -> big_defined ge e m to (C a) -> big_defined ge e m from a.
+Proof.
+ induction 1; intros a0 ge e m SIMPLE BIG; simpl in SIMPLE; core_unpack; try discriminate; auto;
+ unfold big_defined in BIG; repeat match goal with B:exists _,_ |- _=>destruct B end;
+ match goal with
+ | B:eval_simple_rvalue _ _ _ _ _ |- _=>inversion B; subst
+ | B:eval_simple_lvalue _ _ _ _ _ _ _ |- _=>inversion B; subst
+ end;
+ eapply IHcontext; eauto; unfold big_defined; eauto.
+Qed.
+
+Lemma pure_not_stuck : forall ge e m a v,
+ simple a=true -> pure_rval ge e m a=Some v -> Csem.not_stuck ge e a m.
+Proof.
+ intros ge e m a v S EV k C sub CT EQ; subst a.
+ pose proof (proj1 (pure_eval_big _ ge e m S) _ EV) as BIG.
+ destruct k.
+ - destruct (big_context_hole _ _ _ CT sub ge e m S ltac:(unfold big_defined; eauto))
+   as [b[ofs[bf L]]]. exact (proj2(big_immediate ge e m) _ _ _ _ L).
+ - destruct (big_context_hole _ _ _ CT sub ge e m S ltac:(unfold big_defined; eauto))
+   as [w R]. exact (proj1(big_immediate ge e m) _ _ R).
+Qed.
+
+Lemma simple_immediate : forall ge e m a,
+ simple a=true -> pure_rval ge e m a<>None -> imm_safe ge e RV a m.
+Proof.
+ intros ge e m a S D. destruct (pure_rval ge e m a) eqn:E; [|contradiction].
+ eapply (proj1(big_immediate ge e m)); eapply(proj1(pure_eval_big _ ge e m S)); eauto.
+Qed.
+
+Lemma flat_split : forall a,flat_expr a=true ->
+ simple a=true \/ exists l r ty,a=Eassign l r ty /\ simple l=true /\ simple r=true.
+Proof.
+ destruct a; simpl; intros H; try discriminate; try(left;assumption).
+ right; exists a1,a2,ty; apply andb_true_iff in H; tauto.
+Qed.
+
+Lemma flat_immediate : forall ge e m a v m',
+ flat_expr a=true -> flat_eval ge e m a=Some(v,m') -> imm_safe ge e RV a m.
+Proof.
+ intros ge e m a v m' FL E.
+ destruct (flat_split _ FL) as [S|[l[r[ty[EQ[SL SR]]]]]].
+ - rewrite (flat_eval_simple ge e m a S) in E.
+   eapply simple_immediate; eauto. destruct(pure_rval ge e m a); congruence.
+ - subst a. unfold flat_eval in E. option_cases E; inversion E; subst.
+   match goal with L:pure_lval _ _ _ _=Some _ |- _=>
+    pose proof (proj2(pure_eval_big _ ge e m SL) _ _ _ L) as BL end.
+   match goal with R:pure_rval _ _ _ _=Some _ |- _=>
+    pose proof (proj1(pure_eval_big _ ge e m SR) _ R) as BR end.
+   destruct(literal LV l) eqn:LL.
+   + destruct(literal_l_inv _ LL) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst.
+     destruct(literal RV r) eqn:LR.
+     * destruct(literal_r_inv _ LR) as [vr[tr LITERAL_EQ]]; subst r.
+       invert_literal_eval; cbn [typeof] in *; subst.
+       match goal with D:do_assign_loc _ _ _ _ _ _ _ _=Some _ |- _=>
+        destruct(do_assign_loc_sound _ _ _ _ _ _ _ _ _ _ _ _ D) as [AS PT] end.
+       eapply imm_safe_rred with(C:=fun x=>x); [|constructor]. eapply red_assign; eauto.
+     * eapply lift_immediate with(from:=RV) (C:=fun x=>Eassign _ x _); eauto.
+       constructor; constructor.
+       eapply(proj1(big_immediate ge e m)); exact BR.
+   + eapply lift_immediate with(from:=LV) (C:=fun x=>Eassign x r _); eauto.
+     constructor; constructor.
+     eapply(proj2(big_immediate ge e m)); exact BL.
+Qed.
+
+Lemma flat_not_stuck : forall ge e m a v m',
+ flat_expr a=true -> flat_eval ge e m a=Some(v,m') -> Csem.not_stuck ge e a m.
+Proof.
+ intros ge e m a v m' FL EV.
+ destruct(flat_split _ FL) as [S|[l[r[ty[EQ[SL SR]]]]]].
+ - rewrite(flat_eval_simple ge e m a S) in EV.
+   destruct(pure_rval ge e m a) eqn:E; try discriminate.
+   eapply pure_not_stuck; eauto.
+ - subst a. assert(LEFT:exists b ofs bf,pure_lval ge e m l=Some(b,ofs,bf)).
+   { unfold flat_eval in EV; option_cases EV; eauto. }
+   assert(RIGHT:exists w,pure_rval ge e m r=Some w).
+   { unfold flat_eval in EV; option_cases EV; eauto. }
+   intros k C sub CT EQ. inversion CT; subst; try discriminate.
+   + cbn in EQ; subst sub. eapply flat_immediate; eauto.
+   + inversion EQ; subst.
+     destruct LEFT as [b[ofs[bf LE]]].
+     pose proof(proj2(pure_eval_big _ ge e m SL) _ _ _ LE) as BE.
+     match goal with CT:Csem.context _ LV _ |- _ =>
+      pose proof(big_context_hole _ _ _ CT sub ge e m SL ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k; unfold big_defined in HS.
+     * destruct HS as [b0[o0[bf0 HOLE_EVAL]]]. eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w HOLE_EVAL]. eapply(proj1(big_immediate ge e m));eauto.
+   + inversion EQ; subst.
+     destruct RIGHT as [w RE].
+     pose proof(proj1(pure_eval_big _ ge e m SR) _ RE) as BE.
+     match goal with CT:Csem.context _ RV _ |- _ =>
+      pose proof(big_context_hole _ _ _ CT sub ge e m SR ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k; unfold big_defined in HS.
+     * destruct HS as [b0[o0[bf0 HOLE_EVAL]]]. eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w0 HOLE_EVAL]. eapply(proj1(big_immediate ge e m));eauto.
+Qed.
+
+
+
+
+
+
+
+
+AtomicProgress.v From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation.
+Import ListNotations.
+
+Lemma atomic_assign_flat: forall ge e m l r ty,
+ atomic_eval ge e m(Eassign l r ty)=flat_eval ge e m(Eassign l r ty).
+Proof. intros;unfold atomic_eval,flat_eval,commit.
+ destruct(type_eq (typeof l)ty);auto.
+ destruct(pure_lval ge e m l) as [[[b ofs]bf]|];auto.
+ Qed.
+
+Lemma assignop_data: forall ge e m op l r tr ty v mf,
+ atomic_expr(Eassignop op l r tr ty)=true ->
+ atomic_eval ge e m(Eassignop op l r tr ty)=Some(v,mf) ->
+ exists b ofs bf vl vr,
+ pure_lval ge e m l=Some(b,ofs,bf) /\
+ pure_rval ge e m r=Some vr /\
+ deref_loc ge(typeof l)m b ofs bf E0 vl.
+Proof.
+ intros ge e m op l r tr ty v mf AT EV.
+ simpl in AT;core_unpack.
+ unfold atomic_eval in EV;option_cases EV.
+ match goal with D:do_deref_loc _ _ _ _ _ _ _=Some _ |- _=>
+ destruct(do_deref_loc_sound _ _ _ _ _ _ _ _ _ _ D) as [DR PT]
+ end.
+ assert(TT:t=E0) by(eapply deref_loc_silent;eauto);subst t.
+ eauto 12.
+Qed.
+
+Lemma assignop_immediate: forall ge e m op l r tr ty v mf,
+ atomic_expr(Eassignop op l r tr ty)=true ->
+ atomic_eval ge e m(Eassignop op l r tr ty)=Some(v,mf) ->
+ imm_safe ge e RV(Eassignop op l r tr ty)m.
+Proof.
+ intros ge e m op l r tr ty v mf AT EV.
+ pose proof(assignop_data ge e m op l r tr ty v mf AT EV) as [b[ofs[bf[vl[vr[LL[RR LOAD]]]]]]].
+ simpl in AT;core_unpack.
+ pose proof(proj2(pure_eval_big l ge e m ltac:(assumption)) _ _ _ LL) as BL.
+ pose proof(proj1(pure_eval_big r ge e m ltac:(assumption)) _ RR) as BR.
+ destruct(literal LV l) eqn:LITL.
+ - destruct(literal_l_inv _ LITL) as [bl[ol[bfl[tl LE]]]];subst l.
+   invert_literal_eval;cbn[typeof] in *;subst.
+   destruct(literal RV r) eqn:LITR.
+   + destruct(literal_r_inv _ LITR) as [vr0[tr0 RE]];subst r.
+     invert_literal_eval;cbn[typeof] in *;subst.
+     eapply imm_safe_rred with(C:=fun x=>x);[|constructor].
+     unfold atomic_eval in EV;cbn[typeof pure_lval pure_rval] in EV;destruct(type_eq tl ty);try discriminate.
+     subst ty;eapply red_assignop;exact LOAD.
+   + eapply lift_immediate with(from:=RV)(C:=fun x=>Eassignop op _ x tr ty);eauto.
+     constructor;constructor.
+     eapply(proj1(big_immediate ge e m));exact BR.
+ - eapply lift_immediate with(from:=LV)(C:=fun x=>Eassignop op x r tr ty);eauto.
+   constructor;constructor.
+   eapply(proj2(big_immediate ge e m));exact BL.
+Qed.
+
+Lemma atomic_not_stuck: forall ge e m a v mf,
+ atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) -> Csem.not_stuck ge e a m.
+Proof.
+ intros ge e m a v mf AT EV.
+ destruct a;try solve[
+ rewrite atomic_eval_simple in EV by assumption;
+ destruct(pure_rval ge e m _)eqn:E;try discriminate;
+ eapply pure_not_stuck;eauto].
+ - rewrite atomic_assign_flat in EV.
+   eapply flat_not_stuck;[simpl in *;core_unpack;core_build;eauto|exact EV].
+ - pose proof(assignop_data _ _ _ _ _ _ _ _ _ _ AT EV) as [b[ofs[bf[vl[vr[LL[RR LOAD]]]]]]].
+   simpl in AT;core_unpack.
+   intros k C sub CT EQ;inversion CT;subst;try discriminate.
+   + cbn in EQ;subst sub;eapply assignop_immediate;eauto;simpl;core_build;eauto.
+   + inversion EQ;subst.
+     match type of LL with pure_lval _ _ _ ?l=Some _=>
+     pose proof(proj2(pure_eval_big l ge e m ltac:(assumption)) _ _ _ LL) as BE end.
+     match goal with CT:Csem.context _ LV _ |- _=>
+      pose proof(big_context_hole _ _ _ CT sub ge e m ltac:(assumption)
+        ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k;unfold big_defined in HS.
+     * destruct HS as [bb[oo[bff HO]]];eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w HO];eapply(proj1(big_immediate ge e m));eauto.
+   + inversion EQ;subst.
+     match type of RR with pure_rval _ _ _ ?r=Some _=>
+     pose proof(proj1(pure_eval_big r ge e m ltac:(assumption)) _ RR) as BE end.
+     match goal with CT:Csem.context _ RV _ |- _=>
+      pose proof(big_context_hole _ _ _ CT sub ge e m ltac:(assumption)
+        ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k;unfold big_defined in HS.
+     * destruct HS as [bb[oo[bff HO]]];eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w HO];eapply(proj1(big_immediate ge e m));eauto.
+Qed.
+Print Assumptions atomic_not_stuck.
+
+Lemma atomic_defined_estep: forall ge f a k e m t next v mf,
+ atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ exists a' m',next=ExprState f a' k e m' /\ t=E0 /\
+ atomic_expr a'=true /\ atomic_eval ge e m' a'=Some(v,mf).
+Proof.
+ intros ge f a k e m t next v mf AT EV STEP.
+ destruct(atomic_estep ge f a k e m t next AT STEP) as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]].
+ - subst next;inversion STEP;subst.
+   exfalso;match goal with H:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _ |- _=>
+      apply H;eapply atomic_not_stuck;[exact AT|exact EV|exact CT|reflexivity] end.
+ - exists a',m';repeat split;auto;congruence.
+Qed.
+Theorem all_order_atomic_expression: forall ge f a k e m t next v mf,
+ atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) ->
+ star Csem.estep ge (ExprState f a k e m)t next ->
+ exists a' m',next=ExprState f a' k e m' /\ t=E0 /\
+ atomic_expr a'=true /\ atomic_eval ge e m' a'=Some(v,mf) /\
+ Csem.not_stuck ge e a' m'.
+Proof.
+ intros ge f a k e m t next v mf AT EV STEPS.
+ remember(ExprState f a k e m) as start eqn:START.
+ revert a m AT EV START.
+ induction STEPS;intros a m AT EV START;subst.
+ - exists a,m;repeat split;auto;eapply atomic_not_stuck;eauto.
+ - destruct(atomic_defined_estep _ _ _ _ _ _ _ _ _ _ AT EV H)
+   as [a'[m'[MID[TT[SI DEN]]]]];subst s2.
+   specialize(IHSTEPS a' m' SI DEN eq_refl).
+   destruct IHSTEPS as [af[mm[END[T0[SF[DF SAFE]]]]]].
+   exists af,mm;repeat split;auto.
+   rewrite TT,T0;reflexivity.
+Qed.
+Print Assumptions all_order_atomic_expression.
+

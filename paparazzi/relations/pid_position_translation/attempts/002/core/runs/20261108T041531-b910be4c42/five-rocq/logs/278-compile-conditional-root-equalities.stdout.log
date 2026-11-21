@@ -1,0 +1,28 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  v : val
+  yes, no : expr
+  ty : type
+  v1 : val
+  ty1 : type
+  CV : conditional_value (Econdition (Eval v1 ty1) yes no ty) v
+  b : bool
+  HR :
+    rred ge (Econdition (Eval v1 ty1) yes no ty) m E0
+      (Eparen (if b then yes else no) ty ty) m
+  taken : bool
+  vb : val
+  H1 : bool_val v1 (typeof (Eval v1 ty1)) m = Some taken
+  H : simple (Eval v1 ty1) = true
+  H2 : conditional_value (if taken then yes else no) vb
+  H3 : sem_cast vb (typeof (if taken then yes else no)) ty m = Some v
+  H12 : bool_val v1 ty1 m = Some b
+  ============================
+  m = m /\
+  E0 = E0 /\
+  typeof (Eparen (if b then yes else no) ty ty) =
+  typeof (Econdition (Eval v1 ty1) yes no ty) /\
+  conditional_value (Eparen (if b then yes else no) ty ty) v

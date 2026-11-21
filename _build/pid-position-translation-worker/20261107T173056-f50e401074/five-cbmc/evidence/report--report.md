@@ -1,0 +1,11 @@
+# CBMC position translation attempt
+
+124/124 actual emitted property IDs have SUCCESS receipts on the unchanged current harness. Six explicit relation assertions check position-error equality, controller command equality, integral equality, return tags, active LTP return fields, and translated input preservation. All 118 automatic pointer/overflow/shift checks are included. This is traditional BMC, with no contract/body replacement and no assumed computed-error equality.
+
+Positions and displacements are raw Q8 integers in ±1,000,000; reference/measured speeds and reference acceleration are raw integers in ±10,000 (Q19 speed ≈±0.0191m/s; Q10 acceleration ≈±9.7656m/s²). Gains are 0..100, initial integral ±100,000,000 (including the ±93,650,944 saturation boundary), global heading binary32 in [-3,3]. Both flight branches are checked. NEDi caches must already be valid and runtime thrust approximation is false in this proof scope. The model retains the omitted runtime branch and invalid-cache calls.
+
+The first all-properties SAT attempt timed out after 300s during trace construction; the SAT sliced retry timed out after 300s. Z3 FPA encoding failed with an actual unsupported flatten2bv invariant. Default Z3 bitvector all-properties timed out after 180s; three isolated SAT relation assertions timed out after 60s each. All raw failures remain in the run. The final all-property Z3 bitvector run with formula slicing passes every one of the 124 IDs in one actual command. Successful property-specific receipts do not assume previous assertions. The all-property inventory and each successful command are bound in properties.json.
+
+Four native original-source witnesses under UBSan pass: flight false/true crossed with initial integral zero/near saturation. They use nonzero displacement 25,600 and nonzero error 512; commands are 800 or 2,229 and integral is 0, 800 or 93,650,944 as appropriate. Native-only state-conversion bindings abort if called; valid genuine caches make them unreachable. These native receipts are not Csem proof evidence or model bindings.
+
+Every independent Rocq property recheck, all-reachable Csem safety, all-successor termination, and the source-level relation proof remain pending. BMC success is not imported as an axiom.

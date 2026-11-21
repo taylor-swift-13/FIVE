@@ -1,0 +1,28 @@
+prepare passed 5 hashes passed
+cbmc passed 6 hashes passed
+align generated 18 hashes passed
+EXECUTION From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FivePidDf Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_update_pid_df)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.
+
+MODEL_TARGET {'semantics': 'CompCert Csem/Cexec', 'version': '3.17', 'arch': 'x86', 'model': '64', 'abi': 'standard', 'bitsize': 64, 'system': 'linux', 'endianness': 'little', 'float32': 'IEEE754 binary32', 'rounding': 'round-to-nearest-ties-to-even', 'nan_policy': 'CompCert Floats and target Archi definitions; hashes bind exact policy', 'trust_boundary': 'CompCert C semantics; no automatic GCC binary or hardware equivalence'}
+MODEL_SOURCE {'path': 'paparazzi/models/update_pid_df/prepare/source/update_pid_df.c', 'sha256': '51b255ae42a19ab9d5b30366132bf46f5ff70e31903e6d93aae018cb5578829f'}

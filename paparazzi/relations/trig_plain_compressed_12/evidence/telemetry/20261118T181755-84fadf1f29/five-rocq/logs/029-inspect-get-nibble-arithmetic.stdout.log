@@ -1,0 +1,96 @@
+653:Definition sem_add_ptr_int (cenv: composite_env) (ty: type) (si: signedness) (v1 v2: val): option val :=
+666:Definition sem_add_ptr_long (cenv: composite_env) (ty: type) (v1 v2: val): option val :=
+679:Definition sem_add (cenv: composite_env) (v1:val) (t1:type) (v2: val) (t2:type) (m: mem): option val :=
+770:Definition sem_div (v1:val) (t1:type) (v2: val) (t2:type) (m:mem) : option val :=
+912:Definition sem_shr (v1:val) (t1:type) (v2: val) (t2:type) : option val :=
+(** *** Bitwise complement *)
+
+Inductive classify_notint_cases : Type :=
+  | notint_case_i(s: signedness)              (**r int *)
+  | notint_case_l(s: signedness)              (**r long *)
+  | notint_default.
+
+Definition classify_notint (ty: type) : classify_notint_cases :=
+  match ty with
+  | Tint I32 Unsigned _ => notint_case_i Unsigned
+  | Tint _ _ _ => notint_case_i Signed
+  | Tlong si _ => notint_case_l si
+  | _ => notint_default
+  end.
+
+Definition sem_notint (v: val) (ty: type): option val :=
+  match classify_notint ty with
+  | notint_case_i sg =>
+      match v with
+      | Vint n => Some (Vint (Int.not n))
+      | _ => None
+      end
+  | notint_case_l sg =>
+      match v with
+      | Vlong n => Some (Vlong (Int64.not n))
+      | _ => None
+      end
+  | notint_default => None
+  end.
+
+(** ** Binary operators *)
+
+(** For binary operations, the "usual binary conversions" consist in
+- determining the type at which the operation is to be performed
+  (a form of least upper bound of the types of the two arguments);
+- casting the two arguments to this common type;
+- performing the operation at that type.
+*)
+
+Inductive binarith_cases: Type :=
+  | bin_case_i (s: signedness)         (**r at int type *)
+1394:Definition global_definitions : list (ident * globdef fundef type) :=
+1651: (_pprz_trig_int_compr, Gvar v_pprz_trig_int_compr) ::
+1652: (_data_buf_12, Gvar v_data_buf_12) ::
+From Stdlib Require Import ZArith.
+From compcert Require Import Coqlib AST Values Memory.
+Local Open Scope Z_scope.
+
+Definition protected (initial:mem) (buffer:block) (b:block) (_ofs:Z) : Prop :=
+  Mem.valid_block initial b /\ b <> buffer.
+
+Lemma protected_store : forall initial buffer chunk m b ofs v m',
+  Mem.store chunk m b ofs v = Some m' ->
+  (b = buffer \/ ~ Mem.valid_block initial b) ->
+  Mem.unchanged_on (protected initial buffer) m m'.
+Proof.
+  intros initial buffer chunk m b ofs v m' STORE DEST.
+  eapply Mem.store_unchanged_on; eauto.
+  intros i RANGE [OLD NE]; destruct DEST; congruence.
+Qed.
+
+Lemma protected_storebytes : forall initial buffer m b ofs bytes m',
+  Mem.storebytes m b ofs bytes = Some m' ->
+  (b = buffer \/ ~ Mem.valid_block initial b) ->
+  Mem.unchanged_on (protected initial buffer) m m'.
+Proof.
+  intros initial buffer m b ofs bytes m' STORE DEST.
+  eapply Mem.storebytes_unchanged_on; eauto.
+  intros i RANGE [OLD NE]; destruct DEST; congruence.
+Qed.
+
+Lemma protected_alloc : forall initial buffer m lo hi m' b,
+  Mem.alloc m lo hi = (m',b) ->
+  Mem.unchanged_on (protected initial buffer) m m'.
+Proof. intros; eapply Mem.alloc_unchanged_on; eauto. Qed.
+
+Lemma protected_free : forall initial buffer m b lo hi m',
+  Mem.free m b lo hi = Some m' ->
+  ~ Mem.valid_block initial b ->
+  Mem.unchanged_on (protected initial buffer) m m'.
+Proof.
+  intros initial buffer m b lo hi m' FREE FRESH.
+  eapply Mem.free_unchanged_on; eauto.
+  intros i RANGE [OLD NE]; contradiction.
+Qed.
+
+Lemma protected_trans : forall initial buffer m1 m2 m3,
+  Mem.unchanged_on (protected initial buffer) m1 m2 ->
+  Mem.unchanged_on (protected initial buffer) m2 m3 ->
+  Mem.unchanged_on (protected initial buffer) m1 m3.
+Proof. intros; eapply Mem.unchanged_on_trans; eauto. Qed.

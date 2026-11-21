@@ -1,0 +1,109 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, br : block
+  LOOK : e ! _rm = Some (bp, rmtype)
+  LOAD : Mem.load Mptr m bp 0 = Some (Vptr br Ptrofs.zero)
+  ============================
+  match
+    match
+      (if type_eq (tarray tfloat 9) (tarray tfloat 9)
+       then
+        match
+          match
+            (if
+              type_eq (Tstruct _FloatRMat noattr) (Tstruct _FloatRMat noattr)
+             then
+              match
+                match
+                  (if
+                    type_eq (tptr (Tstruct _FloatRMat noattr))
+                      (tptr (Tstruct _FloatRMat noattr))
+                   then
+                    match
+                      match e ! _rm with
+                      | Some (b, ty') =>
+                          if type_eq (...) ty'
+                          then Some (b, Ptrofs.zero, Full)
+                          else None
+                      | None =>
+                          match ... with
+                          | Some b => Some (b, Ptrofs.zero, Full)
+                          | None => None
+                          end
+                      end
+                    with
+                    | Some (b, ofs, bf) =>
+                        match
+                          do_deref_loc ge PureDenotation.quiet_world
+                            (tptr (...)) m b ofs bf
+                        with
+                        | Some (_, _, v) => Some v
+                        | None => None
+                        end
+                    | None => None
+                    end
+                   else None)
+                with
+                | Some (Vptr b ofs) => Some (b, ofs, Full)
+                | _ => None
+                end
+              with
+              | Some (b, ofs, bf) =>
+                  match
+                    do_deref_loc ge PureDenotation.quiet_world
+                      (Tstruct _FloatRMat noattr) m b ofs bf
+                  with
+                  | Some (_, _, v) => Some v
+                  | None => None
+                  end
+              | None => None
+              end
+             else None)
+          with
+          | Some (Vptr b ofs) =>
+              match ge ! _FloatRMat with
+              | Some co =>
+                  match field_offset ge _m (co_members co) with
+                  | OK (delta, bf) =>
+                      Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+                  | Error _ => None
+                  end
+              | None => None
+              end
+          | _ => None
+          end
+        with
+        | Some (b, ofs, bf) =>
+            match
+              do_deref_loc ge PureDenotation.quiet_world 
+                (tarray tfloat 9) m b ofs bf
+            with
+            | Some (_, _, v) => Some v
+            | None => None
+            end
+        | None => None
+        end
+       else None)
+    with
+    | Some v =>
+        match
+          match
+            sem_binary_operation ge Omul (Vint (Int.repr 0)) tint
+              (Vint (Int.repr 3)) tint m
+          with
+          | Some v0 =>
+              sem_binary_operation ge Oadd v0 tint (Vint (Int.repr 0)) tint m
+          | None => None
+          end
+        with
+        | Some w => sem_binary_operation ge Oadd v (tarray tfloat 9) w tint m
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some (Vptr b ofs) => Some (b, ofs, Full)
+  | _ => None
+  end = Some (br, Ptrofs.repr 0, Full)

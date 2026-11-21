@@ -1,0 +1,13 @@
+Genv.find_var_info_iff
+     : forall (F V : Type) (ge : Genv.t F V) (b : Values.block)
+         (v : AST.globvar V),
+       Genv.find_var_info ge b = Some v <->
+       Genv.find_def ge b = Some (AST.Gvar v)
+Genv.perm_globvar =
+fun (V : Type) (gv : AST.globvar V) =>
+if AST.gvar_volatile gv
+then Memtype.Nonempty
+else if AST.gvar_readonly gv then Memtype.Readable else Memtype.Writable
+     : forall [V : Type], AST.globvar V -> Memtype.permission
+
+Arguments Genv.perm_globvar [V]%_type_scope gv

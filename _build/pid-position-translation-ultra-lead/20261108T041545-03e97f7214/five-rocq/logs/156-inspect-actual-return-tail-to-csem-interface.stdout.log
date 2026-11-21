@@ -1,0 +1,35 @@
+Inductive
+outcome_state_match (e : env) (m : Memory.Mem.mem) 
+(f : Csyntax.function) (k : cont) : outcome -> state -> Prop :=
+    osm_normal : outcome_state_match e m f k Out_normal
+                   (State f Csyntax.Sskip k e m)
+  | osm_break : outcome_state_match e m f k Out_break
+                  (State f Csyntax.Sbreak k e m)
+  | osm_continue : outcome_state_match e m f k Out_continue
+                     (State f Csyntax.Scontinue k e m)
+  | osm_return_none : forall k' : cont,
+                      call_cont k' = call_cont k ->
+                      outcome_state_match e m f k 
+                        (Out_return None)
+                        (State f (Csyntax.Sreturn None) k' e m)
+  | osm_return_some : forall (v : Values.val) (ty : Ctypes.type) (k' : cont),
+                      call_cont k' = call_cont k ->
+                      outcome_state_match e m f k 
+                        (Out_return (Some (v, ty)))
+                        (ExprState f (Csyntax.Eval v ty) (Kreturn k') e m).
+
+Arguments outcome_state_match e m f k _ _
+Arguments osm_normal e m f k
+Arguments osm_break e m f k
+Arguments osm_continue e m f k
+Arguments osm_return_none e m f k k' _
+Arguments osm_return_some e m f k v ty k' _
+exec_stmt_to_steps
+     : forall (ge : genv) (e : env) (m : Memory.Mem.mem)
+         (s : Csyntax.statement) (t : Events.trace) 
+         (m' : Memory.Mem.mem) (out : outcome),
+       exec_stmt ge e m s t m' out ->
+       forall (f : Csyntax.function) (k : cont),
+       exists S : state,
+         Smallstep.star Cstrategy.step ge (State f s k e m) t S /\
+         outcome_state_match e m' f k out S

@@ -1,0 +1,56 @@
+     = (Some
+          (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |},
+           52),
+        Some
+          (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |},
+           60),
+        Some
+          (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |},
+           32))
+     : option (type * Z) * option (type * Z) * option (type * Z)
+BIN Oadd
+BIN Oshr
+BIN Omul
+LOAD
+(Efield
+   (Evalof (Evar S._guidance_pid (Tstruct S._GuidancePID noattr))
+      (Tstruct S._GuidancePID noattr))
+   S._kp tint)
+LOAD (Evar S._guidance_pid (Tstruct S._GuidancePID noattr))
+RAWLOAD bp 0
+LOAD
+(Efield
+   (Evalof (Evar S._guidance_pid_pos_err (Tstruct S._Int32Vect2 noattr))
+      (Tstruct S._Int32Vect2 noattr))
+   S._x tint)
+LOAD (Evar S._guidance_pid_pos_err (Tstruct S._Int32Vect2 noattr))
+RAWLOAD be 0
+OP Omul
+BIN Osub
+OP Osub
+OP Oshr
+BIN Oshr
+BIN Omul
+LOAD
+(Efield
+   (Evalof (Evar S._guidance_pid (Tstruct S._GuidancePID noattr))
+      (Tstruct S._GuidancePID noattr))
+   S._kd tint)
+LOAD (Evar S._guidance_pid (Tstruct S._GuidancePID noattr))
+RAWLOAD bp 4
+BIN Oshr
+LOAD
+(Efield
+   (Evalof (Evar S._guidance_pid_speed_err (Tstruct S._Int32Vect2 noattr))
+      (Tstruct S._Int32Vect2 noattr))
+   S._x tint)
+LOAD (Evar S._guidance_pid_speed_err (Tstruct S._Int32Vect2 noattr))
+RAWLOAD bs 0
+OP Oshr
+OP Omul
+BIN Osub
+BIN Osub
+OP Osub
+OP Osub
+OP Oshr
+OP Oadd

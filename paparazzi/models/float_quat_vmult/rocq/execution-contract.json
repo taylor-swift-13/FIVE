@@ -1,0 +1,128 @@
+{
+  "purpose": "execution-translation",
+  "status": "proved",
+  "execution_backend": "compcert-csyntax-cexec",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "fc0971aec1a912de9ec126b79e6134ced5c33c387f50f7bc3dda41535c291ab5",
+  "execution_domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem including invalid, uninitialized, unwritable states"
+  },
+  "domain_restrictions": [],
+  "execution_entry": {
+    "module": "FiveQuatVmult.Execution",
+    "symbol": "entry",
+    "source": "paparazzi/models/float_quat_vmult/align/model/Execution.v",
+    "sha256": "0b476992b2f98598571949b9b1bfa7674b07cdd9b6b09f897d250340db539ab9"
+  },
+  "source_semantics": {
+    "id": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "target": {
+      "semantics": "CompCert Csem/Cexec",
+      "version": "3.17",
+      "arch": "x86",
+      "model": "64",
+      "abi": "standard",
+      "bitsize": 64,
+      "system": "linux",
+      "endianness": "little",
+      "float32": "IEEE754 binary32",
+      "rounding": "round-to-nearest-ties-to-even",
+      "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+      "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+    },
+    "source_sha256": {
+      "paparazzi/models/float_quat_vmult/prepare/source/float_quat_vmult.c": "64c3359619e2f8de1f8c0b16ace92ab01c969fb7d408981bd68ba0fb7b8d80ff",
+      "paparazzi/models/float_quat_vmult/prepare/source/quat_types.h": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f",
+      "paparazzi/models/float_quat_vmult/align/model/Source.v": "7f5c226c3d94819451f6ccd2a5a0bb9e17360d8c026aeccefb814b3a269d5b04",
+      "paparazzi/models/float_quat_vmult/align/model/Execution.v": "0b476992b2f98598571949b9b1bfa7674b07cdd9b6b09f897d250340db539ab9"
+    }
+  },
+  "obligations": [
+    {
+      "id": "domain-preservation",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.domain_preservation",
+      "coverage": "Every original list val argument list and every CompCert memory retains the unchanged Internal entry; no proof precondition clips the model.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "floating-point-correspondence",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.floating_point_correspondence",
+      "coverage": "Every reachable original Csem successor is exactly an original Cexec successor, including mixed binary64/binary32 operations and exceptional values.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "machine-integer-correspondence",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.machine_integer_correspondence",
+      "coverage": "Every reachable original integer, cast and pointer operation keeps the fixed target semantics through exact one-step correspondence.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "memory-access-correspondence",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.memory_access_correspondence",
+      "coverage": "Original block/offset, permissions, uninitialized values, lifetimes, writes and failed accesses are preserved by every corresponding step.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "control-and-exhaustion-correspondence",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.control_and_exhaustion_correspondence",
+      "coverage": "Whole finite execution traces and successors coincide without a fuel bound or selected evaluation order.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "normal-result-and-memory-correspondence",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.normal_result_and_memory_correspondence",
+      "coverage": "Normal returns and the actual Mem.loadbytes observations coincide, including all output and caller-memory bytes.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "invalid-operation-correspondence",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.invalid_operation_correspondence",
+      "coverage": "Original non-returning states with no Csem successor coincide with the executable error observation; failed-write prefixes remain in the same memory.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "whole-execution-correspondence",
+      "status": "proof-backed",
+      "proof_status": "proved",
+      "theorem": "FiveQuatVmultCorrespondence.Proof.whole_execution_correspondence",
+      "coverage": "The complete original reachable execution relation, trace order and memory state are preserved without a domain restriction.",
+      "evidence": [
+        "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    }
+  ],
+  "alignment_issues": [],
+  "external_library_bindings": {},
+  "external_environment": "Reachable original entries are call-free, nonvolatile and silent. Full raw-input source invariants exclude external callbacks, inline assembly and I/O; quiet-world closure does not replace an external implementation.",
+  "trusted_boundary": "Recorded CompCert3.17 frontend and inherited CompCert/Flocq assumptions. No GCC/native-hardware equivalence or universal cross-tool NaN-payload theorem is claimed."
+}

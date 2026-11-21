@@ -1,0 +1,4 @@
+Require Import StateSpeedGetterTerminationProblem.Spec.
+Require Import StateSpeedGetterTerminationAttempt001.Proof.
+Definition goal_0 : StateSpeedGetterTerminationProblem.Spec.TerminationGoal := StateSpeedGetterTerminationAttempt001.Proof.proved_termination.
+Print Assumptions goal_0.

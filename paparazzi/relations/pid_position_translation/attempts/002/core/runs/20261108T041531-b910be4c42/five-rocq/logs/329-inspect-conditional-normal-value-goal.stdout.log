@@ -1,0 +1,58 @@
+22 goals
+  
+  v : val
+  ty : type
+  SH : source_simple (Eval v ty) = true
+  ge : genv
+  e : env
+  mf : mem
+  result : val
+  FINAL : eval_simple_rvalue ge e mf (Eval v ty) result
+  EV : eval_expr ge e mf RV (Eval v ty) E0 mf (Eval v ty)
+  ============================
+  E0 = E0 /\ mf = mf /\ conditional_value ge e mf (Eval v ty) result
+
+goal 2 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Evar x ty) result
+goal 3 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Efield a f ty) result
+goal 4 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Evalof a ty) result
+goal 5 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Ederef a ty) result
+goal 6 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Eaddrof a ty) result
+goal 7 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Eunop op a ty) result
+goal 8 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Ebinop op a1 a2 ty) result
+goal 9 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Ecast a ty) result
+goal 10 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Eseqand a1 a2 ty) result
+goal 11 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Eseqor a1 a2 ty) result
+goal 12 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Econdition a1 a2 a3 ty) result
+goal 13 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Esizeof ty' ty) result
+goal 14 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Ealignof ty' ty) result
+goal 15 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Eassign a1 a2 ty) result
+goal 16 is:
+ t = E0 /\
+ mf = m /\ conditional_value ge e m (Eassignop op a1 a2 tyres ty) result
+goal 17 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Epostincr id a ty) result
+goal 18 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Ecomma a1 a2 ty) result
+goal 19 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Ecall a rargs ty) result
+goal 20 is:
+ t = E0 /\
+ mf = m /\ conditional_value ge e m (Ebuiltin ef tyargs rargs ty) result
+goal 21 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Eloc b ofs bf ty) result
+goal 22 is:
+ t = E0 /\ mf = m /\ conditional_value ge e m (Eparen a tycast ty) result

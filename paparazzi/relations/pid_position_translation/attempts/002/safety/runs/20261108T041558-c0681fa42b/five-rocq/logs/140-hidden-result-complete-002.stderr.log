@@ -1,0 +1,111 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/__pycache__
+was previously bound to PidPositionTranslationAttempt002.core.__pycache__; it
+is remapped to PidPositionTranslationCore.__pycache__
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/safety/HiddenResultComplete.v", line 25, characters 6-14:
+Warning: Use of "Notation" keyword for abbreviations is deprecated, use
+"Abbreviation" instead.
+[notation-for-abbreviation,deprecated-since-9.2,deprecated,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/safety/HiddenResultComplete.v", line 82, characters 29-64:
+Error:
+In environment
+ge : genv
+caller, leaf : function
+e : env
+k : cont
+m, mc, mf : mem
+sid, ires : AST.ident
+br, ret : block
+params : list type
+cc : AST.calling_convention
+vf : val
+values : list val
+fn : expr
+args : exprlist
+post : expr
+v, vc, copied : val
+local_res : e ! ires = Some (br, tptr sty)
+res_before :
+  do_deref_loc ge quiet_world (tptr sty) m br Ptrofs.zero Full =
+  Some (quiet_world, E0, Vptr ret Ptrofs.zero)
+res_after :
+  do_deref_loc ge quiet_world (tptr sty) mc br Ptrofs.zero Full =
+  Some (quiet_world, E0, Vptr ret Ptrofs.zero)
+find_leaf : Genv.find_funct ge vf = Some (Internal leaf)
+leaf_type : type_of_fundef (Internal leaf) = Tfunction params tvoid cc
+prepared_initial : A.prepared ge e m params cc vf values fn args
+post_type : typeof post = sty
+post_simple : simple post = true
+post_value : pure_rval ge e mc post = Some v
+cast_value : sem_cast v sty sty mc = Some vc
+store_copy :
+  do_assign_loc ge quiet_world sty mc ret Ptrofs.zero Full vc =
+  Some (quiet_world, E0, mf, copied)
+callee_certificate :
+  forall base : cont,
+  is_call_cont base ->
+  exists P : Csem.state -> Prop,
+    certificate ge P (Returnstate Vundef base mc) /\
+    P (Callstate (Internal leaf) values base m)
+PP :
+  forall (st : L.lhs_stage) (r : prepared_pair) (u : unit),
+  exists (t : trace) (next : Csem.state),
+    Csem.step ge (Pre st r u) t next /\
+    pre_or_call L.lhs_stage prepared_pair unit Pre Call next
+PC :
+  forall (st : L.lhs_stage) (r : prepared_pair) (u : unit) 
+    (t : trace) (next : Csem.state),
+  Csem.step ge (Pre st r u) t next ->
+  pre_or_call L.lhs_stage prepared_pair unit Pre Call next
+CAL :
+  forall (st : L.lhs_stage) (r : prepared_pair),
+  exists P : Csem.state -> Prop,
+    certificate ge P (Returnstate Vundef (Frame st r) mc) /\ P (Call st r)
+st : L.lhs_stage
+r : prepared_pair
+t : trace
+next : Csem.state
+STEP :
+  Csem.step ge
+    (Returnstate Vundef
+       (Kcall caller e
+          (fun hole : expr =>
+           Eassign (A.L.lhs sid ires br ret st) (Ecomma hole post sty) sty)
+          tvoid (Kdo k))
+       mc)
+    t next
+Unable to unify "?t = E0 /\ ?next = ExprState ?f (?C (Eval ?v ?ty)) ?k ?e ?m"
+with
+ "t = E0 /\
+  next =
+  ExprState caller
+    (Eassign (B.L.lhs sid ires br ret st)
+       (Ecomma (Eval Vundef tvoid) post sty) sty)
+    (Kdo k) e mc".
+

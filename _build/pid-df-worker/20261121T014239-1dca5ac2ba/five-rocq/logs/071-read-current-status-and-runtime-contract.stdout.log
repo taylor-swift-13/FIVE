@@ -1,0 +1,190 @@
+{
+  "schema": "five-proof-problem/1",
+  "status": "proved",
+  "active_attempt": "../attempts/001",
+  "specification": "Spec.v",
+  "requested_goals": [
+    "NumericInvariant",
+    "LocalRoundoff",
+    "ArbitraryHorizon",
+    "ExecutionExists",
+    "EveryExecution",
+    "Nonvacuity"
+  ]
+}
+                self.require(all(value is None for group in ('time', 'token', 'memory')
+                                 for value in row.get(group, {}).values()) and
+                             bool(row.get('measurement_scope') or row.get('missing_reason')),
+                             f'unexplained historical measurement absence: {path}')
+            elif row.get('status') not in ('not_run', 'not_applicable'):
+                self.require(bool(refs), f'missing cost evidence: {path}')
+            for ref in refs:
+                self.file(reference(ref))
+
+    def proof_problem(self, problem):
+        problem = Path(problem)
+        self.links(problem / 'report.md')
+        status = self.read(problem / 'status.json')
+        self.require(status.get('schema') == 'five-proof-problem/1', f'problem status schema: {problem}')
+        self.require(bool(status.get('requested_goals')), f'missing requested goals: {problem}')
+        self.require(status.get('specification') == 'Spec.v', f'canonical problem specification must be Spec.v: {problem}')
+        self.file(problem / status.get('specification', 'Spec.v'))
+        active = (problem / status.get('active_attempt', 'MISSING')).resolve()
+        attempts = sorted((problem.parent / 'attempts').glob('[0-9]*'))
+        self.require(active in [p.resolve() for p in attempts], f'active attempt not retained: {problem}')
+        for attempt in attempts:
+            self.file(attempt / 'Proof.v')
+            self.file(attempt / 'check.py')
+            self.links(attempt / 'report.md')
+            self.costs(attempt / 'costs.json', proof=True)
+        if not active.is_dir():
+            return
+        self.active.append(active)
+        if status.get('status') not in ('proved', 'refuted'):
+            try:
+                from example_proof_gate import input_index
+                input_index(self.root, active)
+            except Exception as exc:
+                self.errors.append(f'active input index failed: {active}: {exc}')
+        closed = status.get('status') in ('proved', 'refuted')
+        report = (active / 'report.md').read_text() if (active / 'report.md').is_file() else ''
+        self.require(closed or not re.search(r'\bCOMPLETE\b', report), f'false COMPLETE for open problem: {problem}')
+        if closed:
+            try:
+                from example_proof_gate import validate_current
+                validate_current(self.root, problem.resolve(), active, status)
+            except Exception as exc:
+                self.errors.append(f'current proof receipt failed: {problem}: {exc}')
+            proof = (active / 'Proof.v').read_text() if (active / 'Proof.v').is_file() else ''
+            proof = re.sub(r'\(\*.*?\*\)', '', proof, flags=re.S)
+            self.require(not re.search(r'\b(?:Admitted|admit|Axiom|Axioms)\b', proof), f'unproved active proof: {active}')
+
+    def case(self, case):
+        for stage in ('prepare', 'cbmc', 'align', 'rocq'):
+            directory = case / stage
+            self.links(directory / 'report/report.md')
+            self.costs(directory / 'report/costs.json')
+            handoff = self.read(directory / 'handoff.json')
+            self.require(handoff.get('schema') == 'five-stage-handoff/1', f'handoff schema: {directory}')
+            self.bound(case, handoff.get('outputs', []))
+        manifest = self.read(case / 'align/model/compcert-manifest.json')
+{
+  "schema": "five-agent-runtime/1",
+  "requested_model": "gpt-6.1-sol",
+  "requested_reasoning_effort": "ultra",
+  "observed": [
+    {
+      "timestamp": "2026-11-20T18:05:42.097Z",
+      "model": "gpt-6.1-sol",
+      "effort": "ultra"
+    }
+  ],
+  "source": "/mnt/c/Users/50635/.codex/sessions/2026/11/21/rollout-2026-11-21T02-05-40-01a1fa22-b1f2-7660-91ff-2e2987d76bff.jsonl",
+  "scope": "Selected runtime fields only; no reasoning or conversation content exported."
+}
+        raise ValueError('current Proof/Spec missing compiled snapshots')
+    receipt_ref = data['kernel_evidence']
+    kernel_record(root, receipt_ref)
+    receipt = json.loads((root / receipt_ref).read_text())
+    dependencies = {(root / name).resolve(): value for name, value in receipt['dependency_sha256'].items()}
+    if set(dependencies) != set(snapshots):
+        raise ValueError('current source bindings do not cover exact kernel dependency closure')
+    if any(current[snapshots[p]] != value for p, value in dependencies.items()):
+        raise ValueError('kernel dependency hash differs from current source')
+    proof_run = json.loads((root / receipt['run'] / 'run.json').read_text())
+    def full_compile(command):
+        # Reference full-build shape only: load paths, harmless output flags,
+        # and exactly one source. Output/module overrides can leave stale .vo
+        # files at the path later consumed by the kernel, so fail closed.
+        argv = command.get('argv', [])
+        if not argv or command.get('status') != 'passed' or command.get('exit_code') != 0:
+            return False
+        if Path(argv[0]).name == 'rocq' and argv[1:2] == ['compile']:
+            args = argv[2:]
+        elif Path(argv[0]).name == 'coqc':
+            args = argv[1:]
+        else:
+            return False
+        sources = 0
+        i = 0
+        while i < len(args):
+            if args[i] in ('-Q', '-R') and i + 2 < len(args):
+                i += 3
+            elif args[i] == '-I' and i + 1 < len(args):
+                i += 2
+            elif args[i] in ('-q', '-quiet', '-time'):
+                i += 1
+            elif not args[i].startswith('-') and args[i].endswith('.v'):
+                sources += 1
+                i += 1
+            else:
+                return False
+        return sources == 1
+    compiled = set()
+    for command in proof_run.get('commands', []):
+        argv = command.get('argv', [])
+        if full_compile(command):
+            compiled.update((Path(command['cwd']) / arg).resolve() for arg in argv[1:] if arg.endswith('.v'))
+    if not set(dependencies).issubset(compiled):
+        raise ValueError('kernel dependency source was not compiled in the bound proof run')
+    kernel_commands = [c for c in proof_run.get('commands', []) if c.get('id') == receipt['command_id']]
+    def module_candidates(command, module):
+        args = command['argv']; mappings = []
+        for i, arg in enumerate(args):
+            if arg in ('-Q', '-R') and i + 2 < len(args):
+                mappings.append((args[i + 2], (Path(command['cwd']) / args[i + 1]).resolve()))
+        matching = [(prefix, directory) for prefix, directory in mappings if module == prefix or module.startswith(prefix + '.')]
+        if not matching:
+            return []
+        longest = max(len(prefix) for prefix, _ in matching)
+        matching = [(prefix, directory) for prefix, directory in matching if len(prefix) == longest]
+        if len(matching) != 1:
+            raise ValueError('ambiguous logical namespace mapping: ' + module)
+        prefix, directory = matching[0]
+        return [directory.joinpath(*module[len(prefix):].strip('.').split('.')).with_suffix('.v')]
+    for theorem in receipt['theorems']:
+        module = theorem.rsplit('.', 1)[0]
+        candidates = module_candidates(kernel_commands[0], module)
+        if len(candidates) != 1 or candidates[0] not in dependencies:
+            raise ValueError('kernel theorem module does not resolve to bound dependency snapshot')
+        source = candidates[0]
+        matching_compiles = [c for c in proof_run.get('commands', []) if full_compile(c) and any((Path(c['cwd']) / arg).resolve() == source for arg in c['argv'] if arg.endswith('.v'))]
+        if not matching_compiles or any(module_candidates(c, module) != [source] for c in matching_compiles):
+            raise ValueError('proof compile and kernel namespace mappings differ')
+    bindings = data.get('goal_bindings')
+    goals = status.get('requested_goals')
+    if not isinstance(bindings, list) or not bindings or not isinstance(goals, list) or len(set(goals)) != len(goals):
+        raise ValueError('missing/malformed goal bindings')
+    if [r.get('requested_goal') for r in bindings] != goals:
+        raise ValueError('requested goals differ from certified goals')
+    ident = r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*'
+    for row in bindings:
+        if not re.fullmatch(ident, str(row.get('theorem', ''))) or not isinstance(row.get('type'), str) or not row['type'].strip() or any(token in row['type'] for token in ('(*', '*)', '\n', '\r')) or re.search(r'\.(?:\s|$)', row['type']):
+            raise ValueError('malformed theorem/type binding')
+        if row['theorem'] not in receipt['theorems']:
+            raise ValueError('goal theorem is not claimed by kernel receipt')
+    cert = data['certificate']
+    certificate = checked(cert)
+    imports = cert.get('imports')
+    if not isinstance(imports, list) or not imports or not all(re.fullmatch(ident, str(n)) for n in imports):
+        raise ValueError('malformed certificate imports')
+    if certificate.read_text() != certificate_source(imports, bindings):
+        raise ValueError('certificate does not express exact theorem-to-goal bindings')
+    run = json.loads((root / cert['run'] / 'run.json').read_text())
+    if run.get('status') != 'passed':
+        raise ValueError('certificate run did not pass')
+    run_inputs = {Path(x['source']).resolve(): x['sha256'] for x in run.get('inputs', [])}
+    if run_inputs.get(certificate) != cert['sha256'] or any(run_inputs.get(p) != h for p, h in dependencies.items()):
+        raise ValueError('certificate run omitted actual certificate/dependency snapshot')
+    def command(command_id):
+        rows = [c for c in run.get('commands', []) if c.get('id') == command_id]
+        if len(rows) != 1 or rows[0].get('exit_code') != 0 or rows[0].get('status') != 'passed':
+            raise ValueError('missing/failed certificate command')
+        return rows[0]
+    compile_row = command(cert['compile_command_id'])
+    stdout = compile_row.get('stdout')
+    if not isinstance(stdout, str) or not (root / cert['run'] / stdout).is_file() or not (root / cert['run'] / stdout).stat().st_size:
+        raise ValueError('missing actual certificate Print Assumptions output')
+    argv = compile_row['argv']
+    if not full_compile(compile_row) or not any((Path(compile_row['cwd']) / arg).resolve() == certificate for arg in argv if arg.endswith('.v')):
+        raise ValueError('certificate was not actually compiled')

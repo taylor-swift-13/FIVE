@@ -1,0 +1,58 @@
+FILE paparazzi/models/get_first_order_low_pass/align/model/Execution.v
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FiveLowpassGet Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_get_first_order_low_pass)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.
+FILE paparazzi/relations/state_speed_ecef_provenance/attempts/001/check.py
+#!/usr/bin/env python3
+"""Replay exact worker-authored goals using the shared cold checker."""
+from pathlib import Path
+import importlib.util
+IMPORTS = ['StateSpeedRelationProblem.Spec', 'StateSpeedRelationAttempt001.Proof']
+BINDINGS = [{'requested_goal': 'actual_protocol',
+  'theorem': 'StateSpeedRelationAttempt001.Proof.proved_actual_protocol',
+  'type': 'StateSpeedRelationProblem.Spec.ActualProtocolGoal'},
+ {'requested_goal': 'read_after_write_refutation',
+  'theorem': 'StateSpeedRelationAttempt001.Proof.proved_read_after_write_refutation',
+  'type': 'StateSpeedRelationProblem.Spec.ReadAfterWriteRefutationGoal'},
+ {'requested_goal': 'history_independence_refutation',
+  'theorem': 'StateSpeedRelationAttempt001.Proof.proved_history_independence_refutation',
+  'type': 'StateSpeedRelationProblem.Spec.HistoryIndependenceRefutationGoal'}]
+OUTCOME = 'proved'
+
+if __name__ == '__main__':
+    root=next(p for p in Path(__file__).resolve().parents if (p/'scripts/five_telemetry.py').is_file())
+    path=root/'paparazzi/relations/state_speed_ecef_provenance/support/Check.py'
+    spec=importlib.util.spec_from_file_location('state_speed_cold_checker',path)
+    engine=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(engine)
+    engine.main(Path(__file__))
+FILE paparazzi/models/get_first_order_low_pass/rocq/no_error/problem/Spec.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveLowpassGet Require Import Source Execution.
+From FiveLowpassGetCase Require Import Contract GetCall.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import LowpassMemory Straightline.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NoError:Prop:=forall args m,Precondition args m->no_error Execution.ge(Execution.entry args m).

@@ -1,0 +1,381 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import StackCleanup FunctionAllocation.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassSupport Require Import Expressions LowpassMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition Args(b:block)(p:ptrofs)(value:float32):list val:=[Vptr b p;Vsingle value].
+Definition one:float32:=Float32.of_bits(Int.repr 1065353216).
+Definition output(tc li lo value:float32):float32:=Float32.div (Float32.add (Float32.add value li)(Float32.mul (Float32.sub tc one) lo))(Float32.add one tc).
+Definition Initialized(m:mem)(b:block)(p:ptrofs)(tc li lo:float32):Prop:=
+ writable12 m b p /\ Mem.load Mfloat32 m b(Ptrofs.unsigned p+0)=Some(Vsingle tc) /\ Mem.load Mfloat32 m b(Ptrofs.unsigned p+4)=Some(Vsingle li) /\ Mem.load Mfloat32 m b(Ptrofs.unsigned p+8)=Some(Vsingle lo).
+Definition Precondition(args:list val)(m:mem):Prop:=exists b p tc li lo value,args=Args b p value /\Initialized m b p tc li lo.
+Definition Frame(m mf:mem)(b:block)(p:ptrofs):Prop:=forall q z n,Mem.valid_block m q->q<>b \/ z+n<=Ptrofs.unsigned p+4 \/Ptrofs.unsigned p+12<=z ->Mem.loadbytes mf q z n=Mem.loadbytes m q z n.
+Definition Post(m mf:mem)(b:block)(p:ptrofs)(tc li lo value:float32):Prop:=
+ Initialized mf b p tc value(output tc li lo value) /\ Mem.loadbytes mf b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle value)) /\ Mem.loadbytes mf b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle(output tc li lo value))) /\ Frame m mf b p.
+Lemma initialized_valid:forall m b p tc li lo,Initialized m b p tc li lo->Mem.valid_block m b.
+Proof. intros m b p tc li lo [W [L _]];eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact L|constructor]. Qed.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem.
+From FiveGuidanceCbmcAdapters Require Import BitsAdapter.
+From FiveLowpassSupport Require Import LowpassMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma prefix_unique:forall(A:Type)(xs ys us vs:list A),length xs=length us->xs++ys=us++vs->xs=us /\ys=vs.
+Proof.
+ intros A xs;induction xs as[|x xs IH];intros ys us vs LEN EQ;destruct us as[|u us];simpl in LEN,EQ;try discriminate.
+ - auto.
+ - injection LEN as LEN;injection EQ as X EQ;subst u;destruct(IH ys us vs LEN EQ);subst;auto.
+Qed.
+Lemma encoded_split:forall m b ofs a tail n,
+ 0<=n->Mem.loadbytes m b ofs(4+n)=Some(encode_val Mfloat32(Vsingle a)++tail)->
+ Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle a)) /\Mem.loadbytes m b(ofs+4)n=Some tail.
+Proof.
+ intros m b ofs a tail n N LD;destruct(Mem.loadbytes_split m b ofs 4 n _ LD ltac:(lia)ltac:(lia))as[x[y[X[Y E]]]].
+ assert(L:length x=length(encode_val Mfloat32(Vsingle a))).
+ { rewrite(Mem.loadbytes_length _ _ _ _ _ X),encode_val_length;reflexivity. }
+ destruct(prefix_unique _ x y _ tail L(eq_sym E));subst x y;auto.
+Qed.
+Lemma encoded_two:forall m b ofs a c,
+ Mem.loadbytes m b ofs 8=Some(encode_val Mfloat32(Vsingle a)++encode_val Mfloat32(Vsingle c))->
+ Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle a)) /\Mem.loadbytes m b(ofs+4)4=Some(encode_val Mfloat32(Vsingle c)).
+Proof. intros;apply(encoded_split m b ofs a _ 4);auto;lia. Qed.
+Lemma encoded_three:forall m b ofs a c d,
+ Mem.loadbytes m b ofs 12=Some(encode_val Mfloat32(Vsingle a)++encode_val Mfloat32(Vsingle c)++encode_val Mfloat32(Vsingle d))->
+ Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle a)) /\
+ Mem.loadbytes m b(ofs+4)4=Some(encode_val Mfloat32(Vsingle c)) /\
+ Mem.loadbytes m b(ofs+8)4=Some(encode_val Mfloat32(Vsingle d)).
+Proof.
+ intros;destruct(encoded_split m b ofs a _ 8 ltac:(lia)H)as[A REST].
+ destruct(encoded_two m b(ofs+4)c d REST)as[C D];replace(ofs+4+4)with(ofs+8)in D by lia;auto.
+Qed.
+Lemma encoded_load:forall m b ofs x,
+ (4|ofs)->Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle x))->Mem.load Mfloat32 m b ofs=Some(Vsingle x).
+Proof.
+ intros;pose proof(Mem.loadbytes_load Mfloat32 m b ofs _ H0 H)as LD.
+ pose proof(decode_encode_val_general(Vsingle x)Mfloat32 Mfloat32)as EQ;cbn[decode_encode_val]in EQ;rewrite EQ in LD;exact LD.
+Qed.
+Definition FieldObservation(ge:Csem.genv)(m:mem)(b:block)(ofs:Z)(x:float32):Prop:=
+ Mem.load Mfloat32 m b ofs=Some(Vsingle x) /\CopiedBitsEqualBothOrders ge x x m /\
+ (forall mx rr,BitsRun ge x m mx rr->Mem.load Mfloat32 mx b ofs=Some(Vsingle x)).
+Lemma field_observation:forall ge m b p delta x,
+ writable12 m b p->In delta[0;4;8]->Mem.loadbytes m b(Ptrofs.unsigned p+delta)4=Some(encode_val Mfloat32(Vsingle x))->
+ FieldObservation ge m b(Ptrofs.unsigned p+delta)x.
+Proof.
+ intros ge m b p delta x P D BYTES.
+ pose proof(field_access m b p delta P D)as VA.
+ assert(LD:Mem.load Mfloat32 m b(Ptrofs.unsigned p+delta)=Some(Vsingle x))by(apply encoded_load;[exact(proj2 VA)|exact BYTES]).
+ split;[exact LD|];split;[apply copied_bits_equal;reflexivity|].
+ intros mx rr BR;pose proof(proj1(bits_run_old_frame ge x m mx rr BR)Mfloat32 b(Ptrofs.unsigned p+delta))as KEEP.
+ rewrite KEEP;[exact LD|]. eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|constructor].
+Qed.
+Print Assumptions field_observation.
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Integers Values Memory.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidMeasurementProblem Require Import Spec.
+From PidMeasurementAttempt001 Require Import SemanticBridge.
+From PidQuantizationAttempt001 Require Import ExactArithmetic RationalReference.
+Import ListNotations.
+Open Scope Z_scope.
+Module P:=PidPositionRunPos.Source.
+
+(** Units: integral numerator / T, command numerator / (T*S), radians
+    command numerator / (4096*T*S). Numerators are unbounded Z values.
+    Every dynamic right shift is exact division at these denominators.
+    The original input clamps, integral clamp and both command clamps remain. *)
+Definition ref_integral(g:Gains)(x:AxisSample)(old:Z):Z:=
+ integral_num(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+ (Int.signed(mpe x))(Int.signed(mse x))old.
+Definition ref_command(g:Gains)(x:AxisSample)(old:Z):Z:=
+ command_num(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+ (Int.signed(gain_v g))(Int.signed(gain_a g))
+ (Int.signed(mpe x))(Int.signed(mse x))
+ (Int.signed(reference_speed x))(Int.signed(reference_accel x))old.
+Definition CycleInput(axis:ident)(gh ret:block)(g:Gains)(m:mem)(x:AxisSample):Prop:=
+ InputGood m gh ret /\ReadAxis axis gh m g x.
+Definition last_command(first:Z)(tail:option Z):option Z:=
+ match tail with None=>Some first|Some c=>Some c end.
+
+(** Each step executes the unmodified original Csem entry. Reference and
+    implementation receive identical encoded inputs and fixed gains. *)
+Inductive ActualCycles(axis:ident)(gh ret:block)(g:Gains):
+ nat->mem->Z->mem->Z->option Z->Prop:=
+ | cycles_zero:forall a j,ActualCycles axis gh ret g O a j a j None
+ | cycles_step:forall n a j q x m af jf out,
+ EnvironmentStep gh a q ->CycleInput axis gh ret g q x ->
+ NormalCall gh ret true q m ->
+ ActualCycles axis gh ret g n m(ref_integral g x j)af jf out ->
+ ActualCycles axis gh ret g(Datatypes.S n)a j af jf
+ (last_command(ref_command g x j)out).
+Fixpoint ReadyCycles(axis:ident)(gh ret:block)(g:Gains)(n:nat)(m:mem):Prop:=
+ match n with
+ | O=>True
+ | Datatypes.S k=>exists q x,EnvironmentStep gh m q /\CycleInput axis gh ret g q x /\
+ (forall mf,NormalCall gh ret true q mf ->ReadyCycles axis gh ret g k mf)
+ end.
+Definition IntegralGap(axis:ident)(m:mem)(reference_numerator distance:Z):Prop:=
+ exists i,load_global Mint32 m P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint i) /\
+ 0<=reference_numerator-Int.signed i*T<=distance.
+Definition SameStart(axis:ident)(m:mem)(j:Z):Prop:=
+ exists i,load_global Mint32 m P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint i) /\j=Int.signed i*T.
+Definition CommandGap(axis:ident)(ret:block)(m:mem)(out:option Z)(distance:Z):Prop:=
+ exists c r,out=Some r /\
+ load_global Mint32 m P._guidance_pid pid_type[P._cmd_earth;axis]=Some(Vint c) /\
+ load_path Mint32 m ret sp_type[P._sp;P._ltp_i;P._vect;axis]=Some(Vint c) /\
+ 0<=r-Int.signed c*T*S<=Z.min output_cap distance.
+
+Definition ArbitraryHorizonGoal:Prop:=forall axis gh ret g n m j mf jf out,
+ In axis[P._x;P._y] ->SameStart axis m j ->ActualCycles axis gh ret g n m j mf jf out ->
+ IntegralGap axis mf jf(Z.of_nat n*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))) /\
+ ((0<n)%nat ->CommandGap axis ret mf out(horizon_loss n(Int.signed(gain_i g))(Int.signed(gain_d g)))).
+Definition ExecutionTotalGoal:Prop:=forall axis gh ret g n m j,
+ ReadyCycles axis gh ret g n m ->exists mf jf out,ActualCycles axis gh ret g n m j mf jf out.
+Definition EveryCallNoErrorGoal:Prop:=PidPositionTranslationProblem.Spec.NoErrorGoal.
+Definition EveryCallTerminationGoal:Prop:=PidPositionTranslationProblem.Spec.AllSuccessorTerminationGoal.
+Definition ReferenceInterpretationGoal:Prop:=ExactRationalReferenceGoal.
+
+(** A symbolic admissible family for arbitrary n; no future return is assumed.
+    Both actual integrators start at zero. *)
+Definition witness_gains(kp ki:Z):Gains:=
+ {|gain_p:=Int.repr kp;gain_d:=Int.zero;gain_i:=Int.repr ki;
+   gain_v:=Int.zero;gain_a:=Int.zero|}.
+Definition ExecutionExistenceGoal:Prop:=forall A kp ki n,
+ 0<=A<=4096 ->0<=kp<=100 ->0<=ki<=100 ->
+ exists gh ret m,SameStart P._x m 0 /\SameStart P._y m 0 /\
+ ReadyCycles P._x gh ret(witness_gains kp ki)n m /\
+ ReadyCycles P._y gh ret(witness_gains kp ki)n m /\
+ (forall axis,In axis[P._x;P._y] ->
+ exists mf jf out,ActualCycles axis gh ret(witness_gains kp ki)n m 0 mf jf out).
+From Stdlib Require Import List ZArith Lia Psatz.
+From compcert Require Import AST Integers Values Memory.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationAttempt002 Require Import NormalReturn MainGoals.
+From CoreCBMC Require Import NumericBounds.
+From PidMeasurementProblem Require Import Spec.
+From PidMeasurementAttempt001 Require Import IntegerBounds MachineArithmetic SemanticBridge.
+From PidQuantizationAttempt001 Require Import ExactArithmetic RationalReference WitnessBridge.
+From PidQuantizationProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+Module P:=PidPositionRunPos.Source.
+
+Theorem one_cycle_observed:forall axis gh ret g a j q x m distance,
+ In axis[P._x;P._y] ->IntegralGap axis a j distance ->
+ EnvironmentStep gh a q ->CycleInput axis gh ret g q x ->
+ NormalCall gh ret true q m ->
+ IntegralGap axis m(ref_integral g x j)
+ (distance+Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))) /\
+ CommandGap axis ret m(Some(ref_command g x j))
+ (output_loss(Int.signed(gain_d g))+distance+Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))).
+Proof.
+ intros axis gh ret g a j q x m distance AX INITIAL ENV INPUT CALL.
+ destruct INPUT as[GOOD READ].
+ pose proof(read_axis_bounds axis gh ret q g x AX GOOD READ)as B.
+ pose proof(normal_axis_observation axis gh ret q m g x AX GOOD READ CALL)as[IL[CL RL]].
+ destruct INITIAL as[i[IA DIST]].
+ destruct ENV as[FRAME PRESERVE].
+ assert(IQ:load_global Mint32 q P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint i)).
+ { rewrite(PRESERVE axis AX);exact IA. }
+ assert(OQ:load_global Mint32 q P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint(old_integral x)))
+ by(unfold ReadAxis in READ;tauto).
+ rewrite OQ in IQ;injection IQ as EQ;subst i.
+ pose proof(axis_machine_exact _ _ _ _ _ _ _ _ _ _ B)as[MI MC].
+ fold(mi g x)in MI;fold(mc g x)in MC.
+ pose proof(exact_cycle_error(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+ (Int.signed(gain_v g))(Int.signed(gain_a g))(Int.signed(mpe x))(Int.signed(mse x))
+ (Int.signed(reference_speed x))(Int.signed(reference_accel x))(Int.signed(old_integral x))j distance
+ (proj1(bound_kd _ _ _ _ _ _ _ _ _ _ B))(proj1(bound_ki _ _ _ _ _ _ _ _ _ _ B))DIST)as[IG CG].
+ split.
+ - exists(mi g x);split;[exact IL|];rewrite MI;exact IG.
+ - exists(mc g x),(ref_command g x j);repeat split;try reflexivity;try assumption.
+   + unfold ref_command;rewrite MC;exact(proj1 CG).
+   + apply Z.min_glb.
+     * pose proof(command_numerator_bounds(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+       (Int.signed(gain_v g))(Int.signed(gain_a g))(Int.signed(mpe x))(Int.signed(mse x))
+       (Int.signed(reference_speed x))(Int.signed(reference_accel x))j)as RB.
+       pose proof(actual_command_bounds(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+       (Int.signed(gain_v g))(Int.signed(gain_a g))(Int.signed(mpe x))(Int.signed(mse x))
+       (Int.signed(reference_speed x))(Int.signed(reference_accel x))(Int.signed(old_integral x)))as CB.
+       unfold ref_command;rewrite MC;unfold output_cap,T,S in *;nia.
+     * unfold ref_command;rewrite MC;exact(proj2 CG).
+Qed.
+
+Lemma cycles_growth:forall n axis gh ret g a j af jf out distance,
+ In axis[P._x;P._y] ->IntegralGap axis a j distance ->
+ ActualCycles axis gh ret g n a j af jf out ->
+ IntegralGap axis af jf(distance+Z.of_nat n*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))) /\
+ ((0<n)%nat ->CommandGap axis ret af out
+ (output_loss(Int.signed(gain_d g))+distance+Z.of_nat n*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))).
+Proof.
+ induction n as[|n IH];intros axis gh ret g a j af jf out distance AX INITIAL RUN.
+ - inversion RUN;subst;split;[|lia].
+   replace(distance+Z.of_nat 0*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))with distance by ring.
+   exact INITIAL.
+ - inversion RUN as[|k a0 j0 q x m af0 jf0 tail ENV INPUT CALL TAIL];subst.
+   destruct(one_cycle_observed axis gh ret g a j q x m distance AX INITIAL ENV INPUT CALL)as[IG CG].
+   destruct(IH axis gh ret g m(ref_integral g x j)af jf tail
+   (distance+Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))AX IG TAIL)as[FINAL MORE].
+   assert(SUM:distance+Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))+
+   Z.of_nat n*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))=
+   distance+Z.of_nat(Datatypes.S n)*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))).
+   { rewrite Nat2Z.inj_succ;ring. }
+   rewrite SUM in FINAL;split;[exact FINAL|intros POS].
+   destruct n as[|n].
+   + inversion TAIL;subst;cbn[last_command].
+     replace(output_loss(Int.signed(gain_d g))+distance+
+     Z.of_nat 1*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))
+     with(output_loss(Int.signed(gain_d g))+distance+Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))by ring.
+     exact CG.
+   + specialize(MORE ltac:(lia)).
+     destruct MORE as[c[r[OUT[CL[RL GAP]]]]];subst tail;cbn[last_command].
+     exists c,r;split;[reflexivity|];split;[exact CL|];split;[exact RL|].
+     replace(output_loss(Int.signed(gain_d g))+
+     (distance+Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))+
+     Z.of_nat(Datatypes.S n)*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))
+     with(output_loss(Int.signed(gain_d g))+distance+
+     Z.of_nat(Datatypes.S(Datatypes.S n))*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g)))in GAP
+     by(rewrite Nat2Z.inj_succ;ring).
+     exact GAP.
+Qed.
+
+Theorem proved_arbitrary_horizon:ArbitraryHorizonGoal.
+Proof.
+ intros axis gh ret g n m j mf jf out AX SAME RUN.
+ assert(INIT:IntegralGap axis m j 0).
+ { destruct SAME as[i[LOAD EQ]];exists i;split;[exact LOAD|subst j;lia]. }
+ pose proof(cycles_growth n axis gh ret g m j mf jf out 0 AX INIT RUN)as[IG CG].
+ rewrite Z.add_0_l in IG;unfold horizon_loss;rewrite Z.add_0_r in CG;split;assumption.
+Qed.
+
+Theorem proved_execution_total:ExecutionTotalGoal.
+Proof.
+ intros axis gh ret g n;induction n as[|n IH];intros m j READY.
+ - exists m,j,None;constructor.
+ - cbn[ReadyCycles]in READY;destruct READY as(q&x&ENV&INPUT&NEXT).
+   destruct(original_entry_normal_return q gh ret true(proj1 INPUT))as[mf CALL].
+   destruct(IH mf(ref_integral g x j)(NEXT mf CALL))as(af&jf&out&TAIL).
+   exists af,jf,(last_command(ref_command g x j)out);eapply cycles_step;eassumption.
+Qed.
+Theorem proved_every_call_no_error:EveryCallNoErrorGoal.
+Proof. exact proved_no_error. Qed.
+Theorem proved_every_call_termination:EveryCallTerminationGoal.
+Proof. exact proved_all_successor_termination. Qed.
+Theorem proved_reference_interpretation:ReferenceInterpretationGoal.
+Proof. exact proved_exact_rational_reference. Qed.
+Theorem proved_execution_existence:ExecutionExistenceGoal.
+Proof.
+ intros A kp ki n AR KPR KIR.
+ destruct(witness_driver_exists A kp ki n AR KPR KIR)as(gh&ret&m&SX&SY&RX&RY).
+ exists gh,ret,m;split;[exact SX|];split;[exact SY|];split;[exact RX|];split;[exact RY|].
+ intros axis AX;destruct AX as[<-|[<-|[]]];apply proved_execution_total;assumption.
+Qed.
+
+Print Assumptions proved_arbitrary_horizon.
+Print Assumptions proved_execution_total.
+Print Assumptions proved_every_call_no_error.
+Print Assumptions proved_every_call_termination.
+Print Assumptions proved_reference_interpretation.
+Print Assumptions proved_execution_existence.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.
+From FiveLowpassSupport Require Import LowpassMemory.
+From FiveLowpassUpdateCase Require Import Contract.
+Local Open Scope Z_scope.
+Theorem initialized_inhabited:forall tc li lo:float32,exists m b,Initialized m b Ptrofs.zero tc li lo.
+Proof.
+ intros tc li lo;destruct(Mem.alloc Mem.empty 0 12)as[ma b]eqn:A.
+ assert(W:writable12 ma b Ptrofs.zero).
+ { unfold writable12;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|]. split;[change(12<=18446744073709551616);lia|].
+ intros z R;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact A|exact R]|constructor]. }
+ destruct(three_stores_exist ma b Ptrofs.zero tc li lo W)as[mf[m1[m2[S0[S4 S8]]]]].
+ exists mf,b;split.
+ - eapply store_preserves_writable12;[|exact S8]. eapply store_preserves_writable12;[|exact S4]. eapply store_preserves_writable12;[exact W|exact S0].
+ - split.
+ + erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];intuition lia)). erewrite Mem.load_store_other by(exact S4||(cbn[size_chunk];intuition lia)). erewrite Mem.load_store_same by exact S0;reflexivity.
+ + split.
+ * erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];intuition lia)). erewrite Mem.load_store_same by exact S4;reflexivity.
+ * erewrite Mem.load_store_same by exact S8;reflexivity.
+Qed.
+Print Assumptions initialized_inhabited.
+From Coq Require Import String List ZArith.
+From compcert Require Import Coqlib Integers Floats Values AST Ctypes Cop Csyntax Csyntaxdefs.
+Import Csyntaxdefs.CsyntaxNotations.
+Local Open Scope Z_scope.
+Local Open Scope string_scope.
+Local Open Scope csyntax_scope.
+
+Module Info.
+  Definition version := "3.17".
+  Definition build_number := "".
+  Definition build_tag := "".
+  Definition build_branch := "".
+  Definition arch := "x86".
+  Definition model := "64".
+  Definition abi := "standard".
+  Definition bitsize := 64.
+  Definition big_endian := false.
+  Definition source_file := "/home/yangfp/five/paparazzi/models/update_first_order_low_pass/align/model/preprocessed.i".
+End Info.
+
+Definition _FirstOrderLowPass : ident := $"FirstOrderLowPass".
+Definition ___builtin_ais_annot : ident := $"__builtin_ais_annot".
+Definition ___builtin_annot : ident := $"__builtin_annot".
+Definition ___builtin_annot_intval : ident := $"__builtin_annot_intval".
+Definition ___builtin_bswap : ident := $"__builtin_bswap".
+Definition ___builtin_bswap16 : ident := $"__builtin_bswap16".
+Definition ___builtin_bswap32 : ident := $"__builtin_bswap32".
+Definition ___builtin_bswap64 : ident := $"__builtin_bswap64".
+Definition ___builtin_clz : ident := $"__builtin_clz".
+Definition ___builtin_clzl : ident := $"__builtin_clzl".
+Definition ___builtin_clzll : ident := $"__builtin_clzll".
+Definition ___builtin_ctz : ident := $"__builtin_ctz".
+Definition ___builtin_ctzl : ident := $"__builtin_ctzl".
+Definition ___builtin_ctzll : ident := $"__builtin_ctzll".
+Definition ___builtin_debug : ident := $"__builtin_debug".
+Definition ___builtin_expect : ident := $"__builtin_expect".
+Definition ___builtin_fabs : ident := $"__builtin_fabs".
+Definition ___builtin_fabsf : ident := $"__builtin_fabsf".
+Definition ___builtin_fmadd : ident := $"__builtin_fmadd".
+Definition ___builtin_fmax : ident := $"__builtin_fmax".
+Definition ___builtin_fmin : ident := $"__builtin_fmin".
+Definition ___builtin_fmsub : ident := $"__builtin_fmsub".
+Definition ___builtin_fnmadd : ident := $"__builtin_fnmadd".
+Definition ___builtin_fnmsub : ident := $"__builtin_fnmsub".
+Definition ___builtin_fsqrt : ident := $"__builtin_fsqrt".
+Definition ___builtin_membar : ident := $"__builtin_membar".
+Definition ___builtin_memcpy_aligned : ident := $"__builtin_memcpy_aligned".
+Definition ___builtin_read16_reversed : ident := $"__builtin_read16_reversed".
+Definition ___builtin_read32_reversed : ident := $"__builtin_read32_reversed".
+Definition ___builtin_sel : ident := $"__builtin_sel".
+Definition ___builtin_sqrt : ident := $"__builtin_sqrt".
+Definition ___builtin_unreachable : ident := $"__builtin_unreachable".
+Definition ___builtin_va_arg : ident := $"__builtin_va_arg".
+Definition ___builtin_va_copy : ident := $"__builtin_va_copy".
+Definition ___builtin_va_end : ident := $"__builtin_va_end".
+Definition ___builtin_va_start : ident := $"__builtin_va_start".
+Definition ___builtin_write16_reversed : ident := $"__builtin_write16_reversed".
+Definition ___builtin_write32_reversed : ident := $"__builtin_write32_reversed".
+Definition ___compcert_i64_dtos : ident := $"__compcert_i64_dtos".
+Definition ___compcert_i64_dtou : ident := $"__compcert_i64_dtou".
+Definition ___compcert_i64_sar : ident := $"__compcert_i64_sar".
+Definition ___compcert_i64_sdiv : ident := $"__compcert_i64_sdiv".
+Definition ___compcert_i64_shl : ident := $"__compcert_i64_shl".
+Definition ___compcert_i64_shr : ident := $"__compcert_i64_shr".
+Definition ___compcert_i64_smod : ident := $"__compcert_i64_smod".
+Definition ___compcert_i64_smulh : ident := $"__compcert_i64_smulh".
+Definition ___compcert_i64_stod : ident := $"__compcert_i64_stod".
+Definition ___compcert_i64_stof : ident := $"__compcert_i64_stof".
+Definition ___compcert_i64_udiv : ident := $"__compcert_i64_udiv".
+Definition ___compcert_i64_umod : ident := $"__compcert_i64_umod".
+Definition ___compcert_i64_umulh : ident := $"__compcert_i64_umulh".
+Definition ___compcert_i64_utod : ident := $"__compcert_i64_utod".
+Definition ___compcert_i64_utof : ident := $"__compcert_i64_utof".
+Definition ___compcert_va_composite : ident := $"__compcert_va_composite".
+Definition ___compcert_va_float64 : ident := $"__compcert_va_float64".

@@ -1,0 +1,40 @@
+61: 
+62: Lemma conditional_context_congr:forall from to C,
+63:  context from to C ->forall a b,
+64:  typeof a=typeof b ->
+65:  (simple a=true ->simple b=true /\pure_eq ge e m from a b) ->
+66:  (from=RV ->forall v,conditional_value a v ->conditional_value b v) ->
+67:  to=RV ->forall v,conditional_value(C a)v ->conditional_value(C b)v.
+68: Proof.
+69:  intros from to C CT;induction CT;intros a b TY SIMPLE COND KIND v CV;try discriminate.
+70:  all: try solve[
+71:   inversion CV;subst;try discriminate;
+72:   match goal with SI:simple(_ a)=true,DEN:pure_rval ge e m(_ a)=Some v|-_ =>
+73:     assert(SA:simple a=true)by(eapply simple_context_hole;[econstructor;eauto|exact SI]);
+74:     destruct(SIMPLE SA)as[SB EQ];
+75:     apply cv_simple;
+76:     [eapply simple_context_replace;[econstructor;eauto|exact TY|exact SI|exact SB]
+77:     |erewrite <-pure_context_congr;[exact DEN|econstructor;eauto|exact TY|exact EQ]]
+78:   end].
+79:  - cbn in *;apply COND;[exact KIND|exact CV].
+80:  - inversion CV;subst;try discriminate.
+81:    eapply cv_condition;[| | |exact H4|exact H5].
+82:    + eapply simple_context_replace;[exact CT|exact TY|exact H|].
+83:      apply SIMPLE;eapply simple_context_hole;[exact CT|exact H].
+84:    + assert(SA:simple a=true)by(eapply simple_context_hole;[exact CT|exact H]).
+85:      destruct(SIMPLE SA)as[SB EQ].
+86:      erewrite <-pure_context_congr;[exact H0|exact CT|exact TY|exact EQ].
+87:    + rewrite <-(context_type_eq _ _ _ CT a b TY);exact H1.
+88:  - inversion CV;subst;try discriminate.
+89:    eapply cv_paren.
+90:    + eapply IHCT;eauto.
+91:    + rewrite <-(context_type_eq _ _ _ CT a b TY);exact H0.
+92: Qed.
+93: 
+94: Lemma conditional_rred:forall a v t a' mf,
+95:  conditional_value a v ->rred ge a m t a' mf ->
+96:  mf=m /\t=E0 /\typeof a'=typeof a /\conditional_value a' v.
+97: Proof.
+98:  intros a v t a' mf CV HR;inversion CV;subst.
+99:  - destruct(pure_rred ge e a m t a' mf H HR)as[MM[TT[TY[SI DEN]]]]].
+100:    subst mf;repeat split;auto;apply cv_simple;[exact SI|rewrite <-DEN;exact H0].

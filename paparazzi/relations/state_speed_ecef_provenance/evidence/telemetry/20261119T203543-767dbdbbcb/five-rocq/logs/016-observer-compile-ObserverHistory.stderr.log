@@ -1,0 +1,52 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/state_speed_ecef_provenance/support/setters
+was previously bound to StateSpeedMemory.setters; it is remapped to
+StateSpeedSetterSupport [overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/state_speed_ecef_provenance/support/ObserverHistory.v", line 138, characters 9-47:
+Error:
+In environment
+m : mem
+sb, ns, es : block
+nx, ny, nz, ex, ey, ez : int
+ob : block
+READY : InitialReady m sb ns es nx ny nz ex ey ez
+OWR : Mem.range_perm m ob 0 1360 Cur Writable
+NE : sb <> ob
+INPUT : ProtocolInput m sb ns es nx ny nz ex ey ez
+mn, me, mf0 : mem
+RUN : ProtocolRun m mn me mf0 sb ns es nx ny nz ex ey ez
+OBS : observe_bits mf0 sb = Some (bits_of nx ny nz)
+EINPUT : EI.InputGood mn sb es accepted_id ex ey ez
+GINPUT : G.InputGood me sb nx ny nz
+STATEW : Mem.range_perm me sb 0 656 Cur Writable
+OWE : Mem.range_perm me ob 0 1360 Cur Writable
+SR : Mem.range_perm me sb 0 (0 + 656) Cur Readable
+before : list memval
+BEFORE : Mem.loadbytes me sb 0 656 = Some before
+mb : mem
+BCOPY : CopiedBytes me mb sb ob 0 48 656 before
+BINPUT : G.InputGood mb sb nx ny nz
+mg : mem
+NORMAL : Setup.NormalCall mb mg sb
+RESULT : Setup.GetterResult mb mg sb nx ny nz
+UNIQUE :
+  forall (t : trace) (v : val) (mf2 : mem),
+  star Csem.step Setup.ge (Setup.E.entry [] mb) t (Returnstate v Kstop mf2) ->
+  v = Vptr sb (Ptrofs.repr 328) /\ mf2 = mg
+OWB : Mem.range_perm mb ob 0 1360 Cur Writable
+OWG : Mem.range_perm mg ob 0 1360 Cur Writable
+STATEWG : Mem.range_perm mg sb 0 656 Cur Writable
+BITS : Mem.loadbytes mg sb 328 12 = Some (G.float_bytes nx ny nz)
+mk : mem
+KCOPY : CopiedBytes mg mk sb ob 328 36 12 (G.float_bytes nx ny nz)
+OWK : Mem.range_perm mk ob 0 1360 Cur Writable
+STATEWK : Mem.range_perm mk sb 0 656 Cur Writable
+SAR : Mem.range_perm mk sb 0 (0 + 656) Cur Readable
+after : list memval
+AFTER : Mem.loadbytes mk sb 0 656 = Some after
+ma : mem
+ACOPY : CopiedBytes mk ma sb ob 0 704 656 after
+The term "copy_destination me mb sb ob 0 48 656 before BCOPY" has type
+ "Mem.loadbytes mb ob 48 656 = Some before"
+while it is expected to have type "Mem.loadbytes mg ob 48 656 = Some before".
+

@@ -1,0 +1,37 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/InitLoop.v", line 30, characters 7-8:
+Error:
+In environment
+ge : genv
+e : env
+m : mem
+id : ident
+z : Z
+b : block
+B : e ! id = Some (b, Tint I16 Signed noattr)
+L : Mem.load Mint16signed m b 0 = Some (Vint (Int.repr z))
+R : Mem.range_perm m b 0 2 Cur Writable
+The term "L" has type
+ "Mem.load Mint16signed m b 0 = Some (Vint (Int.repr z))"
+while it is expected to have type
+ "match
+    match access_mode tshort with
+    | By_value chunk =>
+        if type_is_volatile tshort
+        then Cexec.do_volatile_load ge quiet_world chunk m b Ptrofs.zero
+        else
+         match
+           (if zle (0 + size_chunk chunk) Ptrofs.modulus
+            then Mem.load chunk m b 0
+            else None)
+         with
+         | Some v => Some (quiet_world, Events.E0, v)
+         | None => None
+         end
+    | By_nothing => None
+    | _ => Some (quiet_world, Events.E0, Vptr b Ptrofs.zero)
+    end
+  with
+  | Some (_, _, v) => Some v
+  | None => None
+  end = Some (Vint (Int.repr z))".
+

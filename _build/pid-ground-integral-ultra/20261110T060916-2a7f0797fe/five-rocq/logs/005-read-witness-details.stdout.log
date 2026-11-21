@@ -1,0 +1,432 @@
+FILE WitnessMemory.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma replay_stores_exists : forall us m,
+ Forall(fun u=>let '(ch,b,ofs,_):=u in Mem.valid_access m ch b ofs Writable)us ->
+ exists mf,replay_stores m us=Some mf.
+Proof.
+ induction us as[|[[[ch b]ofs]v]us IH];intros m ACCESS.
+ - exists m;reflexivity.
+ - inversion ACCESS as[|u tail A REST];subst.
+   destruct(Mem.valid_access_store m ch b ofs v A)as[ma STORE].
+   destruct(IH ma ltac:(eapply Forall_impl;[|exact REST];intros[[[cu bu]ou]vu] VA;eapply Mem.store_valid_access_1;eauto))as[mf RUN].
+   exists mf;cbn[replay_stores];rewrite STORE;exact RUN.
+Qed.
+Lemma replay_stores_value_at : forall i us m mf ch b ofs v,
+ nth_error us i=Some(ch,b,ofs,v) ->replay_stores m us=Some mf ->
+ Forall(misses_chunk ch b ofs)(skipn(S i)us) ->
+ Mem.load ch mf b ofs=Some(Val.load_result ch v).
+Proof.
+ induction i as[|i IH];intros us m mf ch b ofs v NTH RUN MISS;
+ destruct us as[|[[[cu bu]ou]vu]us];try discriminate;
+ cbn[replay_stores]in RUN;
+ destruct(Mem.store cu m bu ou vu)as[ma|]eqn:STORE;try discriminate.
+ - cbn[nth_error]in NTH;injection NTH as<- <- <- <-.
+   cbn[skipn]in MISS;rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN MISS).
+   eapply Mem.load_store_same;exact STORE.
+ - eapply IH;[exact NTH|exact RUN|exact MISS].
+Qed.
+
+Lemma global_contract_after_allocation : forall m ma fresh lo hi,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->Mem.valid_block m b) ->
+ Mem.alloc m lo hi=(ma,fresh) ->global_bytes_initialized ma.
+Proof.
+ intros m ma fresh lo hi[init[INIT GLOBAL]]VALID ALLOC.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros ofs R;eapply Mem.perm_alloc_1;[exact ALLOC|apply RP;exact R].
+ - intros RO ofs R;erewrite Mem.loadbytes_alloc_unchanged;[|exact ALLOC|apply VALID with(gv:=gv);exact VAR].
+   apply BY;assumption.
+Qed.
+Lemma global_contract_after_store : forall m mf ch dst ofs v,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst) ->
+ Mem.store ch m dst ofs v=Some mf ->global_bytes_initialized mf.
+Proof.
+ intros m mf ch dst ofs v[init[INIT GLOBAL]]OUT STORE.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros i R;eapply Mem.perm_store_1;[exact STORE|apply RP;exact R].
+ - intros RO i R;rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ STORE b i 1)
+    by(left;eapply OUT;eauto);apply BY;assumption.
+Qed.
+Lemma global_contract_after_replay : forall us m mf,
+ global_bytes_initialized m ->
+ Forall(fun u=>let '(_,dst,_,_):=u in
+ forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst)us ->
+ replay_stores m us=Some mf ->global_bytes_initialized mf.
+Proof.
+ induction us as[|[[[ch dst]ofs]v]us IH];intros m mf GOOD OUT RUN;cbn[replay_stores]in RUN.
+ - injection RUN as<-;exact GOOD.
+ - destruct(Mem.store ch m dst ofs v)as[ma|]eqn:STORE;try discriminate.
+   inversion OUT as[|u tail HEAD REST];subst.
+   eapply IH;[eapply global_contract_after_store;eauto|exact REST|exact RUN].
+Qed.
+
+Lemma translated_store_pair_preserves_canonical_frame : forall gh ret a b dst ofs ch va vb af bf,
+ same_except_positions_and_return gh ret a b ->
+ (forall i,ofs<=i<ofs+size_chunk ch ->translated_byte gh dst i) ->
+ Mem.store ch a dst ofs va=Some af ->Mem.store ch b dst ofs vb=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dst ofs ch va vb af bf[NEXT[PERM BY]]TRAN SA SB;split.
+ - rewrite(Mem.nextblock_store _ _ _ _ _ _ SA),(Mem.nextblock_store _ _ _ _ _ _ SB);exact NEXT.
+ - split.
+   + intros blk i k p;split;intro H.
+     * eapply Mem.perm_store_1;[exact SB|]. apply(proj1(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SA|exact H].
+     * eapply Mem.perm_store_1;[exact SA|]. apply(proj2(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SB|exact H].
+   + intros blk i NT RET.
+     assert(OUT:blk<>dst \/i+1<=ofs\/ofs+size_chunk ch<=i).
+     { destruct(peq blk dst)as[->|D];[right|left;exact D].
+       destruct(zlt i ofs);[left;lia|right].
+       destruct(zle(ofs+size_chunk ch)i);[exact l|].
+       exfalso;apply NT;apply TRAN;lia. }
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA blk i 1)by(tauto).
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB blk i 1)by(tauto).
+     apply BY;assumption.
+Qed.
+Definition compatible_update(gh:block)(u v:scalar_update):Prop:=
+ exists ch dst ofs va vb,u=(ch,dst,ofs,va)/\v=(ch,dst,ofs,vb)/\
+ (va=vb\/(forall i,ofs<=i<ofs+size_chunk ch->translated_byte gh dst i)).
+Lemma compatible_replay_preserves_canonical_frame : forall gh ret us vs a b af bf,
+ Forall2(compatible_update gh)us vs ->
+ same_except_positions_and_return gh ret a b ->
+ replay_stores a us=Some af ->replay_stores b vs=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret us vs a b af bf COMP;revert a b af bf.
+ induction COMP;intros a b af bf FRAME UA UB.
+ - cbn[replay_stores]in UA,UB;injection UA as<-;injection UB as<-;exact FRAME.
+ - destruct H as[ch[dst[ofs[va[vb[-> [-> CASE]]]]]]].
+   cbn[replay_stores]in UA,UB.
+   destruct(Mem.store ch a dst ofs va)as[ma|]eqn:SA;try discriminate.
+   destruct(Mem.store ch b dst ofs vb)as[mb|]eqn:SB;try discriminate.
+   eapply IHCOMP;[|exact UA|exact UB].
+   destruct CASE as[EQ|TR].
+   + subst vb;eapply synchronized_store_preserves_canonical_frame;eauto.
+   + eapply translated_store_pair_preserves_canonical_frame;eauto.
+Qed.
+Print Assumptions compatible_replay_preserves_canonical_frame.
+
+FILE WitnessUpdates.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement WitnessMemory.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Definition witness_updates(gh sb:block)(shift:Z):list scalar_update:=[
+ (Mint16unsigned,sb,2,Vint(Int.repr 2));
+ (Mint16unsigned,sb,280,Vint(Int.repr 2));
+ (Mint32,gh,44,Vint(Int.repr(512+shift)));
+ (Mint32,gh,48,Vint Int.zero);
+ (Mint32,gh,52,Vint Int.zero);
+ (Mint32,gh,56,Vint Int.zero);
+ (Mint32,gh,60,Vint Int.zero);
+ (Mint32,gh,64,Vint Int.zero);
+ (Mint32,sb,100,Vint(Int.repr shift))].
+Ltac witness_forall tac :=
+ lazymatch goal with
+ | |-Forall _ []=>apply Forall_nil
+ | |-Forall _ (_::_)=>apply Forall_cons;[tac|witness_forall tac]
+ end.
+Ltac witness_align :=
+ lazymatch goal with |-Z.divide ?a ?p=>
+ let q:=eval vm_compute in(p/a)in exists q;reflexivity end.
+Ltac witness_miss :=
+ cbn[misses_chunk];first[left;congruence|right;left;cbn;lia|right;right;cbn;lia].
+Theorem witness_updates_exist : forall base gh sb shift,
+ Mem.range_perm base gh 0 84 Cur Writable ->
+ Mem.range_perm base sb 0 656 Cur Writable ->
+ exists mf,replay_stores base(witness_updates gh sb shift)=Some mf.
+Proof.
+ intros base gh sb shift WG WS;apply replay_stores_exists.
+ unfold witness_updates;witness_forall ltac:(
+ cbn;first[
+ eapply scalar_access_inside with(n:=84);[exact WG|lia|cbn;lia|witness_align]|
+ eapply scalar_access_inside with(n:=656);[exact WS|lia|cbn;lia|witness_align]]).
+Qed.
+Lemma zero_preserved_by_disjoint_replay : forall us base mf b len,
+ Genv.read_as_zero base b 0 len ->
+ Forall(fun u=>let '(_,dst,_,_):=u in b<>dst)us ->
+ replay_stores base us=Some mf ->
+ Genv.read_as_zero mf b 0 len.
+Proof.
+ intros us base mf b len ZERO MISS RUN ch ofs LO HI ALIGN.
+ rewrite(replay_stores_load_frame us base mf ch b ofs RUN).
+ - apply ZERO;assumption.
+ - eapply Forall_impl;[|exact MISS].
+   intros[[[cu dst]ou]v]NOT;left;exact NOT.
+Qed.
+Theorem witness_updated_loads : forall base mf gh sb shift,
+ gh<>sb ->Genv.read_as_zero base sb 0 656 ->
+ replay_stores base(witness_updates gh sb shift)=Some mf ->
+ Mem.load Mint16unsigned mf sb 2=Some(Vint(Int.repr 2)) /\
+ Mem.load Mint16unsigned mf sb 280=Some(Vint(Int.repr 2)) /\
+ Mem.load Mint32 mf gh 44=Some(Vint(Int.repr(512+shift))) /\
+ Mem.load Mint32 mf gh 48=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 52=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 56=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 60=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf gh 64=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf sb 100=Some(Vint(Int.repr shift)) /\
+ Mem.load Mint32 mf sb 104=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf sb 296=Some(Vint Int.zero) /\
+ Mem.load Mint32 mf sb 300=Some(Vint Int.zero).
+Proof.
+ intros base mf gh sb shift DIFF ZERO RUN.
+ assert(P:Mem.load Mint16unsigned mf sb 2=Some(Vint(Int.repr 2))).
+ { eapply replay_stores_value_at with(i:=0%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr 2));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(S:Mem.load Mint16unsigned mf sb 280=Some(Vint(Int.repr 2))).
+ { eapply replay_stores_value_at with(i:=1%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr 2));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(R:Mem.load Mint32 mf gh 44=Some(Vint(Int.repr(512+shift)))).
+ { eapply replay_stores_value_at with(i:=2%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr(512+shift)));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(Y:Mem.load Mint32 mf gh 48=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=3%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(VX:Mem.load Mint32 mf gh 52=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=4%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(VY:Mem.load Mint32 mf gh 56=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=5%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(AX:Mem.load Mint32 mf gh 60=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=6%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(AY:Mem.load Mint32 mf gh 64=Some(Vint(Int.zero))).
+ { eapply replay_stores_value_at with(i:=7%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.zero));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ assert(N:Mem.load Mint32 mf sb 100=Some(Vint(Int.repr shift))).
+ { eapply replay_stores_value_at with(i:=8%nat)(us:=witness_updates gh sb shift)(m:=base)(v:=Vint(Int.repr shift));
+   [reflexivity|exact RUN|cbn[witness_updates skipn];witness_forall ltac:(witness_miss)]. }
+ repeat(first[assumption|split]).
+ all:rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN);
+ [apply ZERO;[lia|cbn;lia|witness_align]|unfold witness_updates;witness_forall ltac:(witness_miss)].
+Qed.
+Lemma reference_position_written_bytes : forall gh i,
+ 44<=i<48 ->translated_byte gh gh i.
+Proof.
+ intros gh i R;left;exists S._x;split;[cbn;auto|];split;[reflexivity|].
+ exists tint,44;split;[reflexivity|exact R].
+Qed.
+Lemma measured_position_written_bytes : forall gh sb i,
+ Genv.find_symbol E.ge S._state=Some sb ->100<=i<104 ->translated_byte gh sb i.
+Proof.
+ intros gh sb i SYM R;right;exists sb,S._x;split;[exact SYM|];split;[cbn;auto|].
+ split;[reflexivity|];exists tint,100;split;[reflexivity|exact R].
+Qed.
+Lemma compatible_update_same : forall gh ch dst ofs v,
+ compatible_update gh(ch,dst,ofs,v)(ch,dst,ofs,v).
+Proof. intros;exists ch,dst,ofs,v,v;split;[reflexivity|];split;[reflexivity|];left;reflexivity. Qed.
+Lemma compatible_update_translated : forall gh ch dst ofs va vb,
+ (forall i,ofs<=i<ofs+size_chunk ch->translated_byte gh dst i) ->
+ compatible_update gh(ch,dst,ofs,va)(ch,dst,ofs,vb).
+Proof. intros;exists ch,dst,ofs,va,vb;split;[reflexivity|];split;[reflexivity|];right;assumption. Qed.
+Theorem witness_replays_related : forall base gh ret sb a b,
+ Genv.find_symbol E.ge S._state=Some sb ->
+ replay_stores base(witness_updates gh sb 0)=Some a ->
+ replay_stores base(witness_updates gh sb 25600)=Some b ->
+ same_except_positions_and_return gh ret a b.
+Proof.
+ intros base gh ret sb a b SYM A B.
+ eapply compatible_replay_preserves_canonical_frame;[| |exact A|exact B].
+ - unfold witness_updates.
+   repeat(apply Forall2_cons;[apply compatible_update_same|]).
+   apply Forall2_cons.
+   + apply compatible_update_translated;intros i R;apply reference_position_written_bytes;exact R.
+   + repeat(apply Forall2_cons;[apply compatible_update_same|]).
+     apply Forall2_cons.
+     * apply compatible_update_translated;intros i R;apply measured_position_written_bytes with(sb:=sb);assumption.
+     * constructor.
+ - split;[reflexivity|];split;[intros;tauto|intros;reflexivity].
+Qed.
+Print Assumptions witness_replays_related.
+
+DEFS core/ControllerPrefix.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp FlightSemantics CoreTail.
+Import ListNotations.
+Open Scope Z_scope.
+Definition after_feedforward(kp kd kv ka pe se rs ra traj:int):int:=
+ clip_bits(feedforward_bits(pd_bits kp kd pe se)kv rs ka ra)traj.
+Definition controller_command(f:bool)(kp kd ki kv ka pe se rs ra i traj total:int):int:=
+ clip_bits(next_command f(after_feedforward kp kd kv ka pe se rs ra traj)(next_integral f i ki(pd_bits kp kd pe se)traj))total.
+Definition controller_updates(f:bool)(bx bpy bp bi:block)(kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total:int):list scalar_update:=
+ first_four_updates bx bpy bp kp kd kv ka pex pey sex sey rsx rsy rax ray++
+ clamp_updates bp(feedforward_bits(pd_bits kp kd pex sex)kv rsx ka rax)(feedforward_bits(pd_bits kp kd pey sey)kv rsy ka ray)traj++
+ flight_updates f bi bp(pd_bits kp kd pex sex)(pd_bits kp kd pey sey)ki ix iy
+ (after_feedforward kp kd kv ka pex sex rsx rax traj)(after_feedforward kp kd kv ka pey sey rsy ray traj)traj++
+ clamp_updates bp
+ (next_command f(after_feedforward kp kd kv ka pex sex rsx rax traj)(next_integral f ix ki(pd_bits kp kd pex sex)traj))
+ (next_command f(after_feedforward kp kd kv ka pey sey rsy ray traj)(next_integral f iy ki(pd_bits kp kd pey sey)traj))total.
+Ltac miss_update :=
+ cbn[misses_chunk size_chunk];
+ lazymatch goal with |- (?b <> ?bu) \/ (?a <= ?c) \/ (?d <= ?f) =>
+ tryif constr_eq b bu then
+ (let ok:=eval vm_compute in(orb(Z.leb a c)(Z.leb d f))in
+  lazymatch ok with true=>right;lia|false=>fail 1 "overlapping field"end)
+ else(left;first[assumption|apply not_eq_sym;assumption])end.
+Ltac each_update := lazymatch goal with|-Forall _ []=>constructor| |-Forall _ (_::_)=>constructor;[miss_update|each_update]end.
+
+Ltac trace_frame :=
+ repeat match goal with
+ | RUN:replay_stores ?before ?updates=Some ?after |- context[Mem.load ?ch ?after ?b ?ofs]=>
+   rewrite(replay_stores_load_frame updates before after ch b ofs RUN)by(
+    cbv beta iota zeta delta[first_four_updates clamp_updates flight_updates];
+    repeat match goal with|-context[if ?f then _ else _]=>destruct f end;
+    each_update)
+ end.
+Ltac trace_access :=
+ lazymatch goal with|-Mem.valid_access ?after ?ch ?b ?ofs ?perm=>
+ first[assumption|
+ match goal with RUN:replay_stores ?before ?updates=Some after |- _=>
+ eapply(replay_stores_access updates before after ch b ofs perm RUN);trace_access end]end.
+Theorem original_controller_prefix_normal:forall e m bp be bs gh bg bx bpy bi bt bu bf
+ (flight:bool)kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total,
+ e!S._pd_x=Some(bx,tint) ->e!S._pd_y=Some(bpy,tint) ->e!S._gh=Some(bg,tptr gh_type) ->e!S._in_flight=Some(bf,tbool) ->
+ e!S._guidance_pid=None ->e!S._guidance_pid_pos_err=None ->e!S._guidance_pid_speed_err=None ->
+ e!S._guidance_pid_trim_att_integrator=None ->e!S._traj_max_bank=None ->e!S._total_max_bank=None ->
+ Genv.find_symbol ge S._guidance_pid=Some bp ->
+ Genv.find_symbol ge S._guidance_pid_pos_err=Some be ->
+ Genv.find_symbol ge S._guidance_pid_speed_err=Some bs ->
+ Genv.find_symbol ge S._guidance_pid_trim_att_integrator=Some bi ->
+ Genv.find_symbol ge S._traj_max_bank=Some bt ->Genv.find_symbol ge S._total_max_bank=Some bu ->
+ NoDup[bx;bpy;bg;bf;bp;be;bs;gh;bi;bt;bu] ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint8unsigned m bf 0=Some(Vint(if flight then Int.one else Int.zero)) ->
+ Mem.load Mint8unsigned m bp 44=Some(Vint Int.zero) ->
+ Mem.load Mint32 m bp 0=Some(Vint kp) ->
+ Mem.load Mint32 m bp 4=Some(Vint kd) ->
+ Mem.load Mint32 m bp 8=Some(Vint ki) ->
+ Mem.load Mint32 m bp 12=Some(Vint kv) ->
+ Mem.load Mint32 m bp 16=Some(Vint ka) ->
+ Mem.load Mint32 m be 0=Some(Vint pex) ->
+ Mem.load Mint32 m be 4=Some(Vint pey) ->
+ Mem.load Mint32 m bs 0=Some(Vint sex) ->
+ Mem.load Mint32 m bs 4=Some(Vint sey) ->
+ Mem.load Mint32 m gh 52=Some(Vint rsx) ->
+ Mem.load Mint32 m gh 56=Some(Vint rsy) ->
+ Mem.load Mint32 m gh 60=Some(Vint rax) ->
+ Mem.load Mint32 m gh 64=Some(Vint ray) ->
+ Mem.load Mint32 m bi 0=Some(Vint ix) ->
+ Mem.load Mint32 m bi 4=Some(Vint iy) ->
+ Mem.load Mint32 m bt 0=Some(Vint traj) ->
+ Mem.load Mint32 m bu 0=Some(Vint total) ->
+ Mem.valid_access m Mint32 bx 0 Writable ->
+ Mem.valid_access m Mint32 bpy 0 Writable ->
+ Mem.valid_access m Mint32 bi 0 Writable ->
+ Mem.valid_access m Mint32 bi 4 Writable ->
+ Mem.valid_access
+DEFS core/FlightSemantics.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp.
+Import ListNotations.
+Open Scope Z_scope.
+Definition flight_statement:=top_statement 5(fn_body S.f_guidance_pid_h_run).
+Definition next_integral(flight:bool)(i ki pd maximum:int):int:=
+ if flight then clip_bits(Int.add i(Int.mul ki pd))(Int.shl maximum(Int.repr 16))else Int.zero.
+Definition next_command(flight:bool)(c ni:int):int:=if flight then Int.add c(Int.shr ni(Int.repr 16))else c.
+Definition flight_updates(f:bool)(bi bp:block)(pdx pdy ki ix iy cx cy maximum:int):list scalar_update:=
+ if f then [(Mint32,bi,0,Vint(Int.add ix(Int.mul ki pdx)));
+ (Mint32,bi,4,Vint(Int.add iy(Int.mul ki pdy)));
+ (Mint32,bi,0,Vint(next_integral true ix ki pdx maximum));
+ (Mint32,bi,4,Vint(next_integral true iy ki pdy maximum));
+ (Mint32,bp,32,Vint(next_command true cx(next_integral true ix ki pdx maximum)));
+ (Mint32,bp,36,Vint(next_command true cy(next_integral true iy ki pdy maximum)))]
+ else [(Mint32,bi,0,Vint Int.zero);(Mint32,bi,4,Vint Int.zero)].
+Ltac raw_scalar_load := lazymatch goal with|-Mem.loadv ?c ?mm(Vptr ?bb ?oo)=Some ?vv=>
+ let ox:=eval vm_compute in(Ptrofs.unsigned oo)in change(Mem.load c mm bb ox=Some vv);scalar_frame;first[eassumption|reflexivity]end.
+Ltac flight_add EX EY NP SP NI SI NM SM STORE:=
+ eapply atomic_assignop;
+ [core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|
+  core_rv EX EY I NP I I SP I I NI SI NM SM|reflexivity|
+  eapply deref_loc_value;[reflexivity|reflexivity|raw_scalar_load]|
+  reflexivity|reflexivity|
+  eapply assign_loc_value;[reflexivity|reflexivity|exact STORE]|reflexivity].
+Ltac flight_clamp EX EY NP SP NI SI NM SM STORE:=
+ eapply atomic_assign_expression;
+ [core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|
+  eapply int32_clamp_expression;[reflexivity|reflexivity|reflexivity|reflexivity|
+    core_rv EX EY I NP I I SP I I NI SI NM SM|core_rv EX EY I NP I I SP I I NI SI NM SM]|
+  reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact STORE]|reflexivity].
+Theorem original_flight_integrator_normal:forall e m bx bpy bp bi bm bf(flight:bool)pdx pdy ki ix iy cx cy maximum,
+ e!S._pd_x=Some(bx,tint) ->e!S._pd_y=Some(bpy,tint) ->e!S._in_flight=Some(bf,tbool) ->
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!S._guidance_pid_trim_att_integrator=None ->Genv.find_symbol ge S._guidance_pid_trim_att_integrator=Some bi ->
+ e!S._traj_max_bank=None ->Genv.find_symbol ge S._traj_max_bank=Some bm ->
+ NoDup[bx;bpy;bp;bi;bm;bf] ->
+ Mem.load Mint8unsigned m bf 0=Some(Vint(if flight then Int.one else Int.zero)) ->
+ Mem.load Mint32 m bx 0=Some(Vint pdx) ->Mem.load Mint32 m bpy 0=Some(Vint pdy) ->
+ Mem.load Mint32 m bp 8=Some(Vint ki) ->
+ Mem.load Mint32 m bi 0=Some(Vint ix) ->Mem.load Mint32 m bi 4=Some(Vint iy) ->
+ Mem.load Mint32 m bp 32=Some(Vint cx) ->Mem.load Mint32 m bp 36=Some(Vint cy) ->
+ Mem.load Mint32 m bm 0=Some(Vint maximum) ->
+ Mem.valid_access m Mint32 bi 0 Writable ->Mem.valid_access m Mint32 bi 4 Writable ->
+ Mem.valid_access m Mint32 bp 32 Writable ->Mem.valid_access m Mint32 bp 36 Writable ->
+ exists mf,exec_stmt ge e m flight_statement E0 mf Out_normal /\
+ Mem.load Mint32 mf bi 0=Some(Vint(next_integral flight ix ki pdx maximum)) /\
+ Mem.load Mint32 mf bi 4=Some(Vint(next_integral flight iy ki pdy maximum)) /\
+ Mem.load Mint32 mf bp 32=Some(Vint(next_command flight cx(next_integral flight ix ki pdx maximum))) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(next_command flight cy(next_integral flight iy ki pdy maximum))) /\
+ raw_writes(fun b=>b=bi\/b=bp)m mf /\replay_stores m(flight_updates flight bi bp pdx pdy ki ix iy cx cy maximum)=Some mf.
+Proof.
+ intros e m bx bpy bp bi bm bf flight pdx pdy ki ix iy cx cy maximum EX EY EF NP SP NI SI NM SM SEP LF LPX LPY LKI LIX LIY LCX LCY LM AIX AIY ACX ACY.
+ assert(DIST:bx<>bpy /\ bx<>bp /\ bx<>bi /\ bx<>bm /\ bx<>bf /\ bpy<>bp /\ bpy<>bi /\ bpy<>bm /\ bpy<>bf /\ bp<>bi /\ bp<>bm /\ bp<>bf /\ bi<>bm /\ bi<>bf /\ bm<>bf).
+ {repeat rewrite NoDup_cons_iff in SEP;simpl in SEP;intuition congruence. }
+ destruct DIST as(D0&D1&D2&D3&D4&D5&D6&D7&D8&D9&D10&D11&D12&D13&D14).
+ assert(FL:eval_simple_rvalue ge e m(Evalof(Evar S._in_flight tbool)tbool)(Vint(if flight then Int.one else Int.zero))).
+ { eapply read_scalar with(chunk:=Mbool)(b:=bf)(ofs:=Ptrofs.zero);
+   [apply esl_var_local;exact EF|reflexivity|reflexivity|reflexivity|chang
+DEFS NormalReturn.v
+Definition entry_axis_command m gh(D:core_initial_data m gh)(flight:bool)(r p s v acc i:int):int:=
+ controller_command flight(cid_kp _ _ D)(cid_kd _ _ D)(cid_ki _ _ D)(cid_kv _ _ D)(cid_ka _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608))s acc i(Int.repr 1429)(Int.repr 3216).
+Definition entry_axis_integral m gh(D:core_initial_data m gh)(flight:bool)(r p s v i:int):int:=
+ next_integral flight i(cid_ki _ _ D)
+ (pd_bits(cid_kp _ _ D)(cid_kd _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608)))(Int.repr 1429).
+
+Theorem original_entry_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D fligh

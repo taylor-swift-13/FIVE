@@ -1,0 +1,191 @@
+shared/compcert_libc/Library.v
+shared/verification/Obligations.v
+shared/pure_semantics/SemanticsSupport.v
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"
+paparazzi/models/init_first_order_low_pass/rocq/support/Contract.v
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FiveSum2 Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_sum2)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveSum2 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum2Proof Require Import SourceInvariant.
+From FiveSum2Proof.support Require Import NormalCorrespondence.
+Import ListNotations.
+
+Ltac option_cases E :=
+ repeat match type of E with
+ | context [match ?x with _ => _ end] =>
+   let EQ := fresh "EQ" in destruct x eqn:EQ; try discriminate
+ end.
+
+Lemma pure_eval_big : forall a ge e m,
+ simple a=true ->
+ (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+ (forall b ofs bf, pure_lval ge e m a=Some(b,ofs,bf) -> eval_simple_lvalue ge e m a b ofs bf).
+Proof.
+ induction a; intros ge e m SIMPLE; simpl in SIMPLE; core_unpack; try discriminate;
+ repeat match goal with
+ | IH: forall ge e m, simple ?a=true -> _ /\ _ |- _ =>
+   let R:=fresh "RV" in let L:=fresh "LV" in
+   pose proof (IH ge e m ltac:(assumption)) as [R L]; clear IH
+ end;
+ split; intros; cbn [pure_rval pure_lval] in H; try discriminate.
+ - inversion H; subst; constructor.
+ - option_cases H; inversion H; subst; eauto using esl_var_local, esl_var_global.
+ - option_cases H; inversion H; subst; eauto using esl_field_struct, esl_field_union.
+ - option_cases H; inversion H; subst.
+   match goal with D: do_deref_loc _ _ _ _ _ _ _ = Some _ |- _ =>
+    destruct (do_deref_loc_sound _ _ _ _ _ _ _ _ _ _ D) as [DR PT]
+   end.
+   assert (SIL: t = E0) by (eapply deref_loc_silent; eauto; unfold nv; congruence).
+   subst t. econstructor; eauto; try (symmetry; assumption).
+   apply negb_true_iff; assumption.
+ - option_cases H; inversion H; subst; eauto using esl_deref.
+ - option_cases H; inversion H; subst; eauto using esr_addrof.
+ - option_cases H; eauto using esr_unop.
+ - option_cases H; eauto using esr_binop.
+ - option_cases H; eauto using esr_cast.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+Qed.
+
+Definition literal (k:kind) (a:expr) : bool :=
+ match k,a with RV,Eval _ _ | LV,Eloc _ _ _ _=>true | _,_=>false end.
+
+Lemma lift_immediate : forall ge e m from to C a,
+ context from to C -> literal from a=false -> imm_safe ge e from a m ->
+ imm_safe ge e to (C a) m.
+Proof.
+ intros ge e m from to C a CT NL IS; inversion IS; subst; try discriminate.
+ - eapply imm_safe_lred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+ - eapply imm_safe_rred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+ - eapply imm_safe_callred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+Qed.
+
+Lemma literal_r_inv : forall a, literal RV a=true -> exists v ty,a=Eval v ty.
+Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+Lemma literal_l_inv : forall a, literal LV a=true -> exists b ofs bf ty,a=Eloc b ofs bf ty.
+Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+
+Ltac invert_literal_eval :=
+ repeat match goal with
+ | H:eval_simple_rvalue _ _ _ (Eval _ _) _ |- _ => inversion H; subst; clear H
+ | H:eval_simple_lvalue _ _ _ (Eloc _ _ _ _) _ _ _ |- _ => inversion H; subst; clear H
+ end.
+Lemma big_immediate : forall ge e m,
+ (forall a v,eval_simple_rvalue ge e m a v -> imm_safe ge e RV a m) /\
+ (forall a b ofs bf,eval_simple_lvalue ge e m a b ofs bf -> imm_safe ge e LV a m).
+Proof.
+ intros ge e m; apply eval_simple_rvalue_lvalue_ind; intros.
+ - constructor.
+ - destruct (literal LV l) eqn:LIT.
+   + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     eapply red_rvalof; eauto.
+   + eapply lift_immediate with (from:=LV) (C:=fun x=>Evalof x ty); eauto.
+     constructor; constructor.
+ - destruct (literal LV l) eqn:LIT.
+   + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     constructor.
+   + eapply lift_immediate with (from:=LV) (C:=fun x=>Eaddrof x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     econstructor; eassumption.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Eunop op x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:L1.
+   + destruct (literal_r_inv _ L1) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+     destruct (literal RV r2) eqn:L2.
+     * destruct (literal_r_inv _ L2) as [vr2[tr2 LITERAL_EQ2]]; subst r2. invert_literal_eval; cbn [typeof] in *; subst.
+       eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+     * eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op _ x ty); eauto.
+       constructor; constructor.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op x r2 ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ecast x ty); eauto.
+     constructor; constructor.
+ - eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. constructor.
+ - eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. constructor.
+ - constructor.
+ - eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+ - eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_var_global; eauto.
+ - destruct (literal RV r) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. constructor.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ederef x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_field_struct; eauto.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Efield x f ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_field_union; eauto.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Efield x f ty); eauto.
+     constructor; constructor.
+Qed.
+
+Definition big_defined (ge:genv) (e:env) (m:mem) (k:kind) (a:expr) : Prop :=
+ match k with
+ | RV=>exists v,eval_simple_rvalue ge e m a v
+ | LV=>exists b ofs bf,eval_simple_lvalue ge e m a b ofs bf end.
+
+Lemma big_context_hole : forall from to C,
+ context from to C -> forall a ge e m,
+ simple(C a)=true -> big_defined ge e m to (C a) -> big_defined ge e m from a.
+Proof.
+ induction 1; intros a0 ge e m SIMPLE BIG; simpl in SIMPLE; core_unpack; try discriminate; auto;
+ unfold big_defined in BIG; repeat match goal with B:exists _,_ |- _=>destruct B end;
+ match goal with
+ | B:eval_simple_rvalue _ _ _ _ _ |- _=>inversion B; subst
+ | B:eval_simple_lvalue _ _ _ _ _ _ _ |- _=>inversion B; subst
+ end;
+ eapply IHcontext; eauto; unfold big_defined; eauto.
+Qed.
+
+Lemma pure_not_stuck : forall ge e m a v,
+ simple a=true -> pure_rval ge e m a=Some v -> Csem.not_stuck ge e a m.
+Proof.
+ intros ge e m a v S EV k C sub CT EQ; subst a.
+ pose proof (proj1 (pure_eval_big _ ge e m S) _ EV) as BIG.
+ destruct k.
+ - destruct (big_context_hole _ _ _ CT sub ge e m S ltac:(unfold big_defined; eauto))
+   as [b[ofs[bf L]]]. exact (proj2(big_immediate ge e m) _ _ _ _ L).
+ - destruct (big_context_hole _ _ _ CT sub ge e m S ltac:(unfold big_defined; eauto))
+   as [w R]. exact (proj1(big_immediate ge e m) _ _ R).
+Qed.
+
+Lemma simple_immediate : forall ge e m a,

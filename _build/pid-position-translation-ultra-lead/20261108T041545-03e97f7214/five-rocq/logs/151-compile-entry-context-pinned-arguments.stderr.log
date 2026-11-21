@@ -1,0 +1,134 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/EntryIntegration.v", line 111, characters 33-40:
+Error:
+In environment
+m : mem
+gh, ret : block
+flight : bool
+GOOD : InputGood m gh ret
+e : env
+ma, mb : mem
+br, bf, bg, bs : block
+AL : alloc_variables ge empty_env m entry_declarations e ma
+BIND :
+  bind_parameters ge e ma
+    (fn_params EntryAllocation.S.f_guidance_pid_h_run_pos)
+    (call_args gh ret flight) mb
+LR : e ! EntryAllocation.S.__res = Some (br, tptr sp_type)
+LF : e ! EntryAllocation.S._in_flight = Some (bf, tbool)
+LG : e ! EntryAllocation.S._gh = Some (bg, tptr gh_type)
+LS : e ! EntryAllocation.S.__res__1 = Some (bs, sp_type)
+SEP : env_separated e
+FRESH :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) -> ~ Mem.valid_block m b
+FREE :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) -> Mem.range_perm mb b 0 (sizeof ge ty) Cur Freeable
+RPTR : Mem.load Mint64 mb br 0 = Some (Vptr ret Ptrofs.zero)
+GPTR : Mem.load Mint64 mb bg 0 = Some (Vptr gh Ptrofs.zero)
+FVAL :
+  Mem.load Mbool mb bf 0 = Some (Vint (if flight then Int.one else Int.zero))
+OLDLOAD :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (v : val),
+  Mem.load ch m b ofs = Some v -> Mem.load ch mb b ofs = Some v
+OLDPERM :
+  forall (b : block) (ofs : Z) (k : perm_kind) (p : permission),
+  Mem.perm m b ofs k p -> Mem.perm mb b ofs k p
+OLDBYTES :
+  forall (b : block) (ofs n : Z),
+  Mem.valid_block m b ->
+  0 <= n -> Mem.loadbytes mb b ofs n = Mem.loadbytes m b ofs n
+WR : writable_controller_globals m
+pb : block
+pgv : globvar type
+SP : Genv.find_symbol Spec.Execution.ge S._guidance_pid_pos_err = Some pb
+PV : Genv.find_var_info Spec.Execution.ge pb = Some pgv
+PWRITE : Mem.range_perm m pb 0 (sizeof ce (gvar_info pgv)) Cur Writable
+vb : block
+vgv : globvar type
+SV : Genv.find_symbol Spec.Execution.ge S._guidance_pid_speed_err = Some vb
+VV : Genv.find_var_info Spec.Execution.ge vb = Some vgv
+VWRITE : Mem.range_perm m vb 0 (sizeof ce (gvar_info vgv)) Cur Writable
+sb : block
+STATE :
+  Genv.find_symbol InputSemantics.E.ge InputSemantics.S._state = Some sb
+flags, sflags : int
+POSC : Mem.load Mint16unsigned m sb 2 = Some (Vint flags)
+SPDC : Mem.load Mint16unsigned m sb 280 = Some (Vint sflags)
+VALID : Int.and flags (Int.repr 2) = Int.repr 2
+SVALID : Int.and sflags (Int.repr 2) = Int.repr 2
+rx, ry, px, py : int
+RX :
+  load_path Mint32 m gh gh_type
+    [InputSemantics.S._ref; InputSemantics.S._pos; InputSemantics.S._x] =
+  Some (Vint rx)
+RY :
+  load_path Mint32 m gh gh_type
+    [InputSemantics.S._ref; InputSemantics.S._pos; InputSemantics.S._y] =
+  Some (Vint ry)
+PX : Mem.load Mint32 m sb 100 = Some (Vint px)
+PY : Mem.load Mint32 m sb 104 = Some (Vint py)
+sx, sy, vx, vy : int
+SX :
+  load_path Mint32 m gh gh_type
+    [InputSemantics.S._ref; InputSemantics.S._speed; InputSemantics.S._x] =
+  Some (Vint sx)
+SY :
+  load_path Mint32 m gh gh_type
+    [InputSemantics.S._ref; InputSemantics.S._speed; InputSemantics.S._y] =
+  Some (Vint sy)
+VX : Mem.load Mint32 m sb 296 = Some (Vint vx)
+VY : Mem.load Mint32 m sb 300 = Some (Vint vy)
+WP : Mem.range_perm m pb 0 8 Cur Writable
+WV : Mem.range_perm m vb 0 8 Cur Writable
+VPB : Mem.valid_block m pb
+VVB : Mem.valid_block m vb
+VSB : Mem.valid_block m sb
+VGH : Mem.valid_block m gh
+NBG : ~ Mem.valid_block m bg
+DPGH : gh <> pb
+DVGH : gh <> vb
+DSGH : gh <> sb
+DPV : pb <> vb
+DPS : pb <> sb
+DVS : vb <> sb
+ND : NoDup [bg; gh; pb; vb; sb]
+UNSH :
+  forall id : ident, ~ In id (map fst entry_declarations) -> e ! id = None
+LP : e ! S._guidance_pid_pos_err = None
+LV : e ! S._guidance_pid_speed_err = None
+GP : e ! S._stateGetPositionNed_i = None
+GV : e ! S._stateGetSpeedNed_i = None
+RXB : load_path Mint32 mb gh gh_type [S._ref; S._pos; S._x] = Some (Vint rx)
+RYB : load_path Mint32 mb gh gh_type [S._ref; S._pos; S._y] = Some (Vint ry)
+SXB :
+  load_path Mint32 mb gh gh_type [S._ref; S._speed; S._x] = Some (Vint sx)
+SYB :
+  load_path Mint32 mb gh gh_type [S._ref; S._speed; S._y] = Some (Vint sy)
+Unable to unify
+ "match (Mem.mem_access mb) !! ?b ?ofs ?k with
+  | Some p' => perm_order p' ?p
+  | None => False
+  end"
+with "forall ofs : Z, 0 <= ofs < 8 -> Mem.perm mb pb ofs Cur Writable".
+

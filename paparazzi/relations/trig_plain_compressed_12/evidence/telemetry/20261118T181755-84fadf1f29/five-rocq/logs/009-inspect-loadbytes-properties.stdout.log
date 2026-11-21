@@ -1,0 +1,119 @@
+759:Theorem loadbytes_range_perm:
+768:Theorem loadbytes_load:
+781:Theorem load_loadbytes:
+800:Theorem loadbytes_length:
+810:Theorem loadbytes_empty:
+829:Theorem loadbytes_concat:
+847:Theorem loadbytes_split:
+1106:Theorem loadbytes_store_same:
+1119:Theorem loadbytes_store_other:
+1508:Theorem loadbytes_storebytes_same:
+1520:Theorem loadbytes_storebytes_disjoint:
+1538:Theorem loadbytes_storebytes_other:
+1550:Theorem load_storebytes_other:
+1835:Theorem loadbytes_alloc_unchanged:
+1850:Theorem loadbytes_alloc_same:
+2039:Theorem loadbytes_free:
+2054:Theorem loadbytes_free_2:
+2195:Theorem loadbytes_drop:
+2326:Lemma loadbytes_inj:
+2880:Theorem loadbytes_extends:
+3514:Theorem loadbytes_inject:
+4431:Lemma loadbytes_unchanged_on_1:
+4451:Lemma loadbytes_unchanged_on:
+  forall m b ofs len bytes,
+  loadbytes m b ofs len = Some bytes ->
+  range_perm m b ofs (ofs + len) Cur Readable.
+Proof.
+  intros until bytes. unfold loadbytes.
+  destruct (range_perm_dec m b ofs (ofs + len) Cur Readable). auto. congruence.
+Qed.
+
+Theorem loadbytes_load:
+  forall chunk m b ofs bytes,
+  loadbytes m b ofs (size_chunk chunk) = Some bytes ->
+  (align_chunk chunk | ofs) ->
+  load chunk m b ofs = Some(decode_val chunk bytes).
+Proof.
+  unfold loadbytes, load; intros.
+  destruct (range_perm_dec m b ofs (ofs + size_chunk chunk) Cur Readable);
+  try congruence.
+  inv H. rewrite pred_dec_true. auto.
+  split; auto.
+Qed.
+
+Theorem load_loadbytes:
+  forall chunk m b ofs v,
+  load chunk m b ofs = Some v ->
+  exists bytes, loadbytes m b ofs (size_chunk chunk) = Some bytes
+             /\ v = decode_val chunk bytes.
+Proof.
+  intros. exploit load_valid_access; eauto. intros [A B].
+  exploit load_result; eauto. intros.
+  exists (getN (size_chunk_nat chunk) ofs m.(mem_contents)#b); split.
+  unfold loadbytes. rewrite pred_dec_true; auto.
+  auto.
+Qed.
+
+Lemma getN_length:
+  forall c n p, length (getN n p c) = n.
+Proof.
+  induction n; simpl; intros. auto. decEq; auto.
+Qed.
+
+Theorem loadbytes_length:
+  forall m b ofs n bytes,
+  loadbytes m b ofs n = Some bytes ->
+  length bytes = Z.to_nat n.
+Proof.
+  unfold loadbytes; intros.
+  destruct (range_perm_dec m b ofs (ofs + n) Cur Readable); try congruence.
+  inv H. apply getN_length.
+Qed.
+
+Theorem loadbytes_empty:
+  forall m b ofs n,
+  n <= 0 -> loadbytes m b ofs n = Some nil.
+Proof.
+  intros. unfold loadbytes. rewrite pred_dec_true. rewrite Z_to_nat_neg; auto.
+  red; intros. extlia.
+Qed.
+
+Lemma getN_concat:
+  forall c n1 n2 p,
+  getN (n1 + n2)%nat p c = getN n1 p c ++ getN n2 (p + Z.of_nat n1) c.
+Proof.
+  induction n1; intros.
+  simpl. decEq. lia.
+  rewrite Nat2Z.inj_succ. simpl. decEq.
+  replace (p + Z.succ (Z.of_nat n1)) with ((p + 1) + Z.of_nat n1) by lia.
+  auto.
+Qed.
+
+Theorem loadbytes_concat:
+  forall m b ofs n1 n2 bytes1 bytes2,
+  loadbytes m b ofs n1 = Some bytes1 ->
+  loadbytes m b (ofs + n1) n2 = Some bytes2 ->
+  n1 >= 0 -> n2 >= 0 ->
+  loadbytes m b ofs (n1 + n2) = Some(bytes1 ++ bytes2).
+Proof.
+  unfold loadbytes; intros.
+  destruct (range_perm_dec m b ofs (ofs + n1) Cur Readable); try congruence.
+  destruct (range_perm_dec m b (ofs + n1) (ofs + n1 + n2) Cur Readable); try congruence.
+  rewrite pred_dec_true. rewrite Z2Nat.inj_add by lia.
+  rewrite getN_concat. rewrite Z2Nat.id by lia.
+  congruence.
+  red; intros.
+  assert (ofs0 < ofs + n1 \/ ofs0 >= ofs + n1) by lia.
+  destruct H4. apply r; lia. apply r0; lia.
+Qed.
+
+Theorem loadbytes_split:
+  forall m b ofs n1 n2 bytes,
+  loadbytes m b ofs (n1 + n2) = Some bytes ->
+  n1 >= 0 -> n2 >= 0 ->
+  exists bytes1, exists bytes2,
+     loadbytes m b ofs n1 = Some bytes1
+  /\ loadbytes m b (ofs + n1) n2 = Some bytes2
+  /\ bytes = bytes1 ++ bytes2.
+Proof.

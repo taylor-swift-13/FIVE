@@ -1,0 +1,154 @@
+Theorem original_two_position_assignments : forall e m bg gh pb sb rx ry px py flags,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ e!S._guidance_pid_pos_err=None ->
+ e!S._stateGetPositionNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ bg<>pb -> gh<>pb ->sb<>pb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) ->
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) ->
+ Mem.load Mint32 m sb 100=Some(Vint px) ->
+ Mem.load Mint32 m sb 104=Some(Vint py) ->
+ Mem.load Mint16unsigned m sb 2=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Mem.range_perm m pb 0 8 Cur Writable ->
+ exists mf,
+ Cstrategy.exec_stmt E.ge e m
+ (Ssequence(original_position_assignment S._x)(original_position_assignment S._y))E0 mf Out_normal /\
+ Mem.load Mint32 mf pb 0=Some(Vint(Int.sub rx px)) /\
+ Mem.load Mint32 mf pb 4=Some(Vint(Int.sub ry py)) /\
+ raw_writes(fun b=>b=pb)m mf.
+Proof.
+ intros e m bg gh pb sb rx ry px py flags ENV LOCAL GET SYM STATE DBG DGH DS PTR RX RY PX PY CACHE VALID WRITE.
+ assert(A0:Mem.valid_access m Mint32 pb 0 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WRITE;try change(4|0);try(exists 0;reflexivity);cbn;lia. }
+ destruct(Mem.valid_access_store m Mint32 pb 0(Vint(Int.sub rx px))A0)as[m1 ST0].
+ assert(A4:Mem.valid_access m1 Mint32 pb 4 Writable).
+ { eapply Mem.store_valid_access_1;[exact ST0|].
+   apply scalar_access_inside with(n:=8);try exact WRITE;try change(4|4);try(exists 1;reflexivity);cbn;lia. }
+ destruct(Mem.valid_access_store m1 Mint32 pb 4(Vint(Int.sub ry py))A4)as[mf ST4].
+ exists mf;split.
+ - eapply sequence_normal with(ma:=m1).
+   + eapply original_position_assignment_exec with(ra:=rx)(pa:=px)(sb:=sb)(delta:=100).
+     * apply position_error_x_lvalue;[exact LOCAL|exact SYM].
+     * eapply reference_x_read;eassumption.
+     * eapply actual_cached_position_call;eassumption.
+     * apply cached_measured_x_read;exact PX.
+     * change(Mem.store Mint32 m pb 0(Vint(Int.sub rx px))=Some m1);exact ST0.
+   + eapply original_position_assignment_exec with(ra:=ry)(pa:=py)(sb:=sb)(delta:=100).
+     * apply position_error_y_lvalue;[exact LOCAL|exact SYM].
+     * eapply reference_y_read;[exact ENV| |].
+       -- erewrite Mem.load_store_other;[exact PTR|exact ST0|left;exact DBG].
+       -- change(Mem.load Mint32 m1 gh 48=Some(Vint ry)).
+          erewrite Mem.load_store_other;[exact RY|exact ST0|left;exact DGH].
+     * eapply actual_cached_position_call;try eassumption.
+       erewrite Mem.load_store_other;[exact CACHE|exact ST0|left;exact DS].
+     * apply cached_measured_y_read.
+       erewrite Mem.load_store_other;[exact PY|exact ST0|left;exact DS].
+     * change(Mem.store Mint32 m1 pb 4(Vint(Int.sub ry py))=Some mf);exact ST4.
+ - split.
+   + rewrite(Mem.load_store_other Mint32 m1 pb 4(Vint(Int.sub ry py))mf ST4 Mint32 pb 0)
+      by(right;left;cbn;lia).
+     rewrite(Mem.load_store_same Mint32 m pb 0(Vint(Int.sub rx px))m1 ST0);reflexivity.
+   + split.
+     * rewrite(Mem.load_store_same Mint32 m1 pb 4(Vint(Int.sub ry py))mf ST4);reflexivity.
+     * eapply raw_writes_store;[reflexivity|exact ST0|].
+       eapply raw_writes_store;[reflexivity|exact ST4|constructor].
+Qed.
+Print Assumptions original_two_position_assignments.
+
+Theorem original_core_return_tail:forall e m br temp bp bh bf ret h heading x y,
+ e!S.__res=Some(br,tptr spty) ->e!S.__res__1=Some(temp,spty) ->
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!S._guidance_h=None ->Genv.find_symbol ge S._guidance_h=Some bh ->
+ e!S._stab_sp_from_ltp_i=None ->Genv.find_symbol ge S._stab_sp_from_ltp_i=Some bf ->
+ Genv.find_funct ge(Vptr bf Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i) ->
+ br<>temp ->temp<>ret ->
+ Mem.load Mint64 m br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mfloat32 m bh 28=Some(Vsingle h) ->
+ sem_cast(Vsingle(Float32.mul h(Float32.of_int(Int.repr 4096))))tfloat tint m=Some(Vint heading) ->
+ Mem.load Mint32 m bp 32=Some(Vint x) ->Mem.load Mint32 m bp 36=Some(Vint y) ->
+ Mem.range_perm m bp 32 40 Cur Readable ->
+ Mem.range_perm m temp 0 36 Cur Writable ->Mem.range_perm m ret 0 36 Cur Writable ->
+ exists mf,exec_stmt ge e m core_return_tail E0 mf(Out_return None) /\
+ active_fields mf ret x y heading /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>temp ->b<>ret ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs n,Mem.valid_block m b ->b<>temp ->b<>ret ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+Proof.
+ intros e m br temp bp bh bf ret h heading x y LR LC NP SP NH SH NF SF FF DRT DTR RES HEAD CAST LX LY RVS WT WR.
+ destruct(original_factory_funcall m bp temp(Ptrofs.repr 32)heading x y LX LY ltac:(change(4|32);exists 8;reflexivity)RVS WT)
+ as[mc[CALL[ACTIVE[KEEP[FRAME BFRAME]]]]].
+ assert(VBR:Mem.valid_block m br)by(eapply loaded_block;exact RES).
+ assert(RESC:Mem.load Mint64 mc br 0=Some(Vptr ret Ptrofs.zero))by(rewrite FRAME;auto).
+ assert(READTEMP:Mem.range_perm mc temp 0 36 Cur Readable).
+ { eapply access_preserved_byte_range;[exact KEEP|].
+   intros z ZR;eapply Mem.perm_implies;[apply WT;exact ZR|constructor]. }
+ destruct(Mem.range_perm_loadbytes mc temp 0 36 READTEMP)as[bytes BYTES].
+ assert(LEN:Z.of_nat(length bytes)=36).
+ { pose proof(Mem.loadbytes_length _ _ _ _ _ BYTES)as L;rewrite L;reflexivity. }
+ assert(WRMC:Mem.range_perm mc ret 0 36 Cur Writable)by(eapply access_preserved_byte_range;eauto).
+ destruct(Mem.range_perm_storebytes mc ret 0 bytes ltac:(rewrite LEN;exact WRMC))as[mf COPY].
+ assert(RF:eval_simple_rvalue ge e m factory_function_expr(Vptr bf Ptrofs.zero)).
+ { unfold factory_function_expr,factory_call_expr,return_rvalue,return_assignment,core_return_tail;
+   cbn[drop_statements S.f_guidance_pid_h_run fn_body];tail_rv LR LC NP SP NH SH NF SF. }
+ assert(ARGS:eval_simple_list ge e m factory_args_expr
+ [tptr spty;tptr vty;tint][Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]).
+ { unfold factory_args_expr,factory_call_expr,return_rvalue,return_assignment,core_return_tail;
+   cbn[drop_statements S.f_guidance_pid_h_run fn_body].
+   eapply esrl_cons;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|].
+   eapply esrl_cons;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|].
+   eapply esrl_cons with(v':=Vsingle(Float32.mul h(Float32.of_int(Int.repr 4096))));
+   [tail_rv LR LC NP SP NH SH NF SF|exact CAST|constructor]. }
+ assert(CALL_EXPR:eval_expr ge e m RV factory_call_expr E0 mc(Eval Vundef tvoid)).
+ { unfold factory_call_expr at 1.
+   eapply simple_call_expr with(vf:=Vptr bf Ptrofs.zero)(vargs:=[Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading])
+   (fd:=Internal S.f_stab_sp_from_ltp_i).
+   - exact RF.
+   - reflexivity.
+   - exact ARGS.
+   - reflexivity.
+   - reflexivity.
+   - exact FF.
+   - reflexivity.
+   - exact CALL. }
+ assert(RHS:eval_expr ge e m RV return_rvalue E0 mc factory_result_expr).
+ { unfold return_rvalue at 1;cbn[return_assignment core_return_tail drop_statements S.f_guidance_pid_h_run fn_body].
+   replace E0 with(E0**E0)by reflexivity;eapply eval_comma.
+   - exact CALL_EXPR.
+   - constructor.
+   - eapply(proj1(simple_eval_expr_refl ge e mc));[unfold factory_result_expr;cbn[return_rvalue return_assignment core_return_tail drop_statements S.f_guidance_pid_h_run fn_body];tail_rv LR LC NP SP NH SH NF SF|reflexivity].
+   - reflexivity. }
+ exists mf;split.
+ - unfold core_return_tail;cbn[drop_statements S.f_guidance_pid_h_run fn_body].
+   eapply sequence_normal;[|constructor].
+   eapply effectful_assign with(mr:=mc)(r':=factory_result_expr)(v:=Vptr temp Ptrofs.zero)(vc:=Vptr temp Ptrofs.zero).
+   + tail_lv LR LC NP SP NH SH NF SF.
+   + reflexivity.
+   + exact RHS.
+   + tail_lv LR LC NP SP NH SH NF SF.
+   + unfold factory_result_expr;cbn[return_rvalue return_assignment core_return_tail drop_statements S.f_guidance_pid_h_run fn_body];tail_rv LR LC NP SP NH SH NF SF.
+   + reflexivity.
+   + eapply assign_loc_copy with(bytes:=bytes);[reflexivity|rewrite ge_ce;change(4|0);exists 0;reflexivity|rewrite ge_ce;change(4|0);exists 0;reflexivity|left;exact DTR|rewrite ge_ce;exact BYTES|exact COPY].
+   + reflexivity.
+ - split.
+   + unfold active_fields in *;destruct ACTIVE as[L0[L4[L8[L12[L16[L24[L28 L32]]]]]]];repeat split.
+     * replace 0 with(0+0)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L0|lia|change(0+4<=36);lia|change(4|0+0);exists 0;reflexivity].
+     * replace 4 with(0+4)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L4|lia|change(4+4<=36);lia|change(4|0+4);exists 1;reflexivity].
+     * replace 8 with(0+8)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L8|lia|change(8+4<=36);lia|change(4|0+8);exists 2;reflexivity].
+     * replace 12 with(0+12)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L12|lia|change(12+4<=36);lia|change(4|0+12);exists 3;reflexivity].
+     * replace 16 with(0+16)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L16|lia|change(16+4<=36);lia|change(4|0+16);exists 4;reflexivity].
+     * replace 24 with(0+24)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L24|lia|change(24+4<=36);lia|change(4|0+24);exists 6;reflexivity].
+     * replace 28 with(0+28)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L28|lia|change(28+4<=36);lia|change(4|0+28);exists 7;reflexivity].
+     * replace 32 with(0+32)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L32|lia|change(32+4<=36);lia|change(4|0+32);exists 8;reflexivity].
+   + split.
+     * intros ch b ofs p VA;split.
+       -- intros z ZR;eapply Mem.perm_storebytes_1;[exact COPY|exact(proj1(KEEP _ _ _ _ VA)z ZR)].
+       -- exact(proj2 VA).
+     * split.
+       -- intros ch b ofs VB DT DR;erewrite Mem.load_storebytes_other by(exact COPY||(left;exact DR));apply FRAME;assumption.
+       -- intros b ofs n VB DT DR N;erewrite Mem.loadbytes_storebytes_other by(exact COPY||lia||(left;exact DR));apply BFRAME;assumption.
+Qed.
+Print Assumptions original_core_return_tail.
+

@@ -1,0 +1,43 @@
+2 goals
+  
+  ge : genv
+  f : function
+  k : cont
+  e : env
+  m : mem
+  t : trace
+  v : val
+  C : expr -> expr
+  op : binary_operation
+  l, r : expr
+  tyres : type
+  ES :
+    estep ge (ExprState f (C (Eassignop op l r tyres (typeof l))) k e m) t
+      Stuckstate
+  PV : pure_rval ge e m (C (Eassignop op l r tyres (typeof l))) = Some v
+  SA : simple (C (Eassignop op l r tyres (typeof l))) = true
+  b : block
+  ofs : ptrofs
+  bf : bitfield
+  v1, v2 : val
+  H4 : leftcontext RV RV C
+  H5 : eval_simple_lvalue ge e m l b ofs bf
+  H7 : deref_loc ge (typeof l) m b ofs bf t v1
+  H8 : eval_simple_rvalue ge e m r v2
+  H9 :
+    match sem_binary_operation ge op v1 (typeof l) v2 (typeof r) m with
+    | Some v3 =>
+        match sem_cast v3 tyres (typeof l) m with
+        | Some v4 =>
+            forall (t2 : trace) (m' : mem) (v' : val),
+            ~ assign_loc ge (typeof l) m b ofs bf v4 t2 m' v'
+        | None => True
+        end
+    | None => True
+    end
+  NS : not_stuck ge e (C (Eassignop op l r tyres (typeof l))) m
+  ============================
+  False
+
+goal 2 is:
+ False

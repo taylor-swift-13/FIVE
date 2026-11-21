@@ -1,0 +1,15 @@
+目标为固定原 Paparazzi float_rmat_vmult，CompCert 3.17 Csyntax/Csem/Cexec，x86-64 Linux、小端、binary32 RNE。前条件只要求三个不同的caller block、4字节对齐且不绕回的任意offset、36字节已初始化矩阵、12字节已初始化输入向量和12字节可写输出；所有float32含NaN、Inf和signed zero均允许。未裁剪原模型，未假定执行结果或后条件。
+
+证明原Csem所有可达状态无错误。真实参数分配/绑定、原fn_body三次Mem.store与cleanup已建立state_eval存在。
+
+prepared C: 468a207dd8dd04f0da2f5425a49e3a33db4c49eaeab003be650c883772284ab7
+Source.v: 99bc144d58c9748f268651fe9b855ce053cc0519e0e768decf0ce202b06a0a25
+Execution.v: ee850b847b24eb489348fc2150a2afbe6af2e779dc5ef88760a091c1c309573a
+spec: f974703d7fa0f3049bcc9aec72b43e336489356ff80729755f7740e3e8ba2817
+Proof.v: f93f0a1509cd403dc6dc0b1ea8550975fc44d1d5608fefe1fbd12d6b22f1f1a8
+
+实际模型/推理配置：gpt-6.1-sol / ultra；runtime回执 _build/quat-rotation-ultra/evidence-support/20261120T102250-f7ef88eee4/five-rocq/evidence/runtime-configuration.json。
+
+实编译精确依赖快照、GoalBinding类型实例、Print Assumptions及独立rocq check均成功。入口校验脚本 check.py；实际证据 evidence/goal-validation.json。Print Assumptions继承CompCert/Flocq既有Classical_Prop.classic、FunctionalExtensionality、ClassicalDedekindReals.sig_not_dec/sig_forall_dec、Events.external_functions_sem与inline_assembly_sem；本证明没有新增Axiom/Admitted，所选原函数不调用external/assembly。结论止于固定CompCert语义，不推断GCC/hardware等价。
+
+历史中断、失败和新收束运行成本全部由costs.json引用共享阶段；每个attempt未单独切分模型token，逐attempt分配为null。

@@ -1,0 +1,33 @@
+{
+  "schema": "five-verification-request/1",
+  "entry": "float_quat_vmult",
+  "implementation": "prepare/source/float_quat_vmult.c",
+  "authorization": "Complete three original functions and quat rotation path equality candidate1, allowing genuine refutation",
+  "model_domain": "all machine arguments and all CompCert memories, without proof-domain clipping",
+  "assumptions": [
+    "valid separately allocated disjoint source/destination objects",
+    "initialized finite components with abs(q_i)<=1 and abs(v_i)<=1024 for relation BMC"
+  ],
+  "properties": [
+    "automatic original-function bounds/pointer/undefined arithmetic guards",
+    "relation: all 12 destination bytes of direct quat path equal composed matrix path",
+    "frame outside destination retained"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert 3.17 x86-64 Archi/Floats recorded by manifest"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "Little-endian binary32 memval bytes; output 12 bytes or 36 for matrix; distinct block frame. No padding in retained structs."
+}

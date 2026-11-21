@@ -1,0 +1,134 @@
+Genv.init_mem_exists
+     : forall (F V : Type) (p : AST.program F V),
+       (forall (id : AST.ident) (v : AST.globvar V),
+        List.In (id, AST.Gvar v) (AST.prog_defs p) ->
+        Genv.init_data_list_aligned BinNums.Z0 (AST.gvar_init v) /\
+        (forall (i : AST.ident) (o : Integers.Ptrofs.int),
+         List.In (AST.Init_addrof i o) (AST.gvar_init v) ->
+         exists b : Values.block,
+           Genv.find_symbol (Genv.globalenv p) i = Some b)) ->
+       exists m : mem, Genv.init_mem p = Some m
+Genv.init_mem_characterization
+     : forall (F V : Type) (p : AST.program F V) (b : Values.block)
+         (gv : AST.globvar V) (m : mem),
+       Genv.find_var_info (Genv.globalenv p) b = Some gv ->
+       Genv.init_mem p = Some m ->
+       Mem.range_perm m b BinNums.Z0
+         (AST.init_data_list_size (AST.gvar_init gv)) Cur
+         (Genv.perm_globvar gv) /\
+       (forall (ofs : BinNums.Z) (k : perm_kind) (p0 : permission),
+        Mem.perm m b ofs k p0 ->
+        (BinInt.Z.le BinNums.Z0 ofs /\
+         BinInt.Z.lt ofs (AST.init_data_list_size (AST.gvar_init gv))) /\
+        perm_order (Genv.perm_globvar gv) p0) /\
+       (AST.gvar_volatile gv = false ->
+        Genv.load_store_init_data (Genv.globalenv p) m b BinNums.Z0
+          (AST.gvar_init gv)) /\
+       (AST.gvar_volatile gv = false ->
+        Mem.loadbytes m b BinNums.Z0
+          (AST.init_data_list_size (AST.gvar_init gv)) =
+        Some
+          (Genv.bytes_of_init_data_list (Genv.globalenv p) (AST.gvar_init gv)))
+Genv.initmem_inject:
+  forall [F V : Type] (p : AST.program F V) [m : mem],
+  Genv.init_mem p = Some m -> Mem.inject (Mem.flat_inj (Mem.nextblock m)) m m
+Genv.init_mem_characterization_gen:
+  forall [F V : Type] (p : AST.program F V) [m : mem],
+  Genv.init_mem p = Some m ->
+  Genv.globals_initialized (Genv.globalenv p) (Genv.globalenv p) m
+Genv.init_mem_genv_next:
+  forall [F V : Type] (p : AST.program F V) [m : mem],
+  Genv.init_mem p = Some m ->
+  Genv.genv_next (Genv.globalenv p) = Mem.nextblock m
+Genv.find_funct_ptr_not_fresh:
+  forall [F V : Type] (p : AST.program F V) (b : Values.block) 
+    [f : F] [m : mem],
+  Genv.init_mem p = Some m ->
+  Genv.find_funct_ptr (Genv.globalenv p) b = Some f -> Mem.valid_block m b
+Genv.find_symbol_not_fresh:
+  forall [F V : Type] (p : AST.program F V) (id : AST.ident)
+    [b : Values.block] [m : mem],
+  Genv.init_mem p = Some m ->
+  Genv.find_symbol (Genv.globalenv p) id = Some b -> Mem.valid_block m b
+Genv.find_var_info_not_fresh:
+  forall [F V : Type] (p : AST.program F V) (b : Values.block)
+    [gv : AST.globvar V] [m : mem],
+  Genv.init_mem p = Some m ->
+  Genv.find_var_info (Genv.globalenv p) b = Some gv -> Mem.valid_block m b
+Genv.find_def_not_fresh:
+  forall [F V : Type] (p : AST.program F V) (b : Values.block)
+    [g : AST.globdef F V] [m : mem],
+  Genv.init_mem p = Some m ->
+  Genv.find_def (Genv.globalenv p) b = Some g -> Mem.valid_block m b
+Genv.init_mem_match:
+  forall {C F1 V1 F2 V2 : Type} {LC : Linking.Linker C}
+    [match_fundef : C -> F1 -> F2 -> Prop] [match_varinfo : V1 -> V2 -> Prop]
+    [ctx : C] [p : AST.program F1 V1] [tp : AST.program F2 V2],
+  Linking.match_program_gen match_fundef match_varinfo ctx p tp ->
+  forall [m : mem], Genv.init_mem p = Some m -> Genv.init_mem tp = Some m
+Genv.init_mem_transf:
+  forall {A B V : Type} {LA : Linking.Linker A} {LV : Linking.Linker V}
+    {transf : A -> B} {p : AST.program A V} {tp : AST.program B V},
+  Linking.match_program
+    (fun (_ : AST.program A V) (f : A) (tf : B) => tf = transf f) eq p tp ->
+  forall [m : mem], Genv.init_mem p = Some m -> Genv.init_mem tp = Some m
+Genv.init_mem_transf_partial:
+  forall {A B V : Type} {LA : Linking.Linker A} {LV : Linking.Linker V}
+    {transf : A -> Errors.res B} {p : AST.program A V} 
+    {tp : AST.program B V},
+  Linking.match_program
+    (fun (_ : AST.program A V) (f : A) (tf : B) => transf f = Errors.OK tf)
+    eq p tp ->
+  forall [m : mem], Genv.init_mem p = Some m -> Genv.init_mem tp = Some m
+Genv.init_mem_characterization_2:
+  forall [F V : Type] (p : AST.program F V) (b : Values.block) 
+    [fd : F] [m : mem],
+  Genv.find_funct_ptr (Genv.globalenv p) b = Some fd ->
+  Genv.init_mem p = Some m ->
+  Mem.perm m b BinNums.Z0 Cur Nonempty /\
+  (forall (ofs : BinNums.Z) (k : perm_kind) (p0 : permission),
+   Mem.perm m b ofs k p0 -> ofs = BinNums.Z0 /\ p0 = Nonempty)
+Genv.init_mem_inversion:
+  forall [F V : Type] (p : AST.program F V) [m : mem] 
+    (id : AST.ident) (v : AST.globvar V),
+  Genv.init_mem p = Some m ->
+  List.In (id, AST.Gvar v) (AST.prog_defs p) ->
+  Genv.init_data_list_aligned BinNums.Z0 (AST.gvar_init v) /\
+  (forall (i : AST.ident) (o : Integers.Ptrofs.int),
+   List.In (AST.Init_addrof i o) (AST.gvar_init v) ->
+   exists b : Values.block, Genv.find_symbol (Genv.globalenv p) i = Some b)
+Genv.init_mem_exists:
+  forall [F V : Type] (p : AST.program F V),
+  (forall (id : AST.ident) (v : AST.globvar V),
+   List.In (id, AST.Gvar v) (AST.prog_defs p) ->
+   Genv.init_data_list_aligned BinNums.Z0 (AST.gvar_init v) /\
+   (forall (i : AST.ident) (o : Integers.Ptrofs.int),
+    List.In (AST.Init_addrof i o) (AST.gvar_init v) ->
+    exists b : Values.block, Genv.find_symbol (Genv.globalenv p) i = Some b)) ->
+  exists m : mem, Genv.init_mem p = Some m
+Genv.init_mem_characterization:
+  forall [F V : Type] (p : AST.program F V) (b : Values.block)
+    [gv : AST.globvar V] [m : mem],
+  Genv.find_var_info (Genv.globalenv p) b = Some gv ->
+  Genv.init_mem p = Some m ->
+  Mem.range_perm m b BinNums.Z0 (AST.init_data_list_size (AST.gvar_init gv))
+    Cur (Genv.perm_globvar gv) /\
+  (forall (ofs : BinNums.Z) (k : perm_kind) (p0 : permission),
+   Mem.perm m b ofs k p0 ->
+   (BinInt.Z.le BinNums.Z0 ofs /\
+    BinInt.Z.lt ofs (AST.init_data_list_size (AST.gvar_init gv))) /\
+   perm_order (Genv.perm_globvar gv) p0) /\
+  (AST.gvar_volatile gv = false ->
+   Genv.load_store_init_data (Genv.globalenv p) m b BinNums.Z0
+     (AST.gvar_init gv)) /\
+  (AST.gvar_volatile gv = false ->
+   Mem.loadbytes m b BinNums.Z0 (AST.init_data_list_size (AST.gvar_init gv)) =
+   Some (Genv.bytes_of_init_data_list (Genv.globalenv p) (AST.gvar_init gv)))
+(use "About" for full details on the implicit arguments of
+ Genv.init_mem_characterization_gen)
+Mem.loadbytes_store_same
+     : forall (chunk : AST.memory_chunk) (m1 : mem) 
+         (b : Values.block) (ofs : BinNums.Z) (v : Values.val) 
+         (m2 : mem),
+       Mem.store chunk m1 b ofs v = Some m2 ->
+       Mem.loadbytes m2 b ofs (size_chunk chunk) = Some (encode_val chunk v)

@@ -1,0 +1,165 @@
+103:  | esr_val: forall v ty,
+104-      eval_simple_rvalue (Eval v ty) v
+105-  | esr_rvalof: forall b ofs bf l ty v,
+106-      eval_simple_lvalue l b ofs bf ->
+107-      ty = typeof l -> type_is_volatile ty = false ->
+108-      deref_loc ge ty m b ofs bf E0 v ->
+109-      eval_simple_rvalue (Evalof l ty) v
+110-  | esr_addrof: forall b ofs l ty,
+111-      eval_simple_lvalue l b ofs Full ->
+112-      eval_simple_rvalue (Eaddrof l ty) (Vptr b ofs)
+113-  | esr_unop: forall op r1 ty v1 v,
+114-      eval_simple_rvalue r1 v1 ->
+115-      sem_unary_operation op v1 (typeof r1) m = Some v ->
+116-      eval_simple_rvalue (Eunop op r1 ty) v
+117-  | esr_binop: forall op r1 r2 ty v1 v2 v,
+118-      eval_simple_rvalue r1 v1 -> eval_simple_rvalue r2 v2 ->
+119-      sem_binary_operation ge op v1 (typeof r1) v2 (typeof r2) m = Some v ->
+120-      eval_simple_rvalue (Ebinop op r1 r2 ty) v
+121-  | esr_cast: forall ty r1 v1 v,
+122-      eval_simple_rvalue r1 v1 ->
+123-      sem_cast v1 (typeof r1) ty m = Some v ->
+124-      eval_simple_rvalue (Ecast r1 ty) v
+125-  | esr_sizeof: forall ty1 ty,
+126-      eval_simple_rvalue (Esizeof ty1 ty) (Vptrofs (Ptrofs.repr (sizeof ge ty1)))
+127-  | esr_alignof: forall ty1 ty,
+128-      eval_simple_rvalue (Ealignof ty1 ty) (Vptrofs (Ptrofs.repr (alignof ge ty1))).
+129-
+130-Inductive eval_simple_list: exprlist -> list type -> list val -> Prop :=
+131-  | esrl_nil:
+132-      eval_simple_list Enil nil nil
+133-  | esrl_cons: forall r rl ty tyl v vl v',
+134-      eval_simple_rvalue r v' -> sem_cast v' (typeof r) ty m = Some v ->
+135-      eval_simple_list rl tyl vl ->
+136-      eval_simple_list (Econs r rl) (ty :: tyl) (v :: vl).
+137-
+138-Scheme eval_simple_rvalue_ind2 := Minimality for eval_simple_rvalue Sort Prop
+139-  with eval_simple_lvalue_ind2 := Minimality for eval_simple_lvalue Sort Prop.
+140-Combined Scheme eval_simple_rvalue_lvalue_ind from eval_simple_rvalue_ind2, eval_simple_lvalue_ind2.
+141-
+142-End SIMPLE_EXPRS.
+143-
+144-(** Left reduction contexts. These contexts allow reducing to the right
+145-  of a binary operator only if the left subexpression is simple. *)
+146-
+147-Inductive leftcontext: kind -> kind -> (expr -> expr) -> Prop :=
+148-  | lctx_top: forall k,
+149-      leftcontext k k (fun x => x)
+150-  | lctx_deref: forall k C ty,
+151-      leftcontext k RV C -> leftcontext k LV (fun x => Ederef (C x) ty)
+152-  | lctx_field: forall k C f ty,
+153-      leftcontext k RV C -> leftcontext k LV (fun x => Efield (C x) f ty)
+154-  | lctx_rvalof: forall k C ty,
+155-      leftcontext k LV C -> leftcontext k RV (fun x => Evalof (C x) ty)
+156-  | lctx_addrof: forall k C ty,
+157-      leftcontext k LV C -> leftcontext k RV (fun x => Eaddrof (C x) ty)
+158-  | lctx_unop: forall k C op ty,
+159-      leftcontext k RV C -> leftcontext k RV (fun x => Eunop op (C x) ty)
+160-  | lctx_binop_left: forall k C op e2 ty,
+161-      leftcontext k RV C -> leftcontext k RV (fun x => Ebinop op (C x) e2 ty)
+162-  | lctx_binop_right: forall k C op e1 ty,
+163-      simple e1 = true -> leftcontext k RV C ->
+164-      leftcontext k RV (fun x => Ebinop op e1 (C x) ty)
+165-  | lctx_cast: forall k C ty,
+166-      leftcontext k RV C -> leftcontext k RV (fun x => Ecast (C x) ty)
+167-  | lctx_seqand: forall k C r2 ty,
+168-      leftcontext k RV C -> leftcontext k RV (fun x => Eseqand (C x) r2 ty)
+169-  | lctx_seqor: forall k C r2 ty,
+170-      leftcontext k RV C -> leftcontext k RV (fun x => Eseqor (C x) r2 ty)
+171-  | lctx_condition: forall k C r2 r3 ty,
+172-      leftcontext k RV C -> leftcontext k RV (fun x => Econdition (C x) r2 r3 ty)
+173-  | lctx_assign_left: forall k C e2 ty,
+174-      leftcontext k LV C -> leftcontext k RV (fun x => Eassign (C x) e2 ty)
+175-  | lctx_assign_right: forall k C e1 ty,
+176-      simple e1 = true -> leftcontext k RV C ->
+177-      leftcontext k RV (fun x => Eassign e1 (C x) ty)
+178-  | lctx_assignop_left: forall k C op e2 tyres ty,
+179-      leftcontext k LV C -> leftcontext k RV (fun x => Eassignop op (C x) e2 tyres ty)
+180-  | lctx_assignop_right: forall k C op e1 tyres ty,
+181-      simple e1 = true -> leftcontext k RV C ->
+182-      leftcontext k RV (fun x => Eassignop op e1 (C x) tyres ty)
+183-  | lctx_postincr: forall k C id ty,
+184-      leftcontext k LV C -> leftcontext k RV (fun x => Epostincr id (C x) ty)
+185-  | lctx_call_left: forall k C el ty,
+186-      leftcontext k RV C -> leftcontext k RV (fun x => Ecall (C x) el ty)
+187-  | lctx_call_right: forall k C e1 ty,
+188-      simple e1 = true -> leftcontextlist k C ->
+189-      leftcontext k RV (fun x => Ecall e1 (C x) ty)
+190-  | lctx_builtin: forall k C ef tyargs ty,
+191-      leftcontextlist k C ->
+192-      leftcontext k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+193-  | lctx_comma: forall k C e2 ty,
+194-      leftcontext k RV C -> leftcontext k RV (fun x => Ecomma (C x) e2 ty)
+195-  | lctx_paren: forall k C tycast ty,
+196-      leftcontext k RV C -> leftcontext k RV (fun x => Eparen (C x) tycast ty)
+197-
+198-with leftcontextlist: kind -> (expr -> exprlist) -> Prop :=
+199-  | lctx_list_head: forall k C el,
+200-      leftcontext k RV C -> leftcontextlist k (fun x => Econs (C x) el)
+201-  | lctx_list_tail: forall k C e1,
+202-      simple e1 = true -> leftcontextlist k C ->
+203-      leftcontextlist k (fun x => Econs e1 (C x)).
+204-
+205-Lemma leftcontext_context:
+206-  forall k1 k2 C, leftcontext k1 k2 C -> context k1 k2 C
+207-with leftcontextlist_contextlist:
+208-  forall k C, leftcontextlist k C -> contextlist k C.
+209-Proof.
+210-  induction 1; constructor; auto.
+211-  induction 1; constructor; auto.
+212-Qed.
+213-
+1793:  | exec_Sifthenelse: forall e m a s1 s2 t1 m1 v1 t2 m2 b out,
+1794-      eval_expression e m a t1 m1 v1 ->
+1795-      bool_val v1 (typeof a) m1 = Some b ->
+1796-      exec_stmt e m1 (if b then s1 else s2) t2 m2 out ->
+1797-      exec_stmt e m (Sifthenelse a s1 s2)
+1798-                (t1**t2) m2 out
+1799-  | exec_Sreturn_none:   forall e m,
+1800-      exec_stmt e m (Sreturn None)
+1801-               E0 m (Out_return None)
+1802-  | exec_Sreturn_some: forall e m a t m' v,
+1803-      eval_expression e m a t m' v ->
+1804-      exec_stmt e m (Sreturn (Some a))
+1805-                t m' (Out_return (Some(v, typeof a)))
+1806-  | exec_Sbreak:   forall e m,
+1807-      exec_stmt e m Sbreak
+1808-               E0 m Out_break
+1809-  | exec_Scontinue:   forall e m,
+1810-      exec_stmt e m Scontinue
+1811-               E0 m Out_continue
+1812-  | exec_Swhile_false: forall e m a s t m' v,
+1813-      eval_expression e m a t m' v ->
+1814-      bool_val v (typeof a) m' = Some false ->
+1815-      exec_stmt e m (Swhile a s)
+1816-                t m' Out_normal
+1817-  | exec_Swhile_stop: forall e m a s t1 m1 v t2 m2 out' out,
+1818-      eval_expression e m a t1 m1 v ->
+1819-      bool_val v (typeof a) m1 = Some true ->
+1820-      exec_stmt e m1 s t2 m2 out' ->
+1821-      out_break_or_return out' out ->
+1822-      exec_stmt e m (Swhile a s)
+1823-                (t1**t2) m2 out
+1824-  | exec_Swhile_loop: forall e m a s t1 m1 v t2 m2 out1 t3 m3 out,
+1825-      eval_expression e m a t1 m1 v ->
+1826-      bool_val v (typeof a) m1 = Some true ->
+1827-      exec_stmt e m1 s t2 m2 out1 ->
+1828-      out_normal_or_continue out1 ->
+1799:  | exec_Sreturn_none:   forall e m,
+1800-      exec_stmt e m (Sreturn None)
+1801-               E0 m (Out_return None)
+1802:  | exec_Sreturn_some: forall e m a t m' v,
+1803-      eval_expression e m a t m' v ->
+1804-      exec_stmt e m (Sreturn (Some a))
+1805-                t m' (Out_return (Some(v, typeof a)))
+1806-  | exec_Sbreak:   forall e m,
+1807-      exec_stmt e m Sbreak
+1808-               E0 m Out_break
+1809-  | exec_Scontinue:   forall e m,
+1810-      exec_stmt e m Scontinue
+1811-               E0 m Out_continue
+1812-  | exec_Swhile_false: forall e m a s t m' v,
+1813-      eval_expression e m a t m' v ->
+1814-      bool_val v (typeof a) m' = Some false ->
+1815-      exec_stmt e m (Swhile a s)
+1816-                t m' Out_normal

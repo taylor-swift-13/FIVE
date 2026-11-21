@@ -1,0 +1,62 @@
+1 goal
+  
+  q, v : list Z
+  QLEN : Datatypes.length q = 4%nat
+  VLEN : Datatypes.length v = 3%nat
+  m1 : Mem.mem'
+  bq : block
+  A1 : Mem.alloc base_memory 0 16 = (m1, bq)
+  m2 : Mem.mem'
+  bv : block
+  A2 : Mem.alloc m1 0 12 = (m2, bv)
+  m3 : Mem.mem'
+  ba : block
+  A3 : Mem.alloc m2 0 12 = (m3, ba)
+  m4 : Mem.mem'
+  br : block
+  A4 : Mem.alloc m3 0 36 = (m4, br)
+  m5 : Mem.mem'
+  bb : block
+  A5 : Mem.alloc m4 0 12 = (m5, bb)
+  m6 : Mem.mem'
+  bca : block
+  A6 : Mem.alloc m5 0 12 = (m6, bca)
+  m7 : Mem.mem'
+  bcb : block
+  A7 : Mem.alloc m6 0 12 = (m7, bcb)
+  B1 : bq = Mem.nextblock base_memory
+  N1 : Mem.nextblock m1 = Pos.succ bq
+  B2 : bv = Mem.nextblock m1
+  N2 : Mem.nextblock m2 = Pos.succ bv
+  S2 : bv = Pos.succ bq
+  B3 : ba = Mem.nextblock m2
+  N3 : Mem.nextblock m3 = Pos.succ ba
+  S3 : ba = Pos.succ bv
+  B4 : br = Mem.nextblock m3
+  N4 : Mem.nextblock m4 = Pos.succ br
+  S4 : br = Pos.succ ba
+  B5 : bb = Mem.nextblock m4
+  N5 : Mem.nextblock m5 = Pos.succ bb
+  S5 : bb = Pos.succ br
+  B6 : bca = Mem.nextblock m5
+  N6 : Mem.nextblock m6 = Pos.succ bca
+  S6 : bca = Pos.succ bb
+  B7 : bcb = Mem.nextblock m6
+  N7 : Mem.nextblock m7 = Pos.succ bcb
+  S7 : bcb = Pos.succ bca
+  NOD : NoDup [bq; bv; ba; br; bb; bca; bcb]
+  P1 : Mem.range_perm m7 bq 0 16 Cur Writable
+  P2 : Mem.range_perm m7 bv 0 12 Cur Writable
+  P3 : Mem.range_perm m7 ba 0 12 Cur Writable
+  P4 : Mem.range_perm m7 br 0 36 Cur Writable
+  P5 : Mem.range_perm m7 bb 0 12 Cur Writable
+  P6 : Mem.range_perm m7 bca 0 12 Cur Writable
+  P7 : Mem.range_perm m7 bcb 0 12 Cur Writable
+  m8 : mem
+  PUTQ : put m7 bq 0 q = Some m8
+  m9 : mem
+  PUTV : put m8 bv 0 v = Some m9
+  old : block
+  VB : Plt old (Pos.succ bcb)
+  ============================
+  (old <= bcb)%positive

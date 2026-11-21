@@ -1,0 +1,68 @@
+prepare passed {'semantics': 'CompCert Csem/Cexec', 'version': '3.17', 'arch': 'x86', 'model': '64', 'abi': 'standard', 'bitsize': 64, 'system': 'linux', 'endianness': 'little', 'float32': 'IEEE754 binary32', 'rounding': 'round-to-nearest-ties-to-even', 'nan_policy': 'CompCert Floats and target Archi definitions; hashes bind exact policy', 'trust_boundary': 'CompCert C semantics; no automatic GCC binary or hardware equivalence'}
+checked_output_hashes 5
+cbmc passed {'semantics': 'CompCert Csem/Cexec', 'version': '3.17', 'arch': 'x86', 'model': '64', 'abi': 'standard', 'bitsize': 64, 'system': 'linux', 'endianness': 'little', 'float32': 'IEEE754 binary32', 'rounding': 'round-to-nearest-ties-to-even', 'nan_policy': 'CompCert Floats and target Archi definitions; hashes bind exact policy', 'trust_boundary': 'CompCert C semantics; no automatic GCC binary or hardware equivalence'}
+checked_output_hashes 6
+align not yet installed
+FILE prepare/source/bindings.json 
+ {
+  "entry": "update_pid_df",
+  "signature": "float update_pid_df(struct PID_df *pid, float value)",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a",
+  "original_source": {
+    "path": "pid.h.upstream",
+    "sha256": "bbb610c5c24e667aaed0ba96682e0fdeb2c3f11e773b09da33d18a2df304ef1b"
+  },
+  "prepared_source": {
+    "path": "update_pid_df.c",
+    "sha256": "51b255ae42a19ab9d5b30366132bf46f5ff70e31903e6d93aae018cb5578829f"
+  },
+  "external_calls": [],
+  "dependencies": [],
+  "compilation_options": [],
+  "limitations": [],
+  "source_correspondence": "Original struct and update body exact pinned upstream textual slices; only static inline linkage qualifiers removed. No wrapper/body rewrite or numerical model restriction. Selected-entry extraction, not whole-firmware linkage equivalence.",
+  "initialization": "Histories initially Float32.zero and stored coefficients may follow original init expressions; no init_pid_df Csem execution claimed."
+}
+
+FILE cbmc/harness.c 
+ #include "../prepare/source/update_pid_df.c"
+#include <stdint.h>
+#include <string.h>
+extern float nondet_float(void);
+static uint32_t bits(float x) { uint32_t u; memcpy(&u,&x,4); return u; }
+void main(void) {
+ struct PID_df f={{nondet_float(),nondet_float()},
+                  {nondet_float(),nondet_float(),nondet_float()},
+                  {nondet_float(),nondet_float(),nondet_float()}};
+ struct PID_df old=f;
+ float input=nondet_float();
+ float result=update_pid_df(&f,input);
+ __CPROVER_assert(bits(result)==bits(f.u[0]),"return equals stored u0 exact bits");
+ __CPROVER_assert(bits(f.u[1])==bits(old.u[0]),"u1 shifts old u0 exact bits");
+ __CPROVER_assert(bits(f.e[0])==bits(input),"e0 stores input exact bits");
+ __CPROVER_assert(bits(f.e[1])==bits(old.e[0]),"e1 shifts old e0 exact bits");
+ __CPROVER_assert(bits(f.e[2])==bits(old.e[1]),"e2 shifts old e1 exact bits");
+ __CPROVER_assert(bits(f.g[0])==bits(old.g[0]),"a coefficient preserved exact bits");
+ __CPROVER_assert(bits(f.g[1])==bits(old.g[1]),"b coefficient preserved exact bits");
+ __CPROVER_assert(bits(f.g[2])==bits(old.g[2]),"c coefficient preserved exact bits");
+}
+
+FILE cbmc/report/report.md 
+ # PID_df 实现层检查
+
+81 个实际发出的属性全部 SUCCESS。对象和输入为任意 binary32 位模式，无数值 assume。入口无循环，memcpy 展开界 6 并检查展开断言。检查 8 个位观察断言和全部实际内存/数组属性；没有将浮点 NaN/溢出设为错误。
+

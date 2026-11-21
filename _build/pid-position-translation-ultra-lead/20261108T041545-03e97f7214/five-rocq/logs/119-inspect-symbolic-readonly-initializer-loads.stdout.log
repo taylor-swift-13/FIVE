@@ -1,0 +1,85 @@
+Genv.load_store_init_data =
+fun (F V : Type) (ge : Genv.t F V) =>
+fix load_store_init_data
+  (m : mem) (b : Values.block) (p : BinNums.Z) (il : list AST.init_data)
+  {struct il} : Prop :=
+  match il with
+  | nil => True
+  | (AST.Init_int8 n :: il')%list =>
+      Mem.load AST.Mint8unsigned m b p =
+      Some
+        (Values.Vint
+           (Integers.Int.zero_ext
+              (BinInt.Z.pos (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))
+              n)) /\
+      load_store_init_data m b (BinInt.Z.add p (BinInt.Z.pos BinNums.xH)) il'
+  | (AST.Init_int16 n :: il')%list =>
+      Mem.load AST.Mint16unsigned m b p =
+      Some
+        (Values.Vint
+           (Integers.Int.zero_ext
+              (BinInt.Z.pos
+                 (BinNums.xO
+                    (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))
+              n)) /\
+      load_store_init_data m b
+        (BinInt.Z.add p (BinInt.Z.pos (BinNums.xO BinNums.xH))) il'
+  | (AST.Init_int32 n :: il')%list =>
+      Mem.load AST.Mint32 m b p = Some (Values.Vint n) /\
+      load_store_init_data m b
+        (BinInt.Z.add p (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH))))
+        il'
+  | (AST.Init_int64 n :: il')%list =>
+      Mem.load AST.Mint64 m b p = Some (Values.Vlong n) /\
+      load_store_init_data m b
+        (BinInt.Z.add p
+           (BinInt.Z.pos (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))
+        il'
+  | (AST.Init_float32 n :: il')%list =>
+      Mem.load AST.Mfloat32 m b p = Some (Values.Vsingle n) /\
+      load_store_init_data m b
+        (BinInt.Z.add p (BinInt.Z.pos (BinNums.xO (BinNums.xO BinNums.xH))))
+        il'
+  | (AST.Init_float64 n :: il')%list =>
+      Mem.load AST.Mfloat64 m b p = Some (Values.Vfloat n) /\
+      load_store_init_data m b
+        (BinInt.Z.add p
+           (BinInt.Z.pos (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))
+        il'
+  | (AST.Init_space n :: il')%list =>
+      Genv.read_as_zero m b p n /\
+      load_store_init_data m b (BinInt.Z.add p (BinInt.Z.max n BinNums.Z0))
+        il'
+  | (AST.Init_addrof symb ofs :: il')%list =>
+      (exists b' : Values.block,
+         Genv.find_symbol ge symb = Some b' /\
+         Mem.load AST.Mptr m b p = Some (Values.Vptr b' ofs)) /\
+      load_store_init_data m b (BinInt.Z.add p (size_chunk AST.Mptr)) il'
+  end
+     : forall [F V : Type],
+       Genv.t F V ->
+       mem -> Values.block -> BinNums.Z -> list AST.init_data -> Prop
+
+Arguments Genv.load_store_init_data [F V]%_type_scope 
+  ge m b p%_Z_scope il%_list_scope
+Genv.init_mem_characterization
+     : forall (F V : Type) (p : AST.program F V) (b : Values.block)
+         (gv : AST.globvar V) (m : mem),
+       Genv.find_var_info (Genv.globalenv p) b = Some gv ->
+       Genv.init_mem p = Some m ->
+       Mem.range_perm m b BinNums.Z0
+         (AST.init_data_list_size (AST.gvar_init gv)) Cur
+         (Genv.perm_globvar gv) /\
+       (forall (ofs : BinNums.Z) (k : perm_kind) (p0 : permission),
+        Mem.perm m b ofs k p0 ->
+        (BinInt.Z.le BinNums.Z0 ofs /\
+         BinInt.Z.lt ofs (AST.init_data_list_size (AST.gvar_init gv))) /\
+        perm_order (Genv.perm_globvar gv) p0) /\
+       (AST.gvar_volatile gv = false ->
+        Genv.load_store_init_data (Genv.globalenv p) m b BinNums.Z0
+          (AST.gvar_init gv)) /\
+       (AST.gvar_volatile gv = false ->
+        Mem.loadbytes m b BinNums.Z0
+          (AST.init_data_list_size (AST.gvar_init gv)) =
+        Some
+          (Genv.bytes_of_init_data_list (Genv.globalenv p) (AST.gvar_init gv)))

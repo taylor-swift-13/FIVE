@@ -1,0 +1,25 @@
+126:  | alloc_variables_nil:
+127-      forall e m,
+128-      alloc_variables e m nil e m
+129-  | alloc_variables_cons:
+130-      forall e m id ty vars m1 b1 m2 e2,
+131-      Mem.alloc m 0 (sizeof ge ty) = (m1, b1) ->
+132-      alloc_variables (PTree.set id (b1, ty) e) m1 vars e2 m2 ->
+133-      alloc_variables e m ((id, ty) :: vars) e2 m2.
+134-
+143:  | bind_parameters_nil:
+144-      forall m,
+145-      bind_parameters e m nil nil m
+146-  | bind_parameters_cons:
+147-      forall m id ty params v1 vl v1' b m1 m2,
+148-      PTree.get id e = Some(b, ty) ->
+149-      assign_loc ty m b Ptrofs.zero Full v1 E0 m1 v1' ->
+150-      bind_parameters e m1 params vl m2 ->
+151-      bind_parameters e m ((id, ty) :: params) (v1 :: vl) m2.
+152-
+153-(** Return the list of blocks in the codomain of [e], with low and high bounds. *)
+154-
+155-Definition block_of_binding (id_b_ty: ident * (block * type)) :=
+156-  match id_b_ty with (id, (b, ty)) => (b, 0, sizeof ge ty) end.
+157-
+158-Definition blocks_of_env (e: env) : list (block * Z * Z) :=

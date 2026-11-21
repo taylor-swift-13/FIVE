@@ -1,0 +1,73 @@
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Integers Values Memory.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidMeasurementProblem Require Import Spec.
+From PidMeasurementAttempt001 Require Import IntegerBounds MachineArithmetic SemanticBridge.
+Import ListNotations.
+Open Scope Z_scope.
+Module P:=PidPositionRunPos.Source.
+
+(** This reference changes only command saturation placement. Every floor,
+    input clamp, gain, feedforward term and PD-based integral update is shared. *)
+Definition total(g:Gains)(x:AxisSample):Z:=
+ ff_z(Int.signed(gain_p g))(Int.signed(gain_d g))
+ (Int.signed(gain_v g))(Int.signed(gain_a g))
+ (Int.signed(mpe x))(Int.signed(mse x))
+ (Int.signed(reference_speed x))(Int.signed(reference_accel x)).
+Definition updated_integral(g:Gains)(x:AxisSample):Z:=
+ integral_z(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+ (Int.signed(mpe x))(Int.signed(mse x))(Int.signed(old_integral x)).
+Definition integral_command(g:Gains)(x:AxisSample):Z:=updated_integral g x/65536.
+Definition unified(g:Gains)(x:AxisSample):Z:=
+ zclamp 3216(total g x+integral_command g x).
+Definition CycleInput(axis:ident)(gh ret:block)(g:Gains)(m:mem)(x:AxisSample):Prop:=
+ InputGood m gh ret /\ReadAxis axis gh m g x.
+
+(** Observations are actual Mint32 loads: active return tags, updated global
+    integral, global command and corresponding returned active vector field. *)
+Definition AxisObservation(axis:ident)(ret:block)(m:mem)(integral command:Z):Prop:=
+ exists i c,
+ load_path Mint32 m ret sp_type[P._type]=Some(Vint(Int.repr 2)) /\
+ load_path Mint32 m ret sp_type[P._format]=Some(Vint Int.zero) /\
+ load_global Mint32 m P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint i) /\
+ load_global Mint32 m P._guidance_pid pid_type[P._cmd_earth;axis]=Some(Vint c) /\
+ load_path Mint32 m ret sp_type[P._sp;P._ltp_i;P._vect;axis]=Some(Vint c) /\
+ Int.signed i=integral /\Int.signed c=command.
+Definition Comparison(g:Gains)(x:AxisSample)(actual:Z):Prop:=
+ -1429<=integral_command g x<=1429 /\
+ actual=zclamp 1429(total g x)+integral_command g x /\
+ (actual=unified g x <->Z.abs(total g x)<=1429) /\
+ (1429<total g x ->actual<unified g x) /\
+ (total g x< -1429 ->unified g x<actual) /\
+ Z.abs(actual-unified g x)<=Z.max 0(Z.abs(total g x)-1429).
+
+Definition SourceComparisonGoal:Prop:=forall axis gh ret g m x,
+ In axis[P._x;P._y] ->CycleInput axis gh ret g m x ->
+ (exists mf,NormalCall gh ret true m mf) /\
+ (forall mf,NormalCall gh ret true m mf ->exists actual,
+ AxisObservation axis ret mf(updated_integral g x)actual /\Comparison g x actual).
+
+Definition witness_gains:Gains:=
+ {|gain_p:=Int.repr 100;gain_d:=Int.zero;gain_i:=Int.zero;
+ gain_v:=Int.zero;gain_a:=Int.zero|}.
+Definition witness_sample(old:Z):AxisSample:=
+ {|reference:=Int.repr 1280;measurement:=Int.zero;
+ reference_speed:=Int.zero;measurement_speed:=Int.zero;
+ reference_accel:=Int.zero;old_integral:=Int.repr old|}.
+Definition WitnessInput(gh ret:block)(m:mem)(old:Z):Prop:=
+ CycleInput P._x gh ret witness_gains m(witness_sample old).
+
+(** The first witness starts with zero integral. The second demonstrates
+    cancellation from another legal initial integral; no reset history claimed. *)
+Definition ActualCounterexampleGoal:Prop:=
+ (exists gh ret m mf,WitnessInput gh ret m 0 /\NormalCall gh ret true m mf /\
+ AxisObservation P._x ret mf 0 1429 /\unified witness_gains(witness_sample 0)=2000) /\
+ (exists gh ret m mf,WitnessInput gh ret m(-65536000) /\NormalCall gh ret true m mf /\
+ AxisObservation P._x ret mf(-65536000)429 /\
+ unified witness_gains(witness_sample(-65536000))=1000).
+Definition UnconditionalEquivalenceGoal:Prop:=forall axis gh ret g m x mf,
+ In axis[P._x;P._y] ->CycleInput axis gh ret g m x ->NormalCall gh ret true m mf ->
+ AxisObservation axis ret mf(updated_integral g x)(unified g x).
+Definition UnconditionalEquivalenceRefutedGoal:Prop:=~UnconditionalEquivalenceGoal.

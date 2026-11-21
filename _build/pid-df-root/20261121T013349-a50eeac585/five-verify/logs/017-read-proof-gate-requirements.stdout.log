@@ -1,0 +1,257 @@
+REFERENCE {
+  "purpose": "execution-translation",
+  "status": "proved",
+  "execution_backend": "compcert-csyntax-cexec",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "5af22acc46ed323d3010e3ace064460510019466b5eec16388b04863c3d06d56",
+  "execution_domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem including invalid, uninitialized, unwritable states"
+  },
+  "domain_restrictions": [],
+  "execution_entry": {
+    "module": "FiveLowpassUpdate.Execution",
+    "symbol": "entry",
+    "source": "paparazzi/models/update_first_order_low_pass/align/model/Execution.v",
+    "sha256": "1e107a7c0d4f34075a2303d305ecc8c35f1cf533d9cf9b53714610e7e0dd44b9"
+  },
+  "source_semantics": {
+    "id": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "target": {
+      "semantics": "CompCert Csem/Cexec",
+      "version": "3.17",
+      "arch": "x86",
+      "model": "64",
+      "abi": "standard",
+      "bitsize": 64,
+      "system": "linux",
+      "endianness": "little",
+      "float32": "IEEE754 binary32",
+      "rounding": "round-to-nearest-ties-to-even",
+      "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+      "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+    },
+    "source_sha256": {
+      "paparazzi/models/update_first_order_low_pass/prepare/source/update_first_order_low_pass.c": "19ab80bc756f2e4e73fe959b87e5fea29de39c184cf9349919bcdec1652ef010",
+      "paparazzi/models/update_first_order_low_pass/align/model/Source.v": "8f35f13c38d61ad1d1fe8a4db2e6d3d3861e881315e0a0f029c39fcdb52b5c6e",
+      "paparazzi/models/update_first_order_low_pass/align/model/Execution.v": "1e107a7c0d4f34075a2303d305ecc8c35f1cf533d9cf9b53714610e7e0dd44b9"
+    }
+  },
+  "obligations": [
+    {
+      "id": "domain-preservation",
+      "status": "proof-backed",
+      "coverage": "The actual entry is the unchanged Internal function call for every list val and every memory; the syntax invariant is automatic.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "floating-point-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves every float operation, value, NaN/error behavior and trace.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "machine-integer-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves all machine-integer, shift, cast and pointer operations.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "memory-access-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact raw successor equivalence preserves loads, stores, allocation, free, invalid access and unknown-byte behavior.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "control-and-exhaustion-correspondence",
+      "status": "proof-backed",
+      "coverage": "Unbounded bidirectional star equivalence from arbitrary entry arguments and memory; no fuel limit or selected order.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "normal-result-and-memory-correspondence",
+      "status": "proof-backed",
+      "coverage": "Every returned value and memory has equivalent raw source/model executions, and byte observations are literally the same Mem.loadbytes.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "invalid-operation-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, source non-normal-return/nostep is equivalent to model non-normal-return/nostep.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "whole-execution-correspondence",
+      "status": "proof-backed",
+      "coverage": "Bidirectional unbounded whole-execution equivalence retains every Csem evaluation order, trace, final state and error.",
+      "evidence": [
+        "paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    }
+  ],
+  "alignment_issues": [],
+  "external_library_bindings": {},
+  "external_environment": "Reachable code is call-free, nonvolatile and silent; generic source invariant proves callbacks, inline assembly and I/O cannot occur for any raw argument/memory.",
+  "trusted_boundary": "Recorded CompCert frontend and inherited CompCert/Flocq declarations. Storage qualifiers normalized for export; original function body unchanged. No GCC/hardware equivalence claimed."
+}
+
+CODE scripts/compcert_gate.py 
+ def accept_compcert_delivery(root,*,request_path,contract_path,expected_request_sha256,
+                            manifest_path,spec_recheck_path):
+    root=Path(root).resolve();manifest_path=root/manifest_path
+    m=json.loads(manifest_path.read_text());req=json.loads((root/request_path).read_text())
+    if req.get('execution_backend')!='compcert-csyntax-cexec':
+        raise RuntimeError('Current delivery requires a frozen CompCert-backed request; historical approval is not migrated')
+    if not m.get('request') or m['request']['sha256']!=expected_request_sha256:
+        raise RuntimeError('CompCert export is not bound to the frozen request')
+    if m['target']!=req.get('target'):raise RuntimeError('CompCert target differs from request')
+    provenance=audit(manifest_path)
+    contract=json.loads((root/contract_path).read_text())
+    if contract.get('execution_backend')!='compcert-csyntax-cexec' or contract.get('backend_manifest_sha256')!=sha(manifest_path):
+        raise RuntimeError('Execution proof contract is not bound to this CompCert export')
+    external_inventory=check_external_support(root,m,contract)
+    issues=contract.get('alignment_issues')
+    if not isinstance(issues,list) or len({x.get('issue_id') for x in issues})!=len(issues) or any(x.get('status')!='resolved' for x in issues):
+        raise RuntimeError('Missing or unresolved alignment issues')
+    hashes=_execution_contract(root,request_path,contract_path,expected_request_sha256=expected_request_sha256)
+    for row in contract['obligations']:
+        for ref in row['evidence']:kernel_record(root,ref)
+    entry=contract['execution_entry'];wrapper=m['files']['Execution.v']
+    if entry['source']!=wrapper['path'] or entry['sha256']!=wrapper['sha256'] or entry['symbol']!='entry' or entry['module']!=m['namespace']+'.Execution':
+        raise RuntimeError('Contract execution entry is not the generated original-Cexec wrapper')
+    dependencies=contract['source_semantics']['source_sha256']
+    for row in [m['source'],m['files']['Source.v'],wrapper]:
+        if dependencies.get(row['path'])!=row['sha256']:raise RuntimeError('Proof contract does not bind original C/AST/wrapper')
+    spec=check_spec_recheck(root,spec_recheck_path,expected_request_sha256,sha(manifest_path),m['source']['path'],
+      {row['path']:row['sha256'] for row in [m['source'],m['files']['Source.v'],wrapper]})
+    return {'status':'accepted','workflow':'compcert-single-agent','execution_layer_accepted':True,
+      'external_support_inventory_complete':external_inventory['support_inventory_complete'],
+      'library_implementation_verified':False,
+      'cbmc_method':'traditional-bounded-model-checking','cbmc_specifications_rechecked_in_rocq':True,
+      'issues_found':len(issues),'resolved':len(issues),'open':0,
+      'cbmc_properties_proved':spec['proved'],'cbmc_properties_refuted':spec['refuted'],
+      'implementation_properties_all_proved':spec['refuted']==0,
+      'checked_bindings':len({**hashes,**provenance['bindings'],**spec['bindings']}),
+      'trust_note':'Metadata binds real exports/proofs; proposition adequacy and frontend/FFI assumptions remain explicit.'}
+
+CODE scripts/execution_contract.py 
+ """Execution correspondence contract validation."""
+import json
+import re
+from pathlib import Path
+from five_telemetry import sha
+
+
+PURPOSES = {'execution-translation','functional-model','bounded-equivalence'}
+EXECUTION_OBLIGATIONS = {
+    'domain-preservation','floating-point-correspondence',
+    'machine-integer-correspondence','memory-access-correspondence',
+    'control-and-exhaustion-correspondence','normal-result-and-memory-correspondence',
+    'invalid-operation-correspondence','whole-execution-correspondence'}
+
+
+def _execution_contract(root, request_path, contract_path, *, expected_request_sha256):
+    if request_path is None or contract_path is None:
+        raise RuntimeError('Execution-layer delivery requires a fixed user-request contract and checked execution-correspondence evidence; functional checks are insufficient')
+    request_path,contract_path=Path(request_path),Path(contract_path)
+    if not request_path.is_absolute():request_path=root/request_path
+    if not contract_path.is_absolute():contract_path=root/contract_path
+    if not isinstance(expected_request_sha256,str) or not re.fullmatch(r'[0-9a-f]{64}',expected_request_sha256) or sha(request_path)!=expected_request_sha256:
+        raise RuntimeError('Execution request differs from the independently fixed upstream request hash')
+    request=json.loads(request_path.read_text())
+    contract=json.loads(contract_path.read_text())
+    if not isinstance(request.get('domain'),(dict,str)) or not request['domain']:
+        raise RuntimeError('Execution request requires a nonempty fixed domain')
+    if not isinstance(request.get('target'),dict) or not request['target']:
+        raise RuntimeError('Execution request requires an explicit target configuration')
+    if request.get('purpose')!='execution-translation' or contract.get('purpose')!='execution-translation':
+        raise RuntimeError('Execution purpose does not match the original requested deliverable')
+    if contract.get('request_sha256')!=sha(request_path):
+        raise RuntimeError('Execution contract does not match the fixed user request')
+    if contract.get('execution_domain')!=request.get('domain'):
+        raise RuntimeError('Execution domain does not match the fixed user request')
+    if contract.get('domain_restrictions'):
+        raise RuntimeError('Translation-side domain restrictions cannot narrow execution delivery')
+    rows=contract.get('obligations',[])
+    by_id={r.get('id'):r for r in rows}
+    if len(by_id)!=len(rows) or not EXECUTION_OBLIGATIONS.issubset(by_id):
+        raise RuntimeError('Execution contract omits mandatory semantic obligations')
+    pending=[key for key in sorted(EXECUTION_OBLIGATIONS) if by_id[key].get('status')!='proof-backed' or not by_id[key].get('evidence')]
+    if pending or contract.get('status')!='proved' or not contract.get('execution_entry') or not contract.get('source_semantics'):
+        raise RuntimeError('Faithful C execution layer is incomplete; missing checked correspondence: '+', '.join(pending))
+    semantics=contract['source_semantics']
+    entry=contract['execution_entry']
+    if not isinstance(semantics,dict) or any(not semantics.get(k) for k in ['id','version','target','source_sha256']):
+        raise RuntimeError('Source semantics requires a versioned reference, target and source hashes')
+    if semantics['target']!=request['target']:
+        raise RuntimeError('Source semantics target differs from the fixed request')
+    if not isinstance(semantics['source_sha256'],dict):
+        raise RuntimeError('Source semantics hashes must be a nonempty mapping')
+    if not isinstance(entry,dict) or any(not entry.get(k) for k in ['module','symbol','source','sha256']):
+        raise RuntimeError('Execution entry requires a version-bound module, symbol and source')
+    if sha(root/entry['source'])!=entry['sha256']:
+        raise RuntimeError('Stale executable model entry')
+    semantic_bindings={entry['source']:entry['sha256']}
+    for name,value in semantics['source_sha256'].items():
+        if sha(root/name)!=value:raise RuntimeError('Stale source-semantics dependency: '+name)
+        semantic_bindings[name]=value
+    # Evidence is accepted only as version-bound records of real kernel checks.
+    dependencies={}
+    for key in sorted(EXECUTION_OBLIGATIONS):
+        for ref in by_id[key]['evidence']:
+            evidence_path=root/ref
+            evidence=json.loads(evidence_path.read_text())
+            if evidence.get('kind')!='rocq-kernel-check' or not evidence.get('theorems') or not evidence.get('statement_artifacts'):
+                raise RuntimeError('Execution evidence requires audited correspondence statements and kernel-check records')
+            proof_run=root/evidence['run']
+            meta=json.loads((proof_run/'run.json').read_text())
+            checks=[c for c in meta.get('commands',[]) if c.get('id')==evidence.get('command_id')]
+            if meta.get('status')!='passed' or len(checks)!=1 or checks[0].get('exit_code')!=0 or checks[0].get('status')!='passed':
+                raise RuntimeError('Execution proof check is absent, failed or ambiguous')
+            argv=checks[0].get('argv',checks[0].get('args',[]))
+            if len(argv)<2 or Path(argv[0]).name not in {'rocq','coqchk'} or (Path(argv[0]).name=='rocq' and argv[1]!='check'):
+                raise RuntimeError('Execution correspondence requires an independent Rocq kernel check')
+            args=argv[2:] if Path(argv[0]).name=='rocq' else argv[1:]
+            modules=[];index=0
+            while index<len(args):
+                arg=args[index]
+                if arg in {'-Q','-R'}:
+                    if index+2>=len(args):raise RuntimeError('Incomplete kernel load-path option')
+                    index+=3;continue
+                if arg=='-I':
+                    if index+1>=len(args):raise RuntimeError('Incomplete kernel include option')
+                    index+=2;continue
+                if arg=='-silent':index+=1;continue
+                if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*',arg):
+                    raise RuntimeError('Kernel evidence may not use help/version/admit/norec or unchecked options')
+                modules.append(arg);index+=1
+            theorem_modules={name.rsplit('.',1)[0] for name in evidence['theorems'] if isinstance(name,str) and '.' in name}
+            if not modules or len(theorem_modules)==0 or not theorem_modules.issubset(modules):
+                raise RuntimeError('Kernel command must check the modules containing the claimed correspondence theorems')
+            hashes=evidence.get('dependency_sha256',{})
+            if not hashes or not set(evidence['statement_artifacts']).issubset(hashes):
+                raise RuntimeError('Execution statements and dependencies are not version bound')
+            for name,value in hashes.items():
+                if sha(root/name)!=value:raise RuntimeError('Stale execution proof dependency: '+name)
+                dependencies[name]=value
+            dependencies[str(evidence_path.relative_to(root))]=sha(evidence_path)
+    bindings={str(request_path.relative_to(root)):sha(request_path),str(contract_path.relative_to(root)):sha(contract_path),**semantic_bindings,**dependencies}
+    return bindings
+
+
+

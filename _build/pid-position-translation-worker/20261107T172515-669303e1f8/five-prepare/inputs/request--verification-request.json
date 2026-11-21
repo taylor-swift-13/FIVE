@@ -1,0 +1,36 @@
+{
+  "schema": "five-verification-request/1",
+  "entry": "guidance_pid_h_run_pos",
+  "implementation": "prepare/source/guidance_pid_h_run_pos.c",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "relation": "same original entry in two memories; translate reference and measured positions by equal representable int32 displacement; derive equal errors; compare control, integrator and active return fields",
+  "proof_scope": "valid NEDi caches; approx_force_by_thrust=false; both flight values; safe bounded arithmetic domain for initial BMC attempt",
+  "requested_goals": [
+    "all-reachable Csem no_error",
+    "all-successor Csem termination",
+    "full unrestricted execution correspondence",
+    "all actual CBMC properties independent recheck",
+    "functional exact control transition",
+    "position translation relation",
+    "nonzero displacement and position-error nonvacuity"
+  ],
+  "model_domain": "all original list val arguments and all CompCert memories; no proof-domain clipping",
+  "limitations": [
+    "Open external bindings stateCalcPositionNed_i, stateCalcSpeedNed_i, atan2f: complete original reachable implementation/environment coverage is pending.",
+    "Selected exact controller configuration COMMANDS_NB=4, COMMAND_THRUST=3; no full aircraft configuration/build equivalence claim.",
+    "No native libm equivalence or GCC/hardware correspondence proved."
+  ]
+}

@@ -1,0 +1,443 @@
+  | red_seqand_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_seqand_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.zero) ty) m
+  | red_seqor_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.one) ty) m
+  | red_seqor_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_condition: forall v1 ty1 r1 r2 ty b m,
+      bool_val v1 ty1 m = Some b ->
+      rred (Econdition (Eval v1 ty1) r1 r2 ty) m
+        E0 (Eparen (if b then r1 else r2) ty ty) m
+  | red_sizeof: forall ty1 ty m,
+      rred (Esizeof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (sizeof ge ty1))) ty) m
+  | red_alignof: forall ty1 ty m,
+      rred (Ealignof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (alignof ge ty1))) ty) m
+  | red_assign: forall b ofs ty1 bf v2 ty2 m v t m' v',
+      sem_cast v2 ty2 ty1 m = Some v ->
+      assign_loc ty1 m b ofs bf v t m' v' ->
+      rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+         t (Eval v' ty1) m'
+  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+      deref_loc ty1 m b ofs bf t v1 ->
+      rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+         t (Eassign (Eloc b ofs bf ty1)
+                    (Ebinop op (Eval v1 ty1) (Eval v2 ty2) tyres) ty1) m
+  | red_postincr: forall id b ofs ty bf m t v1 op,
+      deref_loc ty m b ofs bf t v1 ->
+      op = match id with Incr => Oadd | Decr => Osub end ->
+      rred (Epostincr id (Eloc b ofs bf ty) ty) m
+         t (Ecomma (Eassign (Eloc b ofs bf ty)
+                            (Ebinop op (Eval v1 ty)
+                                       (Eval (Vint Int.one) type_int32s)
+                                       (incrdecr_type ty))
+                           ty)
+                   (Eval v1 ty) ty) m
+  | red_comma: forall v ty1 r2 ty m,
+      typeof r2 = ty ->
+      rred (Ecomma (Eval v ty1) r2 ty) m
+        E0 r2 m
+  | red_paren: forall v1 ty1 ty2 ty m v,
+      sem_cast v1 ty1 ty2 m = Some v ->
+      rred (Eparen (Eval v1 ty1) ty2 ty) m
+        E0 (Eval v ty) m
+  | red_builtin: forall ef tyargs el ty m vargs t vres m',
+      cast_arguments m el tyargs vargs ->
+      external_call ef ge vargs m t vres m' ->
+      rred (Ebuiltin ef tyargs el ty) m
+         t (Eval vres ty) m'.
+
+
+(** Head reduction for function calls.
+    (More exactly, identification of function calls that can reduce.) *)
+
+Inductive callred: expr -> mem -> fundef -> list val -> type -> Prop :=
+  | red_call: forall vf tyf m tyargs tyres cconv el ty fd vargs,
+      Genv.find_funct ge vf = Some fd ->
+      cast_arguments m el tyargs vargs ->
+      type_of_fundef fd = Tfunction tyargs tyres cconv ->
+      classify_fun tyf = fun_case_f tyargs tyres cconv ->
+      callred (Ecall (Eval vf tyf) el ty) m
+              fd vargs ty.
+
+(** Reduction contexts.  In accordance with C's nondeterministic semantics,
+  we allow reduction both to the left and to the right of a binary operator.
+  To enforce C's notion of sequence point, reductions within a conditional
+  [a ? b : c] can only take place in [a], not in [b] nor [c];
+  reductions within a sequential "or" / "and" [a && b] or [a || b] can
+  only take place in [a], not in [b];
+  and reductions within a sequence [a, b] can only take place in [a],
+  not in [b].
+
+  Reduction contexts are represented by functions [C] from expressions
+  to expressions, suitably constrained by the [context from to C]
+  predicate below.  Contexts are "kinded" with respect to l-values and
+  r-values: [from] is the kind of the hole in the context and [to] is
+  the kind of the term resulting from filling the hole.
+*)
+
+Inductive kind : Type := LV | RV.
+
+Inductive context: kind -> kind -> (expr -> expr) -> Prop :=
+  | ctx_top: forall k,
+      context k k (fun x => x)
+  | ctx_deref: forall k C ty,
+      context k RV C -> context k LV (fun x => Ederef (C x) ty)
+  | ctx_field: forall k C f ty,
+      context k RV C -> context k LV (fun x => Efield (C x) f ty)
+  | ctx_rvalof: forall k C ty,
+      context k LV C -> context k RV (fun x => Evalof (C x) ty)
+  | ctx_addrof: forall k C ty,
+      context k LV C -> context k RV (fun x => Eaddrof (C x) ty)
+  | ctx_unop: forall k C op ty,
+      context k RV C -> context k RV (fun x => Eunop op (C x) ty)
+  | ctx_binop_left: forall k C op e2 ty,
+      context k RV C -> context k RV (fun x => Ebinop op (C x) e2 ty)
+  | ctx_binop_right: forall k C op e1 ty,
+      context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+  | ctx_cast: forall k C ty,
+      context k RV C -> context k RV (fun x => Ecast (C x) ty)
+  | ctx_seqand: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+  | ctx_seqor: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+  | ctx_condition: forall k C r2 r3 ty,
+      context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+  | ctx_assign_left: forall k C e2 ty,
+      context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+  | ctx_assign_right: forall k C e1 ty,
+      context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+  | ctx_assignop_left: forall k C op e2 tyres ty,
+      context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+  | ctx_assignop_right: forall k C op e1 tyres ty,
+      context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+  | ctx_postincr: forall k C id ty,
+      context k LV C -> context k RV (fun x => Epostincr id (C x) ty)
+  | ctx_call_left: forall k C el ty,
+      context k RV C -> context k RV (fun x => Ecall (C x) el ty)
+  | ctx_call_right: forall k C e1 ty,
+      contextlist k C -> context k RV (fun x => Ecall e1 (C x) ty)
+  | ctx_builtin: forall k C ef tyargs ty,
+      contextlist k C -> context k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+  | ctx_comma: forall k C e2 ty,
+      context k RV C -> context k RV (fun x => Ecomma (C x) e2 ty)
+  | ctx_paren: forall k C tycast ty,
+      context k RV C -> context k RV (fun x => Eparen (C x) tycast ty)
+
+with contextlist: kind -> (expr -> exprlist) -> Prop :=
+  | ctx_list_head: forall k C el,
+      context k RV C -> contextlist k (fun x => Econs (C x) el)
+  | ctx_list_tail: forall k C e1,
+      contextlist k C -> contextlist k (fun x => Econs e1 (C x)).
+
+(** In a nondeterministic semantics, expressions can go wrong according
+  to one reduction order while being defined according to another.
+  Consider for instance [(x = 1) + (10 / x)] where [x] is initially [0].
+  This expression goes wrong if evaluated right-to-left, but is defined
+  if evaluated left-to-right.  Since our compiler is going to pick one
+  particular evaluation order, we must make sure that all orders are safe,
+  i.e. never evaluate a subexpression that goes wrong.
+
+  Being safe is a stronger requirement than just not getting stuck during
+  reductions.  Consider [f() + (10 / x)], where [f()] does not terminate.
+  This expression is never stuck because the evaluation of [f()] can make
+  infinitely many transitions.  Yet it contains a subexpression [10 / x]
+  that can go wrong if [x = 0], and the compiler may choose to evaluate
+  [10 / x] first, before calling [f()].
+
+  Therefore, we must make sure that not only an expression cannot get stuck,
+  but none of its subexpressions can either.  We say that a subexpression
+  is not immediately stuck if it is a value (of the appropriate kind)
+  or it can reduce (at head or within). *)
+
+Inductive imm_safe: kind -> expr -> mem -> Prop :=
+  | imm_safe_val: forall v ty m,
+      imm_safe RV (Eval v ty) m
+  | imm_safe_loc: forall b ofs bf ty m,
+      imm_safe LV (Eloc b ofs bf ty) m
+  | imm_safe_lred: forall to C e m e' m',
+      lred e m e' m' ->
+      context LV to C ->
+      imm_safe to (C e) m
+  | imm_safe_rred: forall to C e m t e' m',
+      rred e m t e' m' ->
+      context RV to C ->
+      imm_safe to (C e) m
+  | imm_safe_callred: forall to C e m fd args ty,
+      callred e m fd args ty ->
+      context RV to C ->
+      imm_safe to (C e) m.
+
+Definition not_stuck (e: expr) (m: mem) : Prop :=
+  forall k C e' ,
+  context k RV C -> e = C e' -> imm_safe k e' m.
+
+(** ** Derived forms. *)
+
+(** The following are admissible reduction rules for some derived forms
+  of the CompCert C language.  They help showing that the derived forms
+  make sense. *)
+
+Lemma red_selection:
+  forall v1 ty1 v2 ty2 v3 ty3 ty m b v2' v3',
+  ty <> Tvoid ->
+  bool_val v1 ty1 m = Some b ->
+  sem_cast v2 ty2 ty m = Some v2' ->
+  sem_cast v3 ty3 ty m = Some v3' ->
+  rred (Eselection (Eval v1 ty1) (Eval v2 ty2) (Eval v3 ty3) ty) m
+    E0 (Eval (if b then v2' else v3') ty) m.
+Proof.
+  intros. unfold Eselection.
+  set (t := typ_of_type ty).
+  set (x := inj_type t).
+  set (sg := [Xint; x; x ---> x]%asttyp).
+  assert (LK: lookup_builtin_function "__builtin_sel"%string sg = Some (BI_standard (BI_select t))).
+  { unfold sg, x, t; destruct ty as [ | ? ? ? | ? | [] ? | ? ? | ? ? ? | ? ? ? | ? ? | ? ? ];
+    simpl; unfold Tptr; destruct Archi.ptr64; reflexivity. }
+  set (v' := if b then v2' else v3').
+  assert (C: val_casted v' ty).
+  { unfold v'; destruct b; eapply cast_val_is_casted; eauto. }
+  assert (EQ: Val.normalize v' t = v').
+  { apply Val.normalize_idem. apply val_casted_has_type; auto. }
+  econstructor.
+- constructor. rewrite cast_bool_bool_val, H0. eauto.
+  constructor. eauto.
+  constructor. eauto.
+  constructor.
+- red. red. rewrite LK. constructor. simpl. rewrite <- EQ.
+  destruct b; auto.
+Qed.
+
+Lemma ctx_selection_1:
+  forall k C r2 r3 ty, context k RV C -> context k RV (fun x => Eselection (C x) r2 r3 ty).
+Proof.
+  intros. apply ctx_builtin. constructor; auto.
+Qed.
+
+Lemma ctx_selection_2:
+  forall k r1 C r3 ty, context k RV C -> context k RV (fun x => Eselection r1 (C x) r3 ty).
+Proof.
+  intros. apply ctx_builtin. constructor; constructor; auto.
+Qed.
+
+Lemma ctx_selection_3:
+  forall k r1 r2 C ty, context k RV C -> context k RV (fun x => Eselection r1 r2 (C x) ty).
+Proof.
+  intros. apply ctx_builtin. constructor; constructor; constructor; auto.
+Qed.
+
+End EXPR.
+
+(** ** Transition semantics. *)
+
+(** Continuations describe the computations that remain to be performed
+    after the statement or expression under consideration has
+    evaluated completely. *)
+
+Inductive cont: Type :=
+  | Kstop: cont
+  | Kdo: cont -> cont       (**r [Kdo k] = after [x] in [x;] *)
+  | Kseq: statement -> cont -> cont    (**r [Kseq s2 k] = after [s1] in [s1;s2] *)
+  | Kifthenelse: statement -> statement -> cont -> cont     (**r [Kifthenelse s1 s2 k] = after [x] in [if (x) { s1 } else { s2 }] *)
+  | Kwhile1: expr -> statement -> cont -> cont      (**r [Kwhile1 x s k] = after [x] in [while(x) s] *)
+  | Kwhile2: expr -> statement -> cont -> cont      (**r [Kwhile x s k] = after [s] in [while (x) s] *)
+  | Kdowhile1: expr -> statement -> cont -> cont    (**r [Kdowhile1 x s k] = after [s] in [do s while (x)] *)
+  | Kdowhile2: expr -> statement -> cont -> cont    (**r [Kdowhile2 x s k] = after [x] in [do s while (x)] *)
+  | Kfor2: expr -> statement -> statement -> cont -> cont   (**r [Kfor2 e2 e3 s k] = after [e2] in [for(e1;e2;e3) s] *)
+  | Kfor3: expr -> statement -> statement -> cont -> cont   (**r [Kfor3 e2 e3 s k] = after [s] in [for(e1;e2;e3) s] *)
+  | Kfor4: expr -> statement -> statement -> cont -> cont   (**r [Kfor4 e2 e3 s k] = after [e3] in [for(e1;e2;e3) s] *)
+  | Kswitch1: labeled_statements -> cont -> cont     (**r [Kswitch1 ls k] = after [e] in [switch(e) { ls }] *)
+  | Kswitch2: cont -> cont       (**r catches [break] statements arising out of [switch] *)
+  | Kreturn: cont -> cont        (**r [Kreturn k] = after [e] in [return e;] *)
+  | Kcall: function ->           (**r calling function *)
+           env ->                (**r local env of calling function *)
+           (expr -> expr) ->     (**r context of the call *)
+           type ->               (**r type of call expression *)
+           cont -> cont.
+
+(** Pop continuation until a call or stop *)
+
+Fixpoint call_cont (k: cont) : cont :=
+  match k with
+  | Kstop => k
+  | Kdo k => k
+  | Kseq s k => call_cont k
+  | Kifthenelse s1 s2 k => call_cont k
+  | Kwhile1 e s k => call_cont k
+  | Kwhile2 e s k => call_cont k
+  | Kdowhile1 e s k => call_cont k
+  | Kdowhile2 e s k => call_cont k
+  | Kfor2 e2 e3 s k => call_cont k
+  | Kfor3 e2 e3 s k => call_cont k
+  | Kfor4 e2 e3 s k => call_cont k
+  | Kswitch1 ls k => call_cont k
+  | Kswitch2 k => call_cont k
+  | Kreturn k => call_cont k
+  | Kcall _ _ _ _ _ => k
+  end.
+
+Definition is_call_cont (k: cont) : Prop :=
+  match k with
+  | Kstop => True
+  | Kcall _ _ _ _ _ => True
+  | _ => False
+  end.
+
+(** Execution states of the program are grouped in 4 classes corresponding
+  to the part of the program we are currently executing.  It can be
+  a statement ([State]), an expression ([ExprState]), a transition
+  from a calling function to a called function ([Callstate]), or
+  the symmetrical transition from a function back to its caller
+  ([Returnstate]). *)
+
+Inductive state: Type :=
+  | State                               (**r execution of a statement *)
+      (f: function)
+      (s: statement)
+      (k: cont)
+      (e: env)
+      (m: mem) : state
+  | ExprState                           (**r reduction of an expression *)
+      (f: function)
+      (r: expr)
+      (k: cont)
+      (e: env)
+      (m: mem) : state
+  | Callstate                           (**r calling a function *)
+      (fd: fundef)
+      (args: list val)
+      (k: cont)
+      (m: mem) : state
+                             'parallel_children':parallel},
+                   'tokens':token_metrics,'command_count':len(commands),
+                   'measurement_status':'complete' if token_status == 'available' and peaks and not parallel and cpu_complete and tree_sampling_complete else 'partial'}
+        metrics['memory']['tree_sampling_complete'] = tree_sampling_complete
+        metrics['memory']['commands_without_sampled_tree_peak'] = missing_tree_peaks
+        dump(self.folder/'metrics.json',metrics)
+        return metrics
+
+    def finish(self, verdict, summary, required_roles, missing=None):
+        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+            raise ValueError('Invalid verification verdict')
+        metadata = self.read('run.json')
+        boundary=metadata.get('codex_usage_boundary')
+        if boundary and not boundary.get('after'):
+            try:
+                from codex_usage import snapshot, receipt
+                import tempfile
+                boundary['after']=snapshot(boundary['session_file'])
+                metadata['codex_usage_boundary']=boundary
+                dump(self.folder/'run.json',metadata)
+                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+                    usage_file=Path(temporary)/'usage.json'
+                    dump(usage_file,usage)
+                    self.import_tokens(usage_file)
+                metadata=self.read('run.json')
+            except Exception as usage_error:
+                metadata=self.read('run.json')
+                metadata['tokens']={'status':'unavailable','source':{'kind':'codex-session-event','reference':boundary['session_file']},'events':[],'reason':str(usage_error)}
+                metadata['usage_capture_error']=str(usage_error)
+                dump(self.folder/'run.json',metadata)
+        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+        dump(self.folder/'run.json',metadata)
+        roles = {}
+        for role, path in required_roles.items():
+            try:
+  | Evalof _ ty => ty
+  | Eaddrof _ ty => ty
+  | Eunop _ _ ty => ty
+  | Ebinop _ _ _ ty => ty
+  | Ecast _ ty => ty
+  | Econdition _ _ _ ty => ty
+  | Eseqand _ _ ty => ty
+  | Eseqor _ _ ty => ty
+  | Esizeof _ ty => ty
+  | Ealignof _ ty => ty
+  | Eassign _ _ ty => ty
+  | Eassignop _ _ _ _ ty => ty
+  | Epostincr _ _ ty => ty
+  | Ecomma _ _ ty => ty
+  | Ecall _ _ ty => ty
+  | Ebuiltin _ _ _ ty => ty
+  | Eparen _ _ ty => ty
+  end.
+
+(** ** Statements *)
+
+(** Compcert C statements are very much like those of C and include:
+- empty statement [Sskip]
+- evaluation of an expression for its side-effects [Sdo r]
+- conditional [if (...) { ... } else { ... }]
+- the three loops [while(...) { ... }] and [do { ... } while (...)]
+  and [for(..., ..., ...) { ... }]
+- the [switch] construct
+- [break], [continue], [return] (with and without argument)
+- [goto] and labeled statements.
+
+Only structured forms of [switch] are supported; moreover,
+the [default] case must occur last.  Blocks and block-scoped declarations
+are not supported. *)
+
+Definition label := ident.
+
+Inductive statement : Type :=
+  | Sskip : statement                   (**r do nothing *)
+  | Sdo : expr -> statement            (**r evaluate expression for side effects *)
+  | Ssequence : statement -> statement -> statement  (**r sequence *)
+  | Sifthenelse : expr  -> statement -> statement -> statement (**r conditional *)
+  | Swhile : expr -> statement -> statement   (**r [while] loop *)
+  | Sdowhile : expr -> statement -> statement (**r [do] loop *)
+  | Sfor: statement -> expr -> statement -> statement -> statement (**r [for] loop *)
+  | Sbreak : statement                      (**r [break] statement *)
+  | Scontinue : statement                   (**r [continue] statement *)
+  | Sreturn : option expr -> statement     (**r [return] statement *)
+  | Sswitch : expr -> labeled_statements -> statement  (**r [switch] statement *)
+  | Slabel : label -> statement -> statement
+  | Sgoto : label -> statement
+
+with labeled_statements : Type :=            (**r cases of a [switch] *)
+  | LSnil: labeled_statements
+  | LScons: option Z -> statement -> labeled_statements -> labeled_statements.
+                      (**r [None] is [default], [Some x] is [case x] *)
+(** ** Functions *)
+
+(** A function definition is composed of its return type ([fn_return]),
+  the names and types of its parameters ([fn_params]), the names
+  and types of its local variables ([fn_vars]), and the body of the
+  function (a statement, [fn_body]). *)
+
+Record function : Type := mkfunction {
+  fn_return: type;
+  fn_callconv: calling_convention;
+  fn_params: list (ident * type);
+  fn_vars: list (ident * type);
+  fn_body: statement
+}.
+
+Definition var_names (vars: list(ident * type)) : list ident :=
+  List.map (@fst ident type) vars.
+
+(** Functions can either be defined ([Internal]) or declared as
+  external functions ([External]). *)
+
+Definition fundef := Ctypes.fundef function.
+
+(** The type of a function definition. *)
+
+Definition type_of_function (f: function) : type :=
+  Tfunction (type_of_params (fn_params f)) (fn_return f) (fn_callconv f).
+
+Definition type_of_fundef (f: fundef) : type :=
+  match f with

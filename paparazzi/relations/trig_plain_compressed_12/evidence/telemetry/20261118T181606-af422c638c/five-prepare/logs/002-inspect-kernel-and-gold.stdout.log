@@ -1,0 +1,226 @@
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:589:uint8_t data_buf_4[TRIG_INT_SIZE / 2];
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:597:    data_buf_4[cnt / 2] = val % 0x10;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:599:    data_buf_4[cnt / 2] |= (val % 0x10) << 4;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:627:  return (k << 4) | ((data_buf_4[val / 2] >> ((val % 2) ? 4 : 0)) & 0xF);
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:632:uint8_t data_buf_8[TRIG_INT_SIZE];
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:639:  data_buf_8[cnt] = val % 0x100;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:665:  return (k << 8) | data_buf_8[val];
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:670:uint8_t data_buf_12[(TRIG_INT_SIZE * 3) / 2];
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:679:  data_buf_12[cnt] = val % 0x100;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:681:    data_buf_12[TRIG_INT_SIZE + (cnt / 2)] = (val & 0xF00) >> 8 ;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:683:    data_buf_12[TRIG_INT_SIZE + (cnt / 2)] |= (val & 0xF00) >> 4;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:719:  return (k << 12) | ((data_buf_12[TRIG_INT_SIZE + (val / 2)] << ((val % 2) ? 4 : 8)) & 0xF00) | (data_buf_12[val]);
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:738:  return k | ((data_buf_12[TRIG_INT_SIZE + (val >> 1)] << ((val % 2) ? 4 : 8)) & 0xF00) | (data_buf_12[val]);
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:744:int16_t data_buf_16[TRIG_INT_SIZE];
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:748:  return data_buf_16[val];
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:753:  data_buf_16[cnt] = val;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:762:int pprz_trig_int_init(void)
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:860:int pprz_trig_int_init(void) { return 0; }
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:865:int32_t pprz_itrig_sin(int32_t angle)
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:874:  INT32_ANGLE_NORMALIZE(angle);
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:875:  if (angle > INT32_ANGLE_PI_2) {
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:876:    angle = INT32_ANGLE_PI - angle;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:877:  } else if (angle < -INT32_ANGLE_PI_2) {
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:878:    angle = -INT32_ANGLE_PI - angle;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:896:  return pprz_itrig_sin(angle + INT32_ANGLE_PI_2);
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:907:  const int32_t c1 = INT32_ANGLE_PI_4;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:908:  const int32_t c2 = 3 * INT32_ANGLE_PI_4;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:929:  const int32_t c1 = INT32_ANGLE_PI_4;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:930:  const int32_t c2 = 3 * INT32_ANGLE_PI_4;
+_build/paparazzi/upstream/sw/airborne/math/pprz_trig_int.c:937:    int32_t tmp1 = ((r2 * (int32_t)ANGLE_BFP_OF_REAL(0.1963)) >> INT32_ANGLE_FRAC) - ANGLE_BFP_OF_REAL(0.9817);
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:116:#define INT32_ANGLE_FRAC 12
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:118:#define INT32_ANGLE_PI_4   (int32_t)ANGLE_BFP_OF_REAL(   0.7853981633974483096156608458198757)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:119:#define INT32_ANGLE_PI_2   (int32_t)ANGLE_BFP_OF_REAL(   1.5707963267948966192313216916397514)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:120:#define INT32_ANGLE_PI     (int32_t)ANGLE_BFP_OF_REAL(   3.1415926535897932384626433832795029)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:121:#define INT32_ANGLE_2_PI   (int32_t)ANGLE_BFP_OF_REAL(2.*3.1415926535897932384626433832795029)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:126:#define INT32_ANGLE_NORMALIZE(_a) {             \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:127:    while ((_a) > INT32_ANGLE_PI)  (_a) -= INT32_ANGLE_2_PI;    \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:128:    while ((_a) < -INT32_ANGLE_PI) (_a) += INT32_ANGLE_2_PI;    \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:132:    while ((_a) < 0) (_a) += INT32_ANGLE_2_PI;                  \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:133:    while ((_a) >= INT32_ANGLE_2_PI)  (_a) -= INT32_ANGLE_2_PI; \
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:145: * @details Units: rad in BFP with #INT32_ANGLE_FRAC */
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:147:  int32_t phi;   ///< in rad with #INT32_ANGLE_FRAC
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:148:  int32_t theta; ///< in rad with #INT32_ANGLE_FRAC
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:149:  int32_t psi;   ///< in rad with #INT32_ANGLE_FRAC
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:211:#define ANGLE_BFP_OF_REAL(_af)  BFP_OF_REAL((_af), INT32_ANGLE_FRAC)
+_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_int.h:212:#define ANGLE_FLOAT_OF_BFP(_ai) FLOAT_OF_BFP((_ai), INT32_ANGLE_FRAC)
+paparazzi/models
+paparazzi/models/init_first_order_low_pass
+paparazzi/models/init_first_order_low_pass/cbmc
+paparazzi/models/init_first_order_low_pass/cbmc/report
+paparazzi/models/init_first_order_low_pass/cbmc/history
+paparazzi/models/init_first_order_low_pass/prepare
+paparazzi/models/init_first_order_low_pass/prepare/report
+paparazzi/models/init_first_order_low_pass/prepare/source
+paparazzi/models/init_first_order_low_pass/prepare/original
+paparazzi/models/init_first_order_low_pass/rocq
+paparazzi/models/init_first_order_low_pass/rocq/report
+paparazzi/models/init_first_order_low_pass/rocq/cbmc_recheck
+paparazzi/models/init_first_order_low_pass/rocq/functional
+paparazzi/models/init_first_order_low_pass/rocq/support
+paparazzi/models/init_first_order_low_pass/rocq/execution_correspondence
+paparazzi/models/init_first_order_low_pass/rocq/no_error
+paparazzi/models/init_first_order_low_pass/rocq/termination
+paparazzi/models/init_first_order_low_pass/align
+paparazzi/models/init_first_order_low_pass/align/report
+paparazzi/models/init_first_order_low_pass/align/model
+paparazzi/models/get_first_order_low_pass
+paparazzi/models/get_first_order_low_pass/cbmc
+paparazzi/models/get_first_order_low_pass/cbmc/report
+paparazzi/models/get_first_order_low_pass/prepare
+paparazzi/models/get_first_order_low_pass/prepare/report
+paparazzi/models/get_first_order_low_pass/prepare/source
+paparazzi/models/get_first_order_low_pass/rocq
+paparazzi/models/get_first_order_low_pass/rocq/report
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck
+paparazzi/models/get_first_order_low_pass/rocq/functional
+paparazzi/models/get_first_order_low_pass/rocq/support
+paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence
+paparazzi/models/get_first_order_low_pass/rocq/no_error
+paparazzi/models/get_first_order_low_pass/rocq/termination
+paparazzi/models/get_first_order_low_pass/align
+paparazzi/models/get_first_order_low_pass/align/report
+paparazzi/models/get_first_order_low_pass/align/model
+paparazzi/models/gh_set_zeta
+paparazzi/models/gh_set_zeta/cbmc
+paparazzi/models/gh_set_zeta/cbmc/report
+paparazzi/models/gh_set_zeta/prepare
+paparazzi/models/gh_set_zeta/prepare/report
+paparazzi/models/gh_set_zeta/prepare/source
+paparazzi/models/gh_set_zeta/prepare/upstream
+paparazzi/models/gh_set_zeta/rocq
+paparazzi/models/gh_set_zeta/rocq/report
+paparazzi/models/gh_set_zeta/rocq/cbmc_recheck
+paparazzi/models/gh_set_zeta/rocq/functional
+paparazzi/models/gh_set_zeta/rocq/support
+paparazzi/models/gh_set_zeta/rocq/execution_correspondence
+paparazzi/models/gh_set_zeta/rocq/no_error
+paparazzi/models/gh_set_zeta/rocq/termination
+paparazzi/models/gh_set_zeta/align
+paparazzi/models/gh_set_zeta/align/report
+paparazzi/models/gh_set_zeta/align/model
+paparazzi/models/update_first_order_low_pass
+paparazzi/models/update_first_order_low_pass/cbmc
+paparazzi/models/update_first_order_low_pass/cbmc/report
+paparazzi/models/update_first_order_low_pass/prepare
+paparazzi/models/update_first_order_low_pass/prepare/report
+paparazzi/models/update_first_order_low_pass/prepare/source
+paparazzi/models/update_first_order_low_pass/rocq
+paparazzi/models/update_first_order_low_pass/rocq/report
+paparazzi/models/update_first_order_low_pass/rocq/cbmc_recheck
+paparazzi/models/update_first_order_low_pass/rocq/functional
+paparazzi/models/update_first_order_low_pass/rocq/support
+paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence
+paparazzi/models/update_first_order_low_pass/rocq/no_error
+paparazzi/models/update_first_order_low_pass/rocq/termination
+paparazzi/models/update_first_order_low_pass/align
+paparazzi/models/update_first_order_low_pass/align/report
+paparazzi/models/update_first_order_low_pass/align/model
+paparazzi/models/update_first_order_low_pass_tau
+paparazzi/models/update_first_order_low_pass_tau/cbmc
+paparazzi/models/update_first_order_low_pass_tau/cbmc/report
+paparazzi/models/update_first_order_low_pass_tau/cbmc/history
+paparazzi/models/update_first_order_low_pass_tau/prepare
+paparazzi/models/update_first_order_low_pass_tau/prepare/report
+paparazzi/models/update_first_order_low_pass_tau/prepare/source
+paparazzi/models/update_first_order_low_pass_tau/prepare/original
+paparazzi/models/update_first_order_low_pass_tau/rocq
+paparazzi/models/update_first_order_low_pass_tau/rocq/report
+paparazzi/models/update_first_order_low_pass_tau/rocq/cbmc_recheck
+paparazzi/models/update_first_order_low_pass_tau/rocq/functional
+paparazzi/models/update_first_order_low_pass_tau/rocq/support
+paparazzi/models/update_first_order_low_pass_tau/rocq/execution_correspondence
+paparazzi/models/update_first_order_low_pass_tau/rocq/no_error
+paparazzi/models/update_first_order_low_pass_tau/rocq/termination
+paparazzi/models/update_first_order_low_pass_tau/align
+paparazzi/models/update_first_order_low_pass_tau/align/report
+paparazzi/models/update_first_order_low_pass_tau/align/model
+paparazzi/models/gh_set_omega
+paparazzi/models/gh_set_omega/cbmc
+paparazzi/models/gh_set_omega/cbmc/report
+paparazzi/models/gh_set_omega/prepare
+paparazzi/models/gh_set_omega/prepare/report
+paparazzi/models/gh_set_omega/prepare/source
+paparazzi/models/gh_set_omega/prepare/upstream
+paparazzi/models/gh_set_omega/rocq
+paparazzi/models/gh_set_omega/rocq/report
+paparazzi/models/gh_set_omega/rocq/cbmc_recheck
+paparazzi/models/gh_set_omega/rocq/functional
+paparazzi/models/gh_set_omega/rocq/execution
+paparazzi/models/gh_set_omega/rocq/support
+paparazzi/models/gh_set_omega/rocq/no_error
+paparazzi/models/gh_set_omega/rocq/shared
+paparazzi/models/gh_set_omega/rocq/termination
+paparazzi/models/gh_set_omega/align
+paparazzi/models/gh_set_omega/align/report
+paparazzi/models/gh_set_omega/align/model
+paparazzi/models/reset_first_order_low_pass
+paparazzi/models/reset_first_order_low_pass/cbmc
+paparazzi/models/reset_first_order_low_pass/cbmc/report
+paparazzi/models/reset_first_order_low_pass/cbmc/history
+paparazzi/models/reset_first_order_low_pass/prepare
+paparazzi/models/reset_first_order_low_pass/prepare/report
+paparazzi/models/reset_first_order_low_pass/prepare/source
+paparazzi/models/reset_first_order_low_pass/prepare/original
+paparazzi/models/reset_first_order_low_pass/rocq
+paparazzi/models/reset_first_order_low_pass/rocq/report
+paparazzi/models/reset_first_order_low_pass/rocq/cbmc_recheck
+paparazzi/models/reset_first_order_low_pass/rocq/functional
+paparazzi/models/reset_first_order_low_pass/rocq/support
+paparazzi/models/reset_first_order_low_pass/rocq/execution_correspondence
+paparazzi/models/reset_first_order_low_pass/rocq/no_error
+paparazzi/models/reset_first_order_low_pass/rocq/termination
+paparazzi/models/reset_first_order_low_pass/align
+paparazzi/models/reset_first_order_low_pass/align/report
+paparazzi/models/reset_first_order_low_pass/align/model
+paparazzi/models/gh_update_ref_from_speed_sp
+paparazzi/models/gh_update_ref_from_speed_sp/cbmc
+paparazzi/models/gh_update_ref_from_speed_sp/cbmc/report
+paparazzi/models/gh_update_ref_from_speed_sp/cbmc/history
+paparazzi/models/gh_update_ref_from_speed_sp/prepare
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/report
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/source
+paparazzi/models/gh_update_ref_from_speed_sp/prepare/original
+paparazzi/models/gh_update_ref_from_speed_sp/rocq
+paparazzi/models/gh_update_ref_from_speed_sp/rocq/report
+paparazzi/models/gh_update_ref_from_speed_sp/rocq/cbmc_recheck
+paparazzi/models/gh_update_ref_from_speed_sp/rocq/functional
+paparazzi/models/gh_update_ref_from_speed_sp/rocq/execution_correspondence
+paparazzi/models/gh_update_ref_from_speed_sp/rocq/no_error
+paparazzi/models/gh_update_ref_from_speed_sp/rocq/termination
+paparazzi/models/gh_update_ref_from_speed_sp/align
+paparazzi/models/gh_update_ref_from_speed_sp/align/report
+paparazzi/models/gh_update_ref_from_speed_sp/align/model
+paparazzi/models/gh_update_ref_from_accel_sp
+paparazzi/models/gh_update_ref_from_accel_sp/cbmc
+paparazzi/models/gh_update_ref_from_accel_sp/cbmc/report
+paparazzi/models/gh_update_ref_from_accel_sp/cbmc/history
+paparazzi/models/gh_update_ref_from_accel_sp/prepare
+paparazzi/models/gh_update_ref_from_accel_sp/prepare/report
+paparazzi/models/gh_update_ref_from_accel_sp/prepare/source
+paparazzi/models/gh_update_ref_from_accel_sp/prepare/original
+paparazzi/models/gh_update_ref_from_accel_sp/rocq
+paparazzi/models/gh_update_ref_from_accel_sp/rocq/report
+paparazzi/models/gh_update_ref_from_accel_sp/rocq/cbmc_recheck
+paparazzi/models/gh_update_ref_from_accel_sp/rocq/functional
+paparazzi/models/gh_update_ref_from_accel_sp/rocq/execution_correspondence
+paparazzi/models/gh_update_ref_from_accel_sp/rocq/no_error
+paparazzi/models/gh_update_ref_from_accel_sp/rocq/termination
+paparazzi/models/gh_update_ref_from_accel_sp/align
+paparazzi/models/gh_update_ref_from_accel_sp/align/report
+paparazzi/models/gh_update_ref_from_accel_sp/align/model
+paparazzi/models/guidance_pid_h_run_pos
+paparazzi/models/guidance_pid_h_run_pos/cbmc
+paparazzi/models/guidance_pid_h_run_pos/cbmc/report
+paparazzi/models/guidance_pid_h_run_pos/prepare
+paparazzi/models/guidance_pid_h_run_pos/prepare/report
+paparazzi/models/guidance_pid_h_run_pos/prepare/source
+paparazzi/models/guidance_pid_h_run_pos/prepare/original
+paparazzi/models/guidance_pid_h_run_pos/rocq
+paparazzi/models/guidance_pid_h_run_pos/rocq/report
+paparazzi/models/guidance_pid_h_run_pos/rocq/cbmc_recheck
+paparazzi/models/guidance_pid_h_run_pos/rocq/no_error
+paparazzi/models/guidance_pid_h_run_pos/rocq/termination
+paparazzi/models/guidance_pid_h_run_pos/align
+paparazzi/models/guidance_pid_h_run_pos/align/report
+paparazzi/models/guidance_pid_h_run_pos/align/model

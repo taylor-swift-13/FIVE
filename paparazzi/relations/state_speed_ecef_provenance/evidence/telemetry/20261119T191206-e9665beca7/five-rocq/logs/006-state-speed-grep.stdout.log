@@ -1,0 +1,251 @@
+1537-(** A program, or compilation unit, is composed of:
+1538-- a list of definitions of functions and global variables;
+1539-- the names of functions and global variables that are public (not static);
+1540-- the name of the function that acts as entry point ("main" function).
+1541-- a list of definitions for structure and union names
+1542-- the corresponding composite environment
+1543-- a proof that this environment is consistent with the definitions. *)
+1544-
+1545:Record program : Type := {
+1546-  prog_defs: list (ident * globdef fundef type);
+1547-  prog_public: list ident;
+1548-  prog_main: ident;
+1549-  prog_types: list composite_definition;
+1550-  prog_comp_env: composite_env;
+1551:  prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env
+1552-}.
+1553-
+1554-Definition program_of_program (p: program) : AST.program fundef type :=
+1555-  {| AST.prog_defs := p.(prog_defs);
+1556-     AST.prog_public := p.(prog_public);
+1557-     AST.prog_main := p.(prog_main) |}.
+1558-
+1559-Coercion program_of_program: program >-> AST.program.
+1560-
+1561:Program Definition make_program (types: list composite_definition)
+1562-                                (defs: list (ident * globdef fundef type))
+1563-                                (public: list ident)
+1564-                                (main: ident) : res program :=
+1565-  match build_composite_env types with
+1566-  | Error e => Error e
+1567-  | OK ce =>
+1568-      OK {| prog_defs := defs;
+1569-            prog_public := public;
+1570-            prog_main := main;
+1571-            prog_types := types;
+1572-            prog_comp_env := ce;
+1573:            prog_comp_env_eq := _ |}
+1574-  end.
+1575-
+1576-End PROGRAMS.
+1577-
+1578-Arguments External {F} _ _ _ _.
+1579-
+1580-Unset Implicit Arguments.
+1581-
+1582-(** * Separate compilation and linking *)
+1583-
+1584-(** ** Linking types *)
+1585-
+1586-Global Program Instance Linker_types : Linker type := {
+1587-  link := fun t1 t2 => if type_eq t1 t2 then Some t1 else None;
+1588-  linkorder := fun t1 t2 => t1 = t2
+1589-}.
+1590-Next Obligation.
+1591-  destruct (type_eq x y); inv H. auto.
+1592-Defined.
+1593-
+1594-Global Opaque Linker_types.
+1595-
+1596-(** ** Linking composite definitions *)
+1597-
+1598-Definition check_compat_composite (l: list composite_definition) (cd: composite_definition) : bool :=
+1599-  List.forallb
+1600-    (fun cd' =>
+1601-      if ident_eq (name_composite_def cd') (name_composite_def cd) then composite_def_eq cd cd' else true)
+1602-    l.
+1603-
+1604-Definition filter_redefs (l1 l2: list composite_definition) :=
+1605-  let names1 := map name_composite_def l1 in
+1606-  List.filter (fun cd => negb (In_dec ident_eq (name_composite_def cd) names1)) l2.
+1607-
+1608-Definition link_composite_defs (l1 l2: list composite_definition): option (list composite_definition) :=
+1609-  if List.forallb (check_compat_composite l2) l1
+1610-  then Some (l1 ++ filter_redefs l1 l2)
+1611-  else None.
+1612-
+1613-Lemma link_composite_def_inv:
+1614-  forall l1 l2 l,
+1615-  link_composite_defs l1 l2 = Some l ->
+1616-     (forall cd1 cd2, In cd1 l1 -> In cd2 l2 -> name_composite_def cd2 = name_composite_def cd1 -> cd2 = cd1)
+1617-  /\ l = l1 ++ filter_redefs l1 l2
+1618-  /\ (forall x, In x l <-> In x l1 \/ In x l2).
+1619-Proof.
+1620-  unfold link_composite_defs; intros.
+1621-  destruct (forallb (check_compat_composite l2) l1) eqn:C; inv H.
+1622-  assert (A: 
+1623-    forall cd1 cd2, In cd1 l1 -> In cd2 l2 -> name_composite_def cd2 = name_composite_def cd1 -> cd2 = cd1).
+1624-  { rewrite forallb_forall in C. intros.
+1625-    apply C in H. unfold check_compat_composite in H. rewrite forallb_forall in H. 
+1626-    apply H in H0. rewrite H1, dec_eq_true in H0. symmetry; eapply proj_sumbool_true; eauto. }
+1627-  split. auto. split. auto. 
+1628-  unfold filter_redefs; intros. 
+--
+1859-  | None => None
+1860-  | Some p =>
+1861-      match lift_option (link p1.(prog_types) p2.(prog_types)) with
+1862-      | inright _ => None
+1863-      | inleft (exist typs EQ) =>
+1864-          match link_build_composite_env
+1865-                   p1.(prog_types) p2.(prog_types) typs
+1866-                   p1.(prog_comp_env) p2.(prog_comp_env)
+1867:                   p1.(prog_comp_env_eq) p2.(prog_comp_env_eq) EQ with
+1868-          | exist env (conj P Q) =>
+1869-              Some {| prog_defs := p.(AST.prog_defs);
+1870-                      prog_public := p.(AST.prog_public);
+1871-                      prog_main := p.(AST.prog_main);
+1872-                      prog_types := typs;
+1873-                      prog_comp_env := env;
+1874:                      prog_comp_env_eq := P |}
+1875-          end
+1876-      end
+1877-  end.
+1878-
+1879-Definition linkorder_program {F: Type} (p1 p2: program F) : Prop :=
+1880-     linkorder (program_of_program p1) (program_of_program p2)
+1881-  /\ (forall id co, p1.(prog_comp_env)!id = Some co -> p2.(prog_comp_env)!id = Some co).
+1882-
+1883-Global Program Instance Linker_program (F: Type): Linker (program F) := {
+1884-  link := link_program;
+1885-  linkorder := linkorder_program
+1886-}.
+1887-Next Obligation.
+1888-  split. apply linkorder_refl. auto.
+1889-Defined.
+1890-Next Obligation.
+1891-  destruct H, H0. split. eapply linkorder_trans; eauto.
+1892-  intros; auto.
+1893-Defined.
+1894-Next Obligation.
+1895-  revert H. unfold link_program.
+1896-  destruct (link (program_of_program x) (program_of_program y)) as [p|] eqn:LP; try discriminate.
+1897-  destruct (lift_option (link (prog_types x) (prog_types y))) as [[typs EQ]|EQ]; try discriminate.
+1898-  destruct (link_build_composite_env (prog_types x) (prog_types y) typs
+1899:       (prog_comp_env x) (prog_comp_env y) (prog_comp_env_eq x)
+1900:       (prog_comp_env_eq y) EQ) as (env & P & Q & R).
+1901-  destruct (link_linkorder _ _ _ LP). 
+1902-  intros X; inv X.
+1903-  split; split; auto.
+1904-Defined.
+1905-
+1906-Global Opaque Linker_program.
+1907-
+1908-(** ** Commutation between linking and program transformations *)
+1909-
+1910-Section LINK_MATCH_PROGRAM_GEN.
+1911-
+1912-Context {F G: Type}.
+1913-Variable match_fundef: program F -> fundef F -> fundef G -> Prop.
+1914-
+1915-Hypothesis link_match_fundef:
+1916-  forall ctx1 ctx2 f1 tf1 f2 tf2 f,
+1917-  link f1 f2 = Some f ->
+1918-  match_fundef ctx1 f1 tf1 -> match_fundef ctx2 f2 tf2 ->
+1919-  exists tf, link tf1 tf2 = Some tf /\ (match_fundef ctx1 f tf \/ match_fundef ctx2 f tf).
+1920-
+1921-Let match_program (p: program F) (tp: program G) : Prop :=
+1922-    Linking.match_program_gen match_fundef eq p p tp
+1923- /\ prog_types tp = prog_types p.
+1924-
+1925-Theorem link_match_program_gen:
+1926-  forall p1 p2 tp1 tp2 p,
+1927-  link p1 p2 = Some p -> match_program p1 tp1 -> match_program p2 tp2 ->
+1928-  exists tp, link tp1 tp2 = Some tp /\ match_program p tp.
+1929-Proof.
+1930-  intros until p; intros L [M1 T1] [M2 T2].
+1931-  destruct (link_linkorder _ _ _ L) as [LO1 LO2].
+1932-Local Transparent Linker_program.
+1933-  simpl in L; unfold link_program in L.
+1934-  destruct (link (program_of_program p1) (program_of_program p2)) as [pp|] eqn:LP; try discriminate.
+1935-  assert (A: exists tpp,
+1936-               link (program_of_program tp1) (program_of_program tp2) = Some tpp
+1937-             /\ Linking.match_program_gen match_fundef eq p pp tpp).
+1938-  { eapply Linking.link_match_program; eauto.
+1939-  - intros.
+1940-    Local Transparent Linker_types.
+1941-    simpl in *. destruct (type_eq v1 v2); inv H. exists v; rewrite dec_eq_true; auto.
+1942-  }
+1943-  destruct A as (tpp & TLP & MP).
+1944-  simpl; unfold link_program. rewrite TLP.
+1945-  destruct (lift_option (link (prog_types p1) (prog_types p2))) as [[typs EQ]|EQ]; try discriminate.
+1946-  destruct (link_build_composite_env (prog_types p1) (prog_types p2) typs
+1947:           (prog_comp_env p1) (prog_comp_env p2) (prog_comp_env_eq p1)
+1948:           (prog_comp_env_eq p2) EQ) as (env & P & Q). 
+1949-  rewrite <- T1, <- T2 in EQ.
+1950-  destruct (lift_option (link (prog_types tp1) (prog_types tp2))) as [[ttyps EQ']|EQ']; try congruence.
+1951-  assert (ttyps = typs) by congruence. subst ttyps. 
+1952-  destruct (link_build_composite_env (prog_types tp1) (prog_types tp2) typs
+1953:         (prog_comp_env tp1) (prog_comp_env tp2) (prog_comp_env_eq tp1)
+1954:         (prog_comp_env_eq tp2) EQ') as (tenv & R & S).
+1955-  assert (tenv = env) by congruence. subst tenv.
+1956-  econstructor; split; eauto. inv L. split; auto.
+1957-Qed.
+1958-
+1959-End LINK_MATCH_PROGRAM_GEN.
+1960-
+1961-Section LINK_MATCH_PROGRAM.
+1962-
+1963-Context {F G: Type}.
+1964-Variable match_fundef: fundef F -> fundef G -> Prop.
+1965-
+1966-Hypothesis link_match_fundef:
+1967-  forall f1 tf1 f2 tf2 f,
+1968-  link f1 f2 = Some f ->
+1969-  match_fundef f1 tf1 -> match_fundef f2 tf2 ->
+1970-  exists tf, link tf1 tf2 = Some tf /\ match_fundef f tf.
+1971-
+1972-Let match_program (p: program F) (tp: program G) : Prop :=
+1973-    Linking.match_program (fun ctx f tf => match_fundef f tf) eq p tp
+1974- /\ prog_types tp = prog_types p.
+1975-
+1976-Theorem link_match_program:
+1977-  forall p1 p2 tp1 tp2 p,
+1978-  link p1 p2 = Some p -> match_program p1 tp1 -> match_program p2 tp2 ->
+1979-  exists tp, link tp1 tp2 = Some tp /\ match_program p tp.
+1980-Proof.
+1981-  intros. destruct H0, H1. 
+1982-Local Transparent Linker_program.
+1983-  simpl in H; unfold link_program in H.
+1984-  destruct (link (program_of_program p1) (program_of_program p2)) as [pp|] eqn:LP; try discriminate.
+1985-  assert (A: exists tpp,
+1986-               link (program_of_program tp1) (program_of_program tp2) = Some tpp
+1987-             /\ Linking.match_program (fun ctx f tf => match_fundef f tf) eq pp tpp).
+1988-  { eapply Linking.link_match_program. 
+1989-  - intros. exploit link_match_fundef; eauto. intros (tf & A & B). exists tf; auto.
+1990-  - intros.
+1991-    Local Transparent Linker_types.
+1992-    simpl in *. destruct (type_eq v1 v2); inv H4. exists v; rewrite dec_eq_true; auto.
+1993-  - eauto.
+1994-  - eauto.
+1995-  - eauto.
+1996-  - apply (link_linkorder _ _ _ LP).
+1997-  - apply (link_linkorder _ _ _ LP). }
+1998-  destruct A as (tpp & TLP & MP).
+1999-  simpl; unfold link_program. rewrite TLP.
+2000-  destruct (lift_option (link (prog_types p1) (prog_types p2))) as [[typs EQ]|EQ]; try discriminate.
+2001-  destruct (link_build_composite_env (prog_types p1) (prog_types p2) typs
+2002:           (prog_comp_env p1) (prog_comp_env p2) (prog_comp_env_eq p1)
+2003:           (prog_comp_env_eq p2) EQ) as (env & P & Q). 
+2004-  rewrite <- H2, <- H3 in EQ.
+2005-  destruct (lift_option (link (prog_types tp1) (prog_types tp2))) as [[ttyps EQ']|EQ']; try congruence.
+2006-  assert (ttyps = typs) by congruence. subst ttyps. 
+2007-  destruct (link_build_composite_env (prog_types tp1) (prog_types tp2) typs
+2008:         (prog_comp_env tp1) (prog_comp_env tp2) (prog_comp_env_eq tp1)
+2009:         (prog_comp_env_eq tp2) EQ') as (tenv & R & S).
+2010-  assert (tenv = env) by congruence. subst tenv.
+2011-  econstructor; split; eauto. inv H. split; auto.
+2012-  unfold program_of_program; simpl. destruct pp, tpp; exact MP.
+2013-Qed.
+2014-
+2015-End LINK_MATCH_PROGRAM.
+2016-

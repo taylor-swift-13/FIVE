@@ -1,0 +1,36 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/ClampSemantics.v", line 117, characters 36-40:
+Error:
+In environment
+e : env
+m : mem
+r : expr
+err : int
+shift : Z
+bound : int
+TY : typeof r = tint
+SIMPLE : source_simple r = true
+READ : eval_simple_rvalue Execution.ge e m r (Vint err)
+BOUND :
+  eval_simple_rvalue Execution.ge e m (source_bound shift)
+    (Vfloat (Float.of_int bound))
+NEG : Float.neg (Float.of_int bound) = Float.of_int (Int.neg bound)
+below := Float.cmp Clt (Float.of_int err) (Float.of_int (Int.neg bound))
+  : bool
+above := Float.cmp Cgt (Float.of_int err) (Float.of_int bound) : bool
+LOW :
+  eval_simple_rvalue Execution.ge e m
+    (Eunop Oneg (source_bound shift) tdouble)
+    (Vfloat (Float.of_int (Int.neg bound)))
+BELOW : below = false
+LT :
+  eval_expression Execution.ge e m
+    (Ebinop Olt r (Eunop Oneg (source_bound shift) tdouble) tint) E0 m
+    (Val.of_bool false)
+ABOVE : above = false
+GT :
+  eval_expression Execution.ge e m (Ebinop Ogt r (source_bound shift) tint)
+    E0 m (Val.of_bool false)
+The term "READ" has type "eval_simple_rvalue Execution.ge e m r (Vint err)"
+while it is expected to have type
+ "eval_simple_rvalue Execution.ge e m r (Vfloat (Float.of_int err))".
+

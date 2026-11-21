@@ -1,0 +1,296 @@
+     1	/*
+     2	 * Copyright (C) 2008-2009 Antoine Drouin <poinix@gmail.com>
+     3	 * Copyright (C) 2013 Gautier Hattenberger
+     4	 *
+     5	 * This file is part of paparazzi.
+     6	 *
+     7	 * paparazzi is free software; you can redistribute it and/or modify
+     8	 * it under the terms of the GNU General Public License as published by
+     9	 * the Free Software Foundation; either version 2, or (at your option)
+    10	 * any later version.
+    11	 *
+    12	 * paparazzi is distributed in the hope that it will be useful,
+    13	 * but WITHOUT ANY WARRANTY; without even the implied warranty of
+    14	 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    15	 * GNU General Public License for more details.
+    16	 *
+    17	 * You should have received a copy of the GNU General Public License
+    18	 * along with paparazzi; see the file COPYING.  If not, write to
+    19	 * the Free Software Foundation, 59 Temple Place - Suite 330,
+    20	 * Boston, MA 02111-1307, USA.
+    21	 */
+    22	
+    23	/** @file firmwares/rotorcraft/guidance/guidance_v_ref.c
+    24	 *  Reference generation for vertical guidance.
+    25	 *
+    26	 */
+    27	
+    28	#include "firmwares/rotorcraft/guidance/guidance_v_ref.h"
+    29	#include "generated/airframe.h"
+    30	
+    31	/** reference model vertical accel in meters/s^2 (output)
+    32	 *  fixed point representation with #GV_ZDD_REF_FRAC
+    33	 *  Q23.8 : accuracy 0.0039 , range 8388km/s^2
+    34	 */
+    35	int32_t gv_zdd_ref;
+    36	
+    37	/** reference model vertical speed in meters/sec (output)
+    38	 *  fixed point representation with #GV_ZD_REF_FRAC
+    39	 *  Q14.17 : accuracy 0.0000076 , range 16384m/s2
+    40	 */
+    41	int32_t gv_zd_ref;
+    42	
+    43	/** reference model altitude in meters (output)
+    44	 *  fixed point representation with #GV_Z_REF_FRAC
+    45	 *  Q37.26 :
+    46	 */
+    47	int64_t gv_z_ref;
+    48	
+    49	
+    50	/* Saturations definition */
+    51	#ifndef GUIDANCE_V_REF_MIN_ZDD
+    52	#define GUIDANCE_V_REF_MIN_ZDD (-2.0*9.81)
+    53	#endif
+    54	#define GV_MIN_ZDD BFP_OF_REAL(GUIDANCE_V_REF_MIN_ZDD, GV_ZDD_REF_FRAC)
+    55	
+    56	#ifndef GUIDANCE_V_REF_MAX_ZDD
+    57	#define GUIDANCE_V_REF_MAX_ZDD ( 0.8*9.81)
+    58	#endif
+    59	#define GV_MAX_ZDD BFP_OF_REAL(GUIDANCE_V_REF_MAX_ZDD, GV_ZDD_REF_FRAC)
+    60	
+    61	/** maximum distance altitude setpoint is advanced in climb mode */
+    62	#ifndef GUIDANCE_V_REF_MAX_Z_DIFF
+    63	#define GUIDANCE_V_REF_MAX_Z_DIFF 10.0
+    64	#endif
+    65	#define GV_MAX_Z_DIFF BFP_OF_REAL(GUIDANCE_V_REF_MAX_Z_DIFF, GV_Z_REF_FRAC)
+    66	
+    67	#define GV_MIN_ZD  BFP_OF_REAL(GUIDANCE_V_REF_MIN_ZD , GV_ZD_REF_FRAC)
+    68	#define GV_MAX_ZD  BFP_OF_REAL(GUIDANCE_V_REF_MAX_ZD , GV_ZD_REF_FRAC)
+    69	
+    70	/* second order model natural frequency and damping */
+    71	#ifndef GUIDANCE_V_REF_OMEGA
+    72	#define GUIDANCE_V_REF_OMEGA RadOfDeg(100.)
+    73	#endif
+    74	#ifndef GUIDANCE_V_REF_ZETA
+    75	#define GUIDANCE_V_REF_ZETA  0.85
+    76	#endif
+    77	#define GV_ZETA_OMEGA_FRAC 10
+    78	#define GV_ZETA_OMEGA BFP_OF_REAL((GUIDANCE_V_REF_ZETA*GUIDANCE_V_REF_OMEGA), GV_ZETA_OMEGA_FRAC)
+    79	#define GV_OMEGA_2_FRAC 7
+    80	#define GV_OMEGA_2    BFP_OF_REAL((GUIDANCE_V_REF_OMEGA*GUIDANCE_V_REF_OMEGA), GV_OMEGA_2_FRAC)
+    81	
+    82	/* first order time constant */
+    83	#define GV_REF_THAU_F  0.25
+    84	#define GV_REF_INV_THAU_FRAC 16
+    85	#define GV_REF_INV_THAU  BFP_OF_REAL((1./0.25), GV_REF_INV_THAU_FRAC)
+    86	
+    87	void gv_set_ref(int32_t alt, int32_t speed, int32_t accel)
+    88	{
+    89	  int64_t new_z = ((int64_t)alt) << (GV_Z_REF_FRAC - INT32_POS_FRAC);
+    90	  gv_z_ref   = new_z;
+    91	  gv_zd_ref  = speed >> (INT32_SPEED_FRAC - GV_ZD_REF_FRAC);
+    92	  gv_zdd_ref = accel >> (INT32_ACCEL_FRAC - GV_ZDD_REF_FRAC);
+    93	}
+    94	
+    95	void gv_update_ref_from_z_sp(int32_t z_sp)
+    96	{
+    97	
+    98	  gv_z_ref  += gv_zd_ref;
+    99	  gv_zd_ref += gv_zdd_ref;
+   100	
+   101	  // compute the "speed part" of zdd = -2*zeta*omega*zd -omega^2(z_sp - z)
+   102	  int32_t zd_zdd_res = gv_zd_ref >> (GV_ZD_REF_FRAC - GV_ZDD_REF_FRAC);
+   103	  int32_t zdd_speed = ((int32_t)(-2 * GV_ZETA_OMEGA) * zd_zdd_res) >> (GV_ZETA_OMEGA_FRAC);
+   104	  // compute z error in z_sp resolution
+   105	  int32_t z_err_sp = z_sp - (int32_t)(gv_z_ref >> (GV_Z_REF_FRAC - INT32_POS_FRAC));
+   106	  // convert to accel resolution
+   107	  int32_t z_err_accel = z_err_sp >> (INT32_POS_FRAC - GV_ZDD_REF_FRAC);
+   108	  int32_t zdd_pos = ((int32_t)(GV_OMEGA_2) * z_err_accel) >> GV_OMEGA_2_FRAC;
+   109	  gv_zdd_ref = zdd_speed + zdd_pos;
+   110	
+   111	  /* Saturate accelerations */
+   112	  Bound(gv_zdd_ref, GV_MIN_ZDD, GV_MAX_ZDD);
+   113	
+   114	  /* Saturate speed and adjust acceleration accordingly */
+   115	  if (gv_zd_ref <= GV_MIN_ZD) {
+   116	    gv_zd_ref = GV_MIN_ZD;
+   117	    if (gv_zdd_ref < 0) {
+   118	      gv_zdd_ref = 0;
+   119	    }
+   120	  } else if (gv_zd_ref >= GV_MAX_ZD) {
+   121	    gv_zd_ref = GV_MAX_ZD;
+   122	    if (gv_zdd_ref > 0) {
+   123	      gv_zdd_ref = 0;
+   124	    }
+   125	  }
+   126	}
+   127	
+   128	
+   129	void gv_update_ref_from_zd_sp(int32_t zd_sp, int32_t z_pos)
+   130	{
+   131	
+   132	  gv_z_ref  += gv_zd_ref;
+   133	  gv_zd_ref += gv_zdd_ref;
+   134	
+   135	  /* limit z_ref to GUIDANCE_V_REF_MAX_Z_DIFF from current z pos */
+   136	  int64_t cur_z = ((int64_t)z_pos) << (GV_Z_REF_FRAC - INT32_POS_FRAC);
+   137	  Bound(gv_z_ref, cur_z - GV_MAX_Z_DIFF, cur_z + GV_MAX_Z_DIFF);
+   138	
+   139	  int32_t zd_err = gv_zd_ref - (zd_sp >> (INT32_SPEED_FRAC - GV_ZD_REF_FRAC));
+   140	  int32_t zd_err_zdd_res = zd_err >> (GV_ZD_REF_FRAC - GV_ZDD_REF_FRAC);
+   141	  gv_zdd_ref = (-(int32_t)GV_REF_INV_THAU * zd_err_zdd_res) >> GV_REF_INV_THAU_FRAC;
+   142	
+   143	  /* Saturate accelerations */
+   144	  Bound(gv_zdd_ref, GV_MIN_ZDD, GV_MAX_ZDD);
+   145	
+   146	  /* Saturate speed and adjust acceleration accordingly */
+   147	  if (gv_zd_ref <= GV_MIN_ZD) {
+   148	    gv_zd_ref = GV_MIN_ZD;
+   149	    if (gv_zdd_ref < 0) {
+   150	      gv_zdd_ref = 0;
+   151	    }
+   152	  } else if (gv_zd_ref >= GV_MAX_ZD) {
+   153	    gv_zd_ref = GV_MAX_ZD;
+   154	    if (gv_zdd_ref > 0) {
+   155	      gv_zdd_ref = 0;
+   156	    }
+   157	  }
+   158	}
+   159	
+     1	/*
+     2	 * Copyright (C) 2008-2013 The Paparazzi Team
+     3	 *
+     4	 * This file is part of paparazzi.
+     5	 *
+     6	 * paparazzi is free software; you can redistribute it and/or modify
+     7	 * it under the terms of the GNU General Public License as published by
+     8	 * the Free Software Foundation; either version 2, or (at your option)
+     9	 * any later version.
+    10	 *
+    11	 * paparazzi is distributed in the hope that it will be useful,
+    12	 * but WITHOUT ANY WARRANTY; without even the implied warranty of
+    13	 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    14	 * GNU General Public License for more details.
+    15	 *
+    16	 * You should have received a copy of the GNU General Public License
+    17	 * along with paparazzi; see the file COPYING.  If not, write to
+    18	 * the Free Software Foundation, 59 Temple Place - Suite 330,
+    19	 * Boston, MA 02111-1307, USA.
+    20	 */
+    21	
+    22	/** @file firmwares/rotorcraft/guidance/guidance_h_ref.h
+    23	 *  Reference generation for horizontal guidance.
+    24	 *
+    25	 */
+    26	
+    27	#ifndef GUIDANCE_H_REF_H
+    28	#define GUIDANCE_H_REF_H
+    29	
+    30	#include "inttypes.h"
+    31	#include "math/pprz_algebra.h"
+    32	#include "math/pprz_algebra_int.h"
+    33	#include "math/pprz_algebra_float.h"
+    34	#include "generated/airframe.h"
+    35	#include "math/pprz_algebra_float.h"
+    36	
+    37	/** Default speed saturation */
+    38	#ifndef GUIDANCE_H_REF_MAX_SPEED
+    39	#define GUIDANCE_H_REF_MAX_SPEED 5.
+    40	#endif
+    41	
+    42	/** Current maximum speed for waypoint navigation.
+    43	 * Defaults to #GUIDANCE_H_REF_MAX_SPEED
+    44	 */
+    45	extern float gh_max_speed;
+    46	
+    47	/** Accel saturation.
+    48	 * tanf(RadOfDeg(30.))*9.81 = 5.66
+    49	 */
+    50	#ifndef GUIDANCE_H_REF_MAX_ACCEL
+    51	#define GUIDANCE_H_REF_MAX_ACCEL 5.66
+    52	#endif
+    53	
+    54	/** fixedpoint representation: Q26.37 will give a range of
+    55	 * 67e3 km and a resolution of 1.5e-11 m. At a rate of 500Hz,
+    56	 * a ref speed of 7.3e-9 m/s could still update the position.
+    57	 */
+    58	#define GH_POS_REF_FRAC 37
+    59	
+    60	struct GuidanceHRef {
+    61	  /** Reference model acceleration.
+    62	   * in meters/sec2 (output)
+    63	   */
+    64	  struct FloatVect2 accel;
+    65	
+    66	  /** Reference model speed.
+    67	   * in meters/sec
+    68	   * accuracy 0.0000076 , range 16384m/s
+    69	   */
+    70	  struct FloatVect2 speed;
+    71	
+    72	  /** Reference model position.
+    73	   * in meters
+    74	   * with fixedpoint representation: Q37.26
+    75	   */
+    76	  struct Int64Vect2 pos;
+    77	
+    78	  float tau;    ///< first order time constant
+    79	  float omega;  ///< second order model natural frequency
+    80	  float zeta;   ///< second order model damping
+    81	
+    82	  /** Current maximum speed for waypoint navigation.
+    83	   * Defaults to #GUIDANCE_H_REF_MAX_SPEED
+    84	   */
+    85	  float max_speed;
+    86	
+    87	  /*
+    88	   * internal variables
+    89	   */
+    90	  float zeta_omega;
+    91	  float omega_2;
+    92	  float inv_tau;
+    93	
+    94	  /** Integration timestep
+    95	   */
+    96	  float dt;
+    97	};
+    98	
+    99	extern struct GuidanceHRef gh_ref;
+   100	
+   101	extern void gh_ref_init(void);
+   102	extern void gh_set_ref(struct Int32Vect2 pos, struct FloatVect2 speed, struct FloatVect2 accel);
+   103	extern void gh_update_ref_from_pos_sp(struct Int32Vect2 pos_sp);
+   104	extern void gh_update_ref_from_speed_sp(struct FloatVect2 speed_sp);
+   105	extern void gh_update_ref_from_accel_sp(struct FloatVect2 accel_sp);
+   106	
+   107	/**
+   108	 * Set a new maximum speed for waypoint navigation.
+   109	 * @param max_speed speed saturation in m/s
+   110	 * @return new maximum speed
+   111	 */
+   112	extern float gh_set_max_speed(float max_speed);
+   113	
+   114	extern float gh_set_tau(float tau);
+   115	extern float gh_set_omega(float omega);
+   116	extern float gh_set_zeta(float zeta);
+   117	
+   118	#endif /* GUIDANCE_H_REF_H */
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h:103:extern void gh_update_ref_from_pos_sp(struct Int32Vect2 pos_sp);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h:104:extern void gh_update_ref_from_speed_sp(struct FloatVect2 speed_sp);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h:105:extern void gh_update_ref_from_accel_sp(struct FloatVect2 accel_sp);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h.c:290:    gh_update_ref_from_accel_sp(sp_accel_local);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h.c:296:    gh_update_ref_from_speed_sp(sp_speed);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h.c:298:    gh_update_ref_from_pos_sp(guidance_h.sp.pos);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.c:105:void gh_update_ref_from_pos_sp(struct Int32Vect2 pos_sp)
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.c:143:void gh_update_ref_from_speed_sp(struct FloatVect2 speed_sp)
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.c:170:void gh_update_ref_from_accel_sp(struct FloatVect2 accel_sp)
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.c:95:void gv_update_ref_from_z_sp(int32_t z_sp)
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.c:129:void gv_update_ref_from_zd_sp(int32_t zd_sp, int32_t z_pos)
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.c:241:      gv_update_ref_from_zd_sp(guidance_v.zd_sp, stateGetPositionNed_i()->z);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.c:246:      gv_update_ref_from_zd_sp(guidance_v.zd_sp, stateGetPositionNed_i()->z);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.c:311:    gv_update_ref_from_z_sp(guidance_v.z_sp);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.c:318:    gv_update_ref_from_zd_sp(guidance_v.zd_sp, stateGetPositionNed_i()->z);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.c:353:      gv_update_ref_from_z_sp(guidance_v.z_sp);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v.c:359:      gv_update_ref_from_zd_sp(guidance_v.zd_sp, stateGetPositionNed_i()->z);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.h:78:extern void gv_update_ref_from_z_sp(int32_t z_sp);
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.h:84:extern void gv_update_ref_from_zd_sp(int32_t zd_sp, int32_t z_pos);

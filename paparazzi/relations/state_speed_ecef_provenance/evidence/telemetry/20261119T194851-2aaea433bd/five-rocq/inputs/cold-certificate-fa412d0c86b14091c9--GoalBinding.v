@@ -1,0 +1,18 @@
+Require Import StateSpeedGetterExecutionProblem.Spec.
+Require Import StateSpeedGetterExecutionAttempt001.Proof.
+Definition goal_0 : StateSpeedGetterExecutionProblem.Spec.domain_preservation_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_domain_preservation.
+Print Assumptions goal_0.
+Definition goal_1 : StateSpeedGetterExecutionProblem.Spec.floating_point_correspondence_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_floating_point_correspondence.
+Print Assumptions goal_1.
+Definition goal_2 : StateSpeedGetterExecutionProblem.Spec.machine_integer_correspondence_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_machine_integer_correspondence.
+Print Assumptions goal_2.
+Definition goal_3 : StateSpeedGetterExecutionProblem.Spec.memory_access_correspondence_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_memory_access_correspondence.
+Print Assumptions goal_3.
+Definition goal_4 : StateSpeedGetterExecutionProblem.Spec.control_and_exhaustion_correspondence_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_control_and_exhaustion_correspondence.
+Print Assumptions goal_4.
+Definition goal_5 : StateSpeedGetterExecutionProblem.Spec.normal_result_and_memory_correspondence_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_normal_result_and_memory_correspondence.
+Print Assumptions goal_5.
+Definition goal_6 : StateSpeedGetterExecutionProblem.Spec.invalid_operation_correspondence_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_invalid_operation_correspondence.
+Print Assumptions goal_6.
+Definition goal_7 : StateSpeedGetterExecutionProblem.Spec.whole_execution_correspondence_goal := StateSpeedGetterExecutionAttempt001.Proof.proved_whole_execution_correspondence.
+Print Assumptions goal_7.

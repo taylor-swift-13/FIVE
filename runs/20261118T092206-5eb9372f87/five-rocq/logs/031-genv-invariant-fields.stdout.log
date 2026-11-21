@@ -1,0 +1,50 @@
+(** * Global environments *)
+
+Section GENV.
+
+Variable F: Type.  (**r The type of function descriptions *)
+Variable V: Type.  (**r The type of information attached to variables *)
+
+(** The type of global environments. *)
+
+Record t: Type := mkgenv {
+  genv_public: list ident;              (**r which symbol names are public *)
+  genv_symb: PTree.t block;             (**r mapping symbol -> block *)
+  genv_defs: PTree.t (globdef F V);     (**r mapping block -> definition *)
+  genv_next: block;                     (**r next symbol pointer *)
+  genv_symb_range: forall id b, PTree.get id genv_symb = Some b -> Plt b genv_next;
+  genv_defs_range: forall b g, PTree.get b genv_defs = Some g -> Plt b genv_next;
+  genv_vars_inj: forall id1 id2 b,
+    PTree.get id1 genv_symb = Some b -> PTree.get id2 genv_symb = Some b -> id1 = id2
+}.
+
+(** ** Lookup functions *)
+
+(** [find_symbol ge id] returns the block associated with the given name, if any *)
+
+Definition find_symbol (ge: t) (id: ident) : option block :=
+  PTree.get id ge.(genv_symb).
+
+(** [symbol_address ge id ofs] returns a pointer into the block associated
+  with [id], at byte offset [ofs].  [Vundef] is returned if no block is associated
+  to [id]. *)
+
+Definition symbol_address (ge: t) (id: ident) (ofs: ptrofs) : val :=
+  match find_symbol ge id with
+  | Some b => Vptr b ofs
+  | None => Vundef
+  end.
+
+(** [public_symbol ge id] says whether the name [id] is public and defined. *)
+
+Definition public_symbol (ge: t) (id: ident) : bool :=
+  match find_symbol ge id with
+  | None => false
+  | Some _ => In_dec ident_eq id ge.(genv_public)
+  end.
+
+(** [find_def ge b] returns the global definition associated with the given address. *)
+
+Definition find_def (ge: t) (b: block) : option (globdef F V) :=
+  PTree.get b ge.(genv_defs).
+

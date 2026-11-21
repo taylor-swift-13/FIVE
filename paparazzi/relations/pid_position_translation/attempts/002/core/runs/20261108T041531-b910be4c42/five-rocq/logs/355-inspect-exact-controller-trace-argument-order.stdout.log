@@ -1,0 +1,30 @@
+Definition controller_updates(f:bool)(bx bpy bp bi:block)(kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total:int):list scalar_update:=
+ first_four_updates bx bpy bp kp kd kv ka pex pey sex sey rsx rsy rax ray++
+ clamp_updates bp(feedforward_bits(pd_bits kp kd pex sex)kv rsx ka rax)(feedforward_bits(pd_bits kp kd pey sey)kv rsy ka ray)traj++
+ flight_updates f bi bp(pd_bits kp kd pex sex)(pd_bits kp kd pey sey)ki ix iy
+ (after_feedforward kp kd kv ka pex sex rsx rax traj)(after_feedforward kp kd kv ka pey sey rsy ray traj)traj++
+ clamp_updates bp
+ (next_command f(after_feedforward kp kd kv ka pex sex rsx rax traj)(next_integral f ix ki(pd_bits kp kd pex sex)traj))
+ (next_command f(after_feedforward kp kd kv ka pey sey rsy ray traj)(next_integral f iy ki(pd_bits kp kd pey sey)traj))total.
+Ltac miss_update :=
+ cbn[misses_chunk size_chunk];
+ lazymatch goal with |- (?b <> ?bu) \/ (?a <= ?c) \/ (?d <= ?f) =>
+ tryif constr_eq b bu then
+ (let ok:=eval vm_compute in(orb(Z.leb a c)(Z.leb d f))in
+  lazymatch ok with true=>right;lia|false=>fail 1 "overlapping field"end)
+ else(left;first[assumption|apply not_eq_sym;assumption])end.
+Ltac each_update := lazymatch goal with|-Forall _ []=>constructor| |-Forall _ (_::_)=>constructor;[miss_update|each_update]end.
+
+Ltac trace_frame :=
+ repeat match goal with
+ | RUN:replay_stores ?before ?updates=Some ?after |- context[Mem.load ?ch ?after ?b ?ofs]=>
+   rewrite(replay_stores_load_frame updates before after ch b ofs RUN)by(
+    cbv beta iota zeta delta[first_four_updates clamp_updates flight_updates];
+    repeat match goal with|-context[if ?f then _ else _]=>destruct f end;
+    each_update)
+ end.
+Ltac trace_access :=
+ lazymatch goal with|-Mem.valid_access ?after ?ch ?b ?ofs ?perm=>
+ first[assumption|
+ match goal with RUN:replay_stores ?before ?updates=Some after |- _=>
+ eapply(replay_stores_access updates before after ch b ofs p

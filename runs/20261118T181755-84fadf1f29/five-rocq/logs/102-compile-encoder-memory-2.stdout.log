@@ -1,0 +1,18 @@
+1 goal
+  
+  ge : genv
+  w : Determinism.world
+  m : mem
+  b, tb : block
+  tofs : ptrofs
+  mf : mem
+  STORE : Mem.store Mptr m b 0 (Vptr tb tofs) = Some mf
+  ============================
+  match
+    (if zle (0 + 8) Ptrofs.modulus
+     then Mem.store Mint64 m b 0 (Vptr tb tofs)
+     else None)
+  with
+  | Some m' => Some (w, E0, m', Vptr tb tofs)
+  | None => None
+  end = Some (w, E0, mf, Vptr tb tofs)

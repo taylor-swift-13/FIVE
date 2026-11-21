@@ -1,0 +1,47 @@
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/EncoderTransport.v", line 17, characters 47-70:
+Error:
+In environment
+m : mem
+value, previous, count : Z
+tb : block
+tofs : Integers.Ptrofs.int
+e : env
+mp : mem
+id : positive
+b : block
+ty : type
+ENTRY :
+  exists ma : mem,
+    Cexec.do_alloc_variables (globalenv Source.prog) empty_env m
+      (Csyntax.fn_params f_table_encode_12 ++
+       Csyntax.fn_vars f_table_encode_12) =
+    (e, ma) /\
+    Cexec.sem_bind_parameters (globalenv Source.prog) Control.quiet e ma
+      (Csyntax.fn_params f_table_encode_12)
+      [Vint (Integers.Int.repr value); Vint (Integers.Int.repr previous);
+       Vint (Integers.Int.repr count); Vptr tb tofs] =
+    Some mp
+EV : short_cell e mp _val value
+EP : short_cell e mp _val_prev previous
+EC : short_cell e mp _cnt count
+ET :
+  exists b : block,
+    e ! _tab = Some (b, pointer_type) /\
+    Mem.load Mptr mp b 0 = Some (Vptr tb tofs)
+SHADOW : e ! _data_buf_12 = None
+ND : NoDup (map region_block (blocks_of_env (globalenv Source.prog) e))
+REG : Forall (region_freeable mp) (blocks_of_env (globalenv Source.prog) e)
+FRESH : Forall (region_fresh m) (blocks_of_env (globalenv Source.prog) e)
+FRAME :
+  Mem.unchanged_on (fun (b : block) (_ : Z) => Mem.valid_block m b) m mp
+LOOKUP : e ! id = Some (b, ty)
+Unable to unify "?m ! ?i = Some ?v" with
+ "(fix In
+     (a : ident * (block * type)) (l : list (ident * (block * type))) {struct
+      l} : Prop :=
+     match l with
+     | [] => False
+     | b :: l' => b = a \/ In a l'
+     end)
+    (id, (b, ty)) (PTree.elements e)".
+

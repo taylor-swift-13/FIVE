@@ -1,0 +1,259 @@
+BlockExecution.v
+ - split;auto;congruence.
+Qed.
+Definition block_invariant(ge:genv)(mf:mem)(s:Csem.state):Prop :=
+ block_state s=true /\ block_denotation ge s=Some mf.
+Lemma block_successors:forall ge mf s t next,
+ block_invariant ge mf s -> ~block_done s ->
+ Csem.step ge s t next -> block_invariant ge mf next.
+Proof.
+ intros ge mf s t next[BL DEN]ND[ES|SS].
+ - destruct s;inversion ES;subst;eapply block_estep_defined;eauto.
+ - destruct(block_sstep ge s t next BL ND SS)as [BN EQ];split;auto;congruence.
+Qed.
+Lemma block_progress_raw:forall ge mf s,
+ block_invariant ge mf s ->
+ block_done s \/ exists t next,Csem.step ge s t next.
+Proof.
+ intros ge mf s[BL DEN].
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];
+ cbn[block_state] in BL;try discriminate.
+ - core_unpack;destruct st;cbn[block_stmt] in *;core_unpack;try discriminate.
+ apply ND;unfold block_done;eauto.
+Qed.
+Definition block_context_invariant(ge:genv)(base:cont)(f:function)(e:env)(mf:mem)(s:Csem.state):Prop :=
+ exists raw,s=plug_state base raw /\ block_invariant ge mf raw /\ block_owner f e raw.
+Lemma block_context_entry:forall ge base f e st m t mf,
+ block_stmt st=true ->
+ star Csem.step ge(State f st Kstop e m)t(State f Sskip Kstop e mf) ->
+ block_context_invariant ge base f e mf(State f st base e m).
+Proof.
+ intros ge base f e st m t mf BS PATH.
+ exists(State f st Kstop e m);split;[reflexivity|];split.
+ - split;[simpl;core_build;auto|eapply block_normal_correspondence;[simpl;core_build;auto|exact PATH]].
+ - split;reflexivity.
+Qed.
+Theorem block_context_progress:forall ge base f e mf s,
+ block_context_invariant ge base f e mf s ->
+ s=State f Sskip base e mf \/
+ exists t next,Csem.step ge s t next /\ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s[raw[EQ[INV OWN]]];subst s.
+Definition block_context_invariant(ge:genv)(base:cont)(f:function)(e:env)(mf:mem)(s:Csem.state):Prop :=
+ exists raw,s=plug_state base raw /\ block_invariant ge mf raw /\ block_owner f e raw.
+Lemma block_context_entry:forall ge base f e st m t mf,
+ block_stmt st=true ->
+ star Csem.step ge(State f st Kstop e m)t(State f Sskip Kstop e mf) ->
+ block_context_invariant ge base f e mf(State f st base e m).
+Proof.
+ intros ge base f e st m t mf BS PATH.
+ exists(State f st Kstop e m);split;[reflexivity|];split.
+ - split;[simpl;core_build;auto|eapply block_normal_correspondence;[simpl;core_build;auto|exact PATH]].
+ - split;reflexivity.
+Qed.
+Theorem block_context_progress:forall ge base f e mf s,
+ block_context_invariant ge base f e mf s ->
+ s=State f Sskip base e mf \/
+ exists t next,Csem.step ge s t next /\ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s[raw[EQ[INV OWN]]];subst s.
+ destruct(classic(block_done raw))as[DONE|ND].
+ - destruct DONE as[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+ - split;reflexivity.
+Qed.
+Theorem block_context_progress:forall ge base f e mf s,
+ block_context_invariant ge base f e mf s ->
+ s=State f Sskip base e mf \/
+ exists t next,Csem.step ge s t next /\ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s[raw[EQ[INV OWN]]];subst s.
+ destruct(classic(block_done raw))as[DONE|ND].
+ - destruct DONE as[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;left;reflexivity.
+ - destruct(block_progress_raw ge mf raw INV)as[DONE|[t[next STEP]]];[contradiction|].
+   right;exists t,(plug_state base next);split.
+   + apply block_plug_step;auto;exact(proj1 INV).
+   + exists next;split;auto;split.
+     * eapply block_successors;eauto.
+     * eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Theorem block_context_all_successors:forall ge base f e mf s t next,
+     * eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Theorem block_context_all_successors:forall ge base f e mf s t next,
+ block_context_invariant ge base f e mf s ->
+ s<>State f Sskip base e mf -> Csem.step ge s t next ->
+ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s t next[raw[EQ[INV OWN]]]NF STEP;subst s.
+ assert(ND:~block_done raw).
+ { intros[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;apply NF;reflexivity. }
+ destruct(block_plug_step_inverse ge base raw t next(proj1 INV)ND STEP)as[raw'[EQ STEP']].
+ exists raw';split;auto;split.
+ - eapply block_successors;eauto.
+ - eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Print Assumptions block_context_all_successors.
+Print Assumptions block_context_entry.
+Print Assumptions block_context_progress.
+PhaseComposition.v
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Csyntax Csem Smallstep.
+Import ListNotations.
+Definition certificate(ge:genv)(P:Csem.state->Prop)(target:Csem.state):Prop :=
+ (forall s,P s ->s=target \/ exists t next,Csem.step ge s t next /\ P next) /\
+ (forall s t next,P s ->s<>target ->Csem.step ge s t next ->P next).
+Definition unique_transition(ge:genv)(from to:Csem.state):Prop :=
+ Csem.step ge from E0 to /\
+ forall t next,Csem.step ge from t next ->t=E0 /\ next=to.
+Theorem chain_certificate:forall ge P Q middle initial target,
+ certificate ge P middle -> certificate ge Q target ->
+ unique_transition ge middle initial ->Q initial ->
+ certificate ge(fun s=>P s \/ Q s)target.
+Proof.
+ intros ge P Q middle initial target[PP PC][QP QC][BRIDGE UNIQUE]QI.
+ split.
+ - intros s[PS|QS].
+   + destruct(PP s PS)as[EQ|[t[next[STEP PN]]]].
+     * subst s;right;exists E0,initial;split;auto.
+     * right;exists t,next;split;auto.
+   + destruct(QP s QS)as[EQ|[t[next[STEP QN]]]].
+     * auto.
+     * right;exists t,next;split;auto.
+ - intros s t next[PS|QS]NF STEP.
+   + destruct(classic(s=middle))as[EQ|NE].
+     * subst;destruct(UNIQUE _ _ STEP);subst;auto.
+     * left;eapply PC;eauto.
+   + right;eapply QC;eauto.
+Qed.
+Theorem singleton_bridge_certificate:forall ge initial target,
+ unique_transition ge initial target ->
+ certificate ge(fun s=>s=initial \/ s=target)target.
+Proof.
+ intros ge initial target[STEP UNIQUE];split.
+ - intros s[EQ|EQ];[subst s;right;exists E0,target;split;auto|auto].
+ - intros s t next[EQ|EQ]NF ST;subst;try contradiction.
+   destruct(UNIQUE _ _ ST);subst;auto.
+Qed.
+Theorem certificate_reachable:forall ge P target initial,
+ certificate ge P target ->P initial ->nostep Csem.step ge target ->
+ forall t reached,star Csem.step ge initial t reached ->P reached.
+Proof.
+ intros ge P target initial[PR CL]PI STOP t reached PATH.
+ revert PI;induction PATH;intros PI;auto.
+ apply IHPATH;destruct(classic(s1=target))as[EQ|NE].
+ - subst;exfalso;eapply STOP;eauto.
+ - eapply CL;eauto.
+Qed.
+Theorem certificate_no_error:forall ge P target initial,
+ certificate ge P target ->P initial ->nostep Csem.step ge target ->
+ forall t reached,star Csem.step ge initial t reached ->
+ reached=target \/ exists tr next,Csem.step ge reached tr next.
+Proof.
+ intros ge P target initial CERT PI STOP t reached PATH.
+ pose proof(certificate_reachable ge P target initial CERT PI STOP t reached PATH)as INV.
+ destruct(proj1 CERT reached INV)as[EQ|[tr[next[STEP PN]]]];[auto|right;eauto].
+Qed.
+Theorem certificate_normal_unique:forall ge P v mf initial,
+ certificate ge P(Returnstate v Kstop mf) ->P initial ->
+ forall t v' mf',star Csem.step ge initial t(Returnstate v' Kstop mf') ->
+ v'=v /\ mf'=mf.
+Proof.
+ intros ge P v mf initial CERT PI t v' mf' PATH.
+ assert(STOP:nostep Csem.step ge(Returnstate v Kstop mf)).
+ { intros tr next[ES|SS];inversion ES||inversion SS. }
+ destruct(certificate_no_error ge P _ initial CERT PI STOP t _ PATH)as[EQ|[tr[next STEP]]].
+ - inversion EQ;auto.
+ - destruct STEP as[ES|SS];inversion ES||inversion SS.
+Qed.
+Print Assumptions chain_certificate.
+Print Assumptions certificate_no_error.
+Print Assumptions certificate_normal_unique.
+Pure files ['PureIfShell.v', 'PureSyntax.v', 'PureDenotation.v', 'PureProgress.v']
+ReadonlyPhases
+From Stdlib Require Import Classical.
+From compcert Require Import Values Memory Events Csem.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+Section READONLY.
+Variable ge:genv.
+Variables L R F:Type.
+Variable pre:L->R->F->Csem.state.
+Variable call:L->R->Csem.state.
+Variable frame:L->R->cont.
+Variable post:L->R->Csem.state.
+Variable initial target:Csem.state.
+Variable result:val.
+Variable m:mem.
+Variable l0:L.
+Variable r0:R.
+Variable f0:F.
+Definition pre_or_call(s:Csem.state):Prop:=
+ (exists l r f,s=pre l r f)\/(exists l r,s=call l r).
+Hypothesis pre_progress:forall l r f,exists t next,
+ Csem.step ge(pre l r f)t next /\pre_or_call next.
+Hypothesis pre_all_successors:forall l r f t next,
+ Csem.step ge(pre l r f)t next ->pre_or_call next.
+Hypothesis initial_unique:unique_transition ge initial(pre l0 r0 f0).
+Hypothesis callees:forall l r,exists P,
+ certificate ge P(Returnstate result(frame l r)m) /\P(call l r).
+Hypothesis returns:forall l r,
+ unique_transition ge(Returnstate result(frame l r)m)(post l r).
+Hypothesis postphases:forall l r,exists Q,certificate ge Q target /\Q(post l r).
+Definition active_callee(s:Csem.state):Prop:=
+ exists l r P,certificate ge P(Returnstate result(frame l r)m) /\P(call l r)/\P s.
+Definition active_post(s:Csem.state):Prop:=
+ exists l r Q,certificate ge Q target /\Q(post l r)/\Q s.
+Definition invariant(s:Csem.state):Prop:=
+ s=initial\/(exists l r f,s=pre l r f)\/active_callee s\/active_post s.
+Lemma enter_callee:forall l r,active_callee(call l r).
+Proof. intros;destruct(callees l r)as[P[C I]];exists l,r,P;auto. Qed.
+Lemma enter_post:forall l r,active_post(post l r).
+Proof. intros;destruct(postphases l r)as[Q[C I]];exists l,r,Q;auto. Qed.
+Lemma classify_pre:forall s,pre_or_call s ->
+ (exists l r f,s=pre l r f)\/active_callee s.
+Proof.
+ intros s[PRE|[l[r EQ]]];auto;subst;right;apply enter_callee.
+Qed.
+Theorem readonly_assignment_certificate:certificate ge invariant target.
+Proof.
+ split.
+ - intros s[START|[PRE|[CALLEE|POST]]].
+   + subst;right;exists E0,(pre l0 r0 f0);split;[exact(proj1 initial_unique)|].
+     right;left;exists l0,r0,f0;reflexivity.
+   + destruct PRE as[l[r[f EQ]]];subst s.
+     destruct(pre_progress l r f)as[t[next[STEP CL]]].
+     right;exists t,next;split;auto;destruct(classify_pre _ CL)as[P|C].
+     * right;left;exact P.
+     * right;right;left;exact C.
+   + destruct CALLEE as[l[r[P[C[INCUR IN]]]]].
+     destruct(proj1 C s IN)as[EQ|[t[next[STEP PN]]]].
+     * subst;right;exists E0,(post l r);split;[exact(proj1(returns l r))|].
+       right;right;right;apply enter_post.
+     * right;exists t,next;split;auto;right;right;left;exists l,r,P;auto.
+   + destruct POST as[l[r[Q[C[QI IN]]]]].
+     destruct(proj1 C s IN)as[EQ|[t[next[STEP QN]]]];[auto|].
+     right;exists t,next;split;auto;right;right;right;exists l,r,Q;auto.
+ - intros s t next[START|[PRE|[CALLEE|POST]]]NF STEP.
+   + subst;destruct(proj2 initial_unique t next STEP)as[TT EQ];subst.
+     right;left;exists l0,r0,f0;reflexivity.
+   + destruct PRE as[l[r[f EQ]]];subst.
+     destruct(classify_pre _ (pre_all_successors l r f t next STEP))as[P|C].
+     * right;left;exact P.
+     * right;right;left;exact C.
+   + destruct CALLEE as[l[r[P[C[INCUR IN]]]]].
+     destruct(classic(s=Returnstate result(frame l r)m))as[EQ|NE].
+     * subst;destruct(proj2(returns l r)t next STEP)as[TT EQ];subst.
+       right;right;right;apply enter_post.
+     * right;right;left;exists l,r,P;split;[exact C|];split;auto.
+       eapply(proj2 C);eauto.
+   + destruct POST as[l[r[Q[C[QI IN]]]]];right;right;right;exists l,r,Q.
+     split;[exact C|];split;auto;eapply(proj2 C);eauto.
+Qed.
+Theorem initial_member:invariant initial.
+Proof. left;reflexivity. Qed.
+End READONLY.
+Print Assumptions readonly_assignment_certificate.
+

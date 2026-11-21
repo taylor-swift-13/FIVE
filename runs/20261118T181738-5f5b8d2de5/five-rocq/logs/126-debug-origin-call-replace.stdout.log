@@ -1,0 +1,41 @@
+2 goals
+  
+  ge : genv
+  allowed : function -> Prop
+  origin_call_replace :
+    forall (from to : kind) (C : expr -> expr),
+    context from to C ->
+    from = RV ->
+    forall (e : env) (fn : expr) (args : exprlist) (ty : type) (v : val),
+    origin_expr e (C (Ecall fn args ty)) -> origin_expr e (C (Eval v ty))
+  origin_call_list_replace :
+    forall (from : kind) (C : expr -> exprlist),
+    contextlist from C ->
+    from = RV ->
+    forall (e : env) (fn : expr) (args : exprlist) (ty : type) (v : val),
+    origin_exprlist e (C (Ecall fn args ty)) ->
+    origin_exprlist e (C (Eval v ty))
+  C : expr -> expr
+  el : exprlist
+  ty : type
+  H : context RV RV C
+  e : env
+  fn : expr
+  args : exprlist
+  ty0 : type
+  v : val
+  H0 : designator e (C (Ecall fn args ty0))
+  H2 : origin_exprlist e el
+  H1 :
+    forall (e : env) (fn : expr) (args : exprlist) (ty : type) (v : val),
+    origin_expr e (C (Ecall fn args ty)) -> origin_expr e (C (Eval v ty))
+  ============================
+  designator e (C (Eval v ty0))
+
+goal 2 is:
+ forall (from : kind) (C : expr -> exprlist),
+ contextlist from C ->
+ from = RV ->
+ forall (e : env) (fn : expr) (args : exprlist) (ty : type) (v : val),
+ origin_exprlist e (C (Ecall fn args ty)) ->
+ origin_exprlist e (C (Eval v ty))

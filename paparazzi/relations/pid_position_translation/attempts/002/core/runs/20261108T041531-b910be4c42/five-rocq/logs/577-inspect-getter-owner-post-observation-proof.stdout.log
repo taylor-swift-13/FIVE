@@ -1,0 +1,15 @@
+110  dref dcomponent daxis cacheofs reference measured difference
+111  param_local error_global error_symbol ghco refco vecco nedco
+112  gh_lookup ref_lookup vec_lookup ned_lookup gh_field ref_field axis_field ned_field
+113  param_deref scalar_deref cache_deref sub_value store_result subtraction_safe ls rs)as[C I].
+114  exists(arithmetic_atomic_invariant ge caller e k mf(Vint difference));split;[exact C|];split;[exact I|].
+115    intros s IN;destruct s;cbn[arithmetic_observation];try exact I.
+116    intros _;apply tree_ready_safe;eapply arithmetic_atomic_observation;exact IN. }
+117  eexists;split.
+118  - eapply ObservedReadonly.readonly_assignment_certificate
+119  with(pre:=Pre)(call:=Call)(frame:=Frame)(post:=Post)
+120  (initial:=Initial)(observe:=arithmetic_observation ge owner)(result:=Vptr bcache cacheofs)(m:=m)
+121  (l0:=A.L0)(r0:=A.R0)(f0:=A.F0).
+122    + exact PP.
+123    + exact PC.
+124    + unfold Initial,Pre,A.pre_state;split;[right;apply Csem.step_do_1|].

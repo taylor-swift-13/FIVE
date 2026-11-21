@@ -1,0 +1,114 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/safety/GetterAssignmentComplete.v", line 95, characters 7-42:
+Error:
+In environment
+ge : genv
+caller, leaf : function
+e : env
+k : cont
+m, mf : mem
+ghid, refid, vectid, nedid, axis, iref, icomponent, ierr, igh : AST.ident
+berr, bparam, bgh, bcache : block
+dref, dcomponent, daxis : Z
+cacheofs : ptrofs
+reference, measured, difference : int
+param_local : e ! igh = Some (bparam, tptr (A.ghty ghid))
+error_global : e ! ierr = None
+error_symbol : Genv.find_symbol ge ierr = Some berr
+ghco, refco, vecco, nedco : composite
+gh_lookup : ge ! ghid = Some ghco
+ref_lookup : ge ! refid = Some refco
+vec_lookup : ge ! vectid = Some vecco
+ned_lookup : ge ! nedid = Some nedco
+gh_field : field_offset ge iref (co_members ghco) = OK (dref, Full)
+ref_field :
+  field_offset ge icomponent (co_members refco) = OK (dcomponent, Full)
+axis_field : field_offset ge axis (co_members vecco) = OK (daxis, Full)
+ned_field : field_offset ge axis (co_members nedco) = OK (daxis, Full)
+param_deref :
+  do_deref_loc ge quiet_world (tptr (A.ghty ghid)) m bparam Ptrofs.zero Full =
+  Some (quiet_world, E0, Vptr bgh Ptrofs.zero)
+scalar_deref :
+  do_deref_loc ge quiet_world tint m bgh
+    (A.scalar_offset dref dcomponent daxis) Full =
+  Some (quiet_world, E0, Vint reference)
+cache_deref :
+  do_deref_loc ge quiet_world tint m bcache
+    (Ptrofs.add cacheofs (Ptrofs.repr daxis)) Full =
+  Some (quiet_world, E0, Vint measured)
+sub_value :
+  sem_binary_operation ge Osub (Vint reference) tint (Vint measured) tint m =
+  Some (Vint difference)
+store_result :
+  do_assign_loc ge quiet_world tint m berr (A.axis_offset daxis) Full
+    (Vint difference) =
+  Some (quiet_world, E0, mf, Vint difference)
+igetter : AST.ident
+bgetter : block
+getter_global : e ! igetter = None
+getter_symbol : Genv.find_symbol ge igetter = Some bgetter
+leaf_find :
+  Genv.find_funct ge (Vptr bgetter Ptrofs.zero) = Some (Internal leaf)
+leaf_signature : type_of_fundef (Internal leaf) = A.function_type nedid
+getter_readonly :
+  forall base : cont,
+  is_call_cont base ->
+  exists P : Csem.state -> Prop,
+    certificate ge P (Returnstate (Vptr bcache cacheofs) base m) /\
+    P (Callstate (Internal leaf) [] base m)
+PP :
+  forall (ls : A.lhs_stage) (rs : A.ref_stage) (fs : A.fn_stage),
+  exists (t : trace) (next : Csem.state),
+    Csem.step ge (Pre ls rs fs) t next /\
+    pre_or_call A.lhs_stage A.ref_stage A.fn_stage Pre Call next
+PC :
+  forall (ls : A.lhs_stage) (rs : A.ref_stage) (fs : A.fn_stage) 
+    (t : trace) (next : Csem.state),
+  Csem.step ge (Pre ls rs fs) t next ->
+  pre_or_call A.lhs_stage A.ref_stage A.fn_stage Pre Call next
+CAL :
+  forall (ls : A.lhs_stage) (rs : A.ref_stage),
+  exists P : Csem.state -> Prop,
+    certificate ge P (Returnstate (Vptr bcache cacheofs) (Frame ls rs) m) /\
+    P (Call ls rs)
+ls : A.lhs_stage
+rs : A.ref_stage
+Unable to unify "?t = E0 /\ ?next = ExprState ?f (?C (Eval ?v ?ty)) ?k ?e ?m"
+with
+ "Csem.step ge
+    (Returnstate (Vptr bcache cacheofs)
+       (Kcall caller e
+          (A.assignment_context nedid axis
+             (A.lhs_res vectid axis ierr berr daxis ls)
+             (A.ref_res ghid refid vectid axis iref icomponent igh bparam bgh
+                dref dcomponent daxis reference rs))
+          (A.rettype nedid) (Kdo k))
+       m)
+    E0
+    (ExprState caller
+       (A.assignment_context nedid axis
+          (A.lhs_res vectid axis ierr berr daxis ls)
+          (A.ref_res ghid refid vectid axis iref icomponent igh bparam bgh
+             dref dcomponent daxis reference rs)
+          (Eval (Vptr bcache cacheofs) (A.rettype nedid)))
+       (Kdo k) e m) /\
+  (forall (t : trace) (next : Csem.state),
+   Csem.step ge
+     (Returnstate (Vptr bcache cacheofs)
+        (Kcall caller e
+           (A.assignment_context nedid axis
+              (A.lhs_res vectid axis ierr berr daxis ls)
+              (A.ref_res ghid refid vectid axis iref icomponent igh bparam
+                 bgh dref dcomponent daxis reference rs))
+           (A.rettype nedid) (Kdo k))
+        m)
+     t next ->
+   t = E0 /\
+   next =
+   ExprState caller
+     (A.assignment_context nedid axis
+        (A.lhs_res vectid axis ierr berr daxis ls)
+        (A.ref_res ghid refid vectid axis iref icomponent igh bparam bgh dref
+           dcomponent daxis reference rs)
+        (Eval (Vptr bcache cacheofs) (A.rettype nedid)))
+     (Kdo k) e m)".
+

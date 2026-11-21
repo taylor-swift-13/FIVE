@@ -1,0 +1,346 @@
+  exists eps,
+  (Rabs eps < bpow (-prec + 1))%R /\ round beta (FLT_exp emin prec) rnd x = (x * (1 + eps))%R.
+Proof with auto with typeclass_instances.
+intros m x.
+apply relative_error_lt_conversion...
+apply bpow_gt_0.
+now apply relative_error_FLT_F2R_emin.
+Qed.
+
+(** 1+#&epsilon;# property in any rounding in FLT *)
+Theorem relative_error_FLT_ex :
+  forall x,
+  (bpow (emin + prec - 1) <= Rabs x)%R ->
+  exists eps,
+  (Rabs eps < bpow (-prec + 1))%R /\ round beta (FLT_exp emin prec) rnd x = (x * (1 + eps))%R.
+Proof with auto with typeclass_instances.
+intros x Hx.
+apply relative_error_lt_conversion...
+apply bpow_gt_0.
+intros _; now apply relative_error_FLT.
+Qed.
+
+Variable choice : Z -> bool.
+
+Theorem relative_error_N_FLT :
+  forall x,
+  (bpow (emin + prec - 1) <= Rabs x)%R ->
+  (Rabs (round beta (FLT_exp emin prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs x)%R.
+Proof with auto with typeclass_instances.
+intros x Hx.
+apply relative_error_N with (emin + prec - 1)%Z...
+apply relative_error_FLT_aux.
+Qed.
+
+(** 1+#&epsilon;# property in rounding to nearest in FLT *)
+Theorem relative_error_N_FLT_ex :
+  forall x,
+  (bpow (emin + prec - 1) <= Rabs x)%R ->
+  exists eps,
+  (Rabs eps <= /2 * bpow (-prec + 1))%R /\ round beta (FLT_exp emin prec) (Znearest choice) x = (x * (1 + eps))%R.
+Proof with auto with typeclass_instances.
+intros x Hx.
+apply relative_error_le_conversion...
+apply Rlt_le.
+apply Rmult_lt_0_compat.
+apply Rinv_0_lt_compat.
+now apply IZR_lt.
+apply bpow_gt_0.
+now apply relative_error_N_FLT.
+Qed.
+
+Theorem relative_error_N_FLT_round :
+  forall x,
+  (bpow (emin + prec - 1) <= Rabs x)%R ->
+  (Rabs (round beta (FLT_exp emin prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs (round beta (FLT_exp emin prec) (Znearest choice) x))%R.
+Proof with auto with typeclass_instances.
+intros x Hx.
+apply relative_error_N_round with (emin + prec - 1)%Z...
+apply relative_error_FLT_aux.
+Qed.
+
+Theorem relative_error_N_FLT_F2R_emin :
+  forall m, let x := F2R (Float beta m emin) in
+  (Rabs (round beta (FLT_exp emin prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs x)%R.
+Proof with auto with typeclass_instances.
+intros m x.
+destruct (Rlt_or_le (Rabs x) (bpow (emin + prec - 1))) as [Hx|Hx].
+rewrite round_generic...
+unfold Rminus.
+rewrite Rplus_opp_r, Rabs_R0.
+apply Rmult_le_pos.
+Lemma error_N_FLT_aux :
+  forall x,
+  (0 < x)%R ->
+  exists eps, exists  eta,
+  (Rabs eps <= /2 * bpow (-prec + 1))%R /\
+  (Rabs eta <= /2 * bpow (emin))%R      /\
+  (eps*eta=0)%R /\
+  round beta (FLT_exp emin prec) (Znearest choice) x = (x * (1 + eps) + eta)%R.
+Proof.
+intros x Hx2.
+case (Rle_or_lt (bpow (emin+prec)) x); intros Hx.
+(* *)
+destruct relative_error_N_ex with (FLT_exp emin prec) (emin+prec)%Z prec choice x
+  as (eps,(Heps1,Heps2)).
+now apply FLT_exp_valid.
+intros; unfold FLT_exp.
+lia.
+rewrite Rabs_right;[assumption|apply Rle_ge; now left].
+exists eps; exists 0%R.
+split;[assumption|split].
+rewrite Rabs_R0; apply Rmult_le_pos.
+apply Rlt_le, pos_half_prf.
+apply bpow_ge_0.
+split;[apply Rmult_0_r|idtac].
+now rewrite Rplus_0_r.
+(* *)
+exists 0%R; exists (round beta (FLT_exp emin prec) (Znearest choice) x - x)%R.
+split.
+rewrite Rabs_R0; apply Rmult_le_pos.
+apply Rlt_le, pos_half_prf.
+apply bpow_ge_0.
+split.
+apply Rle_trans with (/2*ulp beta (FLT_exp emin prec) x)%R.
+apply error_le_half_ulp.
+now apply FLT_exp_valid.
+apply Rmult_le_compat_l.
+apply Rlt_le, pos_half_prf.
+rewrite ulp_neq_0.
+2: now apply Rgt_not_eq.
+apply bpow_le.
+unfold FLT_exp, cexp.
+rewrite Zmax_right.
+lia.
+destruct (mag beta x) as (e,He); simpl.
+assert (e-1 < emin+prec)%Z.
+apply (lt_bpow beta).
+apply Rle_lt_trans with (2:=Hx).
+rewrite <- (Rabs_pos_eq x) by now apply Rlt_le.
+now apply He, Rgt_not_eq.
+lia.
+split ; ring.
+Qed.
+
+Theorem relative_error_N_FLT'_ex :
+  forall x,
+  exists eps eta : R,
+  (Rabs eps <= u_ro prec / (1 + u_ro prec))%R /\
+  (Rabs eta <= /2 * bpow emin)%R /\
+  (eps * eta = 0)%R /\
+  round beta (FLT_exp emin prec) (Znearest choice) x
+  = (x * (1 + eps) + eta)%R.
+Proof.
+intro x.
+set (rx := round _ _ _ x).
+assert (Pb := u_rod1pu_ro_pos prec).
+destruct (Rle_or_lt (bpow (emin + prec - 1)) (Rabs x)) as [MX|Mx].
+{ destruct (relative_error_N_FLX'_ex prec Hp choice x) as (d, (Bd, Hd)).
+  exists d, 0%R; split; [exact Bd|]; split.
+  { rewrite Rabs_R0; apply Rmult_le_pos; [lra|apply bpow_ge_0]. }
+  rewrite Rplus_0_r, Rmult_0_r; split; [reflexivity|].
+  now rewrite <- Hd; apply round_FLT_FLX. }
+assert (H : (Rabs (rx - x) <= /2 * bpow emin)%R).
+{ refine (Rle_trans _ _ _ (error_le_half_ulp _ _ _ _) _);
+    [now apply FLT_exp_valid|].
+  rewrite ulp_FLT_small; [now right|now simpl|].
+  apply (Rlt_le_trans _ _ _ Mx), bpow_le; lia. }
+exists 0%R, (rx - x)%R; split; [now rewrite Rabs_R0|]; split; [exact H|].
+now rewrite Rmult_0_l, Rplus_0_r, Rmult_1_r; split; [|ring].
+Qed.
+
+Theorem relative_error_N_FLT'_ex_separate :
+  forall x,
+  exists x' : R,
+  round beta (FLT_exp emin prec) (Znearest choice) x'
+  = round beta (FLT_exp emin prec) (Znearest choice) x /\
+  (exists eta, Rabs eta <= /2 * bpow emin /\ x' = x + eta)%R /\
+  (exists eps, Rabs eps <= u_ro prec / (1 + u_ro prec) /\
+               round beta (FLT_exp emin prec) (Znearest choice) x'
+               = x' * (1 + eps))%R.
+Proof.
+intro x.
+set (rx := round _ _ _ x).
+destruct (relative_error_N_FLT'_ex x) as (d, (e, (Bd, (Be, (Hde0, Hde))))).
+destruct (Rlt_or_le (Rabs (d * x)) (Rabs e)) as [HdxLte|HeLedx].
+{ exists rx; split; [|split].
+  { apply round_generic; [now apply valid_rnd_N|].
+    now apply generic_format_round; [apply FLT_exp_valid|apply valid_rnd_N]. }
+  { exists e; split; [exact Be|].
+    unfold rx; rewrite Hde; destruct (Rmult_integral _ _ Hde0) as [Zd|Ze].
+    { now rewrite Zd, Rplus_0_r, Rmult_1_r. }
+    exfalso; revert HdxLte; rewrite Ze, Rabs_R0; apply Rle_not_lt, Rabs_pos. }
+  exists 0%R; split; [now rewrite Rabs_R0; apply u_rod1pu_ro_pos|].
+  rewrite Rplus_0_r, Rmult_1_r; apply round_generic; [now apply valid_rnd_N|].
+  now apply generic_format_round; [apply FLT_exp_valid|apply valid_rnd_N]. }
+exists x; split; [now simpl|split].
+{ exists 0%R; split;
+    [rewrite Rabs_R0; apply Rmult_le_pos; [lra|apply bpow_ge_0]|ring]. }
+exists d; rewrite Hde; destruct (Rmult_integral _ _ Hde0) as [Zd|Ze].
+{ split; [exact Bd|].
+  assert (Ze : e = 0%R); [|now rewrite Ze, Rplus_0_r].
+  apply Rabs_eq_R0, Rle_antisym; [|now apply Rabs_pos].
+  now revert HeLedx; rewrite Zd, Rmult_0_l, Rabs_R0. }
+now rewrite Ze, Rplus_0_r.
+Qed.
+
+End Fprop_relative_FLT.
+
+Theorem error_N_FLT :
+  forall (emin prec : Z), (0 < prec)%Z ->
+  forall (choice : Z -> bool),
+  forall (x : R),
+  exists eps eta : R,
+  (Rabs eps <= /2 * bpow (-prec + 1))%R /\
+  (Rabs eta <= /2 * bpow emin)%R /\
+  (eps * eta = 0)%R /\
+  (round beta (FLT_exp emin prec) (Znearest choice) x
+   = x * (1 + eps) + eta)%R.
+Proof.
+intros emin prec Pprec choice x.
+destruct (Rtotal_order x 0) as [Nx|[Zx|Px]].
+{ assert (Pmx : (0 < - x)%R).
+  { now rewrite <- Ropp_0; apply Ropp_lt_contravar. }
+  destruct (@error_N_FLT_aux emin prec Pprec
+                             (fun t : Z => negb (choice (- (t + 1))%Z))
+                             (- x)%R Pmx)
+    as (d,(e,(Hd,(He,(Hde,Hr))))).
+  exists d; exists (- e)%R; split; [exact Hd|split; [|split]].
+  { now rewrite Rabs_Ropp. }
+  { now rewrite Ropp_mult_distr_r_reverse, <- Ropp_0; apply f_equal. }
+  rewrite <- (Ropp_involutive x), round_N_opp.
+  now rewrite Ropp_mult_distr_l_reverse, <- Ropp_plus_distr; apply f_equal. }
+{ assert (Ph2 : (0 <= / 2)%R).
+  { apply (Rmult_le_reg_l 2 _ _ Rlt_0_2).
+    rewrite Rmult_0_r, Rinv_r; [exact Rle_0_1|].
+    apply Rgt_not_eq, Rlt_gt, Rlt_0_2. }
+  exists 0%R; exists 0%R; rewrite Zx; split; [|split; [|split]].
+  { now rewrite Rabs_R0; apply Rmult_le_pos; [|apply bpow_ge_0]. }
+  { now rewrite Rabs_R0; apply Rmult_le_pos; [|apply bpow_ge_0]. }
+  { now rewrite Rmult_0_l. }
+  now rewrite Rmult_0_l, Rplus_0_l, round_0; [|apply valid_rnd_N]. }
+now apply error_N_FLT_aux.
+Qed.
+
+End Fprop_relative.
+Theorem round_ge_generic :
+  forall x y, generic_format x -> (x <= y)%R -> (x <= round rnd y)%R.
+Proof.
+intros x y Hx Hxy.
+rewrite <- (round_generic rnd x Hx).
+now apply round_le.
+Qed.
+
+Theorem round_le_generic :
+  forall x y, generic_format y -> (x <= y)%R -> (round rnd x <= y)%R.
+Proof.
+intros x y Hy Hxy.
+rewrite <- (round_generic rnd y Hy).
+now apply round_le.
+Qed.
+
+End monotone.
+
+Theorem round_abs_abs :
+  forall P : R -> R -> Prop,
+  ( forall rnd (Hr : Valid_rnd rnd) x, (0 <= x)%R -> P x (round rnd x) ) ->
+  forall rnd {Hr : Valid_rnd rnd} x, P (Rabs x) (Rabs (round rnd x)).
+Proof with auto with typeclass_instances.
+intros P HP rnd Hr x.
+destruct (Rle_or_lt 0 x) as [Hx|Hx].
+(* . *)
+rewrite 2!Rabs_pos_eq.
+now apply HP.
+rewrite <- (round_0 rnd).
+now apply round_le.
+exact Hx.
+(* . *)
+rewrite (Rabs_left _ Hx).
+rewrite Rabs_left1.
+pattern x at 2 ; rewrite <- Ropp_involutive.
+rewrite round_opp.
+rewrite Ropp_involutive.
+apply HP...
+rewrite <- Ropp_0.
+apply Ropp_le_contravar.
+now apply Rlt_le.
+rewrite <- (round_0 rnd).
+apply round_le...
+now apply Rlt_le.
+Qed.
+
+Theorem round_bounded_large :
+  forall rnd {Hr : Valid_rnd rnd} x ex,
+  (fexp ex < ex)%Z ->
+  (bpow (ex - 1) <= Rabs x < bpow ex)%R ->
+  (bpow (ex - 1) <= Rabs (round rnd x) <= bpow ex)%R.
+Proof with auto with typeclass_instances.
+intros rnd Hr x ex He.
+apply round_abs_abs...
+clear rnd Hr x.
+intros rnd' Hr x _.
+apply round_bounded_large_pos...
+Qed.
+
+Theorem exp_small_round_0 :
+  forall rnd {Hr : Valid_rnd rnd} x ex,
+  (bpow (ex - 1) <= Rabs x < bpow ex)%R ->
+   round rnd x = 0%R -> (ex <= fexp ex)%Z .
+Proof.
+intros rnd Hr x ex H1 H2.
+generalize Rabs_R0.
+rewrite <- H2 at 1.
+apply (round_abs_abs (fun t rt => forall (ex : Z),
+(bpow (ex - 1) <= t < bpow ex)%R ->
+rt = 0%R -> (ex <= fexp ex)%Z)); trivial.
+clear; intros rnd Hr x Hx.
+now apply exp_small_round_0_pos.
+Qed.
+
+
+
+
+Section monotone_abs.
+
+Variable rnd : R -> Z.
+Context { valid_rnd : Valid_rnd rnd }.
+
+Theorem abs_round_ge_generic :
+  forall x y, generic_format x -> (x <= Rabs y)%R -> (x <= Rabs (round rnd y))%R.
+Proof with auto with typeclass_instances.
+intros x y.
+apply round_abs_abs...
+clear rnd valid_rnd y.
+intros rnd' Hrnd y Hy.
+apply round_ge_generic...
+Qed.
+
+Theorem abs_round_le_generic :
+  forall x y, generic_format y -> (Rabs x <= y)%R -> (Rabs (round rnd x) <= y)%R.
+Proof with auto with typeclass_instances.
+intros x y.
+apply round_abs_abs...
+clear rnd valid_rnd x.
+intros rnd' Hrnd x Hx.
+apply round_le_generic...
+Qed.
+
+End monotone_abs.
+
+Theorem round_DN_opp :
+  forall x,
+  round Zfloor (-x) = (- round Zceil x)%R.
+Proof.
+intros x.
+129:Theorem generic_format_bpow :
+145:Theorem generic_format_bpow' :
+150:apply generic_format_bpow.
+531:Theorem generic_format_bpow_inv' :
+553:Theorem generic_format_bpow_inv :
+559:apply generic_format_bpow_inv' in He.
+799:apply generic_format_bpow.
+806:apply generic_format_bpow.
+2248:apply generic_format_bpow'...
+2250:apply generic_format_bpow_inv...
+2350:apply generic_format_bpow'...
+2375:apply generic_format_bpow'...

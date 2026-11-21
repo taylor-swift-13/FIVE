@@ -1,0 +1,283 @@
+
+(** ** Reduction semantics for expressions *)
+
+Section EXPR.
+
+Variable e: env.
+
+(** The semantics of expressions follows the popular Wright-Felleisen style.
+  It is a small-step semantics that reduces one redex at a time.
+  We first define head reductions (at the top of an expression, then
+  use reduction contexts to define reduction within an expression. *)
+
+(** Head reduction for l-values. *)
+
+Inductive lred: expr -> mem -> expr -> mem -> Prop :=
+  | red_var_local: forall x ty m b,
+      e!x = Some(b, ty) ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_var_global: forall x ty m b,
+      e!x = None ->
+      Genv.find_symbol ge x = Some b ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_deref: forall b ofs ty1 ty m,
+      lred (Ederef (Eval (Vptr b ofs) ty1) ty) m
+           (Eloc b ofs Full ty) m
+  | red_field_struct: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tstruct id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m
+  | red_field_union: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      union_field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tunion id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m.
+
+(** Head reductions for r-values *)
+
+Inductive rred: expr -> mem -> trace -> expr -> mem -> Prop :=
+  | red_rvalof: forall b ofs bf ty m t v,
+      deref_loc ty m b ofs bf t v ->
+      rred (Evalof (Eloc b ofs bf ty) ty) m
+         t (Eval v ty) m
+  | red_addrof: forall b ofs ty1 ty m,
+      rred (Eaddrof (Eloc b ofs Full ty1) ty) m
+        E0 (Eval (Vptr b ofs) ty) m
+  | red_unop: forall op v1 ty1 ty m v,
+      sem_unary_operation op v1 ty1 m = Some v ->
+      rred (Eunop op (Eval v1 ty1) ty) m
+        E0 (Eval v ty) m
+  | red_binop: forall op v1 ty1 v2 ty2 ty m v,
+      sem_binary_operation ge op v1 ty1 v2 ty2 m = Some v ->
+      rred (Ebinop op (Eval v1 ty1) (Eval v2 ty2) ty) m
+        E0 (Eval v ty) m
+  | red_cast: forall ty v1 ty1 m v,
+      sem_cast v1 ty1 ty m = Some v ->
+      rred (Ecast (Eval v1 ty1) ty) m
+        E0 (Eval v ty) m
+  | red_seqand_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_seqand_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.zero) ty) m
+  | red_seqor_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.one) ty) m
+  | red_seqor_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_condition: forall v1 ty1 r1 r2 ty b m,
+      bool_val v1 ty1 m = Some b ->
+      rred (Econdition (Eval v1 ty1) r1 r2 ty) m
+        E0 (Eparen (if b then r1 else r2) ty ty) m
+  | red_sizeof: forall ty1 ty m,
+      rred (Esizeof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (sizeof ge ty1))) ty) m
+  | red_alignof: forall ty1 ty m,
+      rred (Ealignof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (alignof ge ty1))) ty) m
+  | red_assign: forall b ofs ty1 bf v2 ty2 m v t m' v',
+      sem_cast v2 ty2 ty1 m = Some v ->
+      assign_loc ty1 m b ofs bf v t m' v' ->
+      rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+         t (Eval v' ty1) m'
+  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+      deref_loc ty1 m b ofs bf t v1 ->
+      rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+         t (Eassign (Eloc b ofs bf ty1)
+                    (Ebinop op (Eval v1 ty1) (Eval v2 ty2) tyres) ty1) m
+  | red_postincr: forall id b ofs ty bf m t v1 op,
+      deref_loc ty m b ofs bf t v1 ->
+      op = match id with Incr => Oadd | Decr => Osub end ->
+      rred (Epostincr id (Eloc b ofs bf ty) ty) m
+         t (Ecomma (Eassign (Eloc b ofs bf ty)
+                            (Ebinop op (Eval v1 ty)
+                                       (Eval (Vint Int.one) type_int32s)
+                                       (incrdecr_type ty))
+                           ty)
+                   (Eval v1 ty) ty) m
+  | red_comma: forall v ty1 r2 ty m,
+      typeof r2 = ty ->
+      rred (Ecomma (Eval v ty1) r2 ty) m
+        E0 r2 m
+  | red_paren: forall v1 ty1 ty2 ty m v,
+      sem_cast v1 ty1 ty2 m = Some v ->
+      rred (Eparen (Eval v1 ty1) ty2 ty) m
+        E0 (Eval v ty) m
+  | red_builtin: forall ef tyargs el ty m vargs t vres m',
+      cast_arguments m el tyargs vargs ->
+      external_call ef ge vargs m t vres m' ->
+      rred (Ebuiltin ef tyargs el ty) m
+         t (Eval vres ty) m'.
+
+
+(** Head reduction for function calls.
+    (More exactly, identification of function calls that can reduce.) *)
+
+Inductive callred: expr -> mem -> fundef -> list val -> type -> Prop :=
+  | red_call: forall vf tyf m tyargs tyres cconv el ty fd vargs,
+      Genv.find_funct ge vf = Some fd ->
+      cast_arguments m el tyargs vargs ->
+      type_of_fundef fd = Tfunction tyargs tyres cconv ->
+      classify_fun tyf = fun_case_f tyargs tyres cconv ->
+      callred (Ecall (Eval vf tyf) el ty) m
+              fd vargs ty.
+
+(** Reduction contexts.  In accordance with C's nondeterministic semantics,
+  we allow reduction both to the left and to the right of a binary operator.
+  To enforce C's notion of sequence point, reductions within a conditional
+  [a ? b : c] can only take place in [a], not in [b] nor [c];
+  reductions within a sequential "or" / "and" [a && b] or [a || b] can
+  only take place in [a], not in [b];
+  and reductions within a sequence [a, b] can only take place in [a],
+  not in [b].
+
+  Reduction contexts are represented by functions [C] from expressions
+  to expressions, suitably constrained by the [context from to C]
+  predicate below.  Contexts are "kinded" with respect to l-values and
+  r-values: [from] is the kind of the hole in the context and [to] is
+Inductive context: kind -> kind -> (expr -> expr) -> Prop :=
+  | ctx_top: forall k,
+      context k k (fun x => x)
+  | ctx_deref: forall k C ty,
+      context k RV C -> context k LV (fun x => Ederef (C x) ty)
+  | ctx_field: forall k C f ty,
+      context k RV C -> context k LV (fun x => Efield (C x) f ty)
+  | ctx_rvalof: forall k C ty,
+      context k LV C -> context k RV (fun x => Evalof (C x) ty)
+  | ctx_addrof: forall k C ty,
+      context k LV C -> context k RV (fun x => Eaddrof (C x) ty)
+  | ctx_unop: forall k C op ty,
+      context k RV C -> context k RV (fun x => Eunop op (C x) ty)
+  | ctx_binop_left: forall k C op e2 ty,
+      context k RV C -> context k RV (fun x => Ebinop op (C x) e2 ty)
+  | ctx_binop_right: forall k C op e1 ty,
+      context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+  | ctx_cast: forall k C ty,
+      context k RV C -> context k RV (fun x => Ecast (C x) ty)
+  | ctx_seqand: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+  | ctx_seqor: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+  | ctx_condition: forall k C r2 r3 ty,
+      context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+  | ctx_assign_left: forall k C e2 ty,
+      context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+  | ctx_assign_right: forall k C e1 ty,
+      context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+  | ctx_assignop_left: forall k C op e2 tyres ty,
+      context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+  | ctx_assignop_right: forall k C op e1 tyres ty,
+      context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+  | ctx_postincr: forall k C id ty,
+      context k LV C -> context k RV (fun x => Epostincr id (C x) ty)
+  | ctx_call_left: forall k C el ty,
+      context k RV C -> context k RV (fun x => Ecall (C x) el ty)
+  | ctx_call_right: forall k C e1 ty,
+      contextlist k C -> context k RV (fun x => Ecall e1 (C x) ty)
+  | ctx_builtin: forall k C ef tyargs ty,
+      contextlist k C -> context k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+  | ctx_comma: forall k C e2 ty,
+      context k RV C -> context k RV (fun x => Ecomma (C x) e2 ty)
+  | ctx_paren: forall k C tycast ty,
+      context k RV C -> context k RV (fun x => Eparen (C x) tycast ty)
+
+with contextlist: kind -> (expr -> exprlist) -> Prop :=
+  | ctx_list_head: forall k C el,
+      context k RV C -> contextlist k (fun x => Econs (C x) el)
+  | ctx_list_tail: forall k C e1,
+      contextlist k C -> contextlist k (fun x => Econs e1 (C x)).
+
+(** In a nondeterministic semantics, expressions can go wrong according
+  to one reduction order while being defined according to another.
+  Consider for instance [(x = 1) + (10 / x)] where [x] is initially [0].
+  This expression goes wrong if evaluated right-to-left, but is defined
+  if evaluated left-to-right.  Since our compiler is going to pick one
+  particular evaluation order, we must make sure that all orders are safe,
+  i.e. never evaluate a subexpression that goes wrong.
+
+  Being safe is a stronger requirement than just not getting stuck during
+  reductions.  Consider [f() + (10 / x)], where [f()] does not terminate.
+  This expression is never stuck because the evaluation of [f()] can make
+  infinitely many transitions.  Yet it contains a subexpression [10 / x]
+  that can go wrong if [x = 0], and the compiler may choose to evaluate
+  [10 / x] first, before calling [f()].
+
+  Therefore, we must make sure that not only an expression cannot get stuck,
+  but none of its subexpressions can either.  We say that a subexpression
+  is not immediately stuck if it is a value (of the appropriate kind)
+  or it can reduce (at head or within). *)
+
+Inductive imm_safe: kind -> expr -> mem -> Prop :=
+  | imm_safe_val: forall v ty m,
+      imm_safe RV (Eval v ty) m
+  | imm_safe_loc: forall b ofs bf ty m,
+      imm_safe LV (Eloc b ofs bf ty) m
+  | imm_safe_lred: forall to C e m e' m',
+      lred e m e' m' ->
+      context LV to C ->
+      imm_safe to (C e) m
+  | imm_safe_rred: forall to C e m t e' m',
+      rred e m t e' m' ->
+      context RV to C ->
+      imm_safe to (C e) m
+  | imm_safe_callred: forall to C e m fd args ty,
+      callred e m fd args ty ->
+      context RV to C ->
+      imm_safe to (C e) m.
+
+      sstep (State f Scontinue (Kswitch2 k) e m)
+         E0 (State f Scontinue k e m)
+
+  | step_label: forall f lbl s k e m,
+      sstep (State f (Slabel lbl s) k e m)
+         E0 (State f s k e m)
+
+  | step_goto: forall f lbl k e m s' k',
+      find_label lbl f.(fn_body) (call_cont k) = Some (s', k') ->
+      sstep (State f (Sgoto lbl) k e m)
+         E0 (State f s' k' e m)
+
+  | step_internal_function: forall f vargs k m e m1 m2,
+      list_norepet (var_names (fn_params f) ++ var_names (fn_vars f)) ->
+      alloc_variables empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
+      bind_parameters e m1 f.(fn_params) vargs m2 ->
+      sstep (Callstate (Internal f) vargs k m)
+         E0 (State f f.(fn_body) k e m2)
+
+  | step_external_function: forall ef targs tres cc vargs k m vres t m',
+      external_call ef  ge vargs m t vres m' ->
+      sstep (Callstate (External ef targs tres cc) vargs k m)
+          t (Returnstate vres k m')
+
+  | step_returnstate: forall v f e C ty k m,
+      sstep (Returnstate v (Kcall f e C ty k) m)
+         E0 (ExprState f (C (Eval v ty)) k e m).
+
+Definition step (S: state) (t: trace) (S': state) : Prop :=
+  estep S t S' \/ sstep S t S'.
+
+End SEMANTICS.
+
+(** * Whole-program semantics *)
+
+(** Execution of whole programs are described as sequences of transitions
+  from an initial state to a final state.  An initial state is a [Callstate]
+  corresponding to the invocation of the ``main'' function of the program
+  without arguments and with an empty continuation. *)
+
+Inductive initial_state (p: program): state -> Prop :=
+115:  Axiom elements_correct:
+965:  Lemma xelements_correct:
+977:  Theorem elements_correct:
+982:    generalize (xelements_correct m i xH H). rewrite prev_append_prev. auto.
+1639:  split. apply T.elements_complete. apply T.elements_correct.
+1988:- apply of_list_norepet. apply T.elements_keys_norepet. apply T.elements_correct; auto.

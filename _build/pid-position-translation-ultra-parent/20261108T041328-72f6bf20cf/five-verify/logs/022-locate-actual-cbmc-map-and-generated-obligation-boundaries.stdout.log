@@ -1,0 +1,69 @@
+map roles [('spec-map', 'align/model/spec-map-pending.json')]
+map header {'schema': 'five-cbmc-rocq-map/1', 'status': 'mapping-gap', 'verification_method': 'traditional-bounded-model-checking', 'request_sha256': 'cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9', 'backend_manifest_sha256': '919938b14bdbae49e4d8354110e7c20446fc3625bc450eb85ea0ae038a4329b3', 'reason': 'Actual124successfulCBMCproperties preserved; canonical original-Csem declarations/proofs not yet constructed. No claim of completed Rocq recheck.'}
+map first2 [{'property_id': 'guidance_pid_h_run.overflow.1', 'cbmc_status': 'SUCCESS', 'scope': {'id': 'guidance_pid_h_run.overflow.1', 'class': 'overflow', 'description': 'arithmetic overflow on signed * in guidance_pid.kp * guidance_pid_pos_err.x', 'expression': '!overflow("*", int32_t, guidance_pid.kp, guidance_pid_pos_err.x)', 'source_location': {'comment': 'arithmetic overflow on signed * in guidance_pid.kp * guidance_pid_pos_err.x', 'file': '/home/yangfp/five/paparazzi/models/guidance_pid_h_run_pos/prepare/source/guidance_pid_h_run_pos.c', 'function': 'guidance_pid_h_run', 'line': '855', 'pragma': ['checked:bounds-check', 'checked:pointer-check', 'checked:div-by-zero-check', 'checked:signed-overflow-check', 'checked:undefined-shift-check', 'checked:pointer-primitive-check', 'checked:memory-leak-check', 'checked:memory-cleanup-check', 'checked:float-div-by-zero-check', 'checked:enum-range-check', 'checked:unsigned-overflow-check', 'checked:pointer-overflow-check', 'checked:conversion-check', 'checked:float-overflow-check', 'checked:nan-check'], 'propertyClass': 'overflow', 'propertyId': 'guidance_pid_h_run.overflow.1', 'workingDirectory': '/home/yangfp/five'}, 'status': 'SUCCESS', 'successful_evidence': [{'command_id': '010-isolated-all-runtime-safety-properties', 'stdout': '_build/pid-position-translation-worker/20261107T173056-f50e401074/five-cbmc/logs/010-isolated-all-runtime-safety-properties.stdout.log'}, {'command_id': '016-all-properties-z3-bitvector-sliced', 'stdout': '_build/pid-position-translation-worker/20261107T173056-f50e401074/five-cbmc/logs/016-all-properties-z3-bitvector-sliced.stdout.log'}], 'rocq_recheck': 'pending'}, 'mapping_status': 'mapping-gap', 'proof_status': 'pending', 'rocq_goal': None}, {'property_id': 'guidance_pid_h_run.overflow.2', 'cbmc_status': 'SUCCESS', 'scope': {'id': 'guidance_pid_h_run.overflow.2', 'class': 'overflow', 'description': 'arithmetic overflow on signed * in guidance_pid.kd * (guidance_pid_speed_err.x >> 2)', 'expression': '!overflow("*", int32_t, guidance_pid.kd, guidance_pid_speed_err.x >> 2)', 'source_location': {'comment': 'arithmetic overflow on signed * in guidance_pid.kd * (guidance_pid_speed_err.x >> 2)', 'file': '/home/yangfp/five/paparazzi/models/guidance_pid_h_run_pos/prepare/source/guidance_pid_h_run_pos.c', 'function': 'guidance_pid_h_run', 'line': '856', 'pragma': ['checked:bounds-check', 'checked:pointer-check', 'checked:div-by-zero-check', 'checked:signed-overflow-check', 'checked:undefined-shift-check', 'checked:pointer-primitive-check', 'checked:memory-leak-check', 'checked:memory-cleanup-check', 'checked:float-div-by-zero-check', 'checked:enum-range-check', 'checked:unsigned-overflow-check', 'checked:pointer-overflow-check', 'checked:conversion-check', 'checked:float-overflow-check', 'checked:nan-check'], 'propertyClass': 'overflow', 'propertyId': 'guidance_pid_h_run.overflow.2', 'workingDirectory': '/home/yangfp/five'}, 'status': 'SUCCESS', 'successful_evidence': [{'command_id': '010-isolated-all-runtime-safety-properties', 'stdout': '_build/pid-position-translation-worker/20261107T173056-f50e401074/five-cbmc/logs/010-isolated-all-runtime-safety-properties.stdout.log'}, {'command_id': '016-all-properties-z3-bitvector-sliced', 'stdout': '_build/pid-position-translation-worker/20261107T173056-f50e401074/five-cbmc/logs/016-all-properties-z3-bitvector-sliced.stdout.log'}], 'rocq_recheck': 'pending'}, 'mapping_status': 'mapping-gap', 'proof_status': 'pending', 'rocq_goal': None}]
+obligations (* Generated targets only: precondition pending; both proofs pending.
+   All possible original CompCert Csem steps are covered, without a fuel bound. *)
+From Stdlib Require Import List.
+From compcert Require Import Values Memory Ctypes Csem.
+From FiveShared.verification Require Import Obligations.
+From PidPositionRunPos Require Import Source.
+From PidPositionRunPos.proof Require Import Precondition.
+
+Definition goal_ge : Csem.genv := Csem.globalenv PidPositionRunPos.Source.prog.
+Definition goal_entry (args : list val) (m : mem) : Csem.state :=
+  Callstate (Ctypes.Internal PidPositionRunPos.Source.f_guidance_pid_h_run_pos) args Kstop m.
+
+(* [pre] is a bound parameter, not a global axiom or a chosen input domain. *)
+Definition no_error_goal (pre : PidPositionRunPos.proof.Precondition.precondition_type) : Prop :=
+  forall args m, pre args m ->
+    FiveShared.verification.Obligations.no_error goal_ge (goal_entry args m).
+
+Definition termination_goal (pre : PidPositionRunPos.proof.Precondition.precondition_type) : Prop :=
+  forall args m, pre args m ->
+    FiveShared.verification.Obligations.terminates goal_ge (goal_entry args m).
+
+REFERENCE examples/models/sum2/align/model/spec-map.json True
+keys ['schema', 'case_id', 'status', 'inputs', 'properties', 'automatic_property_ids', 'memory_scope']
+sample [{'cbmc_id': 'main.assertion.1', 'source': 'cbmc/harness.c:8', 'preconditions': [], 'call_scope': 'second sum2 call arguments exact binary32 0x4b800000 and 0x3f800000; first call unrestricted a,b', 'observation': 'r == 16777216.0f after typed local float initialization; exact positive finite result bits 0x4b800000', 'rocq_spec': 'rocq/cbmc_recheck/problem/Spec.v:FullAssertionGoal', 'rocq_theorems': ['full_main_assertion_1', 'main_assertion_1'], 'local_correspondence': 'float r alpha-renamed to local_r; fresh block, identity sem_cast, successful Mfloat32 store/load, actual three Csem expression steps to Eval(Vint Int.one,tint)', 'bounds': {'loops': 0, 'recursion': 0, 'cbmc_unwind': 1}}]
+REFERENCE examples/models/sum2/rocq/cbmc_recheck/problem/Spec.v True
+From FiveSum2Proof.support Require Import NormalCorrespondence.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From Stdlib Require Import ZArith.
+From compcert Require Import AST Integers Floats Values Memory Maps Cop Ctypes Csyntax Csyntaxdefs Csem Smallstep.
+From FiveSum2Proof Require Import SourceInvariant Invariant.
+Definition input_large := Float32.of_bits (Int.repr 1266679808).
+Definition input_one := Float32.of_bits (Int.repr 1065353216).
+Definition expected := input_large.
+Definition AssertionGoal : Prop := forall m t v mf,
+ star Csem.step sum2_ge (sum2_start (Vsingle input_large) (Vsingle input_one) m)
+   t (Returnstate v Kstop mf) ->
+ exists f, v = Vsingle f /\ Float32.to_bits f = Int.repr 1266679808 /\
+   sem_binary_operation sum2_ge Oeq v tfloat (Vsingle expected) tfloat mf = Some (Vint Int.one).
+Definition ReturnExistsGoal : Prop := forall m (a b:float32),
+ exists t v mf, star Csem.step sum2_ge (sum2_start (Vsingle a) (Vsingle b) m)
+   t (Returnstate v Kstop mf).
+Definition ArbitrarySafetyGoal : Prop := forall m (a b:float32) t s,
+ star Csem.step sum2_ge (sum2_start (Vsingle a) (Vsingle b) m) t s -> ~source_error s.
+
+Definition local_r : positive := 1%positive.
+Definition local_env (br:block) : Csem.env := PTree.set local_r (br,tfloat) empty_env.
+Definition local_assertion : Csyntax.expr :=
+ Csyntax.Ebinop Oeq (Csyntax.Evalof (Csyntax.Evar local_r tfloat) tfloat)
+   (Csyntax.Eval (Vsingle expected) tfloat) tint.
+Definition LocalObservation (v:val) (m:mem) : Prop :=
+ exists ma br mr,
+ Mem.alloc m 0 4 = (ma,br) /\
+ sem_cast v tfloat tfloat ma = Some v /\
+ Mem.store AST.Mfloat32 ma br 0 v = Some mr /\
+ Mem.load AST.Mfloat32 mr br 0 = Some v /\
+ pure_rval sum2_ge (local_env br) mr local_assertion = Some (Vint Int.one) /\
+ star Csem.step sum2_ge
+   (ExprState sum2_function local_assertion Kstop (local_env br) mr) Events.E0
+   (ExprState sum2_function (Csyntax.Eval (Vint Int.one) tint) Kstop (local_env br) mr).
+Definition FullAssertionGoal : Prop := forall m t v mf,
+ star Csem.step sum2_ge (sum2_start (Vsingle input_large) (Vsingle input_one) m)
+   t (Returnstate v Kstop mf) -> LocalObservation v mf.
+
+REFERENCE examples/models/sum2/rocq/spec-recheck.json True
+keys ['schema', 'case_id', 'status', 'full_emitted_property_set', 'properties', 'additional_theorems', 'pending', 'counterexample', 'proof_run', 'bindings', 'scope_limitations', 'verification_method', 'request_sha256', 'backend_manifest_sha256', 'spec_map_sha256', 'cbmc_run', 'cbmc_command_id', 'cbmc_json', 'cbmc_input_sha256']
+sample [{'cbmc_id': 'main.assertion.1', 'cbmc_status': 'SUCCESS', 'rocq_status': 'proved', 'specification': 'problem/Spec.v:FullAssertionGoal', 'theorems': ['full_main_assertion_1', 'main_assertion_1'], 'evidence': ['examples/models/sum2/rocq/cbmc_recheck/attempts/001/kernel-evidence.json'], 'nonvacuity': 'arbitrary_call_returns: actual finite Csem return exists for every memory and all typed binary32 arguments', 'assertion_semantics': 'Actual Csem star red_var_local/red_rvalof/red_binop to Eval(Vint Int.one,tint), with fresh local allocation, sem_cast and Mfloat32 store/load.', 'property_id': 'main.assertion.1', 'status': 'proved', 'scope': {'preconditions': [], 'source_location': 'cbmc/harness.c:8', 'inputs': 'second call exact 0x4b800000,0x3f800000; first call unrestricted binary32', 'memory': 'fresh scalar float r; typed cast, store/load and genuine assertion Csem reductions', 'call_bounds': 'two nonrecursive calls, no loops, CBMC unwind 1', 'observation': 'r == 16777216.0f, exact positive finite result encoding 0x4b800000'}, 'theorem': 'FiveSum2Proof.Attempt.full_main_assertion_1'}]

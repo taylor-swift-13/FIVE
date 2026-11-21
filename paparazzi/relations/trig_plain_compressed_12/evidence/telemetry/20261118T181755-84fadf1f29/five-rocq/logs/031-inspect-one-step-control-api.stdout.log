@@ -1,0 +1,110 @@
+  | Unsigned => Ptrofs.of_intu n
+  end.
+
+Definition sem_add_ptr_int (cenv: composite_env) (ty: type) (si: signedness) (v1 v2: val): option val :=
+  match v1, v2 with
+  | Vptr b1 ofs1, Vint n2 =>
+      let n2 := ptrofs_of_int si n2 in
+      Some (Vptr b1 (Ptrofs.add ofs1 (Ptrofs.mul (Ptrofs.repr (sizeof cenv ty)) n2)))
+  | Vint n1, Vint n2 =>
+      if Archi.ptr64 then None else Some (Vint (Int.add n1 (Int.mul (Int.repr (sizeof cenv ty)) n2)))
+  | Vlong n1, Vint n2 =>
+      let n2 := cast_int_long si n2 in
+      if Archi.ptr64 then Some (Vlong (Int64.add n1 (Int64.mul (Int64.repr (sizeof cenv ty)) n2))) else None
+  | _,  _ => None
+  end.
+
+Definition sem_add_ptr_long (cenv: composite_env) (ty: type) (v1 v2: val): option val :=
+  match v1, v2 with
+
+Definition do_ef_volatile_store (chunk: memory_chunk)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  match vargs with
+  | Vptr b ofs :: v :: nil => do w',t,m',v' <- do_volatile_store w chunk m b ofs v; Some(w',t,Vundef,m')
+  | _ => None
+  end.
+
+Definition do_ef_volatile_load_global (chunk: memory_chunk) (id: ident) (ofs: ptrofs)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  do b <- Genv.find_symbol ge id; do_ef_volatile_load chunk w (Vptr b ofs :: vargs) m.
+
+Definition do_ef_volatile_store_global (chunk: memory_chunk) (id: ident) (ofs: ptrofs)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  do b <- Genv.find_symbol ge id; do_ef_volatile_store chunk w (Vptr b ofs :: vargs) m.
+
+Definition do_alloc_size (v: val) : option ptrofs :=
+  match v with
+  | Vint n => if Archi.ptr64 then None else Some (Ptrofs.of_int n)
+  | Vlong n => if Archi.ptr64 then Some (Ptrofs.of_int64 n) else None
+  | _ => None
+  end.
+
+Definition do_ef_malloc
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  match vargs with
+  | v :: nil =>
+      do sz <- do_alloc_size v;
+      let (m', b) := Mem.alloc m (- size_chunk Mptr) (Ptrofs.unsigned sz) in
+      do m'' <- Mem.store Mptr m' b (- size_chunk Mptr) v;
+      Some(w, E0, Vptr b Ptrofs.zero, m'')
+  | _ => None
+  end.
+
+Definition do_ef_free
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  match vargs with
+  | Vptr b lo :: nil =>
+      check (Ptrofs.eq_dec lo Ptrofs.zero);
+      do vsz <- Mem.load Mptr m b (- size_chunk Mptr);
+      do sz <- do_alloc_size vsz;
+      do m' <- Mem.free m b (- size_chunk Mptr) (Ptrofs.unsigned sz);
+      Some(w, E0, Vundef, m')
+  | Vint n :: nil =>
+      check (Int.eq_dec n Int.zero && negb Archi.ptr64);
+      Some(w, E0, Vundef, m)
+  | Vlong n :: nil =>
+      check (Int64.eq_dec n Int64.zero && Archi.ptr64);
+      Some(w, E0, Vundef, m)
+  | _ => None
+  end.
+
+Definition memcpy_args_ok
+  (sz al: Z) (bdst: block) (odst: Z) (bsrc: block) (osrc: Z) : Prop :=
+      (al = 1 \/ al = 2 \/ al = 4 \/ al = 8)
+   /\ sz >= 0 /\ (al | sz)
+   /\ (sz > 0 -> (al | osrc))
+   /\ (sz > 0 -> (al | odst))
+   /\ (bsrc <> bdst \/ osrc = odst \/ osrc + sz <= odst \/ odst + sz <= osrc).
+
+Definition do_ef_memcpy (sz al: Z)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  match vargs with
+  | Vptr bdst odst :: Vptr bsrc osrc :: nil =>
+      if decide (memcpy_args_ok sz al bdst (Ptrofs.unsigned odst) bsrc (Ptrofs.unsigned osrc)) then
+        do bytes <- Mem.loadbytes m bsrc (Ptrofs.unsigned osrc) sz;
+        do m' <- Mem.storebytes m bdst (Ptrofs.unsigned odst) bytes;
+        Some(w, E0, Vundef, m')
+      else None
+  | _ => None
+  end.
+
+Definition do_ef_annot (text: string) (targs: list typ)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  do args <- list_eventval_of_val vargs targs;
+  Some(w, Event_annot text args :: E0, Vundef, m).
+
+Definition do_ef_annot_val (text: string) (targ: typ)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  match vargs with
+  | varg :: nil =>
+      do arg <- eventval_of_val varg targ;
+      Some(w, Event_annot text (arg :: nil) :: E0, varg, m)
+  | _ => None
+  end.
+
+Definition do_ef_debug (kind: positive) (text: ident) (targs: list typ)
+       (w: world) (vargs: list val) (m: mem) : option (world * trace * val * mem) :=
+  Some(w, E0, Vundef, m).
+
+Definition do_builtin_or_external (name: string) (sg: signature)
+666:Inductive sstep: state -> trace -> state -> Prop :=

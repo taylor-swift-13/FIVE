@@ -1,0 +1,128 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/core/ControllerPrefix.v", line 89, characters 73-75:
+Error:
+In environment
+e : PTree.tree (block * type)
+m : mem
+bp, be, bs, gh, bg, bx, bpy, bi, bt, bu, bf : block
+flight : bool
+kp, kd, ki, kv, ka, pex, pey, sex, sey, rsx, rsy, rax, ray, ix, iy, traj,
+total : int
+EX : e ! S._pd_x = Some (bx, tint)
+EY : e ! S._pd_y = Some (bpy, tint)
+EG : e ! S._gh = Some (bg, tptr gh_type)
+EF : e ! S._in_flight = Some (bf, tbool)
+NP : e ! S._guidance_pid = None
+NE : e ! S._guidance_pid_pos_err = None
+NS : e ! S._guidance_pid_speed_err = None
+NI : e ! S._guidance_pid_trim_att_integrator = None
+NT : e ! S._traj_max_bank = None
+NU : e ! S._total_max_bank = None
+SP : Genv.find_symbol ge S._guidance_pid = Some bp
+SE : Genv.find_symbol ge S._guidance_pid_pos_err = Some be
+SS : Genv.find_symbol ge S._guidance_pid_speed_err = Some bs
+SI : Genv.find_symbol ge S._guidance_pid_trim_att_integrator = Some bi
+ST : Genv.find_symbol ge S._traj_max_bank = Some bt
+SU : Genv.find_symbol ge S._total_max_bank = Some bu
+SEP : NoDup [bx; bpy; bg; bf; bp; be; bs; gh; bi; bt; bu]
+GP : Mem.load Mint64 m bg 0 = Some (Vptr gh Ptrofs.zero)
+LF :
+  Mem.load Mint8unsigned m bf 0 =
+  Some (Vint (if flight then Int.one else Int.zero))
+APPROX : Mem.load Mint8unsigned m bp 44 = Some (Vint Int.zero)
+LKP : Mem.load Mint32 m bp 0 = Some (Vint kp)
+LKD : Mem.load Mint32 m bp 4 = Some (Vint kd)
+LKI : Mem.load Mint32 m bp 8 = Some (Vint ki)
+LKV : Mem.load Mint32 m bp 12 = Some (Vint kv)
+LKA : Mem.load Mint32 m bp 16 = Some (Vint ka)
+LPEX : Mem.load Mint32 m be 0 = Some (Vint pex)
+LPEY : Mem.load Mint32 m be 4 = Some (Vint pey)
+LSEX : Mem.load Mint32 m bs 0 = Some (Vint sex)
+LSEY : Mem.load Mint32 m bs 4 = Some (Vint sey)
+LRSX : Mem.load Mint32 m gh 52 = Some (Vint rsx)
+LRSY : Mem.load Mint32 m gh 56 = Some (Vint rsy)
+LRAX : Mem.load Mint32 m gh 60 = Some (Vint rax)
+LRAY : Mem.load Mint32 m gh 64 = Some (Vint ray)
+LIX : Mem.load Mint32 m bi 0 = Some (Vint ix)
+LIY : Mem.load Mint32 m bi 4 = Some (Vint iy)
+LT : Mem.load Mint32 m bt 0 = Some (Vint traj)
+LU : Mem.load Mint32 m bu 0 = Some (Vint total)
+AX : Mem.valid_access m Mint32 bx 0 Writable
+AY : Mem.valid_access m Mint32 bpy 0 Writable
+AIX : Mem.valid_access m Mint32 bi 0 Writable
+AIY : Mem.valid_access m Mint32 bi 4 Writable
+ACX : Mem.valid_access m Mint32 bp 32 Writable
+ACY : Mem.valid_access m Mint32 bp 36 Writable
+D0 : bx <> bpy
+D1 : bx <> bg
+D2 : bx <> bf
+D3 : bx <> bp
+D4 : bx <> be
+D5 : bx <> bs
+D6 : bx <> gh
+D7 : bx <> bi
+D8 : bx <> bt
+D9 : bx <> bu
+D10 : bpy <> bg
+D11 : bpy <> bf
+D12 : bpy <> bp
+D13 : bpy <> be
+D14 : bpy <> bs
+D15 : bpy <> gh
+D16 : bpy <> bi
+D17 : bpy <> bt
+D18 : bpy <> bu
+D19 : bg <> bf
+D20 : bg <> bp
+D21 : bg <> be
+D22 : bg <> bs
+D23 : bg <> gh
+D24 : bg <> bi
+D25 : bg <> bt
+D26 : bg <> bu
+D27 : bf <> bp
+D28 : bf <> be
+D29 : bf <> bs
+D30 : bf <> gh
+D31 : bf <> bi
+D32 : bf <> bt
+D33 : bf <> bu
+D34 : bp <> be
+D35 : bp <> bs
+D36 : bp <> gh
+D37 : bp <> bi
+D38 : bp <> bt
+D39 : bp <> bu
+D40 : be <> bs
+D41 : be <> gh
+D42 : be <> bi
+D43 : be <> bt
+D44 : be <> bu
+D45 : bs <> gh
+D46 : bs <> bi
+D47 : bs <> bt
+D48 : bs <> bu
+D49 : gh <> bi
+D50 : gh <> bt
+D51 : gh <> bu
+D52 : bi <> bt
+D53 : bi <> bu
+D54 : bt <> bu
+m4 : mem
+E4 : exec_stmt ge e m core_first_four E0 m4 Out_normal
+PDX : Mem.load Mint32 m4 bx 0 = Some (Vint (pd_bits kp kd pex sex))
+PDY : Mem.load Mint32 m4 bpy 0 = Some (Vint (pd_bits kp kd pey sey))
+CMDX :
+  Mem.load Mint32 m4 bp 32 =
+  Some (Vint (feedforward_bits (pd_bits kp kd pex sex) kv rsx ka rax))
+CMDY :
+  Mem.load Mint32 m4 bp 36 =
+  Some (Vint (feedforward_bits (pd_bits kp kd pey sey) kv rsy ka ray))
+RW4 : raw_writes (fun b : block => b = bx \/ b = bpy \/ b = bp) m m4
+RUN4 :
+  replay_stores m
+    (first_four_updates bx bpy bp kp kd kv ka pex pey sex sey rsx rsy rax ray) =
+  Some m4
+The term "LT" has type "Mem.load Mint32 m bt 0 = Some (Vint traj)"
+while it is expected to have type
+ "Mem.load Mint32 m4 bt 0 = Some (Vint traj)".
+

@@ -1,0 +1,7 @@
+# stateSetSpeedNed_i：准备完成
+
+固定原提交abfee3dd56eeab12c528635504a429db3daf409a。入口文件与入口同名，仅保留原函数体和实际传递callee闭包；StateShared.h保留完整State及必要27个原始结构体与23个原始宏。原始逐切片来源/行号/hash在source-slices.json。入口static inline仅调整为可导出的外部定义，函数体字节未改。拒绝ID逻辑及getter全部fallback保留。
+
+GCC语法与完整State大小656、对齐4、speed_status280/filter282/ecef_i284/ned_i296/ecef_f328/ned_f340/origin_f168布局检查通过。此处只是准备检查，CBMC、自动Csyntax生成和Rocq证明由后续阶段分别交付。完整上游依赖快照单份位于getter case并由本handoff逐项引用。
+
+本阶段为三case共享真实five-prepare记录，所有case成本引用相同事件ID/原始run；不得三次相加或伪造逐case模型token分摊。

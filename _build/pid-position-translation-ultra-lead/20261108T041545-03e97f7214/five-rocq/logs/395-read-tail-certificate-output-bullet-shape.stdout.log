@@ -1,0 +1,9 @@
+as[P[CERT IN]].
+   + intros base BASE;exists(callee_invariant ge base Vundef mc);exact(CAL base BASE).
+   + exists P;split;[exact CERT|exact IN].
+ - split.
+   + unfold active_fields in *;destruct ACTIVE as[L0[L4[L8[L12[L16[L24[L28 L32]]]]]]];repeat split.
+     * replace 0 with(0+0)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L0|lia|change(0+4<=36);lia|change(4|0+0);exists 0;reflexivity].
+     * replace 4 with(0+4)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L4|lia|change(4+4<=36);lia|change(4|0+4);exists 1;reflexivity].
+     * replace 8 with(0+8)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L8|lia|change(8+4<=36);lia|change(4|0+8);exists 2;reflexivity].
+     * replace 12 with(0+12)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L12|li

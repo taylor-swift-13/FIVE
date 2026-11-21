@@ -1,0 +1,309 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/NormalReturn.v", line 146, characters 40-41:
+Error: Cannot infer this placeholder of type "int" in
+environment:
+m : mem
+gh, ret : block
+flight : bool
+bp, bi, bt, bu, bh, bfun : block
+kp, kd, ki, kv, ka, ax, ay, ix, iy : int
+h : float32
+heading : int
+SP : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._guidance_pid = Some bp
+SI :
+  Genv.find_symbol CoreInputs.E.ge
+    CoreInputs.S._guidance_pid_trim_att_integrator =
+  Some bi
+ST : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._traj_max_bank = Some bt
+SU : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._total_max_bank = Some bu
+SH : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._guidance_h = Some bh
+SF :
+  Genv.find_symbol CoreInputs.E.ge CoreInputs.S._stab_sp_from_ltp_i =
+  Some bfun
+FF :
+  Genv.find_funct CoreInputs.E.ge (Vptr bfun Ptrofs.zero) =
+  Some (Internal CoreInputs.S.f_stab_sp_from_ltp_i)
+APP : Mem.load Mint8unsigned m bp 44 = Some (Vint Int.zero)
+KP : Mem.load Mint32 m bp 0 = Some (Vint kp)
+KD : Mem.load Mint32 m bp 4 = Some (Vint kd)
+KI : Mem.load Mint32 m bp 8 = Some (Vint ki)
+KV : Mem.load Mint32 m bp 12 = Some (Vint kv)
+KA : Mem.load Mint32 m bp 16 = Some (Vint ka)
+AX : Mem.load Mint32 m gh 60 = Some (Vint ax)
+AY : Mem.load Mint32 m gh 64 = Some (Vint ay)
+IX : Mem.load Mint32 m bi 0 = Some (Vint ix)
+IY : Mem.load Mint32 m bi 4 = Some (Vint iy)
+LT : Mem.load Mint32 m bt 0 = Some (Vint (Int.repr 1429))
+LU : Mem.load Mint32 m bu 0 = Some (Vint (Int.repr 3216))
+HEAD : Mem.load Mfloat32 m bh 28 = Some (Vsingle h)
+CAST :
+  forall mm : mem,
+  sem_cast (Vsingle (Float32.mul h (Float32.of_int (Int.repr 4096)))) tfloat
+    tint mm =
+  Some (Vint heading)
+HB : -12288 <= Int.signed heading <= 12288
+WP : Mem.range_perm m bp 0 48 Cur Writable
+WI : Mem.range_perm m bi 0 8 Cur Writable
+GOOD : InputGood m gh ret
+e : env
+front : mem
+be, bs, sb : block
+rx, ry, px, py, sx, sy, vx, vy : int
+br, bf, bg, temp : block
+SE :
+  Genv.find_symbol EntryIntegration.E.ge
+    EntryIntegration.S._guidance_pid_pos_err =
+  Some be
+SS :
+  Genv.find_symbol EntryIntegration.E.ge
+    EntryIntegration.S._guidance_pid_speed_err =
+  Some bs
+STATE :
+  Genv.find_symbol EntryIntegration.E.ge EntryIntegration.S._state = Some sb
+RX :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._pos; EntryIntegration.S._x] =
+  Some (Vint rx)
+RY :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._pos; EntryIntegration.S._y] =
+  Some (Vint ry)
+PX : Mem.load Mint32 m sb 100 = Some (Vint px)
+PY : Mem.load Mint32 m sb 104 = Some (Vint py)
+SX :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._speed;
+     EntryIntegration.S._x] =
+  Some (Vint sx)
+SY :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._speed;
+     EntryIntegration.S._y] =
+  Some (Vint sy)
+VX : Mem.load Mint32 m sb 296 = Some (Vint vx)
+VY : Mem.load Mint32 m sb 300 = Some (Vint vy)
+PATH :
+  star Csem.step EntryIntegration.E.ge
+    (EntryIntegration.E.entry (call_args gh ret flight) m) E0
+    (State EntryIntegration.S.f_guidance_pid_h_run_pos
+       FrontSemantics.after_front Kstop e front)
+PEX :
+  Mem.load Mint32 front be 0 =
+  Some (Vint (clamp_bits (Int.sub rx px) (Int.repr 4096)))
+PEY :
+  Mem.load Mint32 front be 4 =
+  Some (Vint (clamp_bits (Int.sub ry py) (Int.repr 4096)))
+SEX :
+  Mem.load Mint32 front bs 0 =
+  Some (Vint (clamp_bits (Int.sub sx vx) (Int.repr 8388608)))
+SEY :
+  Mem.load Mint32 front bs 4 =
+  Some (Vint (clamp_bits (Int.sub sy vy) (Int.repr 8388608)))
+LR : e ! EntryIntegration.S.__res = Some (br, tptr sp_type)
+LF : e ! EntryIntegration.S._in_flight = Some (bf, tbool)
+LG : e ! EntryIntegration.S._gh = Some (bg, tptr gh_type)
+LC : e ! EntryIntegration.S.__res__1 = Some (temp, sp_type)
+RES : Mem.load Mint64 front br 0 = Some (Vptr ret Ptrofs.zero)
+GH : Mem.load Mint64 front bg 0 = Some (Vptr gh Ptrofs.zero)
+FLIGHT :
+  Mem.load Mbool front bf 0 =
+  Some (Vint (if flight then Int.one else Int.zero))
+SEP : env_separated e
+FRESH :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) -> ~ Mem.valid_block m b
+FREE :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) ->
+  Mem.range_perm front b 0 (sizeof EntryIntegration.E.ge ty) Cur Freeable
+FRAME :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (v : val),
+  Mem.load ch m b ofs = Some v ->
+  b <> be -> b <> bs -> Mem.load ch front b ofs = Some v
+PERM :
+  forall (b : block) (ofs : Z) (k : perm_kind) (p : permission),
+  Mem.perm m b ofs k p -> Mem.perm front b ofs k p
+UNSH :
+  forall id : ident, ~ In id (map fst entry_declarations) -> e ! id = None
+IP : Genv.invert_symbol E.ge bp = Some 5702817635618910447504%positive
+IE :
+  Genv.invert_symbol E.ge be =
+  Some 1898833993169541611912007891369142160%positive
+IS :
+  Genv.invert_symbol E.ge bs =
+  Some 7777623959156796519357814545896151787408%positive
+II :
+  Genv.invert_symbol E.ge bi =
+  Some 8962732235794179242702244114902011650987410845921331980176%positive
+IT : Genv.invert_symbol E.ge bt = Some 398387629986557102696157%positive
+IU : Genv.invert_symbol E.ge bu = Some 25496808319139654606116381%positive
+IH : Genv.invert_symbol E.ge bh = Some 1476680149976295312%positive
+GP : gh <> bp
+GE : gh <> be
+GS : gh <> bs
+GI : gh <> bi
+GT : gh <> bt
+GU : gh <> bu
+ND : NoDup [bp; be; bs; gh; bi; bt; bu]
+VP : Mem.valid_block m bp
+VI : Mem.valid_block m bi
+TP : temp <> bp
+TI : temp <> bi
+BRP : br <> bp
+BRI : br <> bi
+BRT : br <> temp
+WPF : Mem.range_perm front bp 0 48 Cur Writable
+WIF : Mem.range_perm front bi 0 8 Cur Writable
+WTEMP : Mem.range_perm front temp 0 36 Cur Writable
+WRET0 : Mem.range_perm m ret 0 36 Cur Writable
+WRET : Mem.range_perm front ret 0 36 Cur Writable
+VRET : Mem.valid_block m ret
+TR : temp <> ret
+RETGLOBAL : forall id : ident, Genv.find_symbol E.ge id <> Some ret
+PR : bp <> ret
+IR : bi <> ret
+FRAMED :
+  forall (id : ident) (b : block) (ch : memory_chunk) (ofs : Z) (v : val),
+  Genv.find_symbol E.ge id = Some b ->
+  id <> S._guidance_pid_pos_err ->
+  id <> S._guidance_pid_speed_err ->
+  Mem.load ch m b ofs = Some v -> Mem.load ch front b ofs = Some v
+AIX : Mem.valid_access front Mint32 bi 0 Writable
+AIY : Mem.valid_access front Mint32 bi 4 Writable
+ACX : Mem.valid_access front Mint32 bp 32 Writable
+ACY : Mem.valid_access front Mint32 bp 36 Writable
+RVEC : Mem.range_perm front bp 32 40 Cur Readable
+coreout : mem
+CALL :
+  eval_funcall ge front (Internal FactoryCall.S.f_guidance_pid_h_run)
+    [Vptr temp Ptrofs.zero; Vint (if flight then Int.one else Int.zero);
+     Vptr gh Ptrofs.zero]
+    E0 coreout Vundef
+ACTIVE :
+  active_fields coreout temp
+    (controller_command flight kp kd ki kv ka
+       (clamp_bits (Int.sub rx px) (Int.repr 4096))
+       (clamp_bits (Int.sub sx vx) (Int.repr 8388608)) sx ax ix
+       (Int.repr 1429) (Int.repr 3216))
+    (controller_command flight kp kd ki kv ka
+       (clamp_bits (Int.sub ry py) (Int.repr 4096))
+       (clamp_bits (Int.sub sy vy) (Int.repr 8388608)) sy ay iy
+       (Int.repr 1429) (Int.repr 3216))
+    heading
+IXC :
+  Mem.load Mint32 coreout bi 0 =
+  Some
+    (Vint
+       (next_integral flight ix ki
+          (pd_bits kp kd (clamp_bits (Int.sub rx px) (Int.repr 4096))
+             (clamp_bits (Int.sub sx vx) (Int.repr 8388608)))
+          (Int.repr 1429)))
+IYC :
+  Mem.load Mint32 coreout bi 4 =
+  Some
+    (Vint
+       (next_integral flight iy ki
+          (pd_bits kp kd (clamp_bits (Int.sub ry py) (Int.repr 4096))
+             (clamp_bits (Int.sub sy vy) (Int.repr 8388608)))
+          (Int.repr 1429)))
+CMDX :
+  Mem.load Mint32 coreout bp 32 =
+  Some
+    (Vint
+       (controller_command flight kp kd ki kv ka
+          (clamp_bits (Int.sub rx px) (Int.repr 4096))
+          (clamp_bits (Int.sub sx vx) (Int.repr 8388608)) sx ax ix
+          (Int.repr 1429) (Int.repr 3216)))
+CMDY :
+  Mem.load Mint32 coreout bp 36 =
+  Some
+    (Vint
+       (controller_command flight kp kd ki kv ka
+          (clamp_bits (Int.sub ry py) (Int.repr 4096))
+          (clamp_bits (Int.sub sy vy) (Int.repr 8388608)) sy ay iy
+          (Int.repr 1429) (Int.repr 3216)))
+KEEP : access_preserved front coreout
+CFRAME :
+  forall (ch : memory_chunk) (b : block) (ofs : Z),
+  Mem.valid_block front b ->
+  b <> bp ->
+  b <> bi -> b <> temp -> Mem.load ch coreout b ofs = Mem.load ch front b ofs
+CBFRAME :
+  forall (b : block) (ofs n : Z),
+  Mem.valid_block front b ->
+  b <> bp ->
+  b <> bi ->
+  b <> temp ->
+  0 <= n -> Mem.loadbytes coreout b ofs n = Mem.loadbytes front b ofs n
+VBR : Mem.valid_block front br
+RESC : Mem.load Mint64 coreout br 0 = Some (Vptr ret Ptrofs.zero)
+funb : block
+SFUN :
+  Genv.find_symbol CoreInputs.E.ge CoreInputs.S._guidance_pid_h_run =
+  Some funb
+FFUN :
+  Genv.find_funct CoreInputs.E.ge (Vptr funb Ptrofs.zero) =
+  Some (Internal CoreInputs.S.f_guidance_pid_h_run)
+NCORE : e ! S._guidance_pid_h_run = None
+bodym : mem
+bytes : list memval
+TAIL :
+  exec_stmt EntryReturn.E.ge e front FrontSemantics.after_front E0 bodym
+    (Out_return None)
+ACTRET :
+  active_fields bodym ret
+    (controller_command flight kp kd ki kv ka
+       (clamp_bits (Int.sub rx px) (Int.repr 4096))
+       (clamp_bits (Int.sub sx vx) (Int.repr 8388608)) sx ax ix
+       (Int.repr 1429) (Int.repr 3216))
+    (controller_command flight kp kd ki kv ka
+       (clamp_bits (Int.sub ry py) (Int.repr 4096))
+       (clamp_bits (Int.sub sy vy) (Int.repr 8388608)) sy ay iy
+       (Int.repr 1429) (Int.repr 3216))
+    heading
+TAILKEEP : access_preserved front bodym
+BYTES : Mem.loadbytes coreout temp 0 36 = Some bytes
+COPY : Mem.storebytes coreout ret 0 bytes = Some bodym
+FREEBODY :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) ->
+  Mem.range_perm bodym b 0 (sizeof E.ge ty) Cur Freeable
+mf : mem
+FREEFINAL : Mem.free_list bodym (blocks_of_env E.ge e) = Some mf
+FREEFRAME :
+  forall (ch : memory_chunk) (b : block) (ofs : Z),
+  (forall (id : positive) (ty : type), e ! id = Some (b, ty) -> False) ->
+  Mem.load ch mf b ofs = Mem.load ch bodym b ofs
+FREEACCESS :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (p : permission),
+  (forall (id : positive) (ty : type), e ! id = Some (b, ty) -> False) ->
+  Mem.valid_access bodym ch b ofs p -> Mem.valid_access mf ch b ofs p
+OUT :
+  forall b : block,
+  Mem.valid_block m b ->
+  forall (id : positive) (ty : type), e ! id = Some (b, ty) -> False
+

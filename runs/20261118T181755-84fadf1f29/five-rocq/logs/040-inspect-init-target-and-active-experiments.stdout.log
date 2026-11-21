@@ -1,0 +1,301 @@
+From Stdlib Require Import List ZArith.
+From compcert Require Import Coqlib Integers Values Memory Memdata Globalenvs Ctypes Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+Require PprzTrigPlain.Source PprzTrigPlain.Execution.
+Require PprzTrigLow.Source PprzTrigLow.Execution.
+Require PprzTrigInit.Source PprzTrigInit.Execution.
+From PprzTrigRelationSupport Require Import TrigData.
+Import ListNotations.
+Open Scope Z_scope.
+
+(** Canonical question.  All execution models retain their complete machine
+    domain.  This first source theorem selects the same explicit normalized
+    angle precondition as CBMC; no analytical sine accuracy claim is made. *)
+Definition normalized_angle (a:Int.int) : Prop := -12867 <= Int.signed a <= 12867.
+Definition Returns (ge:Csem.genv) (entry:list val->mem->Csem.state)
+ (args:list val) (before:mem) (v:val) (after:mem) : Prop :=
+ exists t, star Csem.step ge (entry args before) t (Returnstate v Kstop after).
+Definition initial_plain (m:mem) : Prop := Genv.init_mem PprzTrigPlain.Source.prog=Some m.
+Definition initial_low (m:mem) : Prop := Genv.init_mem PprzTrigInit.Source.prog=Some m.
+Definition buffer_symbol (b:block) : Prop :=
+ Genv.find_symbol PprzTrigInit.Execution.ge PprzTrigInit.Source._data_buf_12=Some b.
+Definition init_returns (m:mem) (v:val) (m':mem) : Prop :=
+ Returns PprzTrigInit.Execution.ge PprzTrigInit.Execution.entry [] m v m'.
+Definition packed_state (b:block) (m:mem) : Prop :=
+ Mem.loadbytes m b 0 9651=Some (map (fun z=>Byte (Byte.repr z)) expected_bytes).
+Definition existing_frame (before after:mem) : Prop :=
+ Mem.unchanged_on (fun b _=>Plt b (Mem.nextblock before)) before after.
+Definition init_frame (b:block) (before after:mem) : Prop :=
+ Mem.unchanged_on (fun b' _=>Plt b' (Mem.nextblock before) /\ b'<>b) before after.
+
+Definition initial_memory_exists : Prop :=
+ exists mp ml b, initial_plain mp /\ initial_low ml /\ buffer_symbol b.
+Definition initializer_total : Prop := forall ml,
+ initial_low ml -> safe_termination PprzTrigInit.Execution.ge
+   (PprzTrigInit.Execution.entry [] ml).
+Definition initializer_success_and_representation : Prop := forall ml b,
+ initial_low ml -> buffer_symbol b ->
+ (exists ml', init_returns ml (Vint Int.zero) ml') /\
+ (forall v ml', init_returns ml v ml' ->
+   v=Vint Int.zero /\ packed_state b ml' /\ init_frame b ml ml').
+Definition plain_sine_total_normalized : Prop := forall mp a,
+ initial_plain mp -> normalized_angle a ->
+ safe_termination PprzTrigPlain.Execution.ge (PprzTrigPlain.Execution.entry [Vint a] mp).
+Definition low_sine_total_normalized : Prop := forall ml ml' a,
+ initial_low ml -> init_returns ml (Vint Int.zero) ml' -> normalized_angle a ->
+ safe_termination PprzTrigLow.Execution.ge (PprzTrigLow.Execution.entry [Vint a] ml').
+Definition sine_equivalence_normalized : Prop := forall mp ml ml' a,
+ initial_plain mp -> initial_low ml -> init_returns ml (Vint Int.zero) ml' ->
+ normalized_angle a ->
+ (exists rp mp', Returns PprzTrigPlain.Execution.ge PprzTrigPlain.Execution.entry [Vint a] mp (Vint rp) mp') /\
+ (exists rc mc', Returns PprzTrigLow.Execution.ge PprzTrigLow.Execution.entry [Vint a] ml' (Vint rc) mc') /\
+ (forall vp mp' vc mc',
+   Returns PprzTrigPlain.Execution.ge PprzTrigPlain.Execution.entry [Vint a] mp vp mp' ->
+   Returns PprzTrigLow.Execution.ge PprzTrigLow.Execution.entry [Vint a] ml' vc mc' ->
+   exists r, vp=Vint r /\ vc=Vint r).
+Definition sine_frame_normalized : Prop := forall mp ml ml' a,
+ initial_plain mp -> initial_low ml -> init_returns ml (Vint Int.zero) ml' ->
+ normalized_angle a ->
+ (forall v mp', Returns PprzTrigPlain.Execution.ge PprzTrigPlain.Execution.entry [Vint a] mp v mp' -> existing_frame mp mp') /\
+ (forall v mc', Returns PprzTrigLow.Execution.ge PprzTrigLow.Execution.entry [Vint a] ml' v mc' -> existing_frame ml' mc').
+Definition FullSourceEquivalenceNormalized : Prop :=
+ initial_memory_exists /\ initializer_total /\ initializer_success_and_representation /\
+ plain_sine_total_normalized /\ low_sine_total_normalized /\
+ sine_equivalence_normalized /\ sine_frame_normalized.
+ match fuel,ns with
+ | O,_ | _,[] => []
+ | S n,t::rest =>
+   if t <? 15 then
+     let c:=single_chunk i cnt val t in
+     c::parse_chunks n (i+1) (cnt+repetitions c)
+          (val+repetitions c*delta c) rest
+   else match rest with
+        | k::u::tail => let c:=multi_chunk i cnt val t k u in
+          c::parse_chunks n (i+3) (cnt+repetitions c)
+            (val+repetitions c*delta c) tail
+        | _ => []
+        end
+ end.
+Definition literal_chunks : list chunk := parse_chunks 3379 0 0 0 literal_nibbles.
+Fixpoint emit_values (n:nat) (v d:Z) : list Z :=
+ match n with O=>[] | S k=>v::emit_values k (v+d) d end.
+Definition decoded_values : list Z :=
+ flat_map (fun c=>emit_values (Z.to_nat (repetitions c)) (value_before c) (delta c)) literal_chunks.
+Definition chunk_ok (c:chunk) : bool :=
+ (0 <=? pos c) && (pos c+(if multi c then 3 else 1) <=?3379) &&
+ (0 <=? count_before c) && (0 <? repetitions c) && (repetitions c <=?41) &&
+ (count_before c+repetitions c <=?6434) &&
+ (0 <=? value_before c) && (0 <=? delta c) && (delta c <=?7) &&
+ (value_before c+repetitions c*delta c <=?16383) &&
+ (0 <=? first c) && (first c <=?15) &&
+ (0 <=? second c) && (second c <=?15) &&
+ (0 <=? third c) && (third c <=?15).
+Definition bounded_value (v:Z) : bool := (0 <=?v) && (v<=?16383).
+
+Lemma original_data_lengths : length ordinary_values=6434%nat /\ length compressed_bytes=1690%nat /\ length literal_nibbles=3379%nat.
+Proof. vm_compute; auto. Qed.
+Lemma rle_literal_values_equal : decoded_values=ordinary_values.
+Proof. vm_compute; reflexivity. Qed.
+Lemma literal_prefix_certificate : forallb chunk_ok literal_chunks=true.
+Proof. vm_compute; reflexivity. Qed.
+Lemma ordinary_values_bounded : forallb bounded_value ordinary_values=true.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition low_byte (v:Z):Z := v mod 256.
+Definition middle_nibble (v:Z):Z := Z.shiftr (Z.land v 3840) 8.
+Fixpoint packed_middle (vs:list Z) : list Z :=
+ match vs with
+ | a::b::tail => Z.lor (middle_nibble a) (Z.shiftl (middle_nibble b) 4)::packed_middle tail
+ | [a] => [middle_nibble a]
+ | [] => []
+ end.
+Definition expected_bytes : list Z := map low_byte ordinary_values ++ packed_middle ordinary_values.
+Definition high_bits (i:Z) : Z :=
+ if i <? 2145 then (if i <? 1035 then 0 else 4096)
+ else (if i <? 3474 then 8192 else 12288).
+Definition packed_lookup (i:Z) : Z :=
+ Z.lor (Z.lor (high_bits i)
+  (Z.land (Z.shiftl (nth (Z.to_nat (6434+Z.shiftr i 1)) expected_bytes 0)
+         (if Z.eqb (i mod 2) 0 then 8 else 4)) 3840))
+  (nth (Z.to_nat i) expected_bytes 0).
+Definition all_packed_lookups : list Z := map (fun n=>packed_lookup (Z.of_nat n)) (seq 0 6434).
+Lemma expected_bytes_length : length expected_bytes=9651%nat.
+Proof. vm_compute; reflexivity. Qed.
+Lemma packed_literal_values_equal : all_packed_lookups=ordinary_values.
+Proof. vm_compute; reflexivity. Qed.
+Lemma expected_bytes_bounded : forallb (fun b=>(0<=?b)&&(b<=?255)) expected_bytes=true.
+Proof. vm_compute; reflexivity. Qed.
+
+Lemma packed_lookup_at : forall i, 0<=i<6434 ->
+ packed_lookup i=nth (Z.to_nat i) ordinary_values 0.
+Proof.
+ intros i I. assert (N:(Z.to_nat i < 6434)%nat).
+ { change (Z.to_nat i < Z.to_nat 6434)%nat. apply (proj1 (Z2Nat.inj_lt i 6434 ltac:(lia) ltac:(lia)));lia. }
+ pose proof packed_literal_values_equal as E.
+ apply (f_equal (fun xs=>nth (Z.to_nat i) xs 0)) in E.
+ unfold all_packed_lookups in E.
+ rewrite map_nth with (d:=0%nat) in E.
+ rewrite seq_nth in E by exact N.
+ rewrite Nat.add_0_l, Z2Nat.id in E by lia. exact E.
+Qed.
+Lemma literal_value_at_bounds : forall i, 0<=i<6434 ->
+ 0<=nth (Z.to_nat i) ordinary_values 0<=16383.
+Proof.
+ intros i I. pose proof ordinary_values_bounded as B.
+ apply forallb_forall with (x:=nth (Z.to_nat i) ordinary_values 0) in B.
+ - unfold bounded_value in B. apply andb_true_iff in B as [L U].
+   apply Z.leb_le in L;apply Z.leb_le in U;lia.
+ - apply nth_In. rewrite (proj1 original_data_lengths). change (Z.to_nat i < Z.to_nat 6434)%nat. apply (proj1 (Z2Nat.inj_lt i 6434 ltac:(lia) ltac:(lia)));lia.
+Qed.
+ match goal with H: ~Csem.imm_safe _ _ _ _ _ |- _ => apply H;eapply NS;eauto end.
+Qed.
+Lemma flat_estep_rank : forall ge f a k e m t a' m',
+ flat_expr a=true -> Csem.estep ge (ExprState f a k e m) t (ExprState f a' k e m') ->
+ expr_rank a'<expr_rank a.
+Proof.
+ intros ge f a k e m t a' m' SA ES;inversion ES;subst.
+ - eapply flat_rank_context;eauto using simple_rank_lred.
+ - eapply flat_rank_context;eauto using flat_rank_rred,flat_context_hole.
+Qed.
+Lemma flat_nonvalue_progress : forall ge f a k e m v mf,
+ flat_expr a=true -> flat_eval ge e m a=Some(v,mf) ->
+ (forall w ty,a<>Eval w ty) -> exists t s',Csem.step ge (ExprState f a k e m) t s'.
+Proof.
+ intros ge f a k e m v mf SA PV NV.
+ pose proof(flat_immediate _ _ _ _ _ _ SA PV) as IM.
+ inversion IM;subst.
+ - exfalso;eapply NV;reflexivity.
+ - eexists;eexists;left;eapply Csem.step_lred;eauto.
+ - eexists;eexists;left;eapply Csem.step_rred;eauto.
+ - assert(BAD:flat_expr e0=true) by (eapply flat_context_hole;eauto).
+   inversion H;subst;discriminate.
+Qed.
+Lemma flat_estep : forall ge f a k e m t next,
+ flat_expr a=true -> core_expr a=true ->
+ Csem.estep ge (ExprState f a k e m) t next ->
+ next=Stuckstate \/ exists a' m',next=ExprState f a' k e m' /\
+ typeof a'=typeof a /\ flat_expr a'=true /\ core_expr a'=true /\
+ flat_eval ge e m a=flat_eval ge e m' a'.
+Proof.
+ intros ge f a k e m t next FL CO ES;inversion ES;subst.
+ - destruct(flat_lred_context ge e m a0 a' m' LV C H7 eq_refl FL H6) as[HM[NF EQ]].
+   destruct(pure_lred ge e a0 m a' m' H6) as[_[TY[_ _]]].
+   subst m'. right;exists(C a'),m;repeat split;auto.
+   + exact(context_type_eq _ _ _ H7 _ _ TY).
+   + eapply core_context_replace;[exact H7|exact CO|].
+     eapply core_lred;[exact(core_context_hole _ _ _ H7 _ CO)|exact H6].
+ - match goal with RR:rred ge ?A m t ?A' ?M',HC:Csem.context RV RV ?C |- _=>
+   destruct(flat_rred_context ge e m A A' t M' C HC FL CO RR) as[NF EQ];
+   right;exists(C A'),M';repeat split;auto end.
+   + eapply context_type_eq;eauto. match goal with RR:rred _ _ _ _ _ _|-_=>inversion RR;subst;simpl;auto end.
+   + eapply core_context_replace;eauto.
+     eapply (proj2(core_rred _ _ _ _ _ _ ltac:(eapply core_context_hole;eauto) ltac:(eassumption))).
+ - exfalso;eapply core_no_callred;[eapply core_context_hole;eauto|eassumption].
+ - left;reflexivity.
+Qed.
+Theorem flat_prefix_total : forall ge Q f e k a m v mf,
+ flat_expr a=true -> core_expr a=true -> flat_eval ge e m a=Some(v,mf) ->
+ total ge Q (ExprState f (Eval v (typeof a)) k e mf) ->
+ total ge Q (ExprState f a k e m).
+Proof.
+ intros ge Q f e k.
+ apply(well_founded_induction(well_founded_ltof _ expr_rank)
+  (fun a=>forall m v mf,flat_expr a=true -> core_expr a=true ->
+   flat_eval ge e m a=Some(v,mf) ->
+   total ge Q (ExprState f (Eval v (typeof a)) k e mf) -> total ge Q (ExprState f a k e m))).
+ intros a IH m v mf FL CO EV END.
+ destruct a eqn:EA;try discriminate FL.
+ all: try (simpl in EV;inversion EV;subst;exact END).
+ all: apply total_next.
+ all: try (eapply flat_nonvalue_progress;eauto;intros;discriminate).
+ all: intros t next STEP;destruct STEP as[ES|SS].
+ all: try(inversion SS;subst;discriminate).
+ all: destruct(flat_estep _ _ _ _ _ _ _ _ FL CO ES) as[BAD|[a'[m'[EQ[TY[FL'[CO' EV']]]]]]].
+ all: try(exfalso;eapply(flat_estep_not_stuck _ _ _ _ _ _ _ _ _ _ FL EV ES);exact BAD).
+ all: subst next;apply IH with(v:=v)(mf:=mf);auto.
+ all: try(unfold ltof;eapply flat_estep_rank;eauto).
+ all: try(rewrite <-EV';exact EV).
+ all: rewrite TY;exact END.
+Qed.
+Definition v_data_buf_12 := {|
+  gvar_info := (tarray tuchar 9651);
+  gvar_init := (Init_space 9651 :: nil);
+  gvar_readonly := false;
+  gvar_volatile := false
+|}.
+
+Definition f_table_encode_12 := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_val, tshort) :: (_val_prev, tshort) :: (_cnt, tshort) ::
+                (_tab, (tptr tshort)) :: nil);
+  fn_vars := nil;
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign
+         (Ederef
+           (Ebinop Oadd
+             (Evalof (Evar _data_buf_12 (tarray tuchar 9651))
+               (tarray tuchar 9651)) (Evalof (Evar _cnt tshort) tshort)
+             (tptr tuchar)) tuchar)
+         (Ebinop Omod (Evalof (Evar _val tshort) tshort)
+           (Eval (Vint (Int.repr 256)) tint) tint) tuchar))
+  (Ssequence
+    (Sifthenelse (Ebinop Oeq
+                   (Ebinop Omod (Evalof (Evar _cnt tshort) tshort)
+                     (Eval (Vint (Int.repr 2)) tint) tint)
+                   (Eval (Vint (Int.repr 0)) tint) tint)
+      (Sdo (Eassign
+             (Ederef
+               (Ebinop Oadd
+                 (Evalof (Evar _data_buf_12 (tarray tuchar 9651))
+                   (tarray tuchar 9651))
+                 (Ebinop Oadd (Eval (Vint (Int.repr 6434)) tint)
+                   (Ebinop Odiv (Evalof (Evar _cnt tshort) tshort)
+                     (Eval (Vint (Int.repr 2)) tint) tint) tint)
+                 (tptr tuchar)) tuchar)
+             (Ebinop Oshr
+               (Ebinop Oand (Evalof (Evar _val tshort) tshort)
+                 (Eval (Vint (Int.repr 3840)) tint) tint)
+               (Eval (Vint (Int.repr 8)) tint) tint) tuchar))
+      (Sdo (Eassignop Oor
+             (Ederef
+               (Ebinop Oadd
+                 (Evalof (Evar _data_buf_12 (tarray tuchar 9651))
+                   (tarray tuchar 9651))
+                 (Ebinop Oadd (Eval (Vint (Int.repr 6434)) tint)
+                   (Ebinop Odiv (Evalof (Evar _cnt tshort) tshort)
+                     (Eval (Vint (Int.repr 2)) tint) tint) tint)
+                 (tptr tuchar)) tuchar)
+             (Ebinop Oshr
+               (Ebinop Oand (Evalof (Evar _val tshort) tshort)
+                 (Eval (Vint (Int.repr 3840)) tint) tint)
+               (Eval (Vint (Int.repr 4)) tint) tint) tint tuchar)))
+    (Ssequence
+      (Sdo (Ecast (Evalof (Evar _val_prev tshort) tshort) tvoid))
+      (Sdo (Ecast (Evalof (Evar _tab (tptr tshort)) (tptr tshort)) tvoid)))))
+|}.
+
+Definition f_pprz_trig_int_12 := {|
+  fn_return := tshort;
+  fn_callconv := cc_default;
+total 372
+-rw-r--r-- 1 yangfp yangfp    400 Nov 19 02:39 Api.glob
+-rw-r--r-- 1 yangfp yangfp    146 Nov 19 02:39 Api.v
+-rw-r--r-- 1 yangfp yangfp    595 Nov 19 02:39 Api.vo
+-rw-r--r-- 1 yangfp yangfp      0 Nov 19 02:30 Benchmark.glob
+-rw-r--r-- 1 yangfp yangfp    765 Nov 19 02:30 Benchmark.v
+-rw-r--r-- 1 yangfp yangfp  15898 Nov 19 02:30 ByteObservation.glob
+-rw-r--r-- 1 yangfp yangfp   4326 Nov 19 02:30 ByteObservation.v
+-rw-r--r-- 1 yangfp yangfp  25034 Nov 19 02:30 ByteObservation.vo
+-rw-r--r-- 1 yangfp yangfp  71889 Nov 19 02:44 Control.glob
+-rw-r--r-- 1 yangfp yangfp  13205 Nov 19 02:44 Control.v
+-rw-r--r-- 1 yangfp yangfp 141182 Nov 19 02:44 Control.vo
+-rw-r--r-- 1 yangfp yangfp   8051 Nov 19 02:35 Frame.glob
+-rw-r--r-- 1 yangfp yangfp   1791 Nov 19 02:35 Frame.v
+-rw-r--r-- 1 yangfp yangfp   9995 Nov 19 02:35 Frame.vo
+-rw-r--r-- 1 yangfp yangfp  11098 Nov 19 02:22 PathCertificate.glob
+-rw-r--r-- 1 yangfp yangfp   3367 Nov 19 02:22 PathCertificate.v
+-rw-r--r-- 1 yangfp yangfp  22236 Nov 19 02:22 PathCertificate.vo
+-rw-r--r-- 1 yangfp yangfp   5583 Nov 19 02:38 StrategyPure.glob
+-rw-r--r-- 1 yangfp yangfp   1725 Nov 19 02:38 StrategyPure.v

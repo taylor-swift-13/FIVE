@@ -1,0 +1,27 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/safety/PureCallArguments.v", line 128, characters 21-35:
+Error:
+In environment
+ge : genv
+e : env
+m : mem
+params : list type
+ret : type
+cc : AST.calling_convention
+vf : val
+fd : fundef
+vals : list val
+ty, fty : type
+FV : eval_simple_rvalue ge e m (Eval vf fty) vf
+C : expr -> exprlist
+a : expr
+ARGS : eval_simple_list ge e m (C a) params vals
+CLASS : classify_fun (typeof (Eval vf fty)) = fun_case_f params ret cc
+FIND : Genv.find_funct ge vf = Some fd
+SIG : type_of_fundef fd = Tfunction params ret cc
+LIT : literal RV (Eval vf fty) = true
+CT : contextlist RV C
+NL : literal RV a = false
+SAFE : imm_safe ge e RV a m
+Unable to unify "imm_safe ?ge ?e ?to (?C ?a) ?m" with
+ "imm_safe ge e RV (Ecall (Eval vf fty) (C a) ty) m".
+

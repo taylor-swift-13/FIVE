@@ -1,0 +1,111 @@
+{
+  "purpose": "execution-translation",
+  "status": "proved",
+  "execution_backend": "compcert-csyntax-cexec",
+  "request_sha256": "b03821cfd059a77b7064bb74d7033d7446b78c8f34a5b4abb54e5d0be6410f1c",
+  "backend_manifest_sha256": "349b715937d591f159d7e9ae67c5213138ec5a251075ec8f91f1df558e9d6ef2",
+  "execution_domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem, including invalid/uninitialized/unwritable states"
+  },
+  "domain_restrictions": [],
+  "execution_entry": {
+    "module": "FivePidDf.Execution",
+    "symbol": "entry",
+    "source": "paparazzi/models/update_pid_df/align/model/Execution.v",
+    "sha256": "f1fded31a59d697a117f4c597a9bb5acf20f2c52886842ca0c325f7cea8768bb"
+  },
+  "source_semantics": {
+    "id": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "target": {
+      "semantics": "CompCert Csem/Cexec",
+      "version": "3.17",
+      "arch": "x86",
+      "model": "64",
+      "abi": "standard",
+      "bitsize": 64,
+      "system": "linux",
+      "endianness": "little",
+      "float32": "IEEE754 binary32",
+      "rounding": "round-to-nearest-ties-to-even",
+      "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+      "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+    },
+    "source_sha256": {
+      "paparazzi/models/update_pid_df/prepare/source/update_pid_df.c": "51b255ae42a19ab9d5b30366132bf46f5ff70e31903e6d93aae018cb5578829f",
+      "paparazzi/models/update_pid_df/align/model/Source.v": "6358f092a83f1d67f2ea413a7448e525cd271d55bb030d64497ea0dffeef0650",
+      "paparazzi/models/update_pid_df/align/model/Execution.v": "f1fded31a59d697a117f4c597a9bb5acf20f2c52886842ca0c325f7cea8768bb"
+    }
+  },
+  "obligations": [
+    {
+      "id": "domain-preservation",
+      "status": "proof-backed",
+      "coverage": "The actual entry is the unchanged Internal function call for every list val and every memory; the syntax invariant is automatic.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "floating-point-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves every float operation, value, NaN/error behavior and trace.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "machine-integer-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact bidirectional raw successor equivalence preserves all machine-integer, shift, cast and pointer operations.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "memory-access-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, exact raw successor equivalence preserves loads, stores, allocation, free, invalid access and unknown-byte behavior.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "control-and-exhaustion-correspondence",
+      "status": "proof-backed",
+      "coverage": "Unbounded bidirectional star equivalence from arbitrary entry arguments and memory; no fuel limit or selected order.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "normal-result-and-memory-correspondence",
+      "status": "proof-backed",
+      "coverage": "Every returned value and memory has equivalent raw source/model executions, and byte observations are literally the same Mem.loadbytes.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "invalid-operation-correspondence",
+      "status": "proof-backed",
+      "coverage": "At every reachable original state, source non-normal-return/nostep is equivalent to model non-normal-return/nostep.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    },
+    {
+      "id": "whole-execution-correspondence",
+      "status": "proof-backed",
+      "coverage": "Bidirectional unbounded whole-execution equivalence retains every Csem evaluation order, trace, final state and error.",
+      "evidence": [
+        "paparazzi/models/update_pid_df/rocq/execution_correspondence/attempts/001/evidence/gate-kernel-evidence.json"
+      ]
+    }
+  ],
+  "alignment_issues": [],
+  "external_library_bindings": {},
+  "external_environment": "Reachable code is call-free, nonvolatile and silent; generic source invariant proves callbacks, inline assembly and I/O cannot occur for any raw argument/memory.",
+  "trusted_boundary": "Recorded CompCert frontend and inherited CompCert/Flocq declarations. Storage qualifiers normalized for export; original function body unchanged. No GCC/hardware equivalence claimed."
+}

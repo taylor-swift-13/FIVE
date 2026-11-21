@@ -1,0 +1,114 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bc : block
+  p, x : int
+  POS : e ! _pos = Some (bp, Tint I16 Unsigned noattr)
+  LOCAL : e ! _pprz_trig_int_compr = None
+  SYMBOL : Genv.find_symbol (globalenv prog) _pprz_trig_int_compr = Some bc
+  LP : Mem.load Mint16unsigned m bp 0 = Some (Vint p)
+  LB :
+    Mem.load Mint8unsigned m bc (Ptrofs.unsigned (nibble_offset p)) =
+    Some (Vint x)
+  ============================
+  match
+    match
+      match
+        match
+          match
+            match
+              match
+                (if attr_volatile (attr_of_type (Tint I16 Unsigned noattr))
+                 then
+                  do_volatile_load (globalenv prog) quiet_world
+                    Mint16unsigned m bp Ptrofs.zero
+                 else
+                  match
+                    (if zle (0 + size_chunk Mint16unsigned) Ptrofs.modulus
+                     then Some (Vint p)
+                     else None)
+                  with
+                  | Some v => Some (quiet_world, E0, v)
+                  | None => None
+                  end)
+              with
+              | Some (_, _, v) => Some v
+              | None => None
+              end
+            with
+            | Some v =>
+                sem_div v (Tint I16 Unsigned noattr) 
+                  (Vint (Int.repr 2)) (Tint I32 Signed noattr) m
+            | None => None
+            end
+          with
+          | Some w =>
+              sem_add (globalenv prog) (Vptr bc Ptrofs.zero)
+                (Tarray (Tint I8 Unsigned noattr) 1690 noattr) w
+                (Tint I32 Signed noattr) m
+          | None => None
+          end
+        with
+        | Some (Vptr b ofs) => Some (b, ofs, Full)
+        | _ => None
+        end
+      with
+      | Some (b, ofs, bf) =>
+          match
+            do_deref_loc (globalenv prog) quiet_world
+              (Tint I8 Unsigned noattr) m b ofs bf
+          with
+          | Some (_, _, v) => Some v
+          | None => None
+          end
+      | None => None
+      end
+    with
+    | Some v =>
+        match
+          match
+            match
+              match
+                (if attr_volatile (attr_of_type (Tint I16 Unsigned noattr))
+                 then
+                  do_volatile_load (globalenv prog) quiet_world
+                    Mint16unsigned m bp Ptrofs.zero
+                 else
+                  match
+                    (if zle (0 + size_chunk Mint16unsigned) Ptrofs.modulus
+                     then Some (Vint p)
+                     else None)
+                  with
+                  | Some v0 => Some (quiet_world, E0, v0)
+                  | None => None
+                  end)
+              with
+              | Some (_, _, v0) => Some v0
+              | None => None
+              end
+            with
+            | Some v0 =>
+                sem_mod v0 (Tint I16 Unsigned noattr) 
+                  (Vint (Int.repr 2)) (Tint I32 Signed noattr) m
+            | None => None
+            end
+          with
+          | Some w =>
+              sem_mul (Vint (Int.repr 4)) (Tint I32 Signed noattr) w
+                (Tint I32 Signed noattr) m
+          | None => None
+          end
+        with
+        | Some w =>
+            sem_shr v (Tint I8 Unsigned noattr) w (Tint I32 Signed noattr)
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some v =>
+      sem_and v (Tint I32 Signed noattr) (Vint (Int.repr 15))
+        (Tint I32 Signed noattr) m
+  | None => None
+  end = nibble_machine p x

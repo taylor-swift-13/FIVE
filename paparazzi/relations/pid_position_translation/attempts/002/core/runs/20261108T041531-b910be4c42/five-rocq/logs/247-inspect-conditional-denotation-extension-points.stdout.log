@@ -1,0 +1,496 @@
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+From FiveGuidanceAllOrder Require Import PureSyntax.
+Import ListNotations.
+
+(** This denotation is used to establish uniqueness of normal executions.
+    Execution remains the complete error-preserving operational model. *)
+Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
+
+Section DENOTATION.
+Variable ge: genv.
+Variable e: env.
+Variable m: mem.
+
+Fixpoint pure_rval (a: expr): option val :=
+  match a with
+  | Eval v _ => Some v
+  | Evalof l ty =>
+      if type_eq ty (typeof l) then
+      match pure_lval l with
+      | Some (b,ofs,bf) =>
+          match Cexec.do_deref_loc ge quiet_world ty m b ofs bf with
+          | Some (_,_,v) => Some v | None => None end
+      | None => None end else None
+  | Eaddrof l _ =>
+      match pure_lval l with Some (b,ofs,Full) => Some (Vptr b ofs) | _ => None end
+  | Eunop op a _ =>
+      match pure_rval a with Some v => sem_unary_operation op v (typeof a) m | None => None end
+  | Ebinop op a b _ =>
+      match pure_rval a, pure_rval b with
+      | Some v, Some w => sem_binary_operation ge op v (typeof a) w (typeof b) m
+      | _,_ => None end
+  | Ecast a ty =>
+      match pure_rval a with Some v => sem_cast v (typeof a) ty m | None => None end
+  | Esizeof ty _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty)))
+  | Ealignof ty _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty)))
+  | _ => None
+  end
+with pure_lval (a: expr): option (block * ptrofs * bitfield) :=
+  match a with
+  | Eloc b ofs bf _ => Some (b,ofs,bf)
+  | Evar id ty =>
+      match PTree.get id e with
+      | Some (b,ty') => if type_eq ty ty' then Some (b,Ptrofs.zero,Full) else None
+      | None => match Genv.find_symbol ge id with Some b => Some (b,Ptrofs.zero,Full) | None => None end end
+  | Ederef a _ =>
+      match pure_rval a with Some (Vptr b ofs) => Some (b,ofs,Full) | _ => None end
+  | Efield a id _ =>
+      match pure_rval a with
+      | Some (Vptr b ofs) =>
+          match typeof a with
+          | Tstruct sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | Tunion sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match union_field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | _ => None end
+      | _ => None end
+  | _ => None
+  end.
+
+Definition pure_eq (k: kind) (a b: expr): Prop :=
+  match k with RV => pure_rval a = pure_rval b | LV => pure_lval a = pure_lval b end.
+
+Lemma context_type_eq:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> typeof (C a) = typeof (C b).
+Proof. induction 1; simpl; intros; auto. Qed.
+
+Lemma pure_context_congr:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> pure_eq from a b -> pure_eq to (C a) (C b).
+Proof.
+  induction 1; simpl; intros a b HT HE; auto;
+    try (rewrite (IHcontext a b HT HE); reflexivity);
+    try (rewrite (context_type_eq _ _ _ H a b HT), (IHcontext a b HT HE); reflexivity).
+Qed.
+
+End DENOTATION.
+
+Lemma simple_context_hole:
+  forall from to C, context from to C -> forall a,
+  simple (C a) = true -> simple a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+Qed.
+
+Lemma pure_lred:
+  forall ge e a m a' m', lred ge e a m a' m' ->
+  m' = m /\ typeof a' = typeof a /\ simple a' = true /\
+  pure_lval ge e m a = pure_lval ge e m a'.
+Proof.
+  intros ge e a m a' m' H; inversion H; subst; simpl; repeat split; auto;
+    try rewrite H0; try rewrite H1; try rewrite H2; try rewrite dec_eq_true; auto.
+Qed.
+
+Lemma pure_rred:
+  forall ge e a m t a' m', simple a = true -> rred ge a m t a' m' ->
+  m' = m /\ t = E0 /\ typeof a' = typeof a /\ simple a' = true /\
+  pure_rval ge e m a = pure_rval ge e m a'.
+Proof.
+  intros ge e a m t a' m' HA HR; inversion HR; subst; simpl in HA; core_unpack; try discriminate;
+    simpl; repeat split; auto; try rewrite H; auto.
+  - eapply deref_loc_silent; eauto.
+  - assert (HT: t = E0) by (eapply deref_loc_silent; eauto). subst t.
+    rewrite dec_eq_true.
+    rewrite (do_deref_loc_complete ge quiet_world ty m' b ofs bf quiet_world E0 v H (possible_trace_nil _)).
+    reflexivity.
+Qed.
+
+Definition flat_expr (a: expr): bool :=
+  match a with Eassign l r _ => simple l && simple r | _ => simple a end.
+
+Definition flat_eval (ge: genv) (e: env) (m: mem) (a: expr): option (val * mem) :=
+  match a with
+  | Eassign l r ty =>
+      if type_eq (typeof l) ty then
+      match pure_lval ge e m l, pure_rval ge e m r with
+      | Some (b,ofs,bf), Some v =>
+          match sem_cast v (typeof r) (typeof l) m with
+          | Some v => match Cexec.do_assign_loc ge quiet_world (typeof l) m b ofs bf v with
+              | Some (_,_,m',v') => Some (v',m') | None => None end
+          | None => None end
+      | _,_ => None end else None
+  | _ => match pure_rval ge e m a with Some v => Some (v,m) | None => None end
+  end.
+
+Lemma flat_of_simple:
+  forall a, simple a = true -> flat_expr a = true.
+Proof. destruct a; simpl; auto; discriminate. Qed.
+
+Lemma flat_eval_simple:
+  forall ge e m a, simple a = true ->
+  flat_eval ge e m a = match pure_rval ge e m a with Some v => Some (v,m) | None => None end.
+Proof. destruct a; simpl; auto; discriminate. Qed.
+
+Lemma flat_context_hole:
+  forall from to C, context from to C -> forall a,
+  flat_expr (C a) = true -> flat_expr a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto using flat_of_simple, simple_context_hole.
+Qed.
+
+Lemma flat_context_assign_root:
+  forall C, context RV RV C -> forall l r ty,
+  flat_expr (C (Eassign l r ty)) = true -> forall z, C z = z.
+Proof.
+  intros C HC l r ty HA; inversion HC; subst; simpl in HA; core_unpack; try discriminate; auto;
+    exfalso; match goal with
+    | H: Csem.context _ _ ?C, P: simple (?C (Eassign _ _ _)) = true |- _ =>
+      pose proof (simple_context_hole _ _ _ H _ P); discriminate
+    end.
+Qed.
+
+Lemma simple_context_replace:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> simple (C a) = true -> simple b = true -> simple (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HT HA HB; core_unpack; try discriminate; core_build; eauto.
+  rewrite <- (context_type_eq _ _ _ H a b HT); assumption.
+Qed.
+
+Lemma flat_context_replace:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> flat_expr (C a) = true -> simple b = true -> flat_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HT HA HB; core_unpack; try discriminate; core_build;
+    eauto using simple_context_replace, flat_of_simple.
+  rewrite <- (context_type_eq _ _ _ H a b HT); assumption.
+Qed.
+
+Lemma flat_context_congr:
+  forall ge e m from C, context from RV C -> forall a b,
+  typeof a = typeof b -> simple a = true -> simple b = true ->
+  pure_eq ge e m from a b -> flat_eval ge e m (C a) = flat_eval ge e m (C b).
+Proof.
+  intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+    try (repeat rewrite flat_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+  all: try (match goal with
+    | |- flat_eval ?ge ?e ?m ?A = flat_eval ?ge ?e ?m ?B =>
+      change (option_map (fun v => (v,m)) (pure_rval ge e m A) =
+              option_map (fun v => (v,m)) (pure_rval ge e m B))
+    end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+Qed.
+
+Lemma flat_assign_head:
+  forall ge e m l r ty t a' m', core_expr (Eassign l r ty) = true ->
+  rred ge (Eassign l r ty) m t a' m' ->
+  flat_eval ge e m (Eassign l r ty) = flat_eval ge e m' a'.
+Proof.
+  intros ge e m l r ty t a' m' CORE HR; inversion HR; subst; simpl in CORE; core_unpack.
+  simpl. rewrite dec_eq_true.
+  match goal with H: sem_cast _ _ _ _ = Some _ |- _ => rewrite H end.
+  assert (HT: t = E0) by
+    (match goal with A: assign_loc ge ?T ?M ?B ?O ?BF ?V t ?M' ?V' |- _ =>
+       exact (assign_loc_silent ge T M B O BF V t M' V' ltac:(assumption) A) end). subst t.
+  match goal with A: assign_loc ge _ _ _ _ _ _ E0 _ _ |- _ =>
+    rewrite (do_assign_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ _ A (possible_trace_nil _)) end.
+  reflexivity.
+Qed.
+
+Lemma flat_lred_context:
+  forall ge e m a a' m' from C,
+  context from RV C -> from = LV -> flat_expr (C a) = true ->
+  lred ge e a m a' m' ->
+  m' = m /\ flat_expr (C a') = true /\
+  flat_eval ge e m (C a) = flat_eval ge e m' (C a').
+Proof.
+  intros ge e m a a' m' from C HC KIND FLAT HR; subst from.
+  destruct (pure_lred _ _ _ _ _ _ HR) as [HM [HT [HS HE]]]; subst m'.
+  split; auto; split.
+  - eapply (flat_context_replace _ _ _ HC a a'); eauto; symmetry; exact HT.
+  - assert (SA: simple a = true) by (inversion HR; subst; simpl; auto).
+    exact (flat_context_congr ge e m LV C HC a a' (eq_sym HT) SA HS HE).
+Qed.
+
+Lemma flat_rred_context:
+  forall ge e m a a' t m' C,
+  context RV RV C -> flat_expr (C a) = true -> core_expr (C a) = true ->
+  rred ge a m t a' m' ->
+  flat_expr (C a') = true /\ flat_eval ge e m (C a) = flat_eval ge e m' (C a').
+Proof.
+  intros ge e m a a' t m' C HC FLAT CORE HR.
+  destruct (simple a) eqn:SA.
+  - destruct (pure_rred ge e a m t a' m' SA HR) as [HM [TT [HT [HS HE]]]]; subst m'.
+    split.
+    + exact (flat_context_replace _ _ _ HC a a' (eq_sym HT) FLAT HS).
+    + exact (flat_context_congr ge e m RV C HC a a' (eq_sym HT) SA HS HE).
+  - assert (FA: flat_expr a = true) by (exact (flat_context_hole _ _ _ HC a FLAT)).
+    destruct a; simpl in SA, FA; try congruence.
+    assert (ID: forall z, C z = z) by (exact (flat_context_assign_root C HC a1 a2 ty FLAT)).
+    repeat rewrite ID in FLAT, CORE |- *.
+    inversion HR; subst. split; [reflexivity|].
+    repeat rewrite ID. eapply flat_assign_head; eauto.
+Qed.
+
+Lemma simple_estep:
+  forall ge f a k e m t S', simple a = true -> Csem.estep ge (ExprState f a k e m) t S' ->
+  S' = Stuckstate \/
+  exists a', S' = ExprState f a' k e m /\ typeof a' = typeof a /\ simple a' = true /\
+    pure_rval ge e m a = pure_rval ge e m a'.
+Proof.
+  intros ge f a k e m t S' SIMPLE STEP; inversion STEP; subst.
+  - match goal with LR: lred ge e ?A m ?A' ?M', HC: Csem.context LV RV ?C |- _ =>
+      destruct (pure_lred ge e A m A' M' LR) as [HM [HT [HS HE]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with RR: rred ge ?A m t ?A' ?M', HC: Csem.context RV RV ?C |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      destruct (pure_rred ge e A m t A' M' SA RR) as [HM [TT [HT [HS HE]]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with CR: callred ge ?A _ _ _ _, HC: Csem.context RV RV _ |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      inversion CR; subst; discriminate end.
+  - left; reflexivity.
+Qed.
+
+
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+From FiveGuidanceAllOrder Require Import PureSyntax.
+From FiveGuidanceAllOrder Require Import PureDenotation.
+Import ListNotations.
+
+Ltac option_cases E :=
+ repeat match type of E with
+ | context [match ?x with _ => _ end] =>
+   let EQ := fresh "EQ" in destruct x eqn:EQ; try discriminate
+ end.
+
+Lemma pure_eval_big : forall a ge e m,
+ simple a=true ->
+ (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+ (forall b ofs bf, pure_lval ge e m a=Some(b,ofs,bf) -> eval_simple_lvalue ge e m a b ofs bf).
+Proof.
+ induction a; intros ge e m SIMPLE; simpl in SIMPLE; core_unpack; try discriminate;
+ repeat match goal with
+ | IH: forall ge e m, simple ?a=true -> _ /\ _ |- _ =>
+   let R:=fresh "RV" in let L:=fresh "LV" in
+   pose proof (IH ge e m ltac:(assumption)) as [R L]; clear IH
+ end;
+ split; intros; cbn [pure_rval pure_lval] in H; try discriminate.
+ - inversion H; subst; constructor.
+ - option_cases H; inversion H; subst; eauto using esl_var_local, esl_var_global.
+ - option_cases H; inversion H; subst; eauto using esl_field_struct, esl_field_union.
+ - option_cases H; inversion H; subst.
+   match goal with D: do_deref_loc _ _ _ _ _ _ _ = Some _ |- _ =>
+    destruct (do_deref_loc_sound _ _ _ _ _ _ _ _ _ _ D) as [DR PT]
+   end.
+   assert (SIL: t = E0) by (eapply deref_loc_silent; eauto; unfold nv; congruence).
+   subst t. econstructor; eauto; try (symmetry; assumption).
+   apply negb_true_iff; assumption.
+ - option_cases H; inversion H; subst; eauto using esl_deref.
+ - option_cases H; inversion H; subst; eauto using esr_addrof.
+ - option_cases H; eauto using esr_unop.
+ - option_cases H; eauto using esr_binop.
+ - option_cases H; eauto using esr_cast.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+Qed.
+
+Definition literal (k:kind) (a:expr) : bool :=
+ match k,a with RV,Eval _ _ | LV,Eloc _ _ _ _=>true | _,_=>false end.
+
+Lemma lift_immediate : forall ge e m from to C a,
+ context from to C -> literal from a=false -> imm_safe ge e from a m ->
+ imm_safe ge e to (C a) m.
+Proof.
+ intros ge e m from to C a CT NL IS; inversion IS; subst; try discriminate.
+ - eapply imm_safe_lred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+ - eapply imm_safe_rred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+ - eapply imm_safe_callred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+Qed.
+
+Lemma literal_r_inv : forall a, literal RV a=true -> exists v ty,a=Eval v ty.
+Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+Lemma literal_l_inv : forall a, literal LV a=true -> exists b ofs bf ty,a=Eloc b ofs bf ty.
+Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+
+Ltac invert_literal_eval :=
+ repeat match goal with
+ | H:eval_simple_rvalue _ _ _ (Eval _ _) _ |- _ => inversion H; subst; clear H
+ | H:eval_simple_lvalue _ _ _ (Eloc _ _ _ _) _ _ _ |- _ => inversion H; subst; clear H
+ end.
+Lemma big_immediate : forall ge e m,
+ (forall a v,eval_simple_rvalue ge e m a v -> imm_safe ge e RV a m) /\
+ (forall a b ofs bf,eval_simple_lvalue ge e m a b ofs bf -> imm_safe ge e LV a m).
+Proof.
+ intros ge e m; apply eval_simple_rvalue_lvalue_ind; intros.
+ - constructor.
+ - destruct (literal LV l) eqn:LIT.
+   + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     eapply red_rvalof; eauto.
+   + eapply lift_immediate with (from:=LV) (C:=fun x=>Evalof x ty); eauto.
+     constructor; constructor.
+ - destruct (literal LV l) eqn:LIT.
+   + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     constructor.
+   + eapply lift_immediate with (from:=LV) (C:=fun x=>Eaddrof x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     econstructor; eassumption.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Eunop op x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:L1.
+   + destruct (literal_r_inv _ L1) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+     destruct (literal RV r2) eqn:L2.
+     * destruct (literal_r_inv _ L2) as [vr2[tr2 LITERAL_EQ2]]; subst r2. invert_literal_eval; cbn [typeof] in *; subst.
+       eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+     * eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op _ x ty); eauto.
+       constructor; constructor.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op x r2 ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ecast x ty); eauto.
+     
+From Stdlib Require Import Bool List ZArith Classical.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation BlockExecution PhaseComposition.
+From PidPositionSafety Require Import GetterAssignmentShell AtomicPhase.
+Import ListNotations.
+Module A:=GetterAssignmentShell.
+Lemma type_eq_diagonal:forall(A:Type)ty(x y:A),
+ (if Ctypes.type_eq ty ty then x else y)=x.
+Proof. intros;destruct(Ctypes.type_eq ty ty);auto;contradiction n;reflexivity. Qed.
+
+Section POST.
+Variable ge:genv.
+Variable caller:function.
+Variable e:env.
+Variable k:cont.
+Variable m mf:mem.
+Variable ghid refid vectid nedid axis iref icomponent ierr igh:AST.ident.
+Variable berr bparam bgh bcache:block.
+Variable dref dcomponent daxis:Z.
+Variable cacheofs:ptrofs.
+Variable reference measured difference:int.
+Definition LRes:=A.lhs_res vectid axis ierr berr daxis.
+Definition RRes:=A.ref_res ghid refid vectid axis iref icomponent igh bparam bgh dref dcomponent daxis reference.
+Definition post_expr(ls:A.lhs_stage)(rs:A.ref_stage):expr:=
+ A.assignment_context nedid axis(LRes ls)(RRes rs)(Eval(Vptr bcache cacheofs)(A.rettype nedid)).
+Hypothesis param_local:e!igh=Some(bparam,tptr(A.ghty ghid)).
+Hypothesis error_global:e!ierr=None.
+Hypothesis error_symbol:Genv.find_symbol ge ierr=Some berr.
+Variable ghco refco vecco nedco:composite.
+Hypothesis gh_lookup:PTree.get ghid(genv_cenv ge)=Some ghco.
+Hypothesis ref_lookup:PTree.get refid(genv_cenv ge)=Some refco.
+Hypothesis vec_lookup:PTree.get vectid(genv_cenv ge)=Some vecco.
+Hypothesis ned_lookup:PTree.get nedid(genv_cenv ge)=Some nedco.
+Hypothesis gh_field:field_offset ge iref(co_members ghco)=OK(dref,Full).
+Hypothesis ref_field:field_offset ge icomponent(co_members refco)=OK(dcomponent,Full).
+Hypothesis axis_field:field_offset ge axis(co_members vecco)=OK(daxis,Full).
+Hypothesis ned_field:field_offset ge axis(co_members nedco)=OK(daxis,Full).
+Hypothesis param_deref:Cexec.do_deref_loc ge quiet_world(tptr(A.ghty ghid))m bparam Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr bgh Ptrofs.zero).
+Hypothesis scalar_deref:Cexec.do_deref_loc ge quiet_world tint m bgh(A.scalar_offset dref dcomponent daxis)Full=
+ Some(quiet_world,E0,Vint reference).
+Hypothesis cache_deref:Cexec.do_deref_loc ge quiet_world tint m bcache(Ptrofs.add cacheofs(Ptrofs.repr daxis))Full=
+ Some(quiet_world,E0,Vint measured).
+Hypothesis sub_value:sem_binary_operation ge Osub(Vint reference)tint(Vint measured)tint m=Some(Vint difference).
+Hypothesis store_result:Cexec.do_assign_loc ge quiet_world tint m berr(A.axis_offset daxis)Full(Vint difference)=
+ Some(quiet_world,E0,mf,Vint difference).
+
+Ltac typeeq_self:=
+ repeat match goal with
+ | |-context[if Ctypes.type_eq ?TY ?TY then _ else _]=>
+ destruct(Ctypes.type_eq TY TY)as[TE|NE];[|exfalso;apply NE;reflexivity]
+ | H:context[if Ctypes.type_eq ?TY ?TY then _ else _] |- _=>
+ destruct(Ctypes.type_eq TY TY)as[TE|NE]in H;[|exfalso;apply NE;reflexivity] end.
+Ltac normalize_pure:=
+ do 12(
+ cbn[LRes RRes A.lhs_res A.ref_res A.axis_load A.component_load A.reference_load A.getter_read
+ A.ghty A.refty A.vty A.nedty A.rettype pure_rval pure_lval typeof];
+ fold(pure_rval ge e m)(pure_lval ge e m);
+ rewrite ?param_local,?error_global,?error_symbol;
+ repeat rewrite type_eq_diagonal;cbn beta iota zeta;
+ rewrite ?gh_lookup,?ref_lookup,?vec_lookup,?ned_lookup,?gh_field,?ref_field,?axis_field,?ned_field;
+ rewrite ?param_deref,?scalar_deref,?cache_deref;
+ cbn[Cexec.do_deref_loc A.ghty A.refty A.vty A.nedty A.rettype access_mode type_is_volatile];
+ cbn beta iota zeta).
+Lemma lhs_type:forall ls,typeof(LRes ls)=tint.
+Proof. destruct ls;reflexivity. Qed.
+Lemma reference_type:forall rs,typeof(RRes rs)=tint.
+Proof. destruct rs;reflexivity. Qed.
+Lemma lhs_denotation:forall ls,pure_lval ge e m(LRes ls)=Some(berr,A.axis_offset daxis,Full).
+Proof. destruct ls;normalize_pure;reflexivity. Qed.
+Lemma reference_denotation:forall rs,pure_rval ge e m(RRes rs)=Some(Vint reference).
+Proof.
+ destruct rs;normalize_pure;try reflexivity.
+ all: change((match Cexec.do_deref_loc ge quiet_world tint m bgh(A.scalar_offset dref dcomponent daxis)Full with
+ | Some(_,_,v)=>Some v|None=>None end)=Some(Vint reference)).
+ all: rewrite scalar_deref;reflexivity.
+Qed.
+Lemma getter_result_denotation:
+ pure_rval ge e m(A.getter_read nedid axis(Eval(Vptr bcache cacheofs)(A.rettype nedid)))=Some(Vint measured).
+Proof.
+ normalize_pure;try reflexivity.
+ change((match Cexec.do_deref_loc ge quiet_world tint m bcache(Ptrofs.add cacheofs(Ptrofs.repr daxis))Full with
+ | Some(_,_,v)=>Some v|None=>None end)=Some(Vint measured)).
+ rewrite cache_deref;reflexivity.
+Qed.
+Lemma post_atomic_syntax:forall ls rs,atomic_expr(post_expr ls rs)=true.
+Proof. destruct ls,rs;reflexivity. Qed.
+Lemma post_atomic_denotation:forall ls rs,
+ atomic_eval ge e m(post_expr ls rs)=Some(Vint difference,mf).
+Proof.
+ intros ls rs;unfold post_expr,A.assignment_context.
+ cbn[atomic_eval];rewrite lhs_type;typeeq_self.
+ fold(pure_rval ge e m)(pure_lval ge e m).
+ rewrite lhs_denotation.
+ change((match
+ (match pure_rval ge e m(RRes rs),
+ pure_rval ge e m(A.getter_read nedid axis(Eval(Vptr bcache cacheofs)(A.rettype nedid)))with
+ | Some v,Some w=>sem_binary_operation ge Osub v(typeof(RRes rs))w tint m
+ | _,_=>None end)with
+ | Some v=>commit ge m tint(berr,A.axis_offset daxis,Full)v tint
+ | None=>None end)=Some(Vint difference,mf)).
+ rewrite reference_denotation,getter_result_denotation,reference_type,sub_value.
+ change((match Cexec.do_assign_loc ge quiet_world tint m berr(A.axis_offset daxis)Full(Vint difference)with
+ | Some(_,_,mout,vf)=>Some(vf,mout)|None=>None end)=Some(Vint difference,mf)).
+ rewrite store_result;reflexivity.
+Qed.
+Theorem post_phase_certificate:forall ls rs,
+ certificate ge(block_context_invariant ge k caller e mf)(State caller Sskip k e mf) /\
+ block_context_invariant ge k caller e mf(ExprState caller(post_expr ls rs)(Kdo k)e m).
+Proof.
+ intros;apply(atomic_expression_certificate ge caller e k m mf(post_expr ls rs)(Vint difference)).
+ - apply post_atomic_syntax.
+ - apply post_atomic_denotation.
+Qed.
+End POST.
+Print Assumptions post_phase_certificate.
+

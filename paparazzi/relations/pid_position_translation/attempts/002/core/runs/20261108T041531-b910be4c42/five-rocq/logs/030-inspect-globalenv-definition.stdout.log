@@ -1,0 +1,96 @@
+          *)
+(*                                                                     *)
+(* *********************************************************************)
+
+(** Dynamic semantics for the Compcert C language *)
+
+Require Import Coqlib Errors Maps.
+Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
+Require Import Ctypes Cop Csyntax.
+Require Import Smallstep.
+
+(** * Operational semantics *)
+
+(** The semantics uses two environments.  The global environment
+  maps names of functions and global variables to memory block references,
+  and function pointers to their definitions.  (See module [Globalenvs].)
+  It also contains a composite environment, used by type-dependent operations. *)
+
+Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> composite_env }.
+
+Definition globalenv (p: program) :=
+  {| genv_genv := Genv.globalenv p; genv_cenv := p.(prog_comp_env) |}.
+
+(** The local environment maps local variables to block references and types.
+  The current value of the variable is stored in the associated memory
+  block. *)
+
+Definition env := PTree.t (block * type). (* map variable -> location & type *)
+
+Definition empty_env: env := (PTree.empty (block * type)).
+
+
+Section SEMANTICS.
+
+Variable ge: genv.
+
+(** [deref_loc ty m b ofs bf t v] computes the value of a datum
+  of type [ty] residing in memory [m] at block [b], offset [ofs],
+  and bitfield designation [bf].
+  If the type [ty] indicates an access by value, the corresponding
+  memory load is 
+Definition make_program (types: list composite_definition)
+                                (defs: list (ident * globdef fundef type))
+                                (public: list ident)
+                                (main: ident) : res program :=
+  match build_composite_env types with
+  | Error e => Error e
+  | OK ce =>
+      OK {| prog_defs := defs;
+            prog_public := public;
+            prog_main := main;
+            prog_types := types;
+            prog_comp_env := ce;
+            prog_comp_env_eq := _ |}
+  end.
+
+End PROGRAMS.
+
+Arguments External {F} _ _ _ _.
+
+Unset Implicit Arguments.
+
+(** * Separate compilation and linking *)
+
+(** ** Linking types *)
+
+Global Program Instance Linker_types : Linker type := {
+  link := fun t1 t2 => if type_eq t1 t2 then Some t1 else None;
+  linkorder := fun t1 t2 => t1 = t2
+}.
+Next Obligation.
+  destruct (type_eq x y); inv H. auto.
+Defined.
+
+Global Opaque Linker_types.
+
+(** ** Linking composite definitions *)
+
+Definition check_compat_composite (l: list composite_definition) (cd: composite_definition) : bool :=
+  List.forallb
+    (fun cd' =>
+      if ident_eq (name_composite_def cd') (name_composite_def cd) then composite_def_eq cd cd' else true)
+    l.
+
+Definition filter_redefs (l1 l2: list composite_definition) :=
+  let names1 := map name_composite_def l1 in
+  List.filter (fun cd => negb (In_dec ident_eq (name_composite_def cd) names1)) l2.
+
+Definition link_composite_defs (l1 l2: list composite_definition): option (list composite_definition) :=
+  if List.forallb (check_compat_composite l2) l1
+  then Some (l1 ++ filter_redefs l1 l2)
+  else None.
+
+Lemma link_composite_def_inv:
+  forall l1 l2 l,
+  link_composite_defs l1 l2 = So

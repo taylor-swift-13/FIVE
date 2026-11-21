@@ -1,0 +1,178 @@
+Rabs_le =
+fun a b : R =>
+match
+  Rcase_abs a as s return - b <= a <= b -> (if s then - a else a) <= b
+with
+| left r =>
+    (fun (_ : a < 0) (H : - b <= a <= b) =>
+     match H with
+     | conj x x0 =>
+         (fun (it : - b <= a) (_ : a <= b) =>
+          Ropp_le_cancel (- a) b
+            (eq_ind_r (fun r0 : R => - b <= r0) it (Ropp_involutive a)))
+           x x0
+     end) r
+| right r =>
+    (fun (_ : a >= 0) (H : - b <= a <= b) =>
+     match H with
+     | conj x x0 => (fun (_ : - b <= a) (it : a <= b) => it) x x0
+     end) r
+end
+:
+- b <= a <= b -> Rabs a <= b
+     : forall a b : R, - b <= a <= b -> Rabs a <= b
+
+Arguments Rabs_le (a b)%_R_scope _
+Rabs_def1 =
+(fun (x a : R) (H : x < a) (H0 : - a < x) =>
+ match Rcase_abs x as s return (if s then - x else x) < a with
+ | left r =>
+     (fun _ : x < 0 =>
+      (eq_ind_r (fun r0 : R => - x < r0 -> - x < a) 
+         (fun H1 : - x < a => H1) (Ropp_involutive a)
+       :
+       - - a > - x -> - x < a) (Ropp_lt_gt_contravar (- a) x H0)) r
+ | right r => (fun _ : x >= 0 => H) r
+ end)
+:
+forall x a : R, x < a -> - a < x -> Rabs x < a
+     : forall x a : R, x < a -> - a < x -> Rabs x < a
+
+Arguments Rabs_def1 (x a)%_R_scope _ _
+Rabs_def2 =
+(fun x : R =>
+ let s := Rcase_abs x in
+ match
+   s as s0
+   return (forall a : R, (if s0 then - x else x) < a -> x < a /\ - a < x)
+ with
+ | left r =>
+     (fun (Hlt : x < 0) (a : R) (H : - x < a) =>
+      ((fun H0 : 0 < - x =>
+        (fun H1 : 0 < a =>
+         conj (Rlt_trans x 0 a Hlt H1)
+           (eq_ind_r (fun r0 : R => r0 > - a -> - a < x)
+              ((fun H2 : - a < x => H2) : x > - a -> - a < x)
+              (Ropp_involutive x) (Ropp_lt_gt_contravar (- x) a H)))
+          (Rlt_trans 0 (- x) a H0 H))
+       :
+       - x > 0 -> x < a /\ - a < x) (Ropp_gt_lt_0_contravar x Hlt)) r
+ | right r =>
+     (fun (Hge : x >= 0) (a : R) (H : x < a) =>
+      (fun H0 : a > 0 =>
+       (fun H1 : - a < 0 =>
+        ((fun H2 : - a < x => conj H H2) : x > - a -> x < a /\ - a < x)
+          (Rge_gt_trans x 0 (- a) Hge H1)
+        :
+        x < a /\ - a < x) (Ropp_lt_gt_0_contravar a H0))
+        (Rgt_ge_trans a x 0 H Hge))
+       r
+ end)
+:
+forall x a : R, Rabs x < a -> x < a /\ - a < x
+     : forall x a : R, Rabs x < a -> x < a /\ - a < x
+
+Arguments Rabs_def2 (x a)%_R_scope _
+Rabs_triang: forall a b : R, Rabs (a + b) <= Rabs a + Rabs b
+Rsqr_le_abs_1: forall x y : R, Rabs x <= Rabs y -> x² <= y²
+Rsqr_le_abs_0: forall x y : R, x² <= y² -> Rabs x <= Rabs y
+Rabs_triang_inv2: forall a b : R, Rabs (Rabs a - Rabs b) <= Rabs (a - b)
+pow_maj_Rabs: forall (x y : R) (n : nat), Rabs y <= x -> y ^ n <= x ^ n
+Rabs_le: forall a b : R, - b <= a <= b -> Rabs a <= b
+Rabs_triang_gen:
+  forall (An : nat -> R) (N : nat),
+  Rabs (sum_f_R0 An N) <= sum_f_R0 (fun i : nat => Rabs (An i)) N
+sum_f_R0_triangle:
+  forall (x : nat -> R) (n : nat),
+  Rabs (sum_f_R0 x n) <= sum_f_R0 (fun i : nat => Rabs (x i)) n
+Rsum_abs:
+  forall (An : nat -> R) (N : nat),
+  Rabs (sum_f_R0 An N) <= sum_f_R0 (fun l : nat => Rabs (An l)) N
+RmaxAbs:
+  forall p q r : R, p <= q -> q <= r -> Rabs q <= Rmax (Rabs p) (Rabs r)
+Reste_E_maj:
+  forall (x y : R) (N : nat),
+  (0 < N)%nat -> Rabs (Reste_E x y N) <= maj_Reste_E x y N
+reste2_maj:
+  forall (x y : R) (N : nat),
+  (0 < N)%nat -> Rabs (Reste2 x y N) <= Majxy x y N
+StepFun_P33:
+  forall (l2 : list R) [l1 : list R],
+  RList.ordered_Rlist l1 ->
+  Rabs (Int_SF l2 l1) <= Int_SF (ListDef.map Rabs l2) l1
+Rabs_4:
+  forall a b c d : R,
+  Rabs (a + b + c + d) <= Rabs a + Rabs b + Rabs c + Rabs d
+reste1_maj:
+  forall (x y : R) (N : nat),
+  (0 < N)%nat -> Rabs (Reste1 x y N) <= Majxy x y (Init.Nat.pred N)
+triangle_rectangle_le:
+  forall x y z : R, x² + y² <= z² -> Rabs x <= Rabs z /\ Rabs y <= Rabs z
+sqrt_var_maj: forall h : R, Rabs h <= 1 -> Rabs (sqrt (1 + h) - 1) <= Rabs h
+Power_monotonic:
+  forall (x : R) (m n : nat),
+  Rabs x > 1 -> (m <= n)%nat -> Rabs (x ^ m) <= Rabs (x ^ n)
+RiemannInt_P17:
+  forall [f : R -> R] [a b : R] (pr1 : Riemann_integrable f a b)
+    (pr2 : Riemann_integrable (fun x : R => Rabs (f x)) a b),
+  a <= b -> Rabs (RiemannInt pr1) <= RiemannInt pr2
+StepFun_P34:
+  forall [a b : R] (f : StepFun a b),
+  a <= b ->
+  Rabs (RiemannInt_SF f) <=
+  RiemannInt_SF {| fe := fun x : R => Rabs (f x); pre := StepFun_P32 f |}
+maj_by_pos:
+  forall Un : nat -> R,
+  {l : R | Un_cv Un l} ->
+  exists l : R, 0 < l /\ (forall n : nat, Rabs (Un n) <= l)
+sum_cv_maj:
+  forall (An : nat -> R) (fn : nat -> R -> R) (x l1 l2 : R),
+  Un_cv (fun n : nat => SP fn n x) l1 ->
+  Un_cv (fun n : nat => sum_f_R0 An n) l2 ->
+  (forall n : nat, Rabs (fn n x) <= An n) -> Rabs l1 <= l2
+sum_maj1:
+  forall (fn : nat -> R -> R) (An : nat -> R) (x l1 l2 : R) (N : nat),
+  Un_cv (fun n : nat => SP fn n x) l1 ->
+  Un_cv (fun n : nat => sum_f_R0 An n) l2 ->
+  (forall n : nat, Rabs (fn n x) <= An n) ->
+  Rabs (l1 - SP fn N x) <= l2 - sum_f_R0 An N
+phi_sequence_prop:
+  forall (un : nat -> posreal) [f : R -> R] [a b : R]
+    (pr : Riemann_integrable f a b) (N : nat),
+  {psi : StepFun a b
+  | (forall t : R,
+     Rmin a b <= t <= Rmax a b ->
+     Rabs (f t - phi_sequence un pr N t) <= psi t) /\
+    Rabs (RiemannInt_SF psi) < un N}
+RiemannInt_P3:
+  forall (f : R -> R) [a b : R] (un : nat -> posreal)
+    (vn wn : nat -> StepFun a b),
+  Un_cv (fun x : nat => un x) 0 ->
+  (forall n : nat,
+   (forall t : R, Rmin a b <= t <= Rmax a b -> Rabs (f t - vn n t) <= wn n t) /\
+   Rabs (RiemannInt_SF (wn n)) < un n) ->
+  {l : R | Un_cv (fun N : nat => RiemannInt_SF (vn N)) l}
+RiemannInt_P2:
+  forall (f : R -> R) [a b : R] (un : nat -> posreal)
+    (vn wn : nat -> StepFun a b),
+  Un_cv (fun x : nat => un x) 0 ->
+  a <= b ->
+  (forall n : nat,
+   (forall t : R, Rmin a b <= t <= Rmax a b -> Rabs (f t - vn n t) <= wn n t) /\
+   Rabs (RiemannInt_SF (wn n)) < un n) ->
+  {l : R | Un_cv (fun N : nat => RiemannInt_SF (vn N)) l}
+RiemannInt_P11:
+  forall (f : R -> R) [a b l : R] (un : nat -> posreal)
+    (phi1 phi2 psi1 psi2 : nat -> StepFun a b),
+  Un_cv (fun x : nat => un x) 0 ->
+  (forall n : nat,
+   (forall t : R,
+    Rmin a b <= t <= Rmax a b -> Rabs (f t - phi1 n t) <= psi1 n t) /\
+   Rabs (RiemannInt_SF (psi1 n)) < un n) ->
+  (forall n : nat,
+   (forall t : R,
+    Rmin a b <= t <= Rmax a b -> Rabs (f t - phi2 n t) <= psi2 n t) /\
+   Rabs (RiemannInt_SF (psi2 n)) < un n) ->
+  Un_cv (fun N : nat => RiemannInt_SF (phi1 N)) l ->
+  Un_cv (fun N : nat => RiemannInt_SF (phi2 N)) l
+(use "About" for full details on the implicit arguments of RiemannInt_P11)

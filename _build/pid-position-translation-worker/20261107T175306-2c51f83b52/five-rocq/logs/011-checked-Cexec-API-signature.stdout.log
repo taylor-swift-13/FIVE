@@ -1,0 +1,81 @@
+do_step_sound
+     : forall (ge : genv)
+         (do_external_function : String.string ->
+                                 AST.signature ->
+                                 Globalenvs.Senv.t ->
+                                 Determinism.world ->
+                                 list Values.val ->
+                                 Memory.Mem.mem ->
+                                 option
+                                   (Determinism.world * Events.trace *
+                                    Values.val * Memory.Mem.mem)),
+       (forall (id : String.string) (sg : AST.signature)
+          (ge0 : Globalenvs.Senv.t) (vargs : list Values.val)
+          (m : Memory.Mem.mem) (t : Events.trace) 
+          (vres : Values.val) (m' : Memory.Mem.mem)
+          (w w' : Determinism.world),
+        do_external_function id sg ge0 w vargs m = Some (w', t, vres, m') ->
+        Events.external_functions_sem id sg ge0 vargs m t vres m' /\
+        Determinism.possible_trace w t w') ->
+       (forall (id : String.string) (sg : AST.signature)
+          (ge0 : Globalenvs.Senv.t) (vargs : list Values.val)
+          (m : Memory.Mem.mem) (t : Events.trace) 
+          (vres : Values.val) (m' : Memory.Mem.mem)
+          (w w' : Determinism.world),
+        Events.external_functions_sem id sg ge0 vargs m t vres m' ->
+        Determinism.possible_trace w t w' ->
+        do_external_function id sg ge0 w vargs m = Some (w', t, vres, m')) ->
+       forall
+         do_inline_assembly : String.string ->
+                              AST.signature ->
+                              Globalenvs.Senv.t ->
+                              Determinism.world ->
+                              list Values.val ->
+                              Memory.Mem.mem ->
+                              option
+                                (Determinism.world * Events.trace *
+                                 Values.val * Memory.Mem.mem),
+       (forall (txt : String.string) (sg : AST.signature)
+          (ge0 : Globalenvs.Senv.t) (vargs : list Values.val)
+          (m : Memory.Mem.mem) (t : Events.trace) 
+          (vres : Values.val) (m' : Memory.Mem.mem)
+          (w w' : Determinism.world),
+        do_inline_assembly txt sg ge0 w vargs m = Some (w', t, vres, m') ->
+        Events.inline_assembly_sem txt sg ge0 vargs m t vres m' /\
+        Determinism.possible_trace w t w') ->
+       (forall (txt : String.string) (sg : AST.signature)
+          (ge0 : Globalenvs.Senv.t) (vargs : list Values.val)
+          (m : Memory.Mem.mem) (t : Events.trace) 
+          (vres : Values.val) (m' : Memory.Mem.mem)
+          (w w' : Determinism.world),
+        Events.inline_assembly_sem txt sg ge0 vargs m t vres m' ->
+        Determinism.possible_trace w t w' ->
+        do_inline_assembly txt sg ge0 w vargs m = Some (w', t, vres, m')) ->
+       forall (w : Determinism.world) (S : state) 
+         (rule : String.string) (t : Events.trace) 
+         (S' : state),
+       List.In (TR rule t S')
+         (do_step ge do_external_function do_inline_assembly w S) ->
+       step ge S t S' \/
+       t = Events.E0 /\ S' = Stuckstate /\ can_crash_world ge w S
+do_step
+     : genv ->
+       (String.string ->
+        AST.signature ->
+        Globalenvs.Senv.t ->
+        Determinism.world ->
+        list Values.val ->
+        Memory.Mem.mem ->
+        option
+          (Determinism.world * Events.trace * Values.val * Memory.Mem.mem)) ->
+       (String.string ->
+        AST.signature ->
+        Globalenvs.Senv.t ->
+        Determinism.world ->
+        list Values.val ->
+        Memory.Mem.mem ->
+        option
+          (Determinism.world * Events.trace * Values.val * Memory.Mem.mem)) ->
+       Determinism.world -> state -> list transition
+TR
+     : String.string -> Events.trace -> state -> transition

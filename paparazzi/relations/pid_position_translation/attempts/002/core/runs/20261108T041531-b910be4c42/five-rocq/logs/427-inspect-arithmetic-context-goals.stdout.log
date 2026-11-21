@@ -1,0 +1,27 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  k : kind
+  C : expr -> expr
+  op : binary_operation
+  e2 : expr
+  tyres, ty : type
+  CT : context k LV C
+  IHCT :
+    forall a b : expr,
+    typeof a = typeof b ->
+    pure_eq ge e m k a b ->
+    arithmetic_tree ge e m (C a) ->
+    arithmetic_tree ge e m b -> arithmetic_tree ge e m (C b)
+  a, b : expr
+  TY : typeof a = typeof b
+  VALUE : pure_eq ge e m k a b
+  H : arithmetic_tree ge e m (C a)
+  H0 : arithmetic_tree ge e m e2
+  H1 : nv (typeof (C a)) = true
+  H2 : assignop_condition ge e m op (C a) e2
+  NEW : arithmetic_tree ge e m b
+  ============================
+  nv (typeof (C b)) = true

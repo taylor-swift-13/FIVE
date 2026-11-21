@@ -1,0 +1,85 @@
+351:
+352:Theorem shift_symbol_address:
+353:  forall ge id ofs delta,
+354:  symbol_address ge id (Ptrofs.add ofs delta) = Val.offset_ptr (symbol_address ge id ofs) delta.
+355:Proof.
+356:  intros. unfold symbol_address, Val.offset_ptr. destruct (find_symbol ge id); auto.
+357:Qed.
+358:
+359:Theorem shift_symbol_address_32:
+360:  forall ge id ofs n,
+361:  Archi.ptr64 = false ->
+362:  symbol_address ge id (Ptrofs.add ofs (Ptrofs.of_int n)) = Val.add (symbol_address ge id ofs) (Vint n).
+363:Proof.
+364:  intros. unfold symbol_address. destruct (find_symbol ge id).
+365:- unfold Val.add. rewrite H. auto.
+366:- auto.
+367:Qed.
+368:
+369:Theorem shift_symbol_address_64:
+370:  forall ge id ofs n,
+371:  Archi.ptr64 = true ->
+372:  symbol_address ge id (Ptrofs.add ofs (Ptrofs.of_int64 n)) = Val.addl (symbol_address ge id ofs) (Vlong n).
+373:Proof.
+374:  intros. unfold symbol_address. destruct (find_symbol ge id).
+375:- unfold Val.addl. rewrite H. auto.
+376:- auto.
+377:Qed.
+378:
+379:Theorem find_funct_inv:
+380:  forall ge v f,
+381:  find_funct ge v = Some f -> exists b, v = Vptr b Ptrofs.zero.
+382:Proof.
+383:  intros until f; unfold find_funct.
+384:  destruct v; try congruence.
+385:  destruct (Ptrofs.eq_dec i Ptrofs.zero); try congruence.
+386:  intros. exists b; congruence.
+387:Qed.
+388:
+389:Theorem find_funct_find_funct_ptr:
+390:  forall ge b,
+391:  find_funct ge (Vptr b Ptrofs.zero) = find_funct_ptr ge b.
+392:Proof.
+393:  intros; simpl. apply dec_eq_true.
+394:Qed.
+395:
+396:Theorem find_funct_ptr_iff:
+397:  forall ge b f, find_funct_ptr ge b = Some f <-> find_def ge b = Some (Gfun f).
+398:Proof.
+399:  intros. unfold find_funct_ptr. destruct (find_def ge b) as [[f1|v1]|]; intuition congruence.
+400:Qed.
+401:
+402:Theorem find_var_info_iff:
+403:  forall ge b v, find_var_info ge b = Some v <-> find_def ge b = Some (Gvar v).
+404:Proof.
+405:  intros. unfold find_var_info. destruct (find_def ge b) as [[f1|v1]|]; intuition congruence.
+406:Qed.
+407:
+408:Theorem find_def_symbol:
+409:  forall p id g,
+410:  (prog_defmap p)!id = Some g <-> exists b, find_symbol (globalenv p) id = Some b /\ find_def (globalenv p) b = Some g.
+411:Proof.
+412:  intros.
+413:  set (P := fun m ge => m!id = Some g <-> exists b, find_symbol ge id = Some b /\ find_def ge b = Some g).
+414:  assert (REC: forall l m ge,
+415:            P m ge ->
+416:            P (fold_left (fun m idg => PTree.set idg#1 idg#2 m) l m)
+417:              (add_globals ge l)).
+418:  { induction l as [ | [id1 g1] l]; intros; simpl.
+419:  - auto.
+420:  - apply IHl. unfold P, add_global, find_symbol, find_def; simpl.
+421:    rewrite ! PTree.gsspec. destruct (peq id id1).
+422:    + subst id1. split; intros.
+423:      inv H0. exists (genv_next ge); split; auto. apply PTree.gss.
+424:      destruct H0 as (b & A & B). inv A. rewrite PTree.gss in B. auto.
+425:    + red in H; rewrite H. split.
+426:      intros (b & A & B). exists b; split; auto. rewrite PTree.gso; auto.
+427:      apply Plt_ne. eapply genv_symb_range; eauto.
+428:      intros (b & A & B). rewrite PTree.gso in B. exists b; auto.
+429:      apply Plt_ne. eapply genv_symb_range; eauto.
+430:  }
+431:  apply REC. unfold P, find_symbol, find_def; simpl.
+432:  rewrite ! PTree.gempty. split.
+433:  congruence.
+434:  intros (b & A & B); congruence.
+435:Qed.

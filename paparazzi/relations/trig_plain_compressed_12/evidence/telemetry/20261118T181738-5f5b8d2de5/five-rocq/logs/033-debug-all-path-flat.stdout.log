@@ -1,0 +1,23 @@
+1 goal
+  
+  ge : genv
+  f : function
+  k : cont
+  e : env
+  m : mem
+  C : expr -> expr
+  a0, a' : expr
+  m' : mem
+  ES :
+    Csem.estep ge (ExprState f (C a0) k e m) E0 (ExprState f (C a') k e m')
+  CO : core_expr (C a0) = true
+  FL : flat_expr (C a0) = true
+  H6 : lred ge e a0 m a' m'
+  H7 : context LV RV C
+  ============================
+  ExprState f (C a') k e m' = Stuckstate \/
+  (exists (a'0 : expr) (m'0 : mem),
+     ExprState f (C a') k e m' = ExprState f a'0 k e m'0 /\
+     typeof a'0 = typeof (C a0) /\
+     flat_expr a'0 = true /\
+     core_expr a'0 = true /\ flat_eval ge e m (C a0) = flat_eval ge e m'0 a'0)

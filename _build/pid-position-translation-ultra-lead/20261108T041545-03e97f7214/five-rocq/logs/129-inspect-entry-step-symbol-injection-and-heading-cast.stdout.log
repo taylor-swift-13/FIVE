@@ -1,0 +1,454 @@
+step_internal_function
+     : forall (ge : genv) (f : Csyntax.function) (vargs : list Values.val)
+         (k : cont) (m : Memory.Mem.mem) (e : env) 
+         (m1 m2 : Memory.Mem.mem),
+       Coqlib.list_norepet
+         (Csyntax.var_names (Csyntax.fn_params f) ++
+          Csyntax.var_names (Csyntax.fn_vars f)) ->
+       alloc_variables ge empty_env m
+         (Csyntax.fn_params f ++ Csyntax.fn_vars f) e m1 ->
+       bind_parameters ge e m1 (Csyntax.fn_params f) vargs m2 ->
+       sstep ge (Callstate (Ctypes.Internal f) vargs k m) Events.E0
+         (State f (Csyntax.fn_body f) k e m2)
+Genv.find_invert_symbol:
+  forall [F V : Type] (ge : Genv.t F V) (id : AST.ident) [b : Values.block],
+  Genv.find_symbol ge id = Some b -> Genv.invert_symbol ge b = Some id
+Genv.invert_find_symbol:
+  forall [F V : Type] (ge : Genv.t F V) [id : AST.ident] (b : Values.block),
+  Genv.invert_symbol ge b = Some id -> Genv.find_symbol ge id = Some b
+Genv.find_symbol_inversion:
+  forall [F V : Type] (p : AST.program F V) (x : AST.ident)
+    [b : Values.block],
+  Genv.find_symbol (Genv.globalenv p) x = Some b ->
+  List.In x (AST.prog_defs_names p)
+Genv.public_symbol_exists:
+  forall [F V : Type] (ge : Genv.t F V) (id : AST.ident),
+  Genv.public_symbol ge id = true ->
+  exists b : Values.block, Genv.find_symbol ge id = Some b
+Genv.find_symbol_not_fresh:
+  forall [F V : Type] (p : AST.program F V) (id : AST.ident)
+    [b : Values.block] [m : Memory.Mem.mem],
+  Genv.init_mem p = Some m ->
+  Genv.find_symbol (Genv.globalenv p) id = Some b ->
+  Memory.Mem.valid_block m b
+Genv.global_addresses_distinct:
+  forall [F V : Type] (ge : Genv.t F V) [id1 id2 : AST.ident]
+    [b1 b2 : Values.block],
+  id1 <> id2 ->
+  Genv.find_symbol ge id1 = Some b1 ->
+  Genv.find_symbol ge id2 = Some b2 -> b1 <> b2
+Genv.find_symbol_exists:
+  forall [F V : Type] (p : AST.program F V) (id : AST.ident)
+    (g : AST.globdef F V),
+  List.In (id, g) (AST.prog_defs p) ->
+  exists b : Values.block, Genv.find_symbol (Genv.globalenv p) id = Some b
+Genv.find_symbol_match:
+  forall {C F1 V1 F2 V2 : Type} {LC : Linking.Linker C}
+    [match_fundef : C -> F1 -> F2 -> Prop] [match_varinfo : V1 -> V2 -> Prop]
+    [ctx : C] [p : AST.program F1 V1] [tp : AST.program F2 V2],
+  Linking.match_program_gen match_fundef match_varinfo ctx p tp ->
+  forall s : AST.ident,
+  Genv.find_symbol (Genv.globalenv tp) s =
+  Genv.find_symbol (Genv.globalenv p) s
+Genv.find_symbol_transf:
+  forall {A B V : Type} {LA : Linking.Linker A} {LV : Linking.Linker V}
+    {transf : A -> B} {p : AST.program A V} {tp : AST.program B V},
+  Linking.match_program
+    (fun (_ : AST.program A V) (f : A) (tf : B) => tf = transf f) eq p tp ->
+  forall s : AST.ident,
+  Genv.find_symbol (Genv.globalenv tp) s =
+  Genv.find_symbol (Genv.globalenv p) s
+Events.eval_builtin_arg_preserved:
+  forall [A F1 V1 F2 V2 : Type] [ge1 : Genv.t F1 V1] 
+    (ge2 : Genv.t F2 V2) [e : A -> Values.val] [sp : Values.val]
+    [m : Memory.Mem.mem],
+  (forall id : AST.ident, Genv.find_symbol ge2 id = Genv.find_symbol ge1 id) ->
+  forall [a : AST.builtin_arg A] [v : Values.val],
+  Events.eval_builtin_arg ge1 e sp m a v ->
+  Events.eval_builtin_arg ge2 e sp m a v
+Events.eval_builtin_args_preserved:
+  forall [A F1 V1 F2 V2 : Type] [ge1 : Genv.t F1 V1] 
+    (ge2 : Genv.t F2 V2) [e : A -> Values.val] [sp : Values.val]
+    [m : Memory.Mem.mem],
+  (forall id : AST.ident, Genv.find_symbol ge2 id = Genv.find_symbol ge1 id) ->
+  forall [al : list (AST.builtin_arg A)] [vl : list Values.val],
+  Events.eval_builtin_args ge1 e sp m al vl ->
+  Events.eval_builtin_args ge2 e sp m al vl
+Genv.store_init_data_neutral:
+  forall [F V : Type] (ge : Genv.t F V) [thr : Values.block],
+  (forall (id : AST.ident) (b : Values.block),
+   Genv.find_symbol ge id = Some b -> Coqlib.Plt b thr) ->
+  forall [m : Memory.Mem.mem] [b : BinNums.positive] 
+    (p : BinNums.Z) (id : AST.init_data) [m' : Memory.Mem.mem],
+  Memory.Mem.inject_neutral thr m ->
+  Coqlib.Plt b thr ->
+  Genv.store_init_data ge m b p id = Some m' ->
+  Memory.Mem.inject_neutral thr m'
+Genv.store_init_data_list_free_idents:
+  forall [F V : Type] (ge : Genv.t F V) (b : Values.block) 
+    (i : AST.ident) (o : Integers.Ptrofs.int) (il : list AST.init_data)
+    (m : Memory.Mem.mem) (p : BinNums.Z) [m' : Memory.Mem.mem],
+  Genv.store_init_data_list ge m b p il = Some m' ->
+  List.In (AST.Init_addrof i o) il ->
+  exists b' : Values.block, Genv.find_symbol ge i = Some b'
+Genv.alloc_global_neutral:
+  forall [F V : Type] (ge : Genv.t F V) [thr : Values.block],
+  (forall (id : AST.ident) (b : Values.block),
+   Genv.find_symbol ge id = Some b -> Coqlib.Plt b thr) ->
+  forall (idg : AST.ident * AST.globdef F V) [m m' : Memory.Mem.mem],
+  Genv.alloc_global ge m idg = Some m' ->
+  Memory.Mem.inject_neutral thr m ->
+  Coqlib.Plt (Memory.Mem.nextblock m) thr -> Memory.Mem.inject_neutral thr m'
+Genv.find_symbol_transf_partial:
+  forall {A B V : Type} {LA : Linking.Linker A} {LV : Linking.Linker V}
+    {transf : A -> Errors.res B} {p : AST.program A V} 
+    {tp : AST.program B V},
+  Linking.match_program
+    (fun (_ : AST.program A V) (f : A) (tf : B) => transf f = Errors.OK tf)
+    eq p tp ->
+  forall s : AST.ident,
+  Genv.find_symbol (Genv.globalenv tp) s =
+  Genv.find_symbol (Genv.globalenv p) s
+Genv.store_init_data_list_neutral:
+  forall [F V : Type] (ge : Genv.t F V) [thr : Values.block],
+  (forall (id : AST.ident) (b : Values.block),
+   Genv.find_symbol ge id = Some b -> Coqlib.Plt b thr) ->
+  forall [b : BinNums.positive] (idl : list AST.init_data)
+    [m : Memory.Mem.mem] (p : BinNums.Z) [m' : Memory.Mem.mem],
+  Memory.Mem.inject_neutral thr m ->
+  Coqlib.Plt b thr ->
+  Genv.store_init_data_list ge m b p idl = Some m' ->
+  Memory.Mem.inject_neutral thr m'
+red_var_global:
+  forall (ge : genv) (e : env) (x : BinNums.positive) 
+    (ty : Ctypes.type) (m : Memory.Mem.mem) (b : Values.block),
+  Maps.PTree.get x e = None ->
+  Genv.find_symbol ge x = Some b ->
+  lred ge e (Csyntax.Evar x ty) m
+    (Csyntax.Eloc b Integers.Ptrofs.zero Ctypes.Full ty) m
+Genv.alloc_globals_neutral:
+  forall [F V : Type] (ge : Genv.t F V) [thr : Values.block],
+  (forall (id : AST.ident) (b : Values.block),
+   Genv.find_symbol ge id = Some b -> Coqlib.Plt b thr) ->
+  forall (gl : list (AST.ident * AST.globdef F V)) [m m' : Memory.Mem.mem],
+  Genv.alloc_globals ge m gl = Some m' ->
+  Memory.Mem.inject_neutral thr m ->
+  Coqlib.Ple (Memory.Mem.nextblock m') thr ->
+  Memory.Mem.inject_neutral thr m'
+Genv.find_def_symbol:
+  forall [F V : Type] (p : AST.program F V) (id : BinNums.positive)
+    (g : AST.globdef F V),
+  Maps.PTree.get id (AST.prog_defmap p) = Some g <->
+  (exists b : Values.block,
+     Genv.find_symbol (Genv.globalenv p) id = Some b /\
+     Genv.find_def (Genv.globalenv p) b = Some g)
+Genv.store_init_data_exists:
+  forall [F V : Type] (ge : Genv.t F V) [m : Memory.Mem.mem]
+    [b : Values.block] [p : BinNums.Z] [i : AST.init_data],
+  Memory.Mem.range_perm m b p (BinInt.Z.add p (AST.init_data_size i))
+    Memtype.Cur Memtype.Writable ->
+  BinInt.Z.divide (Genv.init_data_alignment i) p ->
+  (forall (id : AST.ident) (ofs : Integers.Ptrofs.int),
+   i = AST.Init_addrof id ofs ->
+   exists b0 : Values.block, Genv.find_symbol ge id = Some b0) ->
+  exists m' : Memory.Mem.mem, Genv.store_init_data ge m b p i = Some m'
+Genv.store_init_data_list_exists:
+  forall [F V : Type] (ge : Genv.t F V) [b : Values.block]
+    (il : list AST.init_data) [m : Memory.Mem.mem] 
+    [p : BinNums.Z],
+  Memory.Mem.range_perm m b p (BinInt.Z.add p (AST.init_data_list_size il))
+    Memtype.Cur Memtype.Writable ->
+  Genv.init_data_list_aligned p il ->
+  (forall (id : AST.ident) (ofs : Integers.Ptrofs.int),
+   List.In (AST.Init_addrof id ofs) il ->
+   exists b0 : Values.block, Genv.find_symbol ge id = Some b0) ->
+  exists m' : Memory.Mem.mem, Genv.store_init_data_list ge m b p il = Some m'
+Genv.alloc_global_exists:
+  forall [F V : Type] (ge : Genv.t F V) (m : Memory.Mem.mem)
+    (idg : AST.ident * AST.globdef F V),
+  (let (_, y) := idg in
+   match y with
+   | AST.Gfun _ => True
+   | AST.Gvar v =>
+       Genv.init_data_list_aligned BinNums.Z0 (AST.gvar_init v) /\
+       (forall (i : AST.ident) (o : Integers.Ptrofs.int),
+        List.In (AST.Init_addrof i o) (AST.gvar_init v) ->
+        exists b : Values.block, Genv.find_symbol ge i = Some b)
+   end) ->
+  exists m' : Memory.Mem.mem, Genv.alloc_global ge m idg = Some m'
+initial_state_intro:
+  forall (p : Csyntax.program) (b : Values.block) 
+    (f : Csyntax.fundef) (m0 : Memory.Mem.mem),
+  let ge := globalenv p in
+  Genv.init_mem (Ctypes.program_of_program p) = Some m0 ->
+  Genv.find_symbol ge (Ctypes.prog_main p) = Some b ->
+  Genv.find_funct_ptr ge b = Some f ->
+  Csyntax.type_of_fundef f =
+  Ctypes.Tfunction nil Ctypes.type_int32s AST.cc_default ->
+  initial_state p (Callstate f nil Kstop m0)
+Genv.init_mem_inversion:
+  forall [F V : Type] (p : AST.program F V) [m : Memory.Mem.mem]
+    (id : AST.ident) (v : AST.globvar V),
+  Genv.init_mem p = Some m ->
+  List.In (id, AST.Gvar v) (AST.prog_defs p) ->
+  Genv.init_data_list_aligned BinNums.Z0 (AST.gvar_init v) /\
+  (forall (i : AST.ident) (o : Integers.Ptrofs.int),
+   List.In (AST.Init_addrof i o) (AST.gvar_init v) ->
+   exists b : Values.block, Genv.find_symbol (Genv.globalenv p) i = Some b)
+Genv.init_mem_exists:
+  forall [F V : Type] (p : AST.program F V),
+  (forall (id : AST.ident) (v : AST.globvar V),
+   List.In (id, AST.Gvar v) (AST.prog_defs p) ->
+   Genv.init_data_list_aligned BinNums.Z0 (AST.gvar_init v) /\
+   (forall (i : AST.ident) (o : Integers.Ptrofs.int),
+    List.In (AST.Init_addrof i o) (AST.gvar_init v) ->
+    exists b : Values.block, Genv.find_symbol (Genv.globalenv p) i = Some b)) ->
+  exists m : Memory.Mem.mem, Genv.init_mem p = Some m
+initial_state_ind:
+  forall (p : Csyntax.program) (P : state -> Prop),
+  (forall (b : Values.block) (f : Csyntax.fundef) (m0 : Memory.Mem.mem),
+   let ge := globalenv p in
+   Genv.init_mem (Ctypes.program_of_program p) = Some m0 ->
+   Genv.find_symbol ge (Ctypes.prog_main p) = Some b ->
+   Genv.find_funct_ptr ge b = Some f ->
+   Csyntax.type_of_fundef f =
+   Ctypes.Tfunction nil Ctypes.type_int32s AST.cc_default ->
+   P (Callstate f nil Kstop m0)) ->
+  forall s : state, initial_state p s -> P s
+initial_state_sind:
+  forall (p : Csyntax.program) (P : state -> SProp),
+  (forall (b : Values.block) (f : Csyntax.fundef) (m0 : Memory.Mem.mem),
+   let ge := globalenv p in
+   Genv.init_mem (Ctypes.program_of_program p) = Some m0 ->
+   Genv.find_symbol ge (Ctypes.prog_main p) = Some b ->
+   Genv.find_funct_ptr ge b = Some f ->
+   Csyntax.type_of_fundef f =
+   Ctypes.Tfunction nil Ctypes.type_int32s AST.cc_default ->
+   P (Callstate f nil Kstop m0)) ->
+  forall s : state, initial_state p s -> P s
+lred_sind:
+  forall (ge : genv) (e : env)
+    (P : Csyntax.expr ->
+         Memory.Mem.mem -> Csyntax.expr -> Memory.Mem.mem -> SProp),
+  (forall (x : BinNums.positive) (ty : Ctypes.type) 
+     (m : Memory.Mem.mem) (b : Values.block),
+   Maps.PTree.get x e = Some (b, ty) ->
+   P (Csyntax.Evar x ty) m
+     (Csyntax.Eloc b Integers.Ptrofs.zero Ctypes.Full ty) m) ->
+  (forall (x : BinNums.positive) (ty : Ctypes.type) 
+     (m : Memory.Mem.mem) (b : Values.block),
+   Maps.PTree.get x e = None ->
+   Genv.find_symbol ge x = Some b ->
+   P (Csyntax.Evar x ty) m
+     (Csyntax.Eloc b Integers.Ptrofs.zero Ctypes.Full ty) m) ->
+  (forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+     (ty1 ty : Ctypes.type) (m : Memory.Mem.mem),
+   P (Csyntax.Ederef (Csyntax.Eval (Values.Vptr b ofs) ty1) ty) m
+     (Csyntax.Eloc b ofs Ctypes.Full ty) m) ->
+  (forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+     (id : BinNums.positive) (co : Ctypes.composite) 
+     (a : Ctypes.attr) (f : AST.ident) (ty : Ctypes.type)
+     (m : Memory.Mem.mem) (delta : BinNums.Z) (bf : Ctypes.bitfield),
+   Maps.PTree.get id ge = Some co ->
+   Ctypes.field_offset ge f (Ctypes.co_members co) = Errors.OK (delta, bf) ->
+   P
+     (Csyntax.Efield (Csyntax.Eval (Values.Vptr b ofs) (Ctypes.Tstruct id a))
+        f ty)
+     m
+     (Csyntax.Eloc b (Integers.Ptrofs.add ofs (Integers.Ptrofs.repr delta))
+        bf ty)
+     m) ->
+  (forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+     (id : BinNums.positive) (co : Ctypes.composite) 
+     (a : Ctypes.attr) (f : AST.ident) (ty : Ctypes.type)
+     (m : Memory.Mem.mem) (delta : BinNums.Z) (bf : Ctypes.bitfield),
+   Maps.PTree.get id ge = Some co ->
+   Ctypes.union_field_offset ge f (Ctypes.co_members co) =
+   Errors.OK (delta, bf) ->
+   P
+     (Csyntax.Efield (Csyntax.Eval (Values.Vptr b ofs) (Ctypes.Tunion id a))
+        f ty)
+     m
+     (Csyntax.Eloc b (Integers.Ptrofs.add ofs (Integers.Ptrofs.repr delta))
+        bf ty)
+     m) ->
+  forall (e0 : Csyntax.expr) (m : Memory.Mem.mem) 
+    (e1 : Csyntax.expr) (m0 : Memory.Mem.mem),
+  lred ge e e0 m e1 m0 -> P e0 m e1 m0
+lred_ind:
+  forall (ge : genv) (e : env)
+    (P : Csyntax.expr ->
+         Memory.Mem.mem -> Csyntax.expr -> Memory.Mem.mem -> Prop),
+  (forall (x : BinNums.positive) (ty : Ctypes.type) 
+     (m : Memory.Mem.mem) (b : Values.block),
+   Maps.PTree.get x e = Some (b, ty) ->
+   P (Csyntax.Evar x ty) m
+     (Csyntax.Eloc b Integers.Ptrofs.zero Ctypes.Full ty) m) ->
+  (forall (x : BinNums.positive) (ty : Ctypes.type) 
+     (m : Memory.Mem.mem) (b : Values.block),
+   Maps.PTree.get x e = None ->
+   Genv.find_symbol ge x = Some b ->
+   P (Csyntax.Evar x ty) m
+     (Csyntax.Eloc b Integers.Ptrofs.zero Ctypes.Full ty) m) ->
+  (forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+     (ty1 ty : Ctypes.type) (m : Memory.Mem.mem),
+   P (Csyntax.Ederef (Csyntax.Eval (Values.Vptr b ofs) ty1) ty) m
+     (Csyntax.Eloc b ofs Ctypes.Full ty) m) ->
+  (forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+     (id : BinNums.positive) (co : Ctypes.composite) 
+     (a : Ctypes.attr) (f : AST.ident) (ty : Ctypes.type)
+     (m : Memory.Mem.mem) (delta : BinNums.Z) (bf : Ctypes.bitfield),
+   Maps.PTree.get id ge = Some co ->
+   Ctypes.field_offset ge f (Ctypes.co_members co) = Errors.OK (delta, bf) ->
+   P
+     (Csyntax.Efield (Csyntax.Eval (Values.Vptr b ofs) (Ctypes.Tstruct id a))
+        f ty)
+     m
+     (Csyntax.Eloc b (Integers.Ptrofs.add ofs (Integers.Ptrofs.repr delta))
+        bf ty)
+     m) ->
+  (forall (b : Values.block) (ofs : Integers.Ptrofs.int)
+     (id : BinNums.positive) (co : Ctypes.composite) 
+     (a : Ctypes.attr) (f : AST.ident) (ty : Ctypes.type)
+     (m : Memory.Mem.mem) (delta : BinNums.Z) (bf : Ctypes.bitfield),
+   Maps.PTree.get id ge = Some co ->
+   Ctypes.union_field_offset ge f (Ctypes.co_members co) =
+   Errors.OK (delta, bf) ->
+   P
+     (Csyntax.Efield (Csyntax.Eval (Values.Vptr b ofs) (Ctypes.Tunion id a))
+        f ty)
+     m
+     (Csyntax.Eloc b (Integers.Ptrofs.add ofs (Integers.Ptrofs.repr delta))
+        bf ty)
+     m) ->
+  forall (e0 : Csyntax.expr) (m : Memory.Mem.mem) 
+    (e1 : Csyntax.expr) (m0 : Memory.Mem.mem),
+  lred ge e e0 m e1 m0 -> P e0 m e1 m0
+ZofB_range_inversion:
+  forall (prec emax : BinNums.Z) (f : Binary.binary_float prec emax)
+    (min max n : BinNums.Z),
+  ZofB_range prec emax f min max = Some n ->
+  BinInt.Z.le min n /\ BinInt.Z.le n max /\ ZofB prec emax f = Some n
+ZofB_range_correct:
+  forall (prec emax : BinNums.Z) (f : Binary.binary_float prec emax)
+    (min max : BinNums.Z),
+  let n := Raux.Ztrunc (Binary.B2R prec emax f) in
+  ZofB_range prec emax f min max =
+  (if
+    (Binary.is_finite prec emax f && BinInt.Z.leb min n && BinInt.Z.leb n max)%bool
+   then Some n
+   else None)
+Float.ZofB_range_widen:
+  forall (f : float) (n min1 max1 min2 max2 : BinNums.Z),
+  ZofB_range
+    (BinInt.Z.pos
+       (BinNums.xI
+          (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+    f min1 max1 =
+  Some n ->
+  BinInt.Z.le min2 min1 ->
+  BinInt.Z.le max1 max2 ->
+  ZofB_range
+    (BinInt.Z.pos
+       (BinNums.xI
+          (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+    f min2 max2 =
+  Some n
+ZofB_range_Bconv:
+  forall prec1 emax1 prec2 emax2 : BinNums.Z,
+  FLX.Prec_gt_0 prec1 ->
+  forall (prec2_gt_0_ : FLX.Prec_gt_0 prec2)
+    (Hmax2 : BinInt.Z.lt prec2 emax2) (min1 max1 min2 max2 : BinNums.Z),
+  BinInt.Z.ge prec2 prec1 ->
+  BinInt.Z.ge emax2 emax1 ->
+  BinInt.Z.le min2 min1 ->
+  BinInt.Z.le max1 max2 ->
+  forall
+    (conv_nan : Binary.binary_float prec1 emax1 ->
+                {x : Binary.binary_float prec2 emax2
+                | Binary.is_nan prec2 emax2 x = true})
+    (m : BinarySingleNaN.mode) (f : Binary.binary_float prec1 emax1)
+    (n : BinNums.Z),
+  ZofB_range prec1 emax1 f min1 max1 = Some n ->
+  ZofB_range prec2 emax2
+    (Bconv prec1 emax1 prec2 emax2 prec2_gt_0_ Hmax2 conv_nan m f) min2 max2 =
+  Some n
+ZofB_range_minus:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (minus_nan : Binary.binary_float prec emax ->
+                 Binary.binary_float prec emax ->
+                 {x : Binary.binary_float prec emax
+                 | Binary.is_nan prec emax x = true})
+    (m : BinarySingleNaN.mode) (f : Binary.binary_float prec emax)
+    (p q : BinNums.Z),
+  ZofB_range prec emax f BinNums.Z0
+    (BinInt.Z.sub (BinInt.Z.mul (BinInt.Z.pos (BinNums.xO BinNums.xH)) q)
+       (BinInt.Z.pos BinNums.xH)) =
+  Some p ->
+  BinInt.Z.le q (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) prec) ->
+  Rdefinitions.Rle (Rdefinitions.IZR q) (Binary.B2R prec emax f) ->
+  ZofB_range prec emax
+    (Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ minus_nan m f
+       (BofZ prec emax prec_gt_0_ prec_lt_emax_ q))
+    (BinInt.Z.opp q) (BinInt.Z.sub q (BinInt.Z.pos BinNums.xH)) =
+  Some (BinInt.Z.sub p q)
+Float32.mul2_add:
+  forall f : float32,
+  Float32.add f f =
+  Float32.mul f
+    (Float32.of_int
+       (Integers.Int.repr (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+Float32.div_mul_inverse:
+  forall x y z : float32,
+  Float32.exact_inverse y = Some z -> Float32.div x y = Float32.mul x z
+Float32.mul_commut:
+  forall
+    x
+     y : Binary.binary_float
+           (BinInt.Z.pos
+              (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH)))))
+           (BinInt.Z.pos
+              (BinNums.xO
+                 (BinNums.xO
+                    (BinNums.xO
+                       (BinNums.xO
+                          (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))),
+  Binary.is_nan
+    (BinInt.Z.pos
+       (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH)))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))))
+    x =
+  false \/
+  Binary.is_nan
+    (BinInt.Z.pos
+       (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH)))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))))
+    y =
+  false -> Float32.mul x y = Float32.mul y x

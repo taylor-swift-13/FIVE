@@ -1,0 +1,20 @@
+217: before_commit s \/ArithmeticAtomic.arithmetic_atomic_invariant ge f e k mf vout s.
+218:Theorem conditional_arithmetic_assignment_certificate:
+219: certificate ge assignment_arithmetic_invariant(State f Sskip k e mf).
+220:Proof.
+221: assert(PRE:certificate ge before_commit(ExprState f(Eval vout ty)(Kdo k)e mf)).
+222: { split;[exact before_commit_progress|exact before_commit_successors]. }
+223: pose proof(ArithmeticAtomic.arithmetic_atomic_certificate ge f e k mf vout)as POST.
+224: assert(PIN:ArithmeticAtomic.arithmetic_atomic_invariant ge f e k mf vout
+225: (ExprState f(Eval vout ty)(Kdo k)e mf)).
+226: { right;exists(Eval vout ty),mf;repeat split;reflexivity. }
+227: destruct PRE as[PP PC];destruct POST as[QP QC];split.
+228: - intros s[PS|QS].
+229:   + destruct(PP s PS)as[EQ|[t[next[STEP PN]]]].
+230:     * subst s;destruct(QP _ PIN)as[EQ|[t[next[STEP QN]]]];[auto|right;eauto].
+231:     * right;eauto.
+232:   + destruct(QP s QS)as[EQ|[t[next[STEP QN]]]];[auto|right;eauto].
+233: - intros s t next[PS|QS]NF STEP.
+234:   + destruct(classic(s=ExprState f(Eval vout ty)(Kdo k)e mf))as[EQ|NE].
+235:     * subst s;right;eapply QC;eauto.
+236:     * left;eapply PC;eauto.

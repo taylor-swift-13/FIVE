@@ -1,0 +1,440 @@
+Chars 0 - 287 [From~PprzTrigInitSupport~Requi...] 0.611 secs (0.351u,0.258s)
+encoder_source_call
+     : forall (m : Memory.Mem.mem) (bb : Values.block)
+         (cnt previous : BinNums.Z) (tb : Values.block)
+         (tofs : Integers.Ptrofs.int),
+       BinInt.Z.le BinNums.Z0 cnt /\
+       BinInt.Z.lt cnt
+         (BinInt.Z.pos
+            (BinNums.xO
+               (BinNums.xI
+                  (BinNums.xO
+                     (BinNums.xO
+                        (BinNums.xO
+                           (BinNums.xI
+                              (BinNums.xO
+                                 (BinNums.xO
+                                    (BinNums.xI
+                                       (BinNums.xO
+                                          (BinNums.xO (BinNums.xI BinNums.xH))))))))))))) ->
+       BinInt.Z.le BinNums.Z0 previous /\
+       BinInt.Z.le previous
+         (BinInt.Z.pos
+            (BinNums.xI
+               (BinNums.xI
+                  (BinNums.xI
+                     (BinNums.xI
+                        (BinNums.xI
+                           (BinNums.xI
+                              (BinNums.xI
+                                 (BinNums.xI
+                                    (BinNums.xI
+                                       (BinNums.xI
+                                          (BinNums.xI
+                                             (BinNums.xI
+                                                (BinNums.xI BinNums.xH)))))))))))))) ->
+       PackedPrefix.packed_prefix cnt m bb ->
+       Globalenvs.Genv.find_symbol
+         (Csem.genv_genv (Csem.globalenv Source.prog)) Source._data_buf_12 =
+       Some bb ->
+       exists mf : Memory.Mem.mem,
+         PackedPrefix.packed_prefix
+           (BinInt.Z.add cnt (BinInt.Z.pos BinNums.xH)) mf bb /\
+         Memory.Mem.unchanged_on (protected m bb) m mf /\
+         (forall (Q : Values.val -> Memory.Mem.mem -> Prop) (k : Csem.cont),
+          Csem.is_call_cont k ->
+          Total.total (Csem.globalenv Source.prog) Q
+            (Csem.Returnstate Values.Vundef k mf) ->
+          Total.total (Csem.globalenv Source.prog) Q
+            (Csem.Callstate (Ctypes.Internal Source.f_table_encode_12)
+               (Values.Vint (Integers.Int.repr (PackedPrefix.table_at cnt))
+                :: Values.Vint (Integers.Int.repr previous)
+                   :: Values.Vint (Integers.Int.repr cnt)
+                      :: Values.Vptr tb tofs :: nil)
+               k m))
+Chars 288 - 327 [Check~@EncoderCall.encoder_sou...] 0.001 secs (0.001u,0.s)
+encoder_statement_total
+     : forall (e : Csem.env) (m : Memory.Mem.mem) 
+         (bb : Values.block) (cnt previous : BinNums.Z)
+         (btab fb : Values.block),
+       BinInt.Z.le BinNums.Z0 cnt /\
+       BinInt.Z.lt cnt
+         (BinInt.Z.pos
+            (BinNums.xO
+               (BinNums.xI
+                  (BinNums.xO
+                     (BinNums.xO
+                        (BinNums.xO
+                           (BinNums.xI
+                              (BinNums.xO
+                                 (BinNums.xO
+                                    (BinNums.xI
+                                       (BinNums.xO
+                                          (BinNums.xO (BinNums.xI BinNums.xH))))))))))))) ->
+       BinInt.Z.le BinNums.Z0 previous /\
+       BinInt.Z.le previous
+         (BinInt.Z.pos
+            (BinNums.xI
+               (BinNums.xI
+                  (BinNums.xI
+                     (BinNums.xI
+                        (BinNums.xI
+                           (BinNums.xI
+                              (BinNums.xI
+                                 (BinNums.xI
+                                    (BinNums.xI
+                                       (BinNums.xI
+                                          (BinNums.xI
+                                             (BinNums.xI
+                                                (BinNums.xI BinNums.xH)))))))))))))) ->
+       PackedPrefix.packed_prefix cnt m bb ->
+       InitState.short_cell e m Source._val (PackedPrefix.table_at cnt) ->
+       InitState.short_cell e m Source._val_prev previous ->
+       InitState.short_cell e m Source._cnt cnt ->
+       Maps.PTree.get Source._tab_12 e = Some (btab, short_type) ->
+       Maps.PTree.get Source._table_encode_12 e = None ->
+       Globalenvs.Genv.find_symbol
+         (Csem.genv_genv (Csem.globalenv Source.prog)) Source._data_buf_12 =
+       Some bb ->
+       Globalenvs.Genv.find_symbol
+         (Csem.genv_genv (Csem.globalenv Source.prog))
+         Source._table_encode_12 =
+       Some fb ->
+       Globalenvs.Genv.find_funct
+         (Csem.genv_genv (Csem.globalenv Source.prog))
+         (Values.Vptr fb Integers.Ptrofs.zero) =
+       Some (Ctypes.Internal Source.f_table_encode_12) ->
+       exists mf : Memory.Mem.mem,
+         PackedPrefix.packed_prefix
+           (BinInt.Z.add cnt (BinInt.Z.pos BinNums.xH)) mf bb /\
+         Memory.Mem.unchanged_on (protected m bb) m mf /\
+         (forall (Q : Values.val -> Memory.Mem.mem -> Prop)
+            (f : Csyntax.function) (k : Csem.cont),
+          Total.total (Csem.globalenv Source.prog) Q
+            (Csem.State f Csyntax.Sskip k e mf) ->
+          Total.total (Csem.globalenv Source.prog) Q
+            (Csem.State f
+               (Csyntax.Sdo
+                  (four_call Source._table_encode_12 Source._val
+                     Source._val_prev Source._cnt Source._tab_12 fb
+                     match Maps.PTree.get Source._val e with
+                     | Some (b, _) => b
+                     | None => BinNums.xH
+                     end
+                     match Maps.PTree.get Source._val_prev e with
+                     | Some (b, _) => b
+                     | None => BinNums.xH
+                     end
+                     match Maps.PTree.get Source._cnt e with
+                     | Some (b, _) => b
+                     | None => BinNums.xH
+                     end btab (PackedPrefix.table_at cnt) previous cnt 0 0 0
+                     0 0))
+               k e m))
+Chars 328 - 376 [Check~@EncoderStatement.encode...] 0.001 secs (0.001u,0.s)
+init_entry_allocation
+     : forall (base : Memory.Mem.mem) (input buffer : Values.block),
+       Memory.Mem.valid_block base input ->
+       Memory.Mem.valid_block base buffer ->
+       input <> buffer ->
+       (forall i : BinNums.Z,
+        BinInt.Z.le BinNums.Z0 i /\
+        BinInt.Z.lt i
+          (BinInt.Z.pos
+             (BinNums.xO
+                (BinNums.xI
+                   (BinNums.xO
+                      (BinNums.xI
+                         (BinNums.xI
+                            (BinNums.xO
+                               (BinNums.xO
+                                  (BinNums.xI
+                                     (BinNums.xO (BinNums.xI BinNums.xH))))))))))) ->
+        Memory.Mem.load AST.Mint8unsigned base input i =
+        Some
+          (Values.Vint
+             (Integers.Int.repr
+                (ListDef.nth (BinInt.Z.to_nat i) TrigData.compressed_bytes
+                   BinNums.Z0)))) ->
+       PackedPrefix.packed_prefix BinNums.Z0 base buffer ->
+       exists (e : Csem.env) (mp : Memory.Mem.mem),
+         Cexec.do_alloc_variables (Csem.globalenv Source.prog) Csem.empty_env
+           base
+           (Csyntax.fn_params Source.f_pprz_trig_int_init ++
+            Csyntax.fn_vars Source.f_pprz_trig_int_init) =
+         (e, mp) /\
+         Cexec.sem_bind_parameters (Csem.globalenv Source.prog) quiet e mp
+           (Csyntax.fn_params Source.f_pprz_trig_int_init) nil =
+         Some mp /\
+         InitProtocol.init_shape e base input buffer /\
+         InitProtocol.protocol_core e base input buffer mp /\
+         PackedPrefix.packed_prefix BinNums.Z0 mp buffer /\
+         allocated_env InitProtocol.init_local_ids base e mp
+Chars 377 - 421 [Check~@InitAllocation.init_ent...] 0. secs (0.u,0.s)
+init_locals_free
+     : forall (e : Csem.env) (base : Memory.Mem.mem)
+         (input buffer : Values.block) (m : Memory.Mem.mem) 
+         (cnt : BinNums.Z),
+       InitProtocol.protocol_core e base input buffer m ->
+       PackedPrefix.packed_prefix cnt m buffer ->
+       exists mf : Memory.Mem.mem,
+         Memory.Mem.free_list m
+           (Csem.blocks_of_env (Csem.globalenv Source.prog) e) =
+         Some mf /\
+         Memory.Mem.unchanged_on
+           (fun (b : Values.block) (_ : BinNums.Z) =>
+            Memory.Mem.valid_block base b)
+           m mf /\
+         Memory.Mem.unchanged_on (protected base buffer) base mf /\
+         PackedPrefix.packed_prefix cnt mf buffer
+Chars 422 - 458 [Check~@InitCleanup.init_locals...] 0. secs (0.u,0.s)
+init_finish_total
+     : forall (e : Csem.env) (base : Memory.Mem.mem)
+         (input buffer : Values.block) (m : Memory.Mem.mem),
+       InitProtocol.outer_inv e base input buffer nil m ->
+       exists mf : Memory.Mem.mem,
+         PackedPrefix.packed_prefix
+           (BinInt.Z.pos
+              (BinNums.xO
+                 (BinNums.xI
+                    (BinNums.xO
+                       (BinNums.xO
+                          (BinNums.xO
+                             (BinNums.xI
+                                (BinNums.xO
+                                   (BinNums.xO
+                                      (BinNums.xI
+                                         (BinNums.xO
+                                            (BinNums.xO
+                                               (BinNums.xI BinNums.xH)))))))))))))
+           mf buffer /\
+         Memory.Mem.unchanged_on (protected base buffer) base mf /\
+         (forall (Q : Values.val -> Memory.Mem.mem -> Prop) (k : Csem.cont),
+          Total.total Execution.ge Q
+            (Csem.Returnstate (Values.Vint Integers.Int.zero)
+               (Csem.call_cont k) mf) ->
+          Total.total Execution.ge Q
+            (Csem.State Source.f_pprz_trig_int_init init_finish_statement k e
+               m))
+Chars 459 - 495 [Check~@InitFinish.init_finish_...] 0. secs (0.u,0.s)
+init_source_entry_prefix_total
+     : forall (Q : Values.val -> Memory.Mem.mem -> Prop) 
+         (k : Csem.cont) (base : Memory.Mem.mem)
+         (input buffer : Values.block),
+       Memory.Mem.valid_block base input ->
+       Memory.Mem.valid_block base buffer ->
+       input <> buffer ->
+       (forall i : BinNums.Z,
+        BinInt.Z.le BinNums.Z0 i /\
+        BinInt.Z.lt i
+          (BinInt.Z.pos
+             (BinNums.xO
+                (BinNums.xI
+                   (BinNums.xO
+                      (BinNums.xI
+                         (BinNums.xI
+                            (BinNums.xO
+                               (BinNums.xO
+                                  (BinNums.xI
+                                     (BinNums.xO (BinNums.xI BinNums.xH))))))))))) ->
+        Memory.Mem.load AST.Mint8unsigned base input i =
+        Some
+          (Values.Vint
+             (Integers.Int.repr
+                (ListDef.nth (BinInt.Z.to_nat i) TrigData.compressed_bytes
+                   BinNums.Z0)))) ->
+       PackedPrefix.packed_prefix BinNums.Z0 base buffer ->
+       (forall (e : Csem.env) (m : Memory.Mem.mem),
+        InitProtocol.outer_inv e base input buffer TrigData.literal_chunks m ->
+        Total.total Execution.ge Q
+          (Csem.State Source.f_pprz_trig_int_init InitLoop.outer_loop
+             (Csem.Kseq init_finish_statement k) e m)) ->
+       Total.total Execution.ge Q
+         (Csem.Callstate (Ctypes.Internal Source.f_pprz_trig_int_init) nil k
+            base)
+Chars 496 - 544 [Check~@InitStart.init_source_e...] 0. secs (0.u,0.s)
+total_actual_execution
+     : forall (ge : Csem.genv) (Q : Values.val -> Memory.Mem.mem -> Prop)
+         (s : Csem.state),
+       Total.total ge Q s ->
+       exists (v : Values.val) (m : Memory.Mem.mem) 
+       (t : Events.trace),
+         Smallstep.star Csem.step ge s t (Csem.Returnstate v Csem.Kstop m) /\
+         Q v m
+Chars 545 - 590 [Check~@TotalExistence.total_ac...] 0. secs (0.u,0.s)
+initializer_source_total
+     : InitOuterRule ->
+       forall (base : Memory.Mem.mem) (buffer : Values.block),
+       Globalenvs.Genv.init_mem (Ctypes.program_of_program Source.prog) =
+       Some base ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv Execution.ge)
+         Source._data_buf_12 =
+       Some buffer ->
+       Total.total Execution.ge (InitPost base buffer)
+         (Execution.entry nil base)
+Chars 591 - 634 [Check~@InitClosed.initializer_...] 0. secs (0.u,0.s)
+initializer_source_safe_termination
+     : InitOuterRule ->
+       forall base : Memory.Mem.mem,
+       Globalenvs.Genv.init_mem (Ctypes.program_of_program Source.prog) =
+       Some base ->
+       Obligations.safe_termination Execution.ge (Execution.entry nil base)
+Chars 635 - 689 [Check~@InitClosed.initializer_...] 0. secs (0.u,0.s)
+initializer_source_success_and_representation
+     : InitOuterRule ->
+       forall (base : Memory.Mem.mem) (buffer : Values.block),
+       Globalenvs.Genv.init_mem (Ctypes.program_of_program Source.prog) =
+       Some base ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv Execution.ge)
+         Source._data_buf_12 =
+       Some buffer ->
+       (exists (mf : Memory.Mem.mem) (t : Events.trace),
+          Smallstep.star Csem.step Execution.ge (Execution.entry nil base) t
+            (Csem.Returnstate (Values.Vint Integers.Int.zero) Csem.Kstop mf)) /\
+       (forall (v : Values.val) (mf : Memory.Mem.mem) (t : Events.trace),
+        Smallstep.star Csem.step Execution.ge (Execution.entry nil base) t
+          (Csem.Returnstate v Csem.Kstop mf) ->
+        InitPost base buffer v mf)
+Chars 690 - 754 [Check~@InitClosed.initializer_...] 0. secs (0.u,0.s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 755 - 805 [Print~Assumptions~EncoderCall....] 0.974 secs (0.872u,0.102s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 806 - 865 [Print~Assumptions~EncoderState...] 2.114 secs (2.073u,0.038s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 866 - 921 [Print~Assumptions~InitAllocati...] 0.576 secs (0.576u,0.s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 922 - 969 [Print~Assumptions~InitCleanup....] 0.445 secs (0.444u,0.s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 970 - 1017 [Print~Assumptions~InitFinish.i...] 0.705 secs (0.701u,0.003s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 1018 - 1077 [Print~Assumptions~InitStart.in...] 0.714 secs (0.698u,0.011s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 1078 - 1134 [Print~Assumptions~TotalExisten...] 0.493 secs (0.485u,0.003s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 1135 - 1189 [Print~Assumptions~InitClosed.i...] 0.771 secs (0.763u,0.007s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 1190 - 1255 [Print~Assumptions~InitClosed.i...] 0.788 secs (0.772u,0.016s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 1256 - 1331 [Print~Assumptions~InitClosed.i...] 0.759 secs (0.742u,0.016s)

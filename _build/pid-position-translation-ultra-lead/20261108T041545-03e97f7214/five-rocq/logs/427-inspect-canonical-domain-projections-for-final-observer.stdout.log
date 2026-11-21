@@ -1,0 +1,72 @@
+Record core_initial_data(m:mem)(gh:block):Type:={
+ cid_pid:block;cid_i:block;cid_traj:block;cid_total:block;cid_heading:block;cid_factory:block;
+ cid_kp:int;cid_kd:int;cid_ki:int;cid_kv:int;cid_ka:int;cid_ax:int;cid_ay:int;cid_ix:int;cid_iy:int;cid_h:float32;cid_hbits:int;
+ cid_pid_symbol:Genv.find_symbol E.ge S._guidance_pid=Some cid_pid;
+ cid_i_symbol:Genv.find_symbol E.ge S._guidance_pid_trim_att_integrator=Some cid_i;
+ cid_traj_symbol:Genv.find_symbol E.ge S._traj_max_bank=Some cid_traj;
+ cid_total_symbol:Genv.find_symbol E.ge S._total_max_bank=Some cid_total;
+ cid_heading_symbol:Genv.find_symbol E.ge S._guidance_h=Some cid_heading;
+ cid_factory_symbol:Genv.find_symbol E.ge S._stab_sp_from_ltp_i=Some cid_factory;
+ cid_factory_function:Genv.find_funct E.ge(Vptr cid_factory Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i);
+ cid_approx:Mem.load Mint8unsigned m cid_pid 44=Some(Vint Int.zero);
+ cid_gain_p:Mem.load Mint32 m cid_pid 0=Some(Vint cid_kp);
+ cid_gain_d:Mem.load Mint32 m cid_pid 4=Some(Vint cid_kd);
+ cid_gain_i:Mem.load Mint32 m cid_pid 8=Some(Vint cid_ki);
+ cid_gain_v:Mem.load Mint32 m cid_pid 12=Some(Vint cid_kv);
+ cid_gain_a:Mem.load Mint32 m cid_pid 16=Some(Vint cid_ka);
+ cid_accel_x:Mem.load Mint32 m gh 60=Some(Vint cid_ax);
+ cid_accel_y:Mem.load Mint32 m gh 64=Some(Vint cid_ay);
+ cid_integral_x:Mem.load Mint32 m cid_i 0=Some(Vint cid_ix);
+ cid_integral_y:Mem.load Mint32 m cid_i 4=Some(Vint cid_iy);
+ cid_trajectory_limit:Mem.load Mint32 m cid_traj 0=Some(Vint(Int.repr 1429));
+ cid_total_limit:Mem.load Mint32 m cid_total 0=Some(Vint(Int.repr 3216));
+ cid_heading_load:Mem.load Mfloat32 m cid_heading 28=Some(Vsingle cid_h);
+ cid_heading_cast:forall mm,sem_cast(Vsingle(Float32.mul cid_h(Float32.of_int(Int.repr 4096))))tfloat tint mm=Some(Vint cid_hbits);
+ cid_heading_bound:-12288<=Int.signed cid_hbits<=12288;
+ cid_pid_writable:Mem.range_perm m cid_pid 0 48 Cur Writable;
+ cid_i_writable:Mem.range_perm m cid_i 0 8 Cur Writable
+}.
+Lemma actual_factory_target : exists b,Genv.find_symbol E.ge S._stab_sp_from_ltp_i=Some b /\
+ Genv.find_funct E.ge(Vptr b Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i).
+Proof.
+ exists(PidTermination.symbol_block S._stab_sp_from_ltp_i);split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._stab_sp_from_ltp_i=Some(PidTermination.symbol_block S._stab_sp_from_ltp_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+ - change(Genv.find_funct_ptr(genv_genv PidTermination.ge)(PidTermination.symbol_block S._stab_sp_from_ltp_i)=Some(Internal S.f_stab_sp_from_ltp_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Qed.
+Theorem inputgood_core_initial_data : forall m gh ret,InputGood m gh ret ->exists data:core_initial_data m gh,True.
+Proof.
+ intros m gh ret GOOD;pose proof(proj1 GOOD)as LEG.
+ assert(WR:writable_controller_globals m)by(unfold InputGoodLegacy in LEG;tauto).
+ destruct(WR S._guidance_pid ltac:(cbn;intuition congruence))as[bp[gv[SP[VP WP]]]].
+ destruct(actual_global_variable_binding S._guidance_pid S.v_guidance_pid ltac:(vm_compute;reflexivity))as[bp0[SP0 VP0]].
+ rewrite SP in SP0;injection SP0 as EQ;subst bp0;rewrite VP0 in VP;injection VP as EQ;subst gv.
+ change(Mem.range_perm m bp 0 48 Cur Writable)in WP.
+ destruct(WR S._guidance_pid_trim_att_integrator ltac:(cbn;intuition congruence))as[bi[gv[SI[VI WI]]]].
+ destruct(actual_global_variable_binding S._guidance_pid_trim_att_integrator S.v_guidance_pid_trim_att_integrator ltac:(vm_compute;reflexivity))as[bi0[SI0 VI0]].
+ rewrite SI in SI0;injection SI0 as EQ;subst bi0;rewrite VI0 in VI;injection VI as EQ;subst gv.
+ change(Mem.range_perm m bi 0 8 Cur Writable)in WI.
+ assert(GAIN:forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka]->bounded_global m S._guidance_pid pid_type[gain]0 100)
+ by(unfold InputGoodLegacy in LEG;tauto).
+ destruct(GAIN S._kp ltac:(cbn;intuition congruence))as[kp[KP _]].
+ destruct(GAIN S._kd ltac:(cbn;intuition congruence))as[kd[KD _]].
+ destruct(GAIN S._ki ltac:(cbn;intuition congruence))as[ki[KI _]].
+ destruct(GAIN S._kv ltac:(cbn;intuition congruence))as[kv[KV _]].
+ destruct(GAIN S._ka ltac:(cbn;intuition congruence))as[ka[KA _]].
+ unfold load_global in KP,KD,KI,KV,KA;rewrite SP in KP,KD,KI,KV,KA.
+ assert(XY:forall axis,In axis[S._x;S._y]->
+ bounded_global m S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+ bounded_path m gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+ bounded_path m gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+ bounded_global m S._state state_type[S._ned_speed_i;axis](-10000)10000)
+ by(unfold InputGoodLegacy in LEG;tauto).
+ destruct(XY S._x ltac:(cbn;intuition congruence))as[[ix[IX _]][_[[ax[AX _]]_]]].
+ destruct(XY S._y ltac:(cbn;intuition congruence))as[[iy[IY _]][_[[ay[AY _]]_]]].
+ unfold load_global in IX,IY;rewrite SI in IX,IY.
+ assert(APP:load_global Mint8unsigned m S._guidance_pid pid_type[S._approx_force_by_thrust]=Some(Vint Int.zero))
+ by(unfold InputGoodLegacy in LEG;tauto).
+ unfold load_global in APP;rewrite SP in APP.
+ destruct(actual_global_variable_binding S._guidance_h S.v_guidance_h ltac:(vm_compute;reflexivity))as[bh[SH VH]].
+ assert(HEAD:heading_safe m)by(unfold InputGoodLegacy in LEG;tauto).
+ d

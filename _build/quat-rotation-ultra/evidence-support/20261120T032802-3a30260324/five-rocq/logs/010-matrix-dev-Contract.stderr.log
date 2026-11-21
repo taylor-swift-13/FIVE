@@ -1,0 +1,31 @@
+File "/home/yangfp/five/paparazzi/models/float_rmat_vmult/rocq/support/Contract.v", line 60, characters 7-22:
+Error:
+In environment
+e : PTree.tree (block * type)
+m : mem
+bp, b : block
+p : ptrofs
+v : Z -> float32
+fid : ident
+i : Z
+E : e ! _va = Some (bp, tptr vt)
+L : Mem.load Mptr m bp 0 = Some (Vptr b p)
+RD : Reads m b p 3 v
+D : fid = _x /\ i = 0 \/ fid = _y /\ i = 1 \/ fid = _z /\ i = 2
+B : 0 <= i < 3
+LOC :
+  pure_lval ge e m (Field _va fid) =
+  Some (b, Ptrofs.add p (Ptrofs.repr (4 * i)), Full)
+Unable to unify
+ "Mem.load Mfloat32 m b (Ptrofs.unsigned p + 4 * ?i) = Some (Vsingle (v ?i))"
+with
+ "match
+    match Mem.load Mfloat32 m b (Ptrofs.unsigned p + 4 * i) with
+    | Some v => Some (quiet_world, E0, v)
+    | None => None
+    end
+  with
+  | Some (_, _, v) => Some v
+  | None => None
+  end = Some (Vsingle (v i))".
+

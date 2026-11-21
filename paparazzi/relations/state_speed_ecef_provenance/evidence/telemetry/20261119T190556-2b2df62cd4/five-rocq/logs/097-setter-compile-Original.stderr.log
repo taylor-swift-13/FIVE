@@ -1,0 +1,154 @@
+Warning:
+Cannot open paparazzi/models/stateSetSpeedNed_i/rocq/no_error/problem
+[cannot-open-path,filesystem,default]
+Warning:
+Cannot open paparazzi/models/stateSetSpeedNed_i/rocq/no_error/attempts/001
+[cannot-open-path,filesystem,default]
+Warning:
+Cannot open paparazzi/models/stateSetSpeedNed_i/rocq/cbmc_recheck/problem
+[cannot-open-path,filesystem,default]
+Warning:
+Cannot open paparazzi/models/stateSetSpeedNed_i/rocq/cbmc_recheck/attempts/001
+[cannot-open-path,filesystem,default]
+Warning:
+Cannot open paparazzi/models/stateSetSpeedEcef_i/rocq/no_error/problem
+[cannot-open-path,filesystem,default]
+Warning:
+Cannot open paparazzi/models/stateSetSpeedEcef_i/rocq/no_error/attempts/001
+[cannot-open-path,filesystem,default]
+Warning:
+Cannot open paparazzi/models/stateSetSpeedEcef_i/rocq/cbmc_recheck/problem
+[cannot-open-path,filesystem,default]
+Warning:
+Cannot open paparazzi/models/stateSetSpeedEcef_i/rocq/cbmc_recheck/attempts/001
+[cannot-open-path,filesystem,default]
+File "/home/yangfp/five/paparazzi/models/stateSetSpeedNed_i/rocq/support/Original.v", line 97, characters 37-38:
+Error:
+In environment
+m : mem
+sb, src : block
+id, x, y, z : int
+GOOD : InputGood m sb src id x y z
+SYMBOL : Genv.find_symbol Setup.ge S._state = Some sb
+W : Mem.range_perm m sb 0 656 Cur Writable
+FILTER : Mem.load Mint16unsigned m sb 282 = Some (Vint (Int.repr 65535))
+SRC : src <> sb
+WORDS : VecRead m src x y z
+VS : Mem.valid_block m sb
+VI : Mem.valid_block m src
+e : env
+m0 : mem
+bi, bp : block
+TRACE : ParameterTrace m id src e m0 bi bp
+WI : Mem.valid_access m0 Mint16unsigned bi 0 Freeable
+WP : Mem.valid_access m0 Mptr bp 0 Freeable
+DIST : bi <> bp
+PTR : Mem.load Mptr m0 bp 0 = Some (Vptr src Ptrofs.zero)
+ENV : e = parameter_env bi bp
+IDLOOK : e ! S._id = Some (bi, tushort)
+LOOK : e ! S._ned_speed = Some (bp, tptr vtype)
+NONE : e ! S._state = None
+SYMBOL0 : Genv.find_symbol Setup.ge S._state = Some sb
+W0 : Mem.range_perm m0 sb 0 656 Cur Writable
+FILTER0 : Mem.load Mint16unsigned m0 sb 282 = Some (Vint (Int.repr 65535))
+SRC0 : src <> sb
+WORDS0 : VecRead m0 src x y z
+SBI : sb <> bi
+SBP : sb <> bp
+BP : bp <> sb
+mb, m1, m2, m3 : mem
+X : Mem.store Mint32 m0 sb destination_offset (Vint x) = Some m1
+Y : Mem.store Mint32 m1 sb (destination_offset + 4) (Vint y) = Some m2
+ZS : Mem.store Mint32 m2 sb (destination_offset + 8) (Vint z) = Some m3
+ST :
+  Mem.store Mint16unsigned m3 sb 280 (Vint (Int.repr selected_status)) =
+  Some mb
+BODY : stmt_eval Setup.ge e tvoid copy_body m0 = Some (Nnormal, mb)
+WIF : Mem.valid_access mb Mint16unsigned bi 0 Freeable
+WPF : Mem.valid_access mb Mptr bp 0 Freeable
+mf : mem
+FREE : Mem.free_list mb (blocks_of_env Setup.ge e) = Some mf
+LOAD :
+  forall (ch : memory_chunk) (b : block) (ofs : Z),
+  Mem.valid_block m b -> Mem.load ch mf b ofs = Mem.load ch mb b ofs
+BYTES :
+  forall (b : block) (ofs n : Z),
+  Mem.valid_block m b -> Mem.loadbytes mf b ofs n = Mem.loadbytes mb b ofs n
+PERM :
+  forall (b : block) (ofs : Z) (k : perm_kind) (p : permission),
+  Mem.valid_block m b -> Mem.perm mb b ofs k p <-> Mem.perm mf b ofs k p
+BODYINV :
+  normal_state (State f copy_body Kstop e m0) = true /\
+  call_names (State f copy_body Kstop e m0) /\
+  state_eval Setup.ge (State f copy_body Kstop e m0) = Some (Vundef, mf)
+Q :=
+  fun s : Csem.state =>
+  normal_state s = true /\
+  call_names s /\ state_eval ge s = Some (Vundef, mf) : 
+  Csem.state -> Prop
+QC : certificate ge Q (Returnstate Vundef Kstop mf)
+QI : Q (State f copy_body Kstop e m0)
+A0 : PureDenotation.pure_rval Setup.ge e m0 first_test = Some (Vint Int.zero)
+B1 : PureDenotation.pure_rval Setup.ge e m0 second_test = Some (Vint Int.one)
+GC :
+  certificate ge
+    (guard_false_invariant ge f e m0 (Kseq copy_body Kstop) 
+       (Sreturn None) Sskip first_test second_test third_test)
+    (State f Sskip (Kseq copy_body Kstop) e m0)
+GI :
+  guard_false_invariant ge f e m0 (Kseq copy_body Kstop) 
+    (Sreturn None) Sskip first_test second_test third_test
+    (State f
+       (Sifthenelse (guard_expr first_test second_test third_test)
+          (Sreturn None) Sskip)
+       (Kseq copy_body Kstop) e m0)
+R :=
+  guard_false_invariant ge f e m0 (Kseq copy_body Kstop) 
+    (Sreturn None) Sskip first_test second_test third_test
+  : Csem.state -> Prop
+RC :
+  certificate ge (fun s : Csem.state => R s \/ Q s)
+    (Returnstate Vundef Kstop mf)
+RI :
+  (fun s : Csem.state => R s \/ Q s)
+    (State f guard (Kseq copy_body Kstop) e m0)
+SC :
+  certificate ge
+    (fun s : Csem.state =>
+     s = State f (Ssequence guard copy_body) Kstop e m0 \/
+     (fun s0 : Csem.state => R s0 \/ Q s0) s)
+    (Returnstate Vundef Kstop mf)
+SI :
+  (fun s : Csem.state =>
+   s = State f (Ssequence guard copy_body) Kstop e m0 \/ R s \/ Q s)
+    (State f (Ssequence guard copy_body) Kstop e m0)
+ENTRY :
+  unique_transition Setup.ge (E.entry (Args id src) m)
+    (State f (Ssequence guard copy_body) Kstop e m0)
+FINAL :
+  certificate ge
+    (fun s : Csem.state =>
+     s = E.entry (Args id src) m \/
+     (fun s0 : Csem.state =>
+      s0 = State f (Ssequence guard copy_body) Kstop e m0 \/
+      (fun s1 : Csem.state => R s1 \/ Q s1) s0) s)
+    (Returnstate Vundef Kstop mf)
+CX : Mem.load Mint32 mb sb destination_offset = Some (Vint x)
+CY : Mem.load Mint32 mb sb (destination_offset + 4) = Some (Vint y)
+CZ : Mem.load Mint32 mb sb (destination_offset + 8) = Some (Vint z)
+CS :
+  Mem.load Mint16unsigned mb sb 280 = Some (Vint (Int.repr selected_status))
+BC : Mem.loadbytes mb sb destination_offset 12 = Some (typed_bytes x y z)
+IC : VecRead mb src x y z
+SPERM :
+  forall (b : block) (ofs : Z) (k : perm_kind) (p : permission),
+  Mem.perm m0 b ofs k p <-> Mem.perm mb b ofs k p
+b : block
+ofs, n : Z
+VB : Mem.valid_block m b
+N : 0 <= n
+MISS : forall i : Z, ofs <= i < ofs + n -> ~ writes sb b i
+The term "X" has type
+ "Mem.store Mint32 m0 sb destination_offset (Vint x) = Some m1"
+while it is expected to have type "284 <= ?d".
+

@@ -1,0 +1,389 @@
+
+FILE safety/HiddenResultPre.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation PureProgress CallfreeExecution.
+From PidPositionSafety Require Import PureCallArguments HiddenResultLhs HiddenResultContext.
+Import ListNotations.
+Module L:=HiddenResultLhs.
+Section PRE.
+Variable ge:genv.
+Variable caller leaf:function.
+Variable e:env.
+Variable k:cont.
+Variable m:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable params:list type.
+Variable cc:AST.calling_convention.
+Variable vf:val.
+Variable values:list val.
+Variable post:expr.
+Local Notation sty:=(L.sty sid).
+Local Notation LH:=(L.lhs sid ires br ret).
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_deref:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis find_leaf:Genv.find_funct ge vf=Some(Internal leaf).
+Hypothesis leaf_type:type_of_fundef(Internal leaf)=Tfunction params tvoid cc.
+Record prepared(fn:expr)(al:exprlist):Prop:={
+ prepared_fn_simple:simple fn=true;
+ prepared_args_simple:simplelist al=true;
+ prepared_fn_value:eval_simple_rvalue ge e m fn vf;
+ prepared_arg_values:eval_simple_list ge e m al params values;
+ prepared_class:classify_fun(typeof fn)=fun_case_f params tvoid cc
+}.
+Definition pre_expr(st:L.lhs_stage)(fn:expr)(al:exprlist):expr:=
+ hidden_expr(LH st)fn al post sty.
+Definition pre_state(st:L.lhs_stage)(fn:expr)(al:exprlist):Csem.state:=
+ ExprState caller(pre_expr st fn al)(Kdo k)e m.
+Definition frame(st:L.lhs_stage):cont:=
+ Kcall caller e(fun hole=>Eassign(LH st)(Ecomma hole post sty)sty)tvoid(Kdo k).
+Definition pre_or_call(s:Csem.state):Prop:=
+ (exists st fn al,prepared fn al /\s=pre_state st fn al)\/
+ (exists st,s=Callstate(Internal leaf)values(frame st)m).
+Lemma pre_immediate:forall st fn al,prepared fn al ->
+ imm_safe ge e RV(pre_expr st fn al)m.
+Proof.
+ intros st fn al[SF SA FV AV CL];unfold pre_expr,hidden_expr.
+ eapply lift_immediate with(from:=RV)(a:=Ecall fn al tvoid)
+ (C:=fun x=>Eassign(LH st)(Ecomma x post sty)sty).
+ - constructor;constructor;constructor.
+ - reflexivity.
+ - eapply call_immediate;[exact FV|exact AV|exact CL|exact find_leaf|exact leaf_type].
+Qed.
+Lemma pre_not_stuck:forall st fn al,prepared fn al ->
+ not_stuck ge e(pre_expr st fn al)m.
+Proof.
+ intros st fn al P from C a CT EQ.
+ pose proof(hidden_context_decompose from C a(LH st)fn al post sty CT (eq_sym EQ))as HH.
+ destruct P as[SF SA FV AV CL].
+ inversion HH;subst.
+ - apply pre_immediate;constructor;assumption.
+ - eapply big_subexpression_safe;[eassumption|rewrite <-H0;apply L.lhs_simple|].
+   rewrite <-H0;unfold big_defined;exists ret,Ptrofs.zero,Full;eapply L.lhs_big;[exact local_res|exact res_deref].
+ - eapply lift_immediate with(from:=RV)(a:=Ecall fn al tvoid)(C:=fun x=>Ecomma x post sty).
+   + constructor;constructor.
+   + reflexivity.
+   + eapply call_immediate;[exact FV|exact AV|exact CL|exact find_leaf|exact leaf_type].
+ - eapply call_immediate;[exact FV|exact AV|exact CL|exact find_leaf|exact leaf_type].
+ - eapply big_subexpression_safe;[eassumption|exact SF|].
+   unfold big_defined;eexists;exact FV.
+ - eapply arguments_subexpression_safe;eauto.
+Qed.
+Lemma prepared_function_replace:forall fn fn' al,
+ prepared fn al ->typeof fn=typeof fn' ->simple fn'=true ->
+ pure_rval ge e m fn=pure_rval ge e m fn' ->prepared fn' al.
+Proof.
+ intros fn fn' al[SF SA FV AV CL]TY SN EQ;constructor;auto.
+ - eapply rval_transport;[exact SF|exact SN|exact EQ|exact FV].
+ - rewrite <-TY;exact CL.
+Qed.
+Lemma prepared_arguments_replace:forall fn al al',
+ prepared fn al ->simplelist al'=true ->eval_simple_list ge e m al' params values ->
+ prepared fn al'.
+Proof. intros fn al al'[SF SA FV AV CL]SN EV;constructor;assumption. Qed.
+Lemma pre_lred_context:forall st fn al C a b mf,
+ prepared fn al ->context LV RV C ->C a=pre_expr st fn al ->
+ lred ge e a m b mf ->
+ mf=m /\exists st' fn' al',prepared fn' al'/\C b=pre_expr st' fn' al'.
+Proof.
+ intros st fn al C a b mf P CT EQ RED.
+ pose proof P as P0;destruct P as[SF SA FV AV CL].
+ pose proof(hidden_context_decompose LV C a(LH st)fn al post sty CT EQ)as HH.
+ inversion HH;subst.
+ - destruct(L.lhs_lred_closed ge caller e m sid ires br ret local_res res_deref st D a b mf H H0 RED)
+   as[MM[st' NEXT]];subst mf.
+   split;[reflexivity|exists st',fn,al;split;[exact P0|]].
+   unfold pre_expr,hidden_expr;rewrite NEXT;reflexivity.
+ - destruct(pure_replace_lred ge e m RV D a b mf H SF RED)as[MM[TY[SN DEN]]];subst mf.
+   split;[reflexivity|exists st,(D b),al;split;[|reflexivity]].
+   eapply prepared_function_replace;[exact P0|exact TY|exact SN|exact DEN].
+ - destruct(PureDenotation.pure_lred ge e a m b mf RED)as[MM[TY[SN DEN]]];subst mf.
+   destruct(arguments_transport ge e m LV D H a b params values(eq_sym TY)SN DEN SA AV)as[AN ARGS].
+   split;[reflexivity|exists st,fn,(D b);split;[|reflexivity]].
+   eapply prepared_arguments_replace;[exact P0|exact AN|exact ARGS].
+Qed.
+Lemma pre_rred_context:forall st fn al C a b t mf,
+ prepared fn al ->context RV RV C ->C a=pre_expr st fn al ->
+ rred ge a m t b mf ->
+ mf=m /\ t=E0/\exists st' fn' al',prepared fn' al'/\C b=pre_expr st' fn' al'.
+Proof.
+ intros st fn al C a b t mf P CT EQ RED.
+ pose proof P as P0;destruct P as[SF SA FV AV CL].
+ pose proof(hidden_context_decompose RV C a(LH st)fn al post sty CT EQ)as HH.
+ inversion HH;subst.
+ - inversion RED.
+ - destruct(L.lhs_rred_closed ge caller e m sid ires br ret local_res res_deref st D a b t mf H H0 RED)
+   as[MM[TT[st' NEXT]]];subst mf t.
+   split;[reflexivity|];split;[reflexivity|exists st',fn,al;split;[exact P0|]].
+   unfold pre_expr,hidden_expr;rewrite NEXT;reflexivity.
+ - inversion RED.
+ - inversion RED.
+ - destruct(pure_replace_rred ge e m RV D a b t mf H SF RED)as[MM[TT[TY[SN DEN]]]];subst mf t.
+   split;[reflexivity|];split;[reflexivity|exists st,(D b),al;split;[|reflexivity]].
+   eapply prepared_function_replace;[exact P0|exact TY|exact SN|exact DEN].
+ - pose proof(simplelist_hole _ _ H a SA)as SUB.
+   destruct(PureDenotation.pure_rred ge e a m t b mf SUB RED)as[MM[TT[TY[SN DEN]]]];subst mf t.
+   destruct(arguments_transport ge e m RV D H a b params values(eq_sym TY)SN DEN SA AV)as[AN ARGS].
+   split;[reflexivity|];split;[reflexivity|exists st,fn,(D b);split;[|reflexivity]].
+   eapply prepared_arguments_replace;[exact P0|exact AN|exact ARGS].
+Qed.
+Lemma pre_call_context:forall st fn al C a fd args ty,
+ prepared fn al ->context RV RV C ->C a=pre_expr st fn al ->
+ callred ge a m fd args ty ->
+ exists st',Callstate fd args(Kcall caller e C ty(Kdo k))m=
+ Callstate(Internal leaf)values(frame st')m.
+Proof.
+ intros st fn al C a fd args ty P CT EQ RED.
+ destruct P as[SF SA FV AV CL].
+ pose proof(hidden_context_decompose RV C a(LH st)fn al post sty CT EQ)as HH.
+ inversion HH;subst.
+ - inversion RED.
+ - assert(SUB:simple a=true).
+   { eapply simple_context_hole;[exact H|]. rewrite <-H0;apply L.lhs_simple. }
+   inversion RED;subst;discriminate SUB.
+ - inversion RED.
+ - inversion RED as[vf0 tyf0 m0 tyargs0 tyres0 cc0 el0 ty0 fd0 vals0 F0 C0 S0 CL0];subst.
+   inversion FV;subst.
+   rewrite find_leaf in F0;injection F0 as FD;subst fd.
+   rewrite leaf_type in S0;injection S0 as PARAM RET CC;subst tyargs0 tyres0 cc0.
+   pose proof(cast_values_unique ge e m _ params args values C0 AV)as VALUES;subst args.
+   exists st;reflexivity.
+ - pose proof(simple_context_hole _ _ _ H a SF)as SUB;inversion RED;subst;discriminate SUB.
+ - pose proof(simplelist_hole _ _ H a SA)as SUB;inversion RED;subst;discriminate SUB.
+Qed.
+
+Theorem pre_all_successors:forall st fn al t next,
+ prepared fn al ->Csem.step ge(pre_state st fn al)t next ->
+ t=E0/\pre_or_call next.
+Proof.
+ intros st fn al t next P STEP;destruct STEP as[ES|SS].
+ - inversion ES;subst.
+   + match goal with CT:Csem.context LV RV ?C,EQ:?C ?a=pre_expr st fn al,
+       RED:lred ge e ?a m ?b ?mf|-_ =>
+       destruct(pre_lred_context st fn al C a b mf P CT EQ RED)
+       as[MM[st'[fn'[al'[PN EX]]]]];subst mf end.
+     split;[reflexivity|left;exists st',fn',al';split;[exact PN|]].
+     unfold pre_state;rewrite EX;reflexivity.
+   + match goal with CT:Csem.context RV RV ?C,EQ:?C ?a=pre_expr st fn al,
+       RED:rred ge ?a m t ?b ?mf|-_ =>
+       destruct(pre_rred_context st fn al C a b t mf P CT EQ RED)
+       as[MM[TT[st'[fn'[al'[PN EX]]]]]];subst mf t end.
+     split;[reflexivity|left;exists st',fn',al';split;[exact PN|]].
+     unfold pre_state;rewrite EX;reflexivity.
+   + match goal with CT:Csem.context RV RV ?C,EQ:?C ?a=pre_expr st fn al,
+       RED:callred ge ?a m ?fd ?args ?ty|-_ =>
+       destruct(pre_call_context st fn al C a fd args ty P CT EQ RED)as[st' EX]end.
+     split;[reflexivity|right;exists st';exact EX].
+   + exfalso;apply H7;exact(pre_not_stuck st fn al P K C a H6(eq_sym H0)).
+ - inversion SS.
+Qed.
+Theorem pre_progress:forall st fn al,prepared fn al ->
+ exists t next,Csem.step ge(pre_state st fn al)t next/\pre_or_call next.
+Proof.
+ intros st fn al P.
+ destruct(immediate_has_step ge caller(pre_expr st fn al)(Kdo k)e m eq_refl
+ (pre_immediate st fn al P))as[t[next STEP]].
+ exists t,next;split;[exact STEP|exact(proj2(pre_all_successors st fn al t next P STEP))].
+Qed.
+
+End PRE.
+Print Assumptions pre_not_stuck.
+
+
+FILE safety/HiddenContext.v
+missing
+
+FILE HiddenResultNoSub.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation PureProgress AtomicDenotation BlockExecution PhaseComposition FactorShell.
+From PidPositionSafety Require Import HiddenResultLhs HiddenResultContext HiddenResultPre NoSubHiddenPost ObservedReadonly SubtractionObservation.
+From PidPositionTranslationAttempt002 Require Import NoSubSyntax NoSubHiddenPre.
+Import ListNotations.
+Module A:=HiddenResultPre.
+Module B:=NoSubHiddenPost.
+Module N:=NoSubHiddenPre.
+Module L:=HiddenResultLhs.
+Section COMPLETE.
+Variable ge:genv.
+Variable caller leaf:function.
+Variable e:env.
+Variable k:cont.
+Variable m mc mf:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable params:list type.
+Variable cc:AST.calling_convention.
+Variable vf:val.
+Variable values:list val.
+Variable fn:expr.
+Variable args:exprlist.
+Variable post:expr.
+Variable v vc copied:val.
+Local Notation sty:=(L.sty sid).
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_before:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis res_after:Cexec.do_deref_loc ge quiet_world(tptr sty)mc br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis find_leaf:Genv.find_funct ge vf=Some(Internal leaf).
+Hypothesis leaf_type:type_of_fundef(Internal leaf)=Tfunction params tvoid cc.
+Hypothesis prepared_initial:A.prepared ge e m params cc vf values fn args.
+Hypothesis fn_nosub:no_sub fn=true.
+Hypothesis args_nosub:no_sub_list args=true.
+Hypothesis post_type:typeof post=sty.
+Hypothesis post_simple:simple post=true.
+Hypothesis post_nosub:no_sub post=true.
+Hypothesis post_value:pure_rval ge e mc post=Some v.
+Hypothesis cast_value:sem_cast v sty sty mc=Some vc.
+Hypothesis store_copy:Cexec.do_assign_loc ge quiet_world sty mc ret Ptrofs.zero Full vc=
+ Some(quiet_world,E0,mf,copied).
+Local Notation observe:=(subtraction_observation ge caller).
+Hypothesis callee_certificate:forall base,is_call_cont base ->
+ exists P,certificate ge P(Returnstate Vundef base mc)/\
+ P(Callstate(Internal leaf)values base m)/\(forall s,P s->observe s).
+Definition prepared_pair:Type:={p:expr*exprlist|N.prepared ge e m params cc vf values(fst p)(snd p)}.
+Definition start_pair:prepared_pair:=exist _ (fn,args)(conj prepared_initial(conj fn_nosub args_nosub)).
+Definition Pre(st:L.lhs_stage)(r:prepared_pair)(_:unit):Csem.state:=
+ A.pre_state caller e k m sid ires br ret post st(fst(proj1_sig r))(snd(proj1_sig r)).
+Definition Frame(st:L.lhs_stage)(_:prepared_pair):cont:=
+ A.frame caller e k sid ires br ret post st.
+Definition Call(st:L.lhs_stage)(r:prepared_pair):Csem.state:=
+ Callstate(Internal leaf)values(Frame st r)m.
+Definition Post(st:L.lhs_stage)(_:prepared_pair):Csem.state:=
+ B.post_state caller e k mc sid ires br ret post st.
+Definition Initial:Csem.state:=State caller
+ (Sdo(hidden_expr(L.lhs sid ires br ret L.H0)fn args post sty))k e m.
+Definition target:=State caller Sskip k e mf.
+Lemma convert_class:forall next,
+ N.pre_or_call ge caller leaf e k m sid ires br ret params cc vf values post next ->
+ ObservedReadonly.pre_or_call L.lhs_stage prepared_pair unit Pre Call next.
+Proof.
+ intros next[[st[fn'[al'[P EQ]]]]|[st EQ]].
+ - left;exists st,(exist _ (fn',al')P),tt;exact EQ.
+ - right;exists st,start_pair;exact EQ.
+Qed.
+Theorem hidden_result_no_sub_certificate:
+ exists P,certificate ge P target/\P Initial/\(forall s,P s->observe s).
+Proof.
+ assert(PP:forall st r u,exists t next,Csem.step ge(Pre st r u)t next/\
+ ObservedReadonly.pre_or_call L.lhs_stage prepared_pair unit Pre Call next).
+ { intros st[[f al]P]u.
+   destruct(N.pre_progress ge caller leaf e k m sid ires br ret params cc vf values post
+   local_res res_before find_leaf leaf_type post_nosub st f al P)as[t[next[STEP CL]]].
+   exists t,next;split;[exact STEP|apply convert_class;exact CL]. }
+ assert(PC:forall st r u t next,Csem.step ge(Pre st r u)t next ->
+ ObservedReadonly.pre_or_call L.lhs_stage prepared_pair unit Pre Call next).
+ { intros st[[f al]P]u t next STEP;apply convert_class.
+   exact(N.pre_all_successors ge caller leaf e k m sid ires br ret params cc vf values post
+   local_res res_before find_leaf leaf_type post_nosub st f al t next P STEP). }
+ assert(CAL:forall st r,exists P,certificate ge P(Returnstate Vundef(Frame st r)mc)/\P(Call st r)/\(forall s,P s->observe s)).
+ { intros;apply callee_certificate;exact I. }
+ assert(RET:forall st r,unique_transition ge(Returnstate Vundef(Frame st r)mc)(Post st r)).
+ { intros;unfold Frame,A.frame,Post,B.post_state,B.comma_expr;split;[right;apply Csem.step_returnstate|].
+   intros t next STEP;exact(FactorShell.return_call_step_unique ge Vundef caller e
+   (fun hole=>Eassign(L.lhs sid ires br ret st)(Ecomma hole post sty)sty)tvoid(Kdo k)mc t next STEP). }
+ assert(POST:forall st r,exists Q,certificate ge Q target/\Q(Post st r)/\(forall s,Q s->observe s)).
+ { intros;eexists;split.
+   - exact(B.post_certificate ge caller e k mc mf sid ires br ret post v vc copied
+     local_res res_after post_type post_simple post_nosub post_value cast_value store_copy).
+   - split;[apply B.post_initial|].
+     intros s INV;destruct s;try exact I.
+     apply no_sub_subtraction_observation;eapply B.post_observation;eauto. }
+ eexists;split.
+ - eapply ObservedReadonly.readonly_assignment_certificate
+   with(pre:=Pre)(call:=Call)(frame:=Frame)(post:=Post)(initial:=Initial)
+   (observe:=observe)(result:=Vundef)(m:=mc)(l0:=L.H0)(r0:=start_pair)(f0:=tt).
+   + exact PP.
+   + exact PC.
+   + split;[right;apply Csem.step_do_1|].
+     intros t next STEP;eapply FactorShell.do_step_unique;exact STEP.
+   + exact CAL.
+   + exact RET.
+   + exact POST.
+ - split;[left;reflexivity|].
+   intros s IN;eapply ObservedReadonly.observations with(initial:=Initial)(pre:=Pre);
+   [exact I| |exact IN].
+   intros st[[f al][PRE[NF NA]]]u.
+   unfold Pre,A.pre_state;apply no_sub_subtraction_observation.
+   unfold A.pre_expr;apply hidden_no_sub;assumption.
+Qed.
+End COMPLETE.
+Print Assumptions hidden_result_no_sub_certificate.
+
+
+FILE NoSubSyntax.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Maps AST Integers Values Memory Events Ctypes Cop Csyntax Csem Cstrategy.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation.
+From PidPositionSafety Require Import SubtractionObservation.
+Fixpoint no_sub(a:expr):bool:=
+ match a with
+ | Eval _ _|Evar _ _|Eloc _ _ _ _|Esizeof _ _|Ealignof _ _=>true
+ | Evalof a _|Ederef a _|Eaddrof a _|Efield a _ _|Eunop _ a _|Ecast a _|Eparen a _ _=>no_sub a
+ | Epostincr _ _ _|Eassignop _ _ _ _ _=>false
+ | Ebinop Osub _ _ _=>false
+ | Ebinop _ a b _|Eassign a b _|Eseqand a b _|Eseqor a b _|Ecomma a b _=>no_sub a&&no_sub b
+ | Econdition c a b _=>no_sub c&&no_sub a&&no_sub b
+ | Ecall a al _=>no_sub a&&no_sub_list al
+ | Ebuiltin _ _ al _=>no_sub_list al
+ end
+with no_sub_list(al:exprlist):bool:=match al with
+ | Enil=>true|Econs a al=>no_sub a&&no_sub_list al end.
+Ltac nosub_boolean :=
+ repeat rewrite Bool.andb_true_iff in *;
+ repeat match goal with H:_ /\ _|-_=>destruct H end;
+ try discriminate;repeat split;eauto 3.
+Lemma no_sub_context_congr_mut:
+ (forall from to C,context from to C ->forall a b,
+ no_sub(C a)=true ->no_sub b=true ->no_sub(C b)=true) /\
+ (forall from C,contextlist from C ->forall a b,
+ no_sub_list(C a)=true ->no_sub b=true ->no_sub_list(C b)=true).
+Proof.
+ apply SourceClosure.context_contextlist_ind;intros;
+ try match goal with op:binary_operation|-_=>destruct op end;
+ cbn[no_sub no_sub_list]in*;nosub_boolean.
+Qed.
+Lemma no_sub_context_congr:forall from to C,context from to C ->forall a b,
+ no_sub(C a)=true ->no_sub b=true ->no_sub(C b)=true.
+Proof. exact(proj1 no_sub_context_congr_mut). Qed.
+Lemma no_sub_context_hole_mut:
+ (forall from to C,context from to C ->forall a,no_sub(C a)=true ->no_sub a=true) /\
+ (forall from C,contextlist from C ->forall a,no_sub_list(C a)=true ->no_sub a=true).
+Proof.
+ apply SourceClosure.context_contextlist_ind;intros;
+ try match goal with op:binary_operation|-_=>destruct op end;
+ cbn[no_sub no_sub_list]in*;nosub_boolean.
+Qed.
+Lemma no_sub_context_hole:forall from to C,context from to C ->forall a,
+ no_sub(C a)=true ->no_sub a=true.
+Proof. exact(proj1 no_sub_context_hole_mut). Qed.
+Lemma no_sub_lred:forall ge e a m b mf,lred ge e a m b mf ->no_sub b=true.
+Proof. intros;inversion H;reflexivity. Qed.
+Lemma no_sub_rred:forall ge a m t b mf,
+ no_sub a=true ->rred ge a m t b mf ->no_sub b=true.
+Proof.
+ intros ge a m t b mf NS RED;inversion RED;subst;cbn[no_sub]in*;nosub_boolean.
+ all:repeat match goal with|-context[if ?b then _ else _]=>destruct b;cbn[no_sub]in*;nosub_boolean end.
+Qed.
+Definition expr_no_sub(s:Csem.state):Prop:=match s with
+ | ExprState _ a _ _ _=>no_sub a=true|_=>True end.
+Lemma no_sub_estep:forall ge f a k e m t next,
+ no_sub a=true ->Csem.estep ge(ExprState f a k e m)t next ->expr_no_sub next.
+Proof.
+ intros ge f a k e m t next NS STEP;inversion STEP;subst;cbn[expr_no_sub];try exact I.
+ - eapply no_sub_context_congr;[eassumption|exact NS|eapply no_sub_lred;eassumption].
+ - eapply no_sub_context_congr;[eassumption|exact NS|].
+   eapply no_sub_rred;[eapply no_sub_context_hole;[eassumption|exact NS]|eassumption].
+Qed.
+Lemma no_sub_subtraction_observation:forall ge caller f a k e m,
+ no_sub a=true ->subtraction_observation ge caller(ExprState f a k e m).
+Proof.
+ intros ge caller f a k e m NS FF C x y CT EQ;subst a.
+ pose proof(no_sub_context_hole RV RV C CT _ NS)as BAD;discriminate BAD.
+Qed.
+Print Assumptions no_sub_estep.
+

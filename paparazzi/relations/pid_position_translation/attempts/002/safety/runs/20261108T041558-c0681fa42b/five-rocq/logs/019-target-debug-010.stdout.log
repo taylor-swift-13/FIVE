@@ -1,0 +1,159 @@
+21 goals
+  
+  ge : genv
+  block_cost : block -> nat
+  allowed : fundef -> Prop
+  allowed_call :
+    forall (v : val) (fd : fundef),
+    Genv.find_funct ge v = Some fd -> allowed fd
+  internal_body :
+    forall f : function, allowed (Internal f) -> core_stmt (fn_body f)
+  internal_env :
+    forall f : function,
+    allowed (Internal f) ->
+    forall (m : mem) (e : env) (m' : mem),
+    alloc_variables ge empty_env m (fn_params f ++ fn_vars f) e m' ->
+    env_no_functions e
+  call_budget :
+    forall (v : val) (fd : fundef),
+    Genv.find_funct ge v = Some fd ->
+    activation_rank fd + 2 < 1 + pointer_cost v
+  k : kind
+  C : expr -> expr
+  ty : type
+  c : context k RV C
+  H :
+    forall (a : expr) (al : exprlist) (ty : type),
+    core_expr (C (Ecall a al ty)) ->
+    forall v : val,
+    expression_rank (C (Ecall a al ty)) =
+    expression_rank (C (Eval v ty)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al)
+  a : expr
+  al : exprlist
+  ty0 : type
+  H0 : core_expr (C (Ecall a al ty0))
+  v : val
+  ============================
+  False
+
+goal 2 is:
+ S (expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 3 is:
+ S (expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 4 is:
+ S (expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 5 is:
+ S (expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 6 is:
+ S (expression_rank (C (Ecall a al ty0)) + expression_rank e2) =
+ S
+   (expression_rank (C (Eval v ty0)) + expression_rank e2 +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 7 is:
+ S (expression_rank e1 + expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank e1 + expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 8 is:
+ S (expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 9 is:
+ S (S (expression_rank (C (Ecall a al ty0)) + expression_rank r2)) =
+ S
+   (S
+      (expression_rank (C (Eval v ty0)) + expression_rank r2 +
+       S (function_cost a + expression_rank a + expressionlist_rank al)))
+goal 10 is:
+ S (S (expression_rank (C (Ecall a al ty0)) + expression_rank r2)) =
+ S
+   (S
+      (expression_rank (C (Eval v ty0)) + expression_rank r2 +
+       S (function_cost a + expression_rank a + expressionlist_rank al)))
+goal 11 is:
+ S
+   (S
+      (expression_rank (C (Ecall a al ty0)) + expression_rank r2 +
+       expression_rank r3)) =
+ S
+   (S
+      (expression_rank (C (Eval v ty0)) + expression_rank r2 +
+       expression_rank r3 +
+       S (function_cost a + expression_rank a + expressionlist_rank al)))
+goal 12 is:
+ S (expression_rank (C (Ecall a al ty0)) + expression_rank e2) =
+ S
+   (expression_rank (C (Eval v ty0)) + expression_rank e2 +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 13 is:
+ S (expression_rank e1 + expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank e1 + expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 14 is:
+ S (S (S (expression_rank (C (Ecall a al ty0)) + expression_rank e2))) =
+ S
+   (S
+      (S
+         (expression_rank (C (Eval v ty0)) + expression_rank e2 +
+          S (function_cost a + expression_rank a + expressionlist_rank al))))
+goal 15 is:
+ S (S (S (expression_rank e1 + expression_rank (C (Ecall a al ty0))))) =
+ S
+   (S
+      (S
+         (expression_rank e1 + expression_rank (C (Eval v ty0)) +
+          S (function_cost a + expression_rank a + expressionlist_rank al))))
+goal 16 is:
+ S (S (S (S (expression_rank (C (Ecall a al ty0)))))) =
+ S
+   (S
+      (S
+         (S
+            (expression_rank (C (Eval v ty0)) +
+             S (function_cost a + expression_rank a + expressionlist_rank al)))))
+goal 17 is:
+ S
+   (function_cost (C (Ecall a al ty0)) + expression_rank (C (Ecall a al ty0)) +
+    expressionlist_rank el) =
+ S
+   (function_cost (C (Eval v ty0)) + expression_rank (C (Eval v ty0)) +
+    expressionlist_rank el +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 18 is:
+ S
+   (function_cost e1 + expression_rank e1 +
+    expressionlist_rank (C (Ecall a al ty0))) =
+ S
+   (function_cost e1 + expression_rank e1 +
+    expressionlist_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 19 is:
+ S (expressionlist_rank (C (Ecall a al ty0))) =
+ S
+   (expressionlist_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 20 is:
+ S (expression_rank (C (Ecall a al ty0)) + expression_rank e2) =
+ S
+   (expression_rank (C (Eval v ty0)) + expression_rank e2 +
+    S (function_cost a + expression_rank a + expressionlist_rank al))
+goal 21 is:
+ S (expression_rank (C (Ecall a al ty0))) =
+ S
+   (expression_rank (C (Eval v ty0)) +
+    S (function_cost a + expression_rank a + expressionlist_rank al))

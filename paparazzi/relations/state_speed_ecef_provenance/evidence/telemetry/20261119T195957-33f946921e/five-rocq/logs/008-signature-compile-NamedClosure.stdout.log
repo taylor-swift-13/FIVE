@@ -1,0 +1,29 @@
+1 goal
+  
+  ge : genv
+  allowed : fundef -> Prop
+  call_budget : type -> fundef -> Prop
+  m : mem
+  fd : fundef
+  args : list val
+  ty : type
+  vf : val
+  tyf : type
+  el : exprlist
+  H3 : nv ty
+  H4 : data_type ty
+  H5 : nv tyf
+  H7 : safe_value tyf vf
+  H6 : core_exprlist el
+  RED : callred ge (Ecall (Eval vf tyf) el ty) m fd args ty
+  tyargs : list type
+  tyres : type
+  cconv : calling_convention
+  H : Genv.find_funct ge vf = Some fd
+  H0 : cast_arguments m el tyargs args
+  H1 : type_of_fundef fd = Tfunction tyargs tyres cconv
+  H2 : classify_fun tyf = fun_case_f tyargs tyres cconv
+  ============================
+  allowed fd /\
+  call_budget (typeof (Eval vf tyf)) fd /\
+  nv ty /\ typeof (Ecall (Eval vf tyf) el ty) = ty

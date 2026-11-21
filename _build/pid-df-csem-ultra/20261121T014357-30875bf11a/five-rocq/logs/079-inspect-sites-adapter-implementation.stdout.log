@@ -1,0 +1,364 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import StackCleanup FunctionAllocation.
+From FiveLowpassUpdate Require Import Source Execution.
+From FiveLowpassSupport Require Import Expressions Straightline LowpassMemory.
+From FiveLowpassUpdateCase Require Import Contract UpdateBody UpdateCall.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+Definition Guard(k:nat)(m:mem)(b:block)(p:ptrofs)(delta:Z):Prop:=
+ match k with
+ |0%nat=>forall i,Vptr b p<>Vint i /\Vptr b p<>Vlong Int64.zero
+ |1%nat=>Mem.valid_block m b
+ |2%nat|3%nat=>Mem.range_perm m b(Ptrofs.unsigned p+delta)(Ptrofs.unsigned p+delta+4)Cur Nonempty
+ |4%nat=>Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+delta)Writable
+ |5%nat=>forall i,Vptr b(Ptrofs.add p(Ptrofs.repr delta))<>Vint i /\Vptr b(Ptrofs.add p(Ptrofs.repr delta))<>Vlong Int64.zero
+ |_=>False end.
+Lemma field_guards:forall m b p delta,writable12 m b p->In delta[0;4;8]->forall k,(k<6)%nat->Guard k m b p delta.
+Proof.
+ intros m b p delta W D k K;pose proof(field_access m b p delta W D)as VA.
+ assert(VB:Mem.valid_block m b)by(eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|constructor]).
+ assert(RG:Mem.range_perm m b(Ptrofs.unsigned p+delta)(Ptrofs.unsigned p+delta+4)Cur Nonempty).
+ { intros z Z;eapply Mem.perm_implies;[apply(proj1 VA);cbn[size_chunk];lia|constructor]. }
+ destruct k as[|[|[|[|[|[|k]]]]]];cbn[Guard];try lia;try exact VA;try exact RG;try exact VB;intros;split;discriminate.
+Qed.
+Definition SiteProperty(site k:nat):Prop:=forall m b p tc li lo value,Initialized m b p tc li lo->
+ exists e bound local written final bp,
+ Csem.step Execution.ge(Execution.entry(Args b p value)m)E0
+ (State Source.f_update_first_order_low_pass(fn_body Source.f_update_first_order_low_pass)Kstop e bound) /\
+ stmt_eval Execution.ge e tfloat(fn_body Source.f_update_first_order_low_pass)bound=Some(Nreturn(Vsingle(output tc li lo value)),final) /\
+ atomic_eval Execution.ge e bound(Eassign(Evar Source._out tfloat)formula tfloat)=Some(Vsingle(output tc li lo value),local) /\
+ atomic_eval Execution.ge e local(Eassign(field Source._last_in)(input_var Source._value)tfloat)=Some(Vsingle value,written) /\
+ atomic_eval Execution.ge e written(Eassign(field Source._last_out)(input_var Source._out)tfloat)=Some(Vsingle(output tc li lo value),final) /\
+ e!Source._filter=Some(bp,filter_type) /\
+ match site with
+ |0%nat=>pure_lval Execution.ge e bound(field Source._last_in)=Some(b,Ptrofs.add p(Ptrofs.repr 4),Full) /\
+ pure_lval Execution.ge e local(field Source._last_in)=Some(b,Ptrofs.add p(Ptrofs.repr 4),Full) /\Guard k bound b p 4 /\Guard k local b p 4
+ |1%nat=>pure_lval Execution.ge e bound(field Source._time_const)=Some(b,Ptrofs.add p(Ptrofs.repr 0),Full) /\Guard k bound b p 0
+ |2%nat=>pure_lval Execution.ge e bound(field Source._last_out)=Some(b,Ptrofs.add p(Ptrofs.repr 8),Full) /\Guard k bound b p 8
+ |3%nat=>pure_lval Execution.ge e written(field Source._last_out)=Some(b,Ptrofs.add p(Ptrofs.repr 8),Full) /\Guard k written b p 8
+ |_=>False end.
+Theorem site_properties:forall site k,(site<4)%nat->(k<6)%nat->SiteProperty site k.
+Proof. intros site k SITE K;unfold SiteProperty.
+ intros m b p tc li lo value INIT;pose proof(proj1 INIT)as P.
+ pose proof(field_access m b p 4 P ltac:(simpl;auto))as W4.
+ pose proof(field_access m b p 8 P ltac:(simpl;auto))as W8.
+ assert(OBJ:Mem.valid_block m b).
+ { eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact W4|constructor]. }
+ destruct(Cexec.do_alloc_variables Execution.ge empty_env m update_declarations)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables Execution.ge empty_env m update_declarations e ma).
+ { pose proof(Cexec.do_alloc_variables_sound Execution.ge update_declarations empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)update_declarations->exists bx,e!id=Some(bx,ty) /\~Mem.valid_block m bx /\Mem.range_perm ma bx 0(sizeof Execution.ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable Execution.ge update_declarations empty_env m id ty update_alloc_nodup IN)as H;rewrite ALLOC in H;destruct H as(bx&L&F&V&PR);exists bx;auto. }
+ destruct(ALL Source._filter filter_type ltac:(left;reflexivity))as(bp&LP&FP&RP).
+ destruct(ALL Source._value tfloat ltac:(right;left;reflexivity))as(bv&LV&FV&RV).
+ destruct(ALL Source._out tfloat ltac:(right;right;left;reflexivity))as(bo&LO&FO&RO).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated Execution.ge update_declarations empty_env m ltac:(intros id bx ty H;discriminate H)ltac:(intros id1 id2 bx t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(PB:bp<>b).
+ { intro EQ;subst bp;apply FP;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact W4|constructor]. }
+ assert(VB:bv<>b).
+ { intro EQ;subst bv;apply FV;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact W4|constructor]. }
+ assert(PV:bp<>bv).
+ { intro EQ;subst bp;pose proof(SEP _ _ _ _ _ LP LV);discriminate. }
+ assert(OB:bo<>b)by(intro EQ;subst bo;exact(FO OBJ)).
+ assert(PO:bp<>bo)by(intro EQ;subst bp;pose proof(SEP _ _ _ _ _ LP LO);discriminate).
+ assert(VO:bv<>bo)by(intro EQ;subst bv;pose proof(SEP _ _ _ _ _ LV LO);discriminate).
+ assert(WP:Mem.valid_access ma Mptr bp 0 Writable).
+ { apply Mem.valid_access_freeable_any;split.
+ - intros ofs R;apply RP;change(0<=ofs<8);change(0<=ofs<8)in R;exact R.
+ - exists 0;lia. }
+ destruct(Mem.valid_access_store ma Mptr bp 0(Vptr b p)WP)as[mb SP].
+ assert(WV:Mem.valid_access mb Mfloat32 bv 0 Writable).
+ { eapply Mem.store_valid_access_1;[exact SP|]. apply Mem.valid_access_freeable_any;split.
+ - intros ofs R;apply RV;change(0<=ofs<4);exact R.
+ - exists 0;lia. }
+ destruct(Mem.valid_access_store mb Mfloat32 bv 0(Vsingle value)WV)as[mc SV].
+ assert(BIND:bind_parameters Execution.ge e ma update_parameters[Vptr b p;Vsingle value]mc).
+ { eapply bind_parameters_cons;[exact LP| |].
+ - eapply assign_loc_value;[reflexivity|reflexivity|]. unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true by(change(8<=18446744073709551616);lia);exact SP.
+ - eapply bind_parameters_cons;[exact LV| |constructor]. eapply assign_loc_value;[reflexivity|reflexivity|]. unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true by(change(4<=18446744073709551616);lia);exact SV. }
+ assert(LOADP:Mem.load Mptr mc bp 0=Some(Vptr b p)).
+ { erewrite Mem.load_store_other by(exact SV||(left;exact PV));erewrite Mem.load_store_same by exact SP;reflexivity. }
+ assert(LOADV:Mem.load Mfloat32 mc bv 0=Some(Vsingle value)).
+ { erewrite Mem.load_store_same by exact SV;reflexivity. }
+ assert(WO:Mem.valid_access mc Mfloat32 bo 0 Writable).
+ { eapply Mem.store_valid_access_1;[exact SV|];eapply Mem.store_valid_access_1;[exact SP|].
+ apply Mem.valid_access_freeable_any;split;[intros ofs RANGE;apply RO;exact RANGE|exists 0;lia]. }
+ destruct(Mem.valid_access_store mc Mfloat32 bo 0(Vsingle(output tc li lo value))WO)as[mc0 S0].
+ assert(W4C:Mem.valid_access mc0 Mfloat32 b(Ptrofs.unsigned p+4)Writable).
+ { eapply Mem.store_valid_access_1;[exact S0|];eapply Mem.store_valid_access_1;[exact SV|];eapply Mem.store_valid_access_1;[exact SP|]. pose proof(allocation_access Execution.ge update_declarations empty_env m _ _ _ _ W4)as H;rewrite ALLOC in H;exact H. }
+ destruct(Mem.valid_access_store mc0 Mfloat32 b(Ptrofs.unsigned p+4)(Vsingle value)W4C)as[md S4].
+ assert(W8D:Mem.valid_access md Mfloat32 b(Ptrofs.unsigned p+8)Writable).
+ { eapply Mem.store_valid_access_1;[exact S4|];eapply Mem.store_valid_access_1;[exact S0|];eapply Mem.store_valid_access_1;[exact SV|];eapply Mem.store_valid_access_1;[exact SP|]. pose proof(allocation_access Execution.ge update_declarations empty_env m _ _ _ _ W8)as H;rewrite ALLOC in H;exact H. }
+ destruct(Mem.valid_access_store md Mfloat32 b(Ptrofs.unsigned p+8)(Vsingle(output tc li lo value))W8D)as[me S8].
+ assert(PMA:writable12 ma b p).
+ { destruct P as[AL[NW R]];repeat split;auto.
+   intros z Q;pose proof(allocation_perm Execution.ge update_declarations empty_env m b z Cur Writable(R z Q))as H;rewrite ALLOC in H;exact H. }
+ assert(PMC:writable12 mc b p).
+ { eapply store_preserves_writable12;[|exact SV];eapply store_preserves_writable12;[exact PMA|exact SP]. }
+ assert(OUTENV:forall q,Mem.valid_block m q->forall id ty,e!id=Some(q,ty)->False).
+ { intros q V id ty LOOK;destruct(ALL id ty(allocated_environment_origin Execution.ge update_declarations m e ma AV id q ty LOOK))as(bx&LOOK'&F&Q);rewrite LOOK in LOOK';injection LOOK' as EQ;subst bx;exact(F V). }
+ assert(INITC:Initialized mc b p tc li lo).
+ { split;[exact PMC|].
+ destruct INIT as[W[L0[L4 L8]]].
+ assert(LOAD:forall delta x,Mem.load Mfloat32 m b(Ptrofs.unsigned p+delta)=Some(Vsingle x)->Mem.load Mfloat32 mc b(Ptrofs.unsigned p+delta)=Some(Vsingle x)).
+ { intros delta x LD;erewrite Mem.load_store_other by(exact SV||(left;congruence));erewrite Mem.load_store_other by(exact SP||(left;congruence)).
+ pose proof(allocation_load_frame Execution.ge update_declarations empty_env m Mfloat32 b(Ptrofs.unsigned p+delta)OBJ)as H;rewrite ALLOC in H;cbn in H;rewrite H;exact LD. }
+ repeat split;eapply LOAD;eauto. }
+ assert(BODY:stmt_eval Execution.ge e tfloat(fn_body Source.f_update_first_order_low_pass)mc=Some(Nreturn(Vsingle(output tc li lo value)),me)).
+ { exact(update_body_eval e mc bp bv bo b p tc li lo value mc0 md me INITC LP LV LO LOADP LOADV PB VB OB PO VO S0 S4 S8). }
+
+ assert(W0:writable12 mc0 b p)by(eapply store_preserves_writable12;[exact PMC|exact S0]).
+ assert(WD:writable12 md b p)by(eapply store_preserves_writable12;[exact W0|exact S4]).
+ assert(PF0:Mem.load Mptr mc0 bp 0=Some(Vptr b p))by(erewrite Mem.load_store_other by(exact S0||(left;exact PO));exact LOADP).
+ assert(PF1:Mem.load Mptr md bp 0=Some(Vptr b p))by(erewrite Mem.load_store_other by(exact S4||(left;exact PB));exact PF0).
+ assert(VF0:Mem.load Mfloat32 mc0 bv 0=Some(Vsingle value))by(erewrite Mem.load_store_other by(exact S0||(left;exact VO));exact LOADV).
+ assert(OF0:Mem.load Mfloat32 mc0 bo 0=Some(Vsingle(output tc li lo value)))by(erewrite Mem.load_store_same by exact S0;reflexivity).
+ assert(OF1:Mem.load Mfloat32 md bo 0=Some(Vsingle(output tc li lo value)))by(erewrite Mem.load_store_other by(exact S4||(left;exact OB));exact OF0).
+ exists e,mc,mc0,md,me,bp;split.
+ - right;eapply step_internal_function;[vm_compute;repeat constructor;simpl;intuition discriminate|exact AV|exact BIND].
+ - split;[exact BODY|].
+ split.
+ { eapply assign_float;try reflexivity.
+ - cbn[pure_lval];rewrite LO,dec_eq_true;reflexivity.
+ - exact(formula_value e mc bp bv b p tc li lo value INITC LP LV LOADP LOADV).
+ - rewrite Ptrofs.unsigned_zero;change(4<=18446744073709551616);lia.
+ - rewrite Ptrofs.unsigned_zero;exact S0. }
+ split.
+ { eapply assign_float;try reflexivity.
+ - eapply field_location;[exact LP|exact PF0|right;left;auto].
+ - unfold input_var;eapply float_variable;eauto.
+ - rewrite(field_pointer m b p 4 P ltac:(simpl;auto));destruct P as[_[NW _]];change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(Ptrofs.unsigned p+4+4<=18446744073709551616);lia.
+ - rewrite(field_pointer m b p 4 P ltac:(simpl;auto));exact S4. }
+ split.
+ { eapply assign_float;try reflexivity.
+ - eapply field_location;[exact LP|exact PF1|right;right;auto].
+ - unfold input_var;eapply float_variable;eauto.
+ - rewrite(field_pointer m b p 8 P ltac:(simpl;auto));destruct P as[_[NW _]];change(Ptrofs.unsigned p+12<=18446744073709551616)in NW;change(Ptrofs.unsigned p+8+4<=18446744073709551616);lia.
+ - rewrite(field_pointer m b p 8 P ltac:(simpl;auto));exact S8. }
+ split;[exact LP|].
+
+ destruct site as[|[|[|[|site]]]];try lia.
+ + split;[exact(field_location e mc bp b p Source._last_in 4 LP LOADP ltac:(right;left;auto))|].
+ split;[exact(field_location e mc0 bp b p Source._last_in 4 LP PF0 ltac:(right;left;auto))|].
+ split;[exact(field_guards mc b p 4 PMC ltac:(simpl;auto) k K)|exact(field_guards mc0 b p 4 W0 ltac:(simpl;auto) k K)].
+ + split;[exact(field_location e mc bp b p Source._time_const 0 LP LOADP ltac:(left;auto))|].
+ exact(field_guards mc b p 0 PMC ltac:(simpl;auto) k K).
+ + split;[exact(field_location e mc bp b p Source._last_out 8 LP LOADP ltac:(right;right;auto))|].
+ exact(field_guards mc b p 8 PMC ltac:(simpl;auto) k K).
+ + split;[exact(field_location e md bp b p Source._last_out 8 LP PF1 ltac:(right;right;auto))|].
+ exact(field_guards md b p 8 WD ltac:(simpl;auto) k K).
+Qed.
+Print Assumptions site_properties.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Events Globalenvs Ctypes Csem.
+From FiveGuidanceCbmcAdapters Require Import BitsAdapter.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+(** A packet belongs to the actual memcpy call in the bits helper: source and
+    destination blocks are the two fresh four-byte caller objects.  It does
+    not evaluate a C pointer ordering between distinct objects. *)
+Definition valid4 (m:mem)(b:block)(p:permission):Prop :=
+ Mem.range_perm m b 0 4 Cur p.
+Record MemcpyPacket (m:mem)(src dst:block):Prop := {
+ packet_safety:MemcpySafety m src dst;
+ packet_source_valid4:valid4 m src Readable;
+ packet_destination_valid4:valid4 m dst Writable
+}.
+Theorem packet_of_safety:forall m src dst,
+ MemcpySafety m src dst -> MemcpyPacket m src dst.
+Proof. intros m src dst H;constructor;[exact H|exact(src_readable _ _ _ H)|exact(dst_writable _ _ _ H)]. Qed.
+
+(** Full witness links the guard packet to the same allocations, actual
+    float32 source store, official memcpy, copied bytes and integer result. *)
+Definition GuardedBitsRun (ge:genv)(x:float32)(m mf:mem)(result:int):Prop :=
+ exists ma src mb dst stored bytes,
+ Mem.alloc m 0 4=(ma,src) /\ Mem.alloc ma 0 4=(mb,dst) /\
+ Mem.store Mfloat32 mb src 0(Vsingle x)=Some stored /\
+ MemcpyPacket stored src dst /\
+ Mem.loadbytes stored src 0 4=Some bytes /\bytes=Memdata.encode_val Mfloat32(Vsingle x) /\
+ BitsAdapter.Lib.official_memcpy(Genv.to_senv(Csem.genv_genv ge))
+ [Vptr dst Ptrofs.zero;Vptr src Ptrofs.zero;Vlong(Int64.repr 4)]stored E0(Vptr dst Ptrofs.zero)mf /\
+ Mem.loadbytes mf dst 0 4=Some bytes /\Mem.load Mint32 mf dst 0=Some(Vint result) /\
+ result=Float32.to_bits x /\ Mem.loadbytes mf src 0 4=Some bytes.
+Theorem guarded_bits_run:forall ge x m mf result,
+ BitsRun ge x m mf result -> GuardedBitsRun ge x m mf result.
+Proof.
+ intros ge x m mf result(ma&src&mb&dst&stored&bytes&A&B&S&SAFE&R&ENC&COPY&D&LOAD&RESULT&FRAME).
+ exists ma,src,mb,dst,stored,bytes.
+ split;[exact A|]. split;[exact B|]. split;[exact S|].
+ split;[apply packet_of_safety;exact SAFE|].
+ split;[exact R|]. split;[exact ENC|]. split;[exact COPY|].
+ split;[exact D|]. split;[exact LOAD|]. split;assumption.
+Qed.
+Theorem guarded_bits_run_exists:forall ge x m,
+ exists mf,GuardedBitsRun ge x m mf(Float32.to_bits x).
+Proof. intros;destruct(bits_run_exists ge x m)as[mf H];exists mf;apply guarded_bits_run;exact H. Qed.
+Theorem guarded_bits_run_forget:forall ge x m mf result,
+ GuardedBitsRun ge x m mf result -> BitsRun ge x m mf result.
+Proof.
+ intros ge x m mf result(ma&src&mb&dst&stored&bytes&A&B&S&PACKET&R&ENC&COPY&D&LOAD&RESULT&FRAME).
+ exists ma,src,mb,dst,stored,bytes.
+ split;[exact A|]. split;[exact B|]. split;[exact S|].
+ split;[exact(packet_safety _ _ _ PACKET)|].
+ split;[exact R|]. split;[exact ENC|]. split;[exact COPY|].
+ split;[exact D|]. split;[exact LOAD|]. split;assumption.
+Qed.
+Theorem guarded_old_frame:forall ge x m mf result,
+ GuardedBitsRun ge x m mf result ->
+ (forall ch b ofs,Mem.valid_block m b->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs n,Mem.valid_block m b->0<=n->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+Proof. intros;apply(bits_run_old_frame ge x m mf result);apply guarded_bits_run_forget;assumption. Qed.
+Theorem guarded_old_valid:forall ge x m mf result,
+ GuardedBitsRun ge x m mf result ->forall b,Mem.valid_block m b->Mem.valid_block mf b.
+Proof. intros ge x m mf result H;apply(bits_run_old_valid ge x m mf result);apply guarded_bits_run_forget;exact H. Qed.
+Print Assumptions packet_of_safety.
+Print Assumptions guarded_bits_run.
+Print Assumptions guarded_bits_run_exists.
+Print Assumptions guarded_bits_run_forget.
+Print Assumptions guarded_old_frame.
+Print Assumptions guarded_old_valid.
+
+(** Dispatch follows the actual instrumented-properties.json emitted for all
+    three unchanged lowpass harnesses: six memcpy pointer guards followed by
+    two literal-size conversion guards, and three bits preconditions. *)
+Definition memcpy_guard_at(n:nat)(m:mem)(src dst:block):Prop:=match n with
+ |1%nat=>src<>dst
+ |2%nat=>Mem.valid_pointer m src 0=true
+ |3%nat=>Mem.weak_valid_pointer m dst 4=true
+ |4%nat=>dst<>src
+ |5%nat=>Mem.valid_pointer m dst 0=true
+ |6%nat=>Mem.weak_valid_pointer m src 4=true
+ |7%nat=>0<=4<=Int64.max_signed
+ |8%nat=>0<=Int64.signed(Int64.repr 4)<=Int64.max_unsigned
+ |_=>False end.
+Definition bits_guard_at(n:nat)(m:mem)(src dst:block):Prop:=match n with
+ |1%nat=>src<>dst \/0+4<=0\/0+4<=0
+ |2%nat=>Mem.range_perm m src 0 4 Cur Readable
+ |3%nat=>Mem.range_perm m dst 0 4 Cur Writable
+ |_=>False end.
+Theorem memcpy_packet_guards:forall n m src dst,
+ (1<=n<=8)%nat->MemcpyPacket m src dst->memcpy_guard_at n m src dst.
+Proof.
+ intros n m src dst B P;pose proof(packet_safety _ _ _ P)as S.
+ assert(C:n=1%nat\/n=2%nat\/n=3%nat\/n=4%nat\/n=5%nat\/n=6%nat\/n=7%nat\/n=8%nat)by lia.
+ repeat destruct C as[E|C];try(rename C into E);subst n;cbn[memcpy_guard_at].
+ - exact(separated _ _ _ S).
+ - exact(src_live _ _ _ S).
+ - exact(dst_end_live _ _ _ S).
+ - exact(separated_rev _ _ _ S).
+ - exact(dst_live _ _ _ S).
+ - exact(src_end_live _ _ _ S).
+ - vm_compute;intuition discriminate.
+ - vm_compute;intuition discriminate.
+Qed.
+Theorem bits_packet_guards:forall n m src dst,
+ (1<=n<=3)%nat->MemcpyPacket m src dst->bits_guard_at n m src dst.
+Proof.
+ intros n m src dst B P;pose proof(packet_safety _ _ _ P)as S.
+ assert(C:n=1%nat\/n=2%nat\/n=3%nat)by lia.
+ destruct C as[E|[E|E]];subst n;cbn[bits_guard_at].
+ - exact(nonoverlap _ _ _ S).
+ - exact(packet_source_valid4 _ _ _ P).
+ - exact(packet_destination_valid4 _ _ _ P).
+Qed.
+
+(** A property retains the same actual bits execution and the same uniquely
+    determined parameter/local allocations and source store at the memcpy
+    site. Guard propositions are never detached from that actual call. *)
+Definition GuardedBitsProperty(G:mem->block->block->Prop)
+ (ge:genv)(x:float32)(m mf:mem)(result:int):Prop:=
+ GuardedBitsRun ge x m mf result /\
+ exists ma src mb dst stored,
+ Mem.alloc m 0 4=(ma,src) /\Mem.alloc ma 0 4=(mb,dst) /\
+ Mem.store Mfloat32 mb src 0(Vsingle x)=Some stored /\
+ MemcpyPacket stored src dst /\G stored src dst.
+Theorem guarded_property:forall G,
+ (forall m src dst,MemcpyPacket m src dst->G m src dst)->
+ forall ge x m mf result,GuardedBitsRun ge x m mf result->
+ GuardedBitsProperty G ge x m mf result.
+Proof.
+ intros G GUARD ge x m mf result H;split;[exact H|].
+ destruct H as(ma&src&mb&dst&stored&bytes&A&B&S&P&REST).
+ exists ma,src,mb,dst,stored.
+ split;[exact A|]. split;[exact B|]. split;[exact S|]. split;[exact P|]. apply GUARD;exact P.
+Qed.
+Definition memcpy_guard_id(n:nat):Prop:=forall ge x m,
+ exists mf,GuardedBitsProperty(memcpy_guard_at n)ge x m mf(Float32.to_bits x).
+Definition bits_guard_id(n:nat):Prop:=forall ge x m,
+ exists mf,GuardedBitsProperty(bits_guard_at n)ge x m mf(Float32.to_bits x).
+Theorem memcpy_guards:forall n,(1<=n<=8)%nat->memcpy_guard_id n.
+Proof.
+ intros n B ge x m;destruct(guarded_bits_run_exists ge x m)as[mf H];exists mf.
+ eapply guarded_property;[intros;apply memcpy_packet_guards;assumption|exact H].
+Qed.
+Theorem bits_guards:forall n,(1<=n<=3)%nat->bits_guard_id n.
+Proof.
+ intros n B ge x m;destruct(guarded_bits_run_exists ge x m)as[mf H];exists mf.
+ eapply guarded_property;[intros;apply bits_packet_guards;assumption|exact H].
+Qed.
+Print Assumptions memcpy_packet_guards.
+Print Assumptions bits_packet_guards.
+Print Assumptions guarded_property.
+Print Assumptions memcpy_guards.
+Print Assumptions bits_guards.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem.
+From FiveGuidanceCbmcAdapters Require Import BitsAdapter.
+From FiveLowpassSupport Require Import LowpassMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma prefix_unique:forall(A:Type)(xs ys us vs:list A),length xs=length us->xs++ys=us++vs->xs=us /\ys=vs.
+Proof.
+ intros A xs;induction xs as[|x xs IH];intros ys us vs LEN EQ;destruct us as[|u us];simpl in LEN,EQ;try discriminate.
+ - auto.
+ - injection LEN as LEN;injection EQ as X EQ;subst u;destruct(IH ys us vs LEN EQ);subst;auto.
+Qed.
+Lemma encoded_split:forall m b ofs a tail n,
+ 0<=n->Mem.loadbytes m b ofs(4+n)=Some(encode_val Mfloat32(Vsingle a)++tail)->
+ Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle a)) /\Mem.loadbytes m b(ofs+4)n=Some tail.
+Proof.
+ intros m b ofs a tail n N LD;destruct(Mem.loadbytes_split m b ofs 4 n _ LD ltac:(lia)ltac:(lia))as[x[y[X[Y E]]]].
+ assert(L:length x=length(encode_val Mfloat32(Vsingle a))).
+ { rewrite(Mem.loadbytes_length _ _ _ _ _ X),encode_val_length;reflexivity. }
+ destruct(prefix_unique _ x y _ tail L(eq_sym E));subst x y;auto.
+Qed.
+Lemma encoded_two:forall m b ofs a c,
+ Mem.loadbytes m b ofs 8=Some(encode_val Mfloat32(Vsingle a)++encode_val Mfloat32(Vsingle c))->
+ Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle a)) /\Mem.loadbytes m b(ofs+4)4=Some(encode_val Mfloat32(Vsingle c)).
+Proof. intros;apply(encoded_split m b ofs a _ 4);auto;lia. Qed.
+Lemma encoded_three:forall m b ofs a c d,
+ Mem.loadbytes m b ofs 12=Some(encode_val Mfloat32(Vsingle a)++encode_val Mfloat32(Vsingle c)++encode_val Mfloat32(Vsingle d))->
+ Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle a)) /\
+ Mem.loadbytes m b(ofs+4)4=Some(encode_val Mfloat32(Vsingle c)) /\
+ Mem.loadbytes m b(ofs+8)4=Some(encode_val Mfloat32(Vsingle d)).
+Proof.
+ intros;destruct(encoded_split m b ofs a _ 8 ltac:(lia)H)as[A REST].
+ destruct(encoded_two m b(ofs+4)c d REST)as[C D];replace(ofs+4+4)with(ofs+8)in D by lia;auto.
+Qed.
+Lemma encoded_load:forall m b ofs x,
+ (4|ofs)->Mem.loadbytes m b ofs 4=Some(encode_val Mfloat32(Vsingle x))->Mem.load Mfloat32 m b ofs=Some(Vsingle x).
+Proof.
+ intros;pose proof(Mem.loadbytes_load Mfloat32 m b ofs _ H0 H)as LD.
+ pose proof(decode_encode_val_general(Vsingle x)Mfloat32 Mfloat32)as EQ;cbn[decode_encode_val]in EQ;rewrite EQ in LD;exact LD.
+Qed.
+Definition FieldObservation(ge:Csem.genv)(m:mem)(b:block)(ofs:Z)(x:float32):Prop:=
+ Mem.load Mfloat32 m b ofs=Some(Vsingle x) /\CopiedBitsEqualBothOrders ge x x m /\
+ (forall mx rr,BitsRun ge x m mx rr->Mem.load Mfloat32 mx b ofs=Some(Vsingle x)).
+Lemma field_observation:forall ge m b p delta x,
+ writable12 m b p->In delta[0;4;8]->Mem.loadbytes m b(Ptrofs.unsigned p+delta)4=Some(encode_val Mfloat32(Vsingle x))->
+ FieldObservation ge m b(Ptrofs.unsigned p+delta)x.
+Proof.
+ intros ge m b p delta x P D BYTES.
+ pose proof(field_access m b p delta P D)as VA.
+ assert(LD:Mem.load Mfloat32 m b(Ptrofs.unsigned p+delta)=Some(Vsingle x))by(apply encoded_load;[exact(proj2 VA)|exact BYTES]).
+ split;[exact LD|];split;[apply copied_bits_equal;reflexivity|].
+ intros mx rr BR;pose proof(proj1(bits_run_old_frame ge x m mx rr BR)Mfloat32 b(Ptrofs.unsigned p+delta))as KEEP.
+ rewrite KEEP;[exact LD|]. eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|constructor].
+Qed.
+Print Assumptions field_observation.

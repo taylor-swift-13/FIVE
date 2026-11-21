@@ -1,0 +1,110 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bc : block
+  p, x : int
+  POS : e ! _pos = Some (bp, Tint I16 Unsigned noattr)
+  LOCAL : e ! _pprz_trig_int_compr = None
+  SYMBOL : Genv.find_symbol (globalenv prog) _pprz_trig_int_compr = Some bc
+  LP : Mem.load Mint16unsigned m bp 0 = Some (Vint p)
+  LB :
+    Mem.load Mint8unsigned m bc (Ptrofs.unsigned (nibble_offset p)) =
+    Some (Vint x)
+  ============================
+  match
+    match
+      match
+        match
+          match
+            match
+              match
+                (if type_eq Ctypesdefs.tushort (Tint I16 Unsigned noattr)
+                 then Some (bp, Ptrofs.zero, Full)
+                 else None)
+              with
+              | Some (b, ofs, bf) =>
+                  match
+                    do_deref_loc (globalenv prog) quiet_world
+                      Ctypesdefs.tushort m b ofs bf
+                  with
+                  | Some (_, _, v) => Some v
+                  | None => None
+                  end
+              | None => None
+              end
+            with
+            | Some v =>
+                sem_binary_operation (globalenv prog) Odiv v
+                  Ctypesdefs.tushort (Vint (Int.repr 2)) Ctypesdefs.tint m
+            | None => None
+            end
+          with
+          | Some w =>
+              sem_binary_operation (globalenv prog) Oadd
+                (Vptr bc Ptrofs.zero)
+                (Ctypesdefs.tarray Ctypesdefs.tuchar 1690) w Ctypesdefs.tint
+                m
+          | None => None
+          end
+        with
+        | Some (Vptr b ofs) => Some (b, ofs, Full)
+        | _ => None
+        end
+      with
+      | Some (b, ofs, bf) =>
+          match
+            do_deref_loc (globalenv prog) quiet_world Ctypesdefs.tuchar m b
+              ofs bf
+          with
+          | Some (_, _, v) => Some v
+          | None => None
+          end
+      | None => None
+      end
+    with
+    | Some v =>
+        match
+          match
+            match
+              match
+                (if type_eq Ctypesdefs.tushort (Tint I16 Unsigned noattr)
+                 then Some (bp, Ptrofs.zero, Full)
+                 else None)
+              with
+              | Some (b, ofs, bf) =>
+                  match
+                    do_deref_loc (globalenv prog) quiet_world
+                      Ctypesdefs.tushort m b ofs bf
+                  with
+                  | Some (_, _, v0) => Some v0
+                  | None => None
+                  end
+              | None => None
+              end
+            with
+            | Some v0 =>
+                sem_binary_operation (globalenv prog) Omod v0
+                  Ctypesdefs.tushort (Vint (Int.repr 2)) Ctypesdefs.tint m
+            | None => None
+            end
+          with
+          | Some w =>
+              sem_binary_operation (globalenv prog) Omul 
+                (Vint (Int.repr 4)) Ctypesdefs.tint w Ctypesdefs.tint m
+          | None => None
+          end
+        with
+        | Some w =>
+            sem_binary_operation (globalenv prog) Oshr v Ctypesdefs.tuchar w
+              Ctypesdefs.tint m
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some v =>
+      sem_binary_operation (globalenv prog) Oand v Ctypesdefs.tint
+        (Vint (Int.repr 15)) Ctypesdefs.tint m
+  | None => None
+  end = nibble_machine p x

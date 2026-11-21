@@ -1,0 +1,24 @@
+(match
+   match atomic_eval ge e ml act16 with
+   | Some (_, m') => Some (Nnormal, m')
+   | None => None
+   end
+ with
+ | Some (Nnormal, m') =>
+     match
+       match atomic_eval ge e m' act17 with
+       | Some (_, m'0) => Some (Nnormal, m'0)
+       | None => None
+       end
+     with
+     | Some (Nnormal, m'0) =>
+         match atomic_eval ge e m'0 act18 with
+         | Some (_, m'1) => Some (Nnormal, m'1)
+         | None => None
+         end
+     | Some (Nreturn v, m'0) => Some (Nreturn v, m'0)
+     | None => None
+     end
+ | Some (Nreturn v, m') => Some (Nreturn v, m')
+ | None => None
+ end = Some (Nnormal, m3))

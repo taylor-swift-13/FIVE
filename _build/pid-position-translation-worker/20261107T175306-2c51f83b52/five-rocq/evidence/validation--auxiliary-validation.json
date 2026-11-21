@@ -1,0 +1,38 @@
+{
+  "schema": "five-auxiliary-validation/1",
+  "status": "passed-for-auxiliaries-only",
+  "main_requested_goals": "pending",
+  "theorems": [
+    "TranslationArithmetic.common_translation_difference",
+    "TranslationArithmetic.physical_translation_preserves_representable_error",
+    "TranslationArithmetic.common_translation_trimmed_error",
+    "TranslationArithmetic.nonzero_physical_translation_witness",
+    "QuietWalk.quiet_walk_actual_Csem_path",
+    "GetterSemantics.original_position_getter_cached_normal",
+    "GetterSemantics.original_speed_getter_cached_normal"
+  ],
+  "exact_getter_type_binding": "GetterBinding.v",
+  "run": "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq",
+  "checks": [
+    {
+      "id": "055-independent-original-getter-kernel-check",
+      "argv": [
+        "bash",
+        "-lc",
+        "source scripts/env.sh && rocq check -Q paparazzi/models/guidance_pid_h_run_pos/align/model PidPositionRunPos -Q paparazzi/relations/guidance_mode/support/entry FiveGuidanceEntry -Q paparazzi/relations/guidance_mode/support/semantics FiveGuidanceSemantics -Q paparazzi/relations/pid_position_translation/support PidPositionTranslationSupport -Q paparazzi/relations/pid_position_translation/problem PidPositionTranslationProblem -Q paparazzi/relations/pid_position_translation/attempts/001 PidPositionTranslationAttempt PidPositionTranslationSupport.GetterSemantics PidPositionTranslationAttempt.evidence.GetterBinding"
+      ],
+      "stdout": "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq/logs/055-independent-original-getter-kernel-check.stdout.log",
+      "stderr": "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq/logs/055-independent-original-getter-kernel-check.stderr.log"
+    },
+    {
+      "id": "056-fresh-reproducible-auxiliary-and-getter-check",
+      "argv": [
+        "bash",
+        "-lc",
+        "source scripts/env.sh && python3 paparazzi/relations/pid_position_translation/attempts/001/check.py --auxiliary"
+      ],
+      "stdout": "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq/logs/056-fresh-reproducible-auxiliary-and-getter-check.stdout.log",
+      "stderr": "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq/logs/056-fresh-reproducible-auxiliary-and-getter-check.stderr.log"
+    }
+  ]
+}

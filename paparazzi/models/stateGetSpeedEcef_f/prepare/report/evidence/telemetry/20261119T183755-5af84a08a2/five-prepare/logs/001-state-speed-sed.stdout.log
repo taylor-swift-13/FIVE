@@ -1,0 +1,370 @@
+/*
+ * Copyright (C) 2011-2012 Felix Ruess <felix.ruess@gmail.com>
+ *
+ * This file is part of paparazzi.
+ *
+ * paparazzi is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * paparazzi is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with paparazzi; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @file state.h
+ *
+ * API to get/set the generic vehicle states.
+ *
+ * Also see the @ref state_interface "State Interface" page.
+ *
+ * @author Felix Ruess <felix.ruess@gmail.com>
+ */
+
+#ifndef STATE_H
+#define STATE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "math/pprz_algebra_int.h"
+#include "math/pprz_algebra_float.h"
+#include "math/pprz_geodetic_int.h"
+#include "math/pprz_geodetic_float.h"
+#include "math/pprz_orientation_conversion.h"
+
+#include "std.h"
+#include <string.h>
+
+/**
+ * This general state interface holds all the most important vehicle states like
+ * position, velocity, attitude, etc. It handles coordinate system and
+ * fixed-/floating-point conversion on the fly when needed.
+ *
+ * <b>IMPORTANT: Don't access the members of the #state struct directly, use the stateSet* and stateGet* functions!</b>
+ *
+ * You can set e.g. the position in any coordinate system you wish:
+ * stateSetPositionNed_i() to set the position in fixed-point NED coordinates.
+ * If you need to read the position somewhere else in a different representation,
+ * call: stateGetPositionLla_f() and only then the LLA float position representation
+ * is calculated on the fly and returned. It's also only calculated once,
+ * until a new position is set which invalidates all the other representations again.
+ */
+
+/**
+ * @defgroup state_interface State interface
+ * @{
+ */
+
+/**
+ * @defgroup state_position Position representations
+ * @{
+ */
+#define POS_ECEF_I 0
+#define POS_NED_I  1
+#define POS_ENU_I  2
+#define POS_LLA_I  3
+#define POS_UTM_I  4
+#define POS_ECEF_F 5
+#define POS_NED_F  6
+#define POS_ENU_F  7
+#define POS_LLA_F  8
+#define POS_UTM_F  9
+#define POS_LOCAL_COORD ((1<<POS_NED_I)|(1<<POS_NED_F)|(1<<POS_ENU_I)|(1<<POS_ENU_F))
+#define POS_GLOBAL_COORD ((1<<POS_ECEF_I)|(1<<POS_ECEF_F)|(1<<POS_LLA_I)|(1<<POS_LLA_F)|(1<<POS_UTM_I)|(1<<POS_UTM_F))
+/**@}*/
+
+/**
+ * @defgroup state_velocity Speed representations
+ * @{
+ */
+#define SPEED_ECEF_I  0
+#define SPEED_NED_I   1
+#define SPEED_ENU_I   2
+#define SPEED_HNORM_I 3
+#define SPEED_HDIR_I  4
+#define SPEED_ECEF_F  5
+#define SPEED_NED_F   6
+#define SPEED_ENU_F   7
+#define SPEED_HNORM_F 8
+#define SPEED_HDIR_F  9
+#define SPEED_LOCAL_COORD ((1<<SPEED_NED_I)|(1<<SPEED_ENU_I)|(1<<SPEED_NED_F)|(1<<SPEED_ENU_F))
+/**@}*/
+
+/**
+ * @defgroup state_acceleration Acceleration representations
+ * @{
+ */
+#define ACCEL_ECEF_I 0
+#define ACCEL_NED_I  1
+#define ACCEL_ECEF_F 2
+#define ACCEL_NED_F  3
+/**@}*/
+
+/**
+ * @defgroup state_rate Angular rate representations
+ * @{
+ */
+#define RATE_I 0
+#define RATE_F 1
+/**@}*/
+
+/**
+ * @defgroup state_wind_airspeed Wind- and airspeed representations
+ * @{
+ */
+#define WINDSPEED_I 0
+#define DOWNWIND_I  1
+#define AIRSPEED_I  2
+#define WINDSPEED_F 3
+#define DOWNWIND_F  4
+#define AIRSPEED_F  5
+#define AOA_F       6
+#define SIDESLIP_F  7
+/**@}*/
+
+/**
+ * @defgroup input_filter Input filter specific flags and input types
+ * @{
+ */
+#define STATE_INPUT_DISABLE   0       ///< use with care
+#define STATE_INPUT_ANY       0xFFFF  ///< default
+#define STATE_INPUT_ORIGIN    1
+#define STATE_INPUT_POS       2
+#define STATE_INPUT_SPEED     3
+#define STATE_INPUT_ACCEL     4
+#define STATE_INPUT_ATTITUDE  5
+#define STATE_INPUT_RATES     6
+#define STATE_INPUT_WIND_AIR  7
+/**@}*/
+
+/**
+ * Structure holding vehicle state data.
+ */
+struct State {
+
+  /** @addtogroup state_position
+   *  @{ */
+
+  /**
+   * Holds the input filter id for state origin.
+   */
+  uint16_t origin_input_filter;
+
+  /**
+   * Holds the status bits for all position representations.
+   * When the corresponding bit is set the representation
+   * is already computed.
+   */
+  uint16_t pos_status;
+
+  /**
+   * Holds the input filter id for position.
+   */
+  uint16_t pos_input_filter;
+
+  /**
+   * Position in EarthCenteredEarthFixed coordinates.
+   * Units: centimeters
+   */
+  struct EcefCoor_i ecef_pos_i;
+
+  /**
+   * Position in Latitude, Longitude and Altitude.
+   * Units lat,lon: degrees*1e7
+   * Units alt: milimeters above reference ellipsoid
+   */
+  struct LlaCoor_i lla_pos_i;
+
+  /**
+   * Definition of the local (flat earth) coordinate system.
+   * Defines the origin of the local NorthEastDown coordinate system
+   * in ECEF (EarthCenteredEarthFixed) and LLA (LatitudeLongitudeAlt)
+   * coordinates and the roation matrix from ECEF to local frame.
+   * (int version)
+   */
+  struct LtpDef_i ned_origin_i;
+
+  /**
+   * true if local int coordinate frame is initialsed
+   */
+  bool ned_initialized_i;
+
+  /**
+   * Position in North East Down coordinates.
+   * with respect to ned_origin_i (flat earth)
+   * Units: m in BFP with INT32_POS_FRAC
+   */
+  struct NedCoor_i ned_pos_i;
+
+  /**
+   * Position in East North Up coordinates.
+   * with respect to ned_origin_i (flat earth)
+   * Units: m in BFP with INT32_POS_FRAC
+   */
+  struct EnuCoor_i enu_pos_i;
+
+  /**
+   * Position in UTM coordinates.
+   * Units x,y: meters.
+   * Units z: meters above MSL
+   */
+  struct UtmCoor_f utm_pos_f;
+
+  /**
+   * Altitude above ground level.
+   * Unit: meters
+   */
+  float alt_agl_f;
+
+  /**
+   * Position in Latitude, Longitude and Altitude.
+   * Units lat,lon: radians
+   * Units alt: meters above reference ellipsoid
+   */
+  struct LlaCoor_f lla_pos_f;
+
+  /**
+   * Position in EarthCenteredEarthFixed coordinates.
+   * Units: meters
+   */
+  struct EcefCoor_f ecef_pos_f;
+
+  /**
+   * Definition of the local (flat earth) coordinate system.
+   * Defines the origin of the local NorthEastDown coordinate system
+   * in ECEF (EarthCenteredEarthFixed) and LLA (LatitudeLongitudeAlt)
+   * coordinates and the roation matrix from ECEF to local frame.
+   * (float version)
+   */
+  struct LtpDef_f ned_origin_f;
+
+  /// True if local float coordinate frame is initialsed
+  bool ned_initialized_f;
+
+  /**
+   * Definition of the origin of Utm coordinate system.
+   * Defines the origin of the local NorthEastDown coordinate system
+   * in UTM coordinates, used as a reference when ned_origin is not
+   * initialized.
+   * Altitude is height above MSL.
+   * (float version)
+   */
+  struct UtmCoor_f utm_origin_f;
+
+  /// True if utm origin (float) coordinate frame is initialsed
+  bool utm_initialized_f;
+
+  /**
+   * Position in North East Down coordinates.
+   * with respect to ned_origin_i (flat earth)
+   * Units: meters
+   */
+  struct NedCoor_f ned_pos_f;
+
+  /**
+   * Position in East North Up coordinates.
+   * with respect to ned_origin_i (flat earth)
+   * Units: meters
+   */
+  struct EnuCoor_f enu_pos_f;
+  /** @}*/
+
+
+  /** @addtogroup state_velocity
+   *  @{ */
+  /**
+   * Holds the status bits for all ground speed representations.
+   * When the corresponding bit is one the representation
+   * is already computed.
+   */
+  uint16_t speed_status;
+
+  /**
+   * Holds the input filter id for speed.
+   */
+  uint16_t speed_input_filter;
+
+  /**
+   * Velocity in EarthCenteredEarthFixed coordinates.
+   * Units: m/s in BFP with #INT32_SPEED_FRAC
+   */
+  struct EcefCoor_i ecef_speed_i;
+
+  /**
+   * Velocity in North East Down coordinates.
+   * Units: m/s in BFP with #INT32_SPEED_FRAC
+   */
+  struct NedCoor_i ned_speed_i;
+
+  /**
+   * Velocity in East North Up coordinates.
+   * Units: m/s in BFP with #INT32_SPEED_FRAC
+   */
+  struct EnuCoor_i enu_speed_i;
+
+  /**
+   * Norm of horizontal ground speed.
+   * Unit: m/s in BFP with #INT32_SPEED_FRAC
+   */
+  uint32_t h_speed_norm_i;
+
+  /**
+   * Direction of horizontal ground speed.
+   * Unit: rad in BFP with #INT32_ANGLE_FRAC
+   * (clockwise, zero=north)
+   */
+  int32_t h_speed_dir_i;
+
+  /**
+   * Velocity in EarthCenteredEarthFixed coordinates.
+   * Units: m/s
+   */
+  struct EcefCoor_f ecef_speed_f;
+
+  /**
+   * @brief speed in North East Down coordinates
+   * @details Units: m/s */
+  struct NedCoor_f ned_speed_f;
+
+  /**
+   * Velocity in East North Up coordinates.
+   * Units: m/s
+   */
+  struct EnuCoor_f enu_speed_f;
+
+  /**
+   * Norm of horizontal ground speed.
+   * Unit: m/s
+   */
+  float h_speed_norm_f;
+
+  /**
+   * Direction of horizontal ground speed.
+   * Unit: rad (clockwise, zero=north)
+   */
+  float h_speed_dir_f;
+  /** @}*/
+
+
+  /** @addtogroup state_acceleration
+   *  @{ */
+  /**
+   * Holds the status bits for all acceleration representations.
+   * When the corresponding bit is one the representation
+   * is already computed.
+   */
+  uint8_t accel_status;
+
+  /**
+   * Holds the input filter id for acceleration.
+   */
+  uint16_t accel_input_filter;

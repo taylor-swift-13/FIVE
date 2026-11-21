@@ -1,0 +1,560 @@
+5 goals
+  
+  ge : genv
+  e : env
+  m : mem
+  b : block
+  ofs : ptrofs
+  bf : bitfield
+  l : expr
+  ty : type
+  v : val
+  H : eval_simple_lvalue ge e m l b ofs bf
+  H0 : pure_lval ge e m l = Some (b, ofs, bf)
+  H1 : ty = typeof l
+  H2 : type_is_volatile ty = false
+  H3 : deref_loc ge ty m b ofs bf E0 v
+  CORE : simple l = true
+  CORE0 : negb (type_is_volatile (typeof l)) = true
+  ============================
+  (if type_eq ty (typeof l)
+   then
+    match
+      (fix pure_rval (a : expr) : option val :=
+         match a with
+         | Eval v0 _ => Some v0
+         | Evalof l0 ty0 =>
+             if type_eq ty0 (typeof l0)
+             then
+              match pure_lval l0 with
+              | Some (b0, ofs0, bf0) =>
+                  match do_deref_loc ge quiet_world ty0 m b0 ofs0 bf0 with
+                  | Some (_, _, v0) => Some v0
+                  | None => None
+                  end
+              | None => None
+              end
+             else None
+         | Eaddrof l0 _ =>
+             match pure_lval l0 with
+             | Some (b1, ofs0, Full) => Some (Vptr b1 ofs0)
+             | Some (b1, ofs0, Bits _ _ _ _) => None
+             | None => None
+             end
+         | Eunop op a0 _ =>
+             match pure_rval a0 with
+             | Some v0 => sem_unary_operation op v0 (typeof a0) m
+             | None => None
+             end
+         | Ebinop op a0 b0 _ =>
+             match pure_rval a0 with
+             | Some v0 =>
+                 match pure_rval b0 with
+                 | Some w =>
+                     sem_binary_operation ge op v0 
+                       (typeof a0) w (typeof b0) m
+                 | None => None
+                 end
+             | None => None
+             end
+         | Ecast a0 ty0 =>
+             match pure_rval a0 with
+             | Some v0 => sem_cast v0 (typeof a0) ty0 m
+             | None => None
+             end
+         | Esizeof ty0 _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty0)))
+         | Ealignof ty0 _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty0)))
+         | _ => None
+         end
+       with pure_lval (a : expr) : option (block * ptrofs * bitfield) :=
+         match a with
+         | Evar id ty0 =>
+             match e ! id with
+             | Some (b0, ty') =>
+                 if type_eq ty0 ty'
+                 then Some (b0, Ptrofs.zero, Full)
+                 else None
+             | None =>
+                 match Genv.find_symbol ge id with
+                 | Some b0 => Some (b0, Ptrofs.zero, Full)
+                 | None => None
+                 end
+             end
+         | Efield a0 id _ =>
+             match pure_rval a0 with
+             | Some (Vptr b0 ofs0) =>
+                 match typeof a0 with
+                 | Tstruct sid _ =>
+                     match ge ! sid with
+                     | Some co =>
+                         match field_offset ge id (co_members co) with
+                         | OK (delta, bf0) =>
+                             Some
+                               (b0, Ptrofs.add ofs0 (Ptrofs.repr delta), bf0)
+                         | Error _ => None
+                         end
+                     | None => None
+                     end
+                 | Tunion sid _ =>
+                     match ge ! sid with
+                     | Some co =>
+                         match union_field_offset ge id (co_members co) with
+                         | OK (delta, bf0) =>
+                             Some
+                               (b0, Ptrofs.add ofs0 (Ptrofs.repr delta), bf0)
+                         | Error _ => None
+                         end
+                     | None => None
+                     end
+                 | _ => None
+                 end
+             | _ => None
+             end
+         | Ederef a0 _ =>
+             match pure_rval a0 with
+             | Some (Vptr b0 ofs0) => Some (b0, ofs0, Full)
+             | _ => None
+             end
+         | Eloc b0 ofs0 bf0 _ => Some (b0, ofs0, bf0)
+         | _ => None
+         end
+       for
+       pure_lval) l
+    with
+    | Some (b0, ofs0, bf0) =>
+        match do_deref_loc ge quiet_world ty m b0 ofs0 bf0 with
+        | Some (_, _, v0) => Some v0
+        | None => None
+        end
+    | None => None
+    end
+   else None) =
+  Some v
+
+goal 2 is:
+ match
+   (fix pure_rval (a : expr) : option val :=
+      match a with
+      | Eval v _ => Some v
+      | Evalof l0 ty0 =>
+          if type_eq ty0 (typeof l0)
+          then
+           match pure_lval l0 with
+           | Some (b0, ofs0, bf) =>
+               match do_deref_loc ge quiet_world ty0 m b0 ofs0 bf with
+               | Some (_, _, v) => Some v
+               | None => None
+               end
+           | None => None
+           end
+          else None
+      | Eaddrof l0 _ =>
+          match pure_lval l0 with
+          | Some (b1, ofs0, Full) => Some (Vptr b1 ofs0)
+          | Some (b1, ofs0, Bits _ _ _ _) => None
+          | None => None
+          end
+      | Eunop op a0 _ =>
+          match pure_rval a0 with
+          | Some v => sem_unary_operation op v (typeof a0) m
+          | None => None
+          end
+      | Ebinop op a0 b0 _ =>
+          match pure_rval a0 with
+          | Some v =>
+              match pure_rval b0 with
+              | Some w =>
+                  sem_binary_operation ge op v (typeof a0) w (typeof b0) m
+              | None => None
+              end
+          | None => None
+          end
+      | Ecast a0 ty0 =>
+          match pure_rval a0 with
+          | Some v => sem_cast v (typeof a0) ty0 m
+          | None => None
+          end
+      | Esizeof ty0 _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty0)))
+      | Ealignof ty0 _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty0)))
+      | _ => None
+      end
+    with pure_lval (a : expr) : option (block * ptrofs * bitfield) :=
+      match a with
+      | Evar id ty0 =>
+          match e ! id with
+          | Some (b0, ty') =>
+              if type_eq ty0 ty' then Some (b0, Ptrofs.zero, Full) else None
+          | None =>
+              match Genv.find_symbol ge id with
+              | Some b0 => Some (b0, Ptrofs.zero, Full)
+              | None => None
+              end
+          end
+      | Efield a0 id _ =>
+          match pure_rval a0 with
+          | Some (Vptr b0 ofs0) =>
+              match typeof a0 with
+              | Tstruct sid _ =>
+                  match ge ! sid with
+                  | Some co =>
+                      match field_offset ge id (co_members co) with
+                      | OK (delta, bf) =>
+                          Some (b0, Ptrofs.add ofs0 (Ptrofs.repr delta), bf)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | Tunion sid _ =>
+                  match ge ! sid with
+                  | Some co =>
+                      match union_field_offset ge id (co_members co) with
+                      | OK (delta, bf) =>
+                          Some (b0, Ptrofs.add ofs0 (Ptrofs.repr delta), bf)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | _ => None
+              end
+          | _ => None
+          end
+      | Ederef a0 _ =>
+          match pure_rval a0 with
+          | Some (Vptr b0 ofs0) => Some (b0, ofs0, Full)
+          | _ => None
+          end
+      | Eloc b0 ofs0 bf _ => Some (b0, ofs0, bf)
+      | _ => None
+      end
+    for
+    pure_lval) l
+ with
+ | Some (b1, ofs0, Full) => Some (Vptr b1 ofs0)
+ | Some (b1, ofs0, Bits _ _ _ _) => None
+ | None => None
+ end = Some (Vptr b ofs)
+goal 3 is:
+ match
+   (fix pure_rval (a : expr) : option val :=
+      match a with
+      | Eval v _ => Some v
+      | Evalof l ty0 =>
+          if type_eq ty0 (typeof l)
+          then
+           match pure_lval l with
+           | Some (b0, ofs0, bf) =>
+               match do_deref_loc ge quiet_world ty0 m b0 ofs0 bf with
+               | Some (_, _, v) => Some v
+               | None => None
+               end
+           | None => None
+           end
+          else None
+      | Eaddrof l _ =>
+          match pure_lval l with
+          | Some (b1, ofs0, Full) => Some (Vptr b1 ofs0)
+          | Some (b1, ofs0, Bits _ _ _ _) => None
+          | None => None
+          end
+      | Eunop op a0 _ =>
+          match pure_rval a0 with
+          | Some v => sem_unary_operation op v (typeof a0) m
+          | None => None
+          end
+      | Ebinop op a0 b0 _ =>
+          match pure_rval a0 with
+          | Some v =>
+              match pure_rval b0 with
+              | Some w =>
+                  sem_binary_operation ge op v (typeof a0) w (typeof b0) m
+              | None => None
+              end
+          | None => None
+          end
+      | Ecast a0 ty0 =>
+          match pure_rval a0 with
+          | Some v => sem_cast v (typeof a0) ty0 m
+          | None => None
+          end
+      | Esizeof ty0 _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty0)))
+      | Ealignof ty0 _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty0)))
+      | _ => None
+      end
+    with pure_lval (a : expr) : option (block * ptrofs * bitfield) :=
+      match a with
+      | Evar id ty0 =>
+          match e ! id with
+          | Some (b0, ty') =>
+              if type_eq ty0 ty' then Some (b0, Ptrofs.zero, Full) else None
+          | None =>
+              match Genv.find_symbol ge id with
+              | Some b0 => Some (b0, Ptrofs.zero, Full)
+              | None => None
+              end
+          end
+      | Efield a0 id _ =>
+          match pure_rval a0 with
+          | Some (Vptr b0 ofs0) =>
+              match typeof a0 with
+              | Tstruct sid _ =>
+                  match ge ! sid with
+                  | Some co =>
+                      match field_offset ge id (co_members co) with
+                      | OK (delta, bf) =>
+                          Some (b0, Ptrofs.add ofs0 (Ptrofs.repr delta), bf)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | Tunion sid _ =>
+                  match ge ! sid with
+                  | Some co =>
+                      match union_field_offset ge id (co_members co) with
+                      | OK (delta, bf) =>
+                          Some (b0, Ptrofs.add ofs0 (Ptrofs.repr delta), bf)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | _ => None
+              end
+          | _ => None
+          end
+      | Ederef a0 _ =>
+          match pure_rval a0 with
+          | Some (Vptr b0 ofs0) => Some (b0, ofs0, Full)
+          | _ => None
+          end
+      | Eloc b0 ofs0 bf _ => Some (b0, ofs0, bf)
+      | _ => None
+      end
+    for
+    pure_rval) r
+ with
+ | Some (Vptr b0 ofs0) => Some (b0, ofs0, Full)
+ | _ => None
+ end = Some (b, ofs, Full)
+goal 4 is:
+ match
+   (fix pure_rval (a0 : expr) : option val :=
+      match a0 with
+      | Eval v _ => Some v
+      | Evalof l ty0 =>
+          if type_eq ty0 (typeof l)
+          then
+           match pure_lval l with
+           | Some (b0, ofs0, bf0) =>
+               match do_deref_loc ge quiet_world ty0 m b0 ofs0 bf0 with
+               | Some (_, _, v) => Some v
+               | None => None
+               end
+           | None => None
+           end
+          else None
+      | Eaddrof l _ =>
+          match pure_lval l with
+          | Some (b1, ofs0, Full) => Some (Vptr b1 ofs0)
+          | Some (b1, ofs0, Bits _ _ _ _) => None
+          | None => None
+          end
+      | Eunop op a1 _ =>
+          match pure_rval a1 with
+          | Some v => sem_unary_operation op v (typeof a1) m
+          | None => None
+          end
+      | Ebinop op a1 b0 _ =>
+          match pure_rval a1 with
+          | Some v =>
+              match pure_rval b0 with
+              | Some w =>
+                  sem_binary_operation ge op v (typeof a1) w (typeof b0) m
+              | None => None
+              end
+          | None => None
+          end
+      | Ecast a1 ty0 =>
+          match pure_rval a1 with
+          | Some v => sem_cast v (typeof a1) ty0 m
+          | None => None
+          end
+      | Esizeof ty0 _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty0)))
+      | Ealignof ty0 _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty0)))
+      | _ => None
+      end
+    with pure_lval (a0 : expr) : option (block * ptrofs * bitfield) :=
+      match a0 with
+      | Evar id0 ty0 =>
+          match e ! id0 with
+          | Some (b0, ty') =>
+              if type_eq ty0 ty' then Some (b0, Ptrofs.zero, Full) else None
+          | None =>
+              match Genv.find_symbol ge id0 with
+              | Some b0 => Some (b0, Ptrofs.zero, Full)
+              | None => None
+              end
+          end
+      | Efield a1 id0 _ =>
+          match pure_rval a1 with
+          | Some (Vptr b0 ofs0) =>
+              match typeof a1 with
+              | Tstruct sid _ =>
+                  match ge ! sid with
+                  | Some co0 =>
+                      match field_offset ge id0 (co_members co0) with
+                      | OK (delta0, bf0) =>
+                          Some
+                            (b0, Ptrofs.add ofs0 (Ptrofs.repr delta0), bf0)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | Tunion sid _ =>
+                  match ge ! sid with
+                  | Some co0 =>
+                      match union_field_offset ge id0 (co_members co0) with
+                      | OK (delta0, bf0) =>
+                          Some
+                            (b0, Ptrofs.add ofs0 (Ptrofs.repr delta0), bf0)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | _ => None
+              end
+          | _ => None
+          end
+      | Ederef a1 _ =>
+          match pure_rval a1 with
+          | Some (Vptr b0 ofs0) => Some (b0, ofs0, Full)
+          | _ => None
+          end
+      | Eloc b0 ofs0 bf0 _ => Some (b0, ofs0, bf0)
+      | _ => None
+      end
+    for
+    pure_rval) r
+ with
+ | Some (Vptr b0 ofs0) =>
+     match ge ! id with
+     | Some co0 =>
+         match field_offset ge f (co_members co0) with
+         | OK (delta0, bf0) =>
+             Some (b0, Ptrofs.add ofs0 (Ptrofs.repr delta0), bf0)
+         | Error _ => None
+         end
+     | None => None
+     end
+ | _ => None
+ end = Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+goal 5 is:
+ match
+   (fix pure_rval (a0 : expr) : option val :=
+      match a0 with
+      | Eval v _ => Some v
+      | Evalof l ty0 =>
+          if type_eq ty0 (typeof l)
+          then
+           match pure_lval l with
+           | Some (b0, ofs0, bf0) =>
+               match do_deref_loc ge quiet_world ty0 m b0 ofs0 bf0 with
+               | Some (_, _, v) => Some v
+               | None => None
+               end
+           | None => None
+           end
+          else None
+      | Eaddrof l _ =>
+          match pure_lval l with
+          | Some (b1, ofs0, Full) => Some (Vptr b1 ofs0)
+          | Some (b1, ofs0, Bits _ _ _ _) => None
+          | None => None
+          end
+      | Eunop op a1 _ =>
+          match pure_rval a1 with
+          | Some v => sem_unary_operation op v (typeof a1) m
+          | None => None
+          end
+      | Ebinop op a1 b0 _ =>
+          match pure_rval a1 with
+          | Some v =>
+              match pure_rval b0 with
+              | Some w =>
+                  sem_binary_operation ge op v (typeof a1) w (typeof b0) m
+              | None => None
+              end
+          | None => None
+          end
+      | Ecast a1 ty0 =>
+          match pure_rval a1 with
+          | Some v => sem_cast v (typeof a1) ty0 m
+          | None => None
+          end
+      | Esizeof ty0 _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty0)))
+      | Ealignof ty0 _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty0)))
+      | _ => None
+      end
+    with pure_lval (a0 : expr) : option (block * ptrofs * bitfield) :=
+      match a0 with
+      | Evar id0 ty0 =>
+          match e ! id0 with
+          | Some (b0, ty') =>
+              if type_eq ty0 ty' then Some (b0, Ptrofs.zero, Full) else None
+          | None =>
+              match Genv.find_symbol ge id0 with
+              | Some b0 => Some (b0, Ptrofs.zero, Full)
+              | None => None
+              end
+          end
+      | Efield a1 id0 _ =>
+          match pure_rval a1 with
+          | Some (Vptr b0 ofs0) =>
+              match typeof a1 with
+              | Tstruct sid _ =>
+                  match ge ! sid with
+                  | Some co0 =>
+                      match field_offset ge id0 (co_members co0) with
+                      | OK (delta0, bf0) =>
+                          Some
+                            (b0, Ptrofs.add ofs0 (Ptrofs.repr delta0), bf0)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | Tunion sid _ =>
+                  match ge ! sid with
+                  | Some co0 =>
+                      match union_field_offset ge id0 (co_members co0) with
+                      | OK (delta0, bf0) =>
+                          Some
+                            (b0, Ptrofs.add ofs0 (Ptrofs.repr delta0), bf0)
+                      | Error _ => None
+                      end
+                  | None => None
+                  end
+              | _ => None
+              end
+          | _ => None
+          end
+      | Ederef a1 _ =>
+          match pure_rval a1 with
+          | Some (Vptr b0 ofs0) => Some (b0, ofs0, Full)
+          | _ => None
+          end
+      | Eloc b0 ofs0 bf0 _ => Some (b0, ofs0, bf0)
+      | _ => None
+      end
+    for
+    pure_rval) r
+ with
+ | Some (Vptr b0 ofs0) =>
+     match ge ! id with
+     | Some co0 =>
+         match union_field_offset ge f (co_members co0) with
+         | OK (delta0, bf0) =>
+             Some (b0, Ptrofs.add ofs0 (Ptrofs.repr delta0), bf0)
+         | Error _ => None
+         end
+     | None => None
+     end
+ | _ => None
+ end = Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)

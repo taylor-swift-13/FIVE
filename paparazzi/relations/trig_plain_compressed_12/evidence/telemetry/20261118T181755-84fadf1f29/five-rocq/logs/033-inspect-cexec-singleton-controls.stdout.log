@@ -1,0 +1,185 @@
+Definition do_step (w: world) (s: state) : list transition :=
+  match s with
+
+  | ExprState f a k e m =>
+      match is_val a with
+      | Some(v, ty) =>
+        match k with
+        | Kdo k => ret "step_do_2" (State f Sskip k e m )
+        | Kifthenelse s1 s2 k =>
+            do b <- bool_val v ty m;
+            ret "step_ifthenelse_2" (State f (if b then s1 else s2) k e m)
+        | Kwhile1 x s k =>
+            do b <- bool_val v ty m;
+            if b
+            then ret "step_while_true" (State f s (Kwhile2 x s k) e m)
+            else ret "step_while_false" (State f Sskip k e m)
+        | Kdowhile2 x s k =>
+            do b <- bool_val v ty m;
+            if b
+            then ret "step_dowhile_true" (State f (Sdowhile x s) k e m)
+            else ret "step_dowhile_false" (State f Sskip k e m)
+        | Kfor2 a2 a3 s k =>
+            do b <- bool_val v ty m;
+            if b
+            then ret "step_for_true" (State f s (Kfor3 a2 a3 s k) e m)
+            else ret "step_for_false" (State f Sskip k e m)
+        | Kreturn k =>
+            do v' <- sem_cast v ty f.(fn_return) m;
+            do m' <- Mem.free_list m (blocks_of_env ge e);
+            ret "step_return_2" (Returnstate v' (call_cont k) m')
+        | Kswitch1 sl k =>
+            do n <- sem_switch_arg v ty;
+            ret "step_expr_switch" (State f (seq_of_labeled_statement (select_switch n sl)) (Kswitch2 k) e m)
+        | _ => nil
+        end
+
+      | None =>
+          map (expr_final_state f k e) (step_expr e w RV a m)
+      end
+
+  | State f (Sdo x) k e m =>
+      ret "step_do_1" (ExprState f x (Kdo k) e m)
+  | State f (Ssequence s1 s2) k e m =>
+      ret "step_seq" (State f s1 (Kseq s2 k) e m)
+  | State f Sskip (Kseq s k) e m =>
+      ret "step_skip_seq" (State f s k e m)
+  | State f Scontinue (Kseq s k) e m =>
+      ret "step_continue_seq" (State f Scontinue k e m)
+  | State f Sbreak (Kseq s k) e m =>
+      ret "step_break_seq" (State f Sbreak k e m)
+
+  | State f (Sifthenelse a s1 s2) k e m =>
+      ret "step_ifthenelse_1" (ExprState f a (Kifthenelse s1 s2 k) e m)
+
+  | State f (Swhile x s) k e m =>
+      ret "step_while" (ExprState f x (Kwhile1 x s k) e m)
+  | State f (Sskip|Scontinue) (Kwhile2 x s k) e m =>
+      ret "step_skip_or_continue_while" (State f (Swhile x s) k e m)
+  | State f Sbreak (Kwhile2 x s k) e m =>
+      ret "step_break_while" (State f Sskip k e m)
+
+  | State f (Sdowhile a s) k e m =>
+      ret "step_dowhile" (State f s (Kdowhile1 a s k) e m)
+  | State f (Sskip|Scontinue) (Kdowhile1 x s k) e m =>
+      ret "step_skip_or_continue_dowhile" (ExprState f x (Kdowhile2 x s k) e m)
+  | State f Sbreak (Kdowhile1 x s k) e m =>
+      ret "step_break_dowhile" (State f Sskip k e m)
+
+  | State f (Sfor a1 a2 a3 s) k e m =>
+      if is_skip a1
+      then ret "step_for" (ExprState f a2 (Kfor2 a2 a3 s k) e m)
+      else ret "step_for_start" (State f a1 (Kseq (Sfor Sskip a2 a3 s) k) e m)
+  | State f (Sskip|Scontinue) (Kfor3 a2 a3 s k) e m =>
+      ret "step_skip_or_continue_for3" (State f a3 (Kfor4 a2 a3 s k) e m)
+  | State f Sbreak (Kfor3 a2 a3 s k) e m =>
+      ret "step_break_for3" (State f Sskip k e m)
+  | State f Sskip (Kfor4 a2 a3 s k) e m =>
+      ret "step_skip_for4" (State f (Sfor Sskip a2 a3 s) k e m)
+
+  | State f (Sreturn None) k e m =>
+      do m' <- Mem.free_list m (blocks_of_env ge e);
+      ret "step_return_0" (Returnstate Vundef (call_cont k) m')
+  | State f (Sreturn (Some x)) k e m =>
+      ret "step_return_1" (ExprState f x (Kreturn k) e m)
+  | State f Sskip ((Kstop | Kcall _ _ _ _ _) as k) e m =>
+      do m' <- Mem.free_list m (blocks_of_env ge e);
+      ret "step_skip_call" (Returnstate Vundef k m')
+
+  | State f (Sswitch x sl) k e m =>
+      ret "step_switch" (ExprState f x (Kswitch1 sl k) e m)
+  | State f (Sskip|Sbreak) (Kswitch2 k) e m =>
+      ret "step_skip_break_switch" (State f Sskip k e m)
+  | State f Scontinue (Kswitch2 k) e m =>
+      ret "step_continue_switch" (State f Scontinue k e m)
+
+  | State f (Slabel lbl s) k e m =>
+      ret "step_label" (State f s k e m)
+  | State f (Sgoto lbl) k e m =>
+      match find_label lbl f.(fn_body) (call_cont k) with
+      | Some(s', k') => ret "step_goto" (State f s' k' e m)
+      | None => nil
+      end
+
+  | Callstate (Internal f) vargs k m =>
+      check (list_norepet_dec ident_eq (var_names (fn_params f) ++ var_names (fn_vars f)));
+      let (e,m1) := do_alloc_variables empty_env m (f.(fn_params) ++ f.(fn_vars)) in
+      do m2 <- sem_bind_parameters w e m1 f.(fn_params) vargs;
+      ret "step_internal_function" (State f f.(fn_body) k e m2)
+  | Callstate (External ef _ _ _) vargs k m =>
+      match do_external ef w vargs m with
+      | None => nil
+      | Some(w',t,v,m') => TR "step_external_function" t (Returnstate v k m') :: nil
+      end
+
+  | Returnstate v (Kcall f e C ty k) m =>
+      ret "step_returnstate" (ExprState f (C (Eval v ty)) k e m)
+
+  | _ => nil
+  end.
+
+Ltac myinv :=
+  match goal with
+  | [ |- In _ nil -> _ ] => let X := fresh "X" in intro X; elim X
+  | [ |- In _ (ret _ _) -> _ ] =>
+        let X := fresh "X" in
+        intro X; elim X; clear X;
+        [let EQ := fresh "EQ" in intro EQ; unfold ret in EQ; inv EQ; myinv | myinv]
+  | [ |- In _ (_ :: nil) -> _ ] =>
+        let X := fresh "X" in
+        intro X; elim X; clear X; [let EQ := fresh "EQ" in intro EQ; inv EQ; myinv | myinv]
+  | [ |- In _ (match ?x with Some _ => _ | None => _ end) -> _ ] => destruct x eqn:?; myinv
+  | [ |- In _ (match ?x with false => _ | true => _ end) -> _ ] => destruct x eqn:?; myinv
+  | [ |- In _ (match ?x with left _ => _ | right _ => _ end) -> _ ] => destruct x; myinv
+  | _ => idtac
+  end.
+
+Local Hint Extern 3 => exact I : core.
+
+Theorem do_step_sound:
+  forall w S rule t S',
+  In (TR rule t S') (do_step w S) ->
+  Csem.step ge S t S' \/ (t = E0 /\ S' = Stuckstate /\ can_crash_world w S).
+Proof with try (left; right; econstructor; eauto; fail).
+  intros until S'. destruct S; simpl.
+
+End SEMANTICS.
+
+(** * Whole-program semantics *)
+
+(** Execution of whole programs are described as sequences of transitions
+  from an initial state to a final state.  An initial state is a [Callstate]
+  corresponding to the invocation of the ``main'' function of the program
+  without arguments and with an empty continuation. *)
+
+Inductive initial_state (p: program): state -> Prop :=
+  | initial_state_intro: forall b f m0,
+      let ge := globalenv p in
+      Genv.init_mem p = Some m0 ->
+      Genv.find_symbol ge p.(prog_main) = Some b ->
+      Genv.find_funct_ptr ge b = Some f ->
+      type_of_fundef f = Tfunction nil type_int32s cc_default ->
+      initial_state p (Callstate f nil Kstop m0).
+
+(** A final state is a [Returnstate] with an empty continuation. *)
+
+Inductive final_state: state -> int -> Prop :=
+  | final_state_intro: forall r m,
+      final_state (Returnstate (Vint r) Kstop m) r.
+
+(** Wrapping up these definitions in a small-step semantics. *)
+
+Definition semantics (p: program) :=
+  Semantics_gen step (initial_state p) final_state (globalenv p) (globalenv p).
+
+(** This semantics has the single-event property. *)
+
+Lemma semantics_single_events:
+  forall p, single_events (semantics p).
+Proof.
+  unfold semantics; intros; red; simpl; intros.
+  set (ge := globalenv p) in *.
+  assert (DEREF: forall chunk m b ofs bf t v, deref_loc ge chunk m b ofs bf t v -> (length t <= 1)%nat).
+  { intros. inv H0; simpl; try lia. inv H3; simpl; try lia. }
+  assert (ASSIGN: forall chunk m b ofs bf t v m' v', assign_loc ge chunk m b ofs bf v t m' v' -> (length t <= 1)%nat).
+  { intros. inv H0; simpl; try lia. inv H3; simpl; try lia. }

@@ -1,0 +1,29 @@
+ exists mf;split.
+ - intros k.
+ assert(PATH:star Csem.step ge(Callstate(Internal S.f_stab_sp_from_ltp_i)
+     [Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]Kstop m)
+     E0(Returnstate Vundef Kstop mc)).
+ { apply funcall_original_normal;exact CALL. }
+ destruct(original_factory_all_orders m bp temp(Ptrofs.repr 32)heading x y LX LY
+   ltac:(change(4|32);exists 8;reflexivity)RVS WT)
+ as[mc'[A'[PROG[UNIQUE CAL]]]].
+ destruct(UNIQUE E0 Vundef mc PATH)as[_ MM];subst mc'.
+ assert(D0:Cexec.do_deref_loc ge quiet_world(tptr spty)m br Ptrofs.zero Full=
+   Some(quiet_world,E0,Vptr ret Ptrofs.zero)).
+ { apply Cexec.do_deref_loc_complete;[|constructor].
+   eapply deref_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.loadv;rewrite Ptrofs.unsigned_zero;rewrite zle_true;
+   [exact RES|change(0+8<=18446744073709551616);lia]. }
+ assert(D1:Cexec.do_deref_loc ge quiet_world(tptr spty)mc br Ptrofs.zero Full=
+   Some(quiet_world,E0,Vptr ret Ptrofs.zero)).
+ { apply Cexec.do_deref_loc_complete;[|constructor].
+   eapply deref_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.loadv;rewrite Ptrofs.unsigned_zero;rewrite zle_true;
+   [exact RESC|change(0+8<=18446744073709551616);lia]. }
+ assert(POST:eval_simple_rvalue ge e mc factory_result_expr(Vptr temp Ptrofs.zero)).
+ { unfold factory_result_expr;cbn[return_rvalue return_assignment core_return_tail drop_statements S.f_guidance_pid_h_run fn_body].
+   tail_rv LR LC NP SP NH SH NF SF. }
+ assert(PV:pure_rval ge e mc factory_result_expr=Some(Vptr temp Ptrofs.zero)).
+ { apply(proj1(simple_big_denotation ge e mc));[exact POST|reflexivity]. }
+ assert(COPYA:Cexec.do_assign_loc ge quiet_world spty mc ret Ptrofs.zero Full(Vptr temp Ptrofs.zero)=
+   Some(quiet_world,E0,mf,Vptr temp Ptrofs.

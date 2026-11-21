@@ -1,0 +1,60 @@
+2584:Theorem zero_ext_above:
+2591:Theorem zero_ext_below:
+2611:Theorem zero_ext_and:
+2621:Theorem zero_ext_mod:
+2634:Theorem zero_ext_widen:
+2671:Theorem zero_ext_narrow:
+2703:Theorem zero_ext_idem:
+2727:Theorem zero_ext_sign_ext:
+2834:Lemma zero_ext_range:
+2971:Lemma zero_ext_shru_min:
+4017:Lemma zero_ext_shru'_min:
+237:Definition decode_int (b: list byte) : Z :=
+Proof.
+  intro. destruct chunk; reflexivity.
+Qed.
+
+Lemma align_chunk_Mptr: align_chunk Mptr = if Archi.ptr64 then 8 else 4.
+Proof.
+  unfold Mptr. reflexivity || (destruct Archi.ptr64; auto).
+Qed.
+
+Lemma align_size_chunk_divides:
+  forall chunk, (align_chunk chunk | size_chunk chunk).
+Proof.
+  intros.
+  exists (size_chunk chunk / align_chunk chunk); destruct chunk; reflexivity.
+Qed.
+
+Lemma align_le_divides:
+  forall chunk1 chunk2,
+  align_chunk chunk1 <= align_chunk chunk2 -> (align_chunk chunk1 | align_chunk chunk2).
+Proof.
+  intros. unfold align_chunk, Archi.align_int64, Archi.align_float64 in H.
+  exists (align_chunk chunk2 / align_chunk chunk1); 
+  destruct chunk1; destruct chunk2; simpl in H; reflexivity || lia.
+Qed.
+
+Lemma align_chunk_max:
+  forall chunk, (align_chunk chunk | 8).
+Proof.
+  intros. exists (8 / align_chunk chunk); destruct chunk; reflexivity.
+Qed.
+
+(** Given the size [sz] of a block, [min_safe_alignment sz] is the minimum
+    alignment that guarantees that all valid memory accesses in the block
+    have at least this alignment.  *)
+
+Definition min_safe_alignment (sz: Z) : Z :=
+From Coq Require Import String List ZArith.
+From compcert Require Import Coqlib Integers Floats Values AST Ctypes Cop Csyntax Csyntaxdefs.
+Import Csyntaxdefs.CsyntaxNotations.
+Local Open Scope Z_scope.
+Local Open Scope string_scope.
+Local Open Scope csyntax_scope.
+
+Module Info.
+  Definition version := "3.17".
+  Definition build_number := "".
+  Definition build_tag := "".
+  Definition build_branch := "".

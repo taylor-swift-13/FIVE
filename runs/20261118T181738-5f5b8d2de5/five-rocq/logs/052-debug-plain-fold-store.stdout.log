@@ -1,0 +1,57 @@
+1 goal
+  
+  ge : genv
+  b : block
+  m : mem
+  rhs : expr
+  v : int
+  mf : mem
+  TY : typeof rhs = tint
+  EV : pure_rval ge (angle_env b) m rhs = Some (Vint v)
+  STORE : Mem.store Mint32 m b 0 (Vint v) = Some mf
+  ============================
+  match sem_cast (Vint v) tint (typeof (Evar _angle tint)) m with
+  | Some v0 =>
+      match
+        match access_mode (typeof (Evar _angle tint)) with
+        | By_value chunk =>
+            if type_is_volatile (typeof (Evar _angle tint))
+            then do_volatile_store ge quiet_world chunk m b Ptrofs.zero v0
+            else
+             match
+               (if zle (0 + size_chunk chunk) Ptrofs.modulus
+                then Mem.store chunk m b 0 v0
+                else None)
+             with
+             | Some m' => Some (quiet_world, E0, m', v0)
+             | None => None
+             end
+        | By_copy =>
+            match v0 with
+            | Vptr b' ofs' =>
+                if
+                 check_assign_copy ge (typeof (Evar _angle tint)) b
+                   Ptrofs.zero b' ofs'
+                then
+                 match
+                   Mem.loadbytes m b' (Ptrofs.unsigned ofs')
+                     (sizeof ge (typeof (Evar _angle tint)))
+                 with
+                 | Some bytes =>
+                     match Mem.storebytes m b 0 bytes with
+                     | Some m' => Some (quiet_world, E0, m', v0)
+                     | None => None
+                     end
+                 | None => None
+                 end
+                else None
+            | _ => None
+            end
+        | _ => None
+        end
+      with
+      | Some (_, _, m', v') => Some (v', m')
+      | None => None
+      end
+  | None => None
+  end = Some (Vint v, mf)

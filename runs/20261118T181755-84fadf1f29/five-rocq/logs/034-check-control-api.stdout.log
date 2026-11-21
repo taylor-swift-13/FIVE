@@ -1,0 +1,19 @@
+estep_not_val
+     : forall (ge : genv) (f : Csyntax.function) (a : Csyntax.expr)
+         (k : cont) (e : env) (m : Memory.Mem.mem) 
+         (t : Events.trace) (S : state),
+       Csem.estep ge (ExprState f a k e m) t S -> is_val a = None
+do_alloc_variables
+     : genv ->
+       env ->
+       Memory.Mem.mem ->
+       list (AST.ident * Ctypes.type) -> env * Memory.Mem.mem
+sem_bind_parameters
+     : genv ->
+       Determinism.world ->
+       env ->
+       Memory.Mem.mem ->
+       list (AST.ident * Ctypes.type) ->
+       list Values.val -> option Memory.Mem.mem
+blocks_of_env
+     : genv -> env -> list (Values.block * BinNums.Z * BinNums.Z)

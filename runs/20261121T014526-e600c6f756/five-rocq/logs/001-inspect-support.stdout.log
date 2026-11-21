@@ -1,0 +1,290 @@
+# FIVE reference examples — artifact standard
+
+**Current requested proofs: COMPLETE.** Sum2 and sum3 no-error and all-successor termination goals are proved. Every property actually emitted by the unchanged recorded harnesses is independently rechecked: sum2 1/1, sum3 10/10. The cross-model theorem proves its stated equality conditional on three normal returns; single-model proofs separately establish safety, termination and return existence.
+
+This index, the [sum3 case](models/sum3/README.md), the [sum2 case](models/sum2/README.md) and the [relation problem](relations/sum2_sum3/problem/Spec.v) define the format for future FIVE artifacts. Apply only requested stages and goals. A model-generation request ends with explicit unproved declarations; generation and type-checking never count as solving the problem.
+
+## Find the question and its solution
+
+| Question — exact problem/Spec.v | Current proof report | Established scope |
+| --- | --- | --- |
+| [Sum3 no error](models/sum3/rocq/no_error/problem/Spec.v) | [001](models/sum3/rocq/no_error/attempts/001/report.md) | Every reachable original Csem state |
+| [Sum3 termination](models/sum3/rocq/termination/problem/Spec.v) | [001](models/sum3/rocq/termination/attempts/001/report.md) | Acc over every Csem successor |
+| [Sum3 full CBMC recheck](models/sum3/rocq/cbmc_recheck/problem/Spec.v) | [002](models/sum3/rocq/cbmc_recheck/attempts/002/report.md) | All ten original memcpy-harness IDs, bytes and Csem assertion |
+| [Sum2 no error](models/sum2/rocq/no_error/problem/Spec.v) | [001](models/sum2/rocq/no_error/attempts/001/report.md) | Every reachable original Csem state |
+| [Sum2 termination](models/sum2/rocq/termination/problem/Spec.v) | [001](models/sum2/rocq/termination/attempts/001/report.md) | Acc over every Csem successor |
+| [Sum2 full CBMC recheck](models/sum2/rocq/cbmc_recheck/problem/Spec.v) | [001](models/sum2/rocq/cbmc_recheck/attempts/001/report.md) | Entire actual scalar-harness property set |
+| [Sum2 / sum3 relation](relations/sum2_sum3/problem/Spec.v) | [001](relations/sum2_sum3/attempts/001/report.md) | Conditional normal-return bit equality |
+
+Each report links its generated Proof.v, actual model/specification hashes, checker, independent kernel receipts, inherited assumptions and costs. [Sum3 recheck 001](models/sum3/rocq/cbmc_recheck/attempts/001/report.md) remains an incomplete historical attempt that proved only returned-value bits. Its original ResultBitsGoal is retained verbatim in the expanded canonical Spec.v. Attempt 002 is current; history is never silently rewritten into success.
+
+## Canonical layout
+
+```text
+examples/
+  README.md
+  models/<case>/
+    README.md
+    prepare/
+      source/<entry>.c        # frozen selected C and real dependencies
+      source/bindings.json   # source hashes, entry, target, actual call bindings
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+    cbmc/
+      harness.c              # actual traditional-BMC input
+      properties.json        # actual emitted IDs/results, if separately indexed
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+    align/
+      model/Source.v         # automatic original CompCert Csyntax export
+      model/Execution.v      # original Csem/Cexec wrapper
+      model/compcert-manifest.json
+      model/proof/           # generated parameterized obligation scaffolding
+      spec-map.json          # or model/spec-map.json, fixed by handoff
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+    rocq/
+      <problem>/
+        problem/{Spec.v,report.md,status.json}
+        attempts/<number>/{Proof.v,check.py,report.md,costs.json,evidence/}
+      support/               # helper lemmas, not extra user questions
+      spec-recheck.json
+      handoff.json
+      report/{report.md,costs.json,evidence/}
+  relations/<name>/
+    problem/{Spec.v,report.md,status.json}
+    attempts/<number>/{Proof.v,check.py,report.md,costs.json,evidence/}
+```
+
+Keep one useful report per stage/problem/attempt. Auxiliary snapshots, provenance and raw measurements belong in evidence. Existing input/provenance receipts may be named inputs.json or provenance.json; they bind the exact sources actually compiled. Empty placeholders and duplicate summaries do not count as evidence.
+
+The four stages hand off in order through case-relative paths and SHA-256 hashes. Pure Rocq tasks need only applicable problem/attempt/evidence artifacts; C/CBMC stages are explicitly not applicable. A status.json uses schema five-proof-problem/1, names the active numbered attempt and canonical Spec.v, records requested goals and their actual status. FullSpec.v, where present, is a compatibility helper rather than the user question.
+
+## Acceptance and semantic scope
+
+Every actual proof attempt records requested and runtime-observed model/effort, exact imported model configuration and source/spec/proof hashes, an outcome for every requested goal, compilation, Print Assumptions and an independent Rocq kernel check. Current proof workers use GPT-6.1 Sol medium. No admitted proof or new unproved axiom completes a goal. Generated align/model/proof scaffolding is separate.
+
+For these cases, proof inputs are typed binary32 arguments and arbitrary CompCert memory. No-error quantifies every original Csem reachable state. Termination is accessibility of the full successor relation, not a fuel bound or selected path. CBMC assertions are independently proved, never imported as axioms. Return-existence lemmas make harness observation premises nonvacuous.
+
+Sum3 checks four-byte caller objects allocated before both calls, preserved frames, copied binary32 bytes, uint32 load and Csem assertion evaluation. CBMC builtin guards short-circuit on distinct objects; their mapping never asserts undefined cross-object C pointer ordering. Both cases use an explicit property-by-property harness adapter rather than claiming a generated whole-main execution trace.
+
+Target: CompCert 3.17 Csem/Cexec, x86-64 Linux standard ABI, little endian, binary32 nearest ties to even with recorded NaN policy. The trust boundary includes the recorded frontend and inherited library assumptions. These proofs do not assert GCC/native-hardware equivalence or universal cross-tool NaN-payload equality.
+
+## Costs and reproducibility
+
+Stage report/costs.json and every attempt/costs.json use five-stage-costs/1 with time, token and memory groups. Times are seconds, tool RSS is bytes; cache and reasoning tokens are subsets. Retain failures and retries. Record observed values with scope and evidence; unknown historical values remain null. A genuinely new measured replay/reconstruction has its own record and does not recover missing past expense.
+
+Shared authoring/verification sessions are referenced once. Per-attempt checker resources are subsets, not additional stage costs; per-attempt model tokens are null when no separate boundary existed. Token aggregates use event-ID union. End-to-end wall time is measured directly, never summed across overlapping stages. Sampled tool-tree RSS can miss peaks and count shared pages twice; it excludes model-server/desktop memory.
+
+| Case | Prepare costs | CBMC costs | Align costs | Rocq and verification costs |
+| --- | --- | --- | --- | --- |
+| Sum2 | [record](models/sum2/prepare/report/costs.json) | [record](models/sum2/cbmc/report/costs.json) | [record](models/sum2/align/report/costs.json) | [record](models/sum2/rocq/report/costs.json) |
+| Sum3 | [record](models/sum3/prepare/report/costs.json) | [record](models/sum3/cbmc/report/costs.json) | [record](models/sum3/align/report/costs.json) | [record](models/sum3/rocq/report/costs.json) |
+
+[Relation costs](relations/sum2_sum3/attempts/001/costs.json) retain the cross-model attempt and reference its fresh verification subset. Historical incomplete attempts, interrupted runs and unmeasured expenses remain honestly scoped alongside complete current proofs.
+
+From repository root:
+
+```sh
+source scripts/env.sh
+python3 scripts/check-example-artifacts.py             # active pointers, hashes, metadata and canonical receipts
+python3 scripts/check-example-artifacts.py --compile   # also rebuild every active proof attempt
+python3 scripts/audit-costs.py --run <recorded-run>     # independent cost audit
+```
+
+The metadata validator does not replace semantic review. A model export, proof build, kernel check and cost receipt are distinct facts and are reported separately.
+# sum3
+
+**Complete:** no error, all-successor termination and all ten properties of the unchanged original memcpy harness. [Rocq summary](rocq/report/report.md). The [examples index](../../README.md) is the authority for future artifact format.
+
+| Stage | Frozen input and outputs | Report and observed costs |
+| --- | --- | --- |
+| prepare | [source](prepare/source/sum3.c), [bindings](prepare/source/bindings.json), [handoff](prepare/handoff.json) | [report](prepare/report/report.md), [costs](prepare/report/costs.json) |
+| cbmc | [original harness](cbmc/harness.c), [actual ten properties](cbmc/properties.json), [handoff](cbmc/handoff.json) | [report](cbmc/report/report.md), [costs](cbmc/report/costs.json) |
+| align | [original Source.v](align/model/Source.v), [Execution.v](align/model/Execution.v), [manifest](align/model/compcert-manifest.json), [mapping](align/spec-map.json), [handoff](align/handoff.json) | [report](align/report/report.md), [costs](align/report/costs.json) |
+| rocq | [problem/attempt index](rocq/report/report.md), [canonical recheck](rocq/spec-recheck.json), [handoff](rocq/handoff.json) | [report](rocq/report/report.md), [costs](rocq/report/costs.json) |
+
+The current recheck is [attempt 002](rocq/cbmc_recheck/attempts/002/report.md). [Attempt 001](rocq/cbmc_recheck/attempts/001/report.md) is preserved as incomplete historical evidence. All problems use problem/Spec.v as the question and numbered attempts/Proof.v as the solution; support modules are auxiliary lemmas.
+
+Run `source scripts/env.sh && python3 scripts/check-example-artifacts.py` from repository root for current metadata, provenance hashes and canonical receipt checks. Add `--compile` to rebuild active attempts. Internal CBMC object guards are mapped explicitly to CompCert block separation; no C order between unrelated pointers is asserted.
+From Stdlib Require Import Reals ZArith Lia Lra Psatz.
+From Flocq.Core Require Import Core.
+From Flocq.Prop Require Import Relative.
+From Flocq.IEEE754 Require Import Binary.
+From compcert Require Import Floats.
+Open Scope R_scope.
+Local Instance prec24 : Prec_gt_0 24 := eq_refl.
+
+Definition r32 (x : float32) : R := B2R 24 128 x.
+Definition finite (x : float32) : Prop := is_finite 24 128 x = true.
+Definition RN (x : R) : R := round radix2 (FLT_exp (-149) 24) ZnearestE x.
+Definition u : R := bpow radix2 (-24).
+Definition eta : R := bpow radix2 (-150).
+
+Lemma RN_error : forall x, Rabs (RN x - x) <= u * Rabs x + eta.
+Proof.
+  intro x.
+  destruct (error_N_FLT radix2 (-149) 24 ltac:(lia) (fun z => negb (Z.even z)) x)
+    as [e [d [He [Hd [Hed Hr]]]]].
+  change (RN x = x * (1 + e) + d) in Hr.
+  assert (Hu : /2 * bpow radix2 (-24 + 1) = u).
+  { rewrite bpow_plus. change (/2 * (u * 2) = u). field. }
+  assert (Hdeta : /2 * bpow radix2 (-149) = eta).
+  { unfold eta. change (-149)%Z with ((-150)+1)%Z.
+    rewrite bpow_plus. change (/2 * (bpow radix2 (-150) * 2) = bpow radix2 (-150)). field. }
+  change (Rabs e <= /2 * bpow radix2 (-24 + 1)) in He.
+  rewrite Hu in He. rewrite Hdeta in Hd.
+  rewrite Hr. replace (x * (1 + e) + d - x) with (x * e + d) by ring.
+  eapply Rle_trans; [apply Rabs_triang|].
+  rewrite Rabs_mult. pose proof (Rabs_pos x); nra.
+Qed.
+
+Lemma RN_le : forall x y, x <= y -> RN x <= RN y.
+Proof. intros x y H. unfold RN. apply round_le; auto with typeclass_instances. Qed.
+
+Lemma RN_fix_generic : forall x,
+  generic_format radix2 (FLT_exp (-149) 24) x -> RN x = x.
+Proof. intros x H. unfold RN. apply round_generic; auto with typeclass_instances. Qed.
+
+Lemma RN_abs_bound_pow : forall x k, (-149 <= k)%Z ->
+  Rabs x <= bpow radix2 k -> Rabs (RN x) <= bpow radix2 k.
+Proof.
+  intros x k Hk Hx. unfold RN.
+  apply abs_round_le_generic; auto with typeclass_instances.
+  apply generic_format_bpow. unfold FLT_exp. lia.
+Qed.
+
+Lemma RN_abs_le_2 : forall x, Rabs x <= 2 -> Rabs (RN x) <= 2.
+Proof. intro x. change 2 with (bpow radix2 1). apply RN_abs_bound_pow. lia. Qed.
+
+Lemma RN_abs_le_8 : forall x, Rabs x <= 8 -> Rabs (RN x) <= 8.
+Proof. intro x. change 8 with (bpow radix2 3). apply RN_abs_bound_pow. lia. Qed.
+
+Lemma RN_safe : forall x, Rabs x <= 8 ->
+  Rlt_bool (Rabs (RN x)) (bpow radix2 128) = true.
+Proof.
+  intros x Hx. apply Rlt_bool_true.
+  eapply Rle_lt_trans; [apply RN_abs_le_8; exact Hx|].
+  change 8 with (bpow radix2 3). apply bpow_lt. lia.
+Qed.
+
+Lemma u_value : u = /16777216.
+Proof. reflexivity. Qed.
+Lemma eta_value : eta = /1427247692705959881058285969449495136382746624.
+Proof. reflexivity. Qed.
+
+Lemma add_finite_real : forall x y, finite x -> finite y ->
+  Rabs (r32 x + r32 y) <= 8 ->
+  finite (Float32.add x y) /\ r32 (Float32.add x y) = RN (r32 x + r32 y).
+Proof.
+  intros x y Fx Fy Hxy.
+  pose proof (Bplus_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Fx Fy) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; assumption.
+Qed.
+
+Lemma sub_finite_real : forall x y, finite x -> finite y ->
+  Rabs (r32 x - r32 y) <= 8 ->
+  finite (Float32.sub x y) /\ r32 (Float32.sub x y) = RN (r32 x - r32 y).
+Proof.
+  intros x y Fx Fy Hxy.
+  pose proof (Bminus_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Fx Fy) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; assumption.
+Qed.
+
+Lemma mul_finite_real : forall x y, finite x -> finite y ->
+  Rabs (r32 x * r32 y) <= 8 ->
+  finite (Float32.mul x y) /\ r32 (Float32.mul x y) = RN (r32 x * r32 y).
+Proof.
+  intros x y Fx Fy Hxy.
+  pose proof (Bmult_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; [|exact Hr].
+  unfold finite in Fx,Fy. rewrite Fx,Fy in Hf. exact Hf.
+Qed.
+
+Lemma div_finite_real : forall x y, finite x -> finite y -> r32 y <> 0 ->
+  Rabs (r32 x / r32 y) <= 8 ->
+  finite (Float32.div x y) /\ r32 (Float32.div x y) = RN (r32 x / r32 y).
+Proof.
+  intros x y Fx Fy Hy Hxy.
+  pose proof (Bdiv_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Hy) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; [|exact Hr].
+  unfold finite in Fx. rewrite Fx in Hf. exact Hf.
+Qed.
+From Stdlib Require Import Reals ZArith Lia Lra Psatz.
+From Flocq.Core Require Import Core.
+From Flocq.IEEE754 Require Import Binary.
+From compcert Require Import Floats.
+From FiveLowpassRoundoffSupport Require Export FloatBounds.
+Open Scope R_scope.
+Local Instance prec24 : Prec_gt_0 24 := eq_refl.
+
+Lemma RN_safe_large : forall x, Rabs x <= 8388608 ->
+  Rlt_bool (Rabs (RN x)) (bpow radix2 128) = true.
+Proof.
+ intros x H;apply Rlt_bool_true.
+ eapply Rle_lt_trans;[apply(RN_abs_bound_pow x 23);[lia|exact H]|].
+ change 8388608 with (bpow radix2 23);apply bpow_lt;lia.
+Qed.
+Lemma add_real_large : forall x y, finite x -> finite y ->
+ Rabs(r32 x+r32 y)<=8388608 ->
+ finite(Float32.add x y) /\ r32(Float32.add x y)=RN(r32 x+r32 y).
+Proof.
+ intros x y Fx Fy Hxy.
+ pose proof(Bplus_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Fx Fy)as H.
+ pose proof(RN_safe_large _ Hxy)as Hb.
+ unfold RN,r32 in Hb.
+ change (FLT_exp (-149) 24)with(SpecFloat.fexp 24 128)in Hb.
+ change ZnearestE with(BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)in Hb.
+ rewrite Hb in H;destruct H as[Hr[Hf Hs]];auto.
+Qed.
+Lemma RN_abs_le_one : forall x,Rabs x<=1->Rabs(RN x)<=1.
+Proof. intros x H;change 1 with(bpow radix2 0);apply RN_abs_bound_pow;[lia|exact H]. Qed.
+Lemma unit_product : forall a x,finite a->finite x->Rabs(r32 a)<=1->Rabs(r32 x)<=1->
+ finite(Float32.mul a x) /\ Rabs(r32(Float32.mul a x))<=1 /\
+ Rabs(r32(Float32.mul a x)-r32 a*r32 x)<=u+eta.
+Proof.
+ intros a x Fa Fx Ha Hx.
+ assert(H:Rabs(r32 a*r32 x)<=1).
+ { rewrite Rabs_mult;pose proof(Rabs_pos(r32 a));pose proof(Rabs_pos(r32 x));nra. }
+ destruct(mul_finite_real a x Fa Fx ltac:(lra))as[F R].
+ split;[exact F|];rewrite R;split;[apply RN_abs_le_one;exact H|].
+ pose proof(RN_error(r32 a*r32 x));pose proof(bpow_gt_0 radix2 (-24));unfold u in *;nra.
+Qed.
+Lemma add_small_error : forall x y k,finite x->finite y->0<=k<=1048576->
+ Rabs(r32 x+r32 y)<=4*k+4->
+ finite(Float32.add x y) /\
+ Rabs(r32(Float32.add x y)-(r32 x+r32 y))<=u*(4*k+4)+eta /\
+ Rabs(r32(Float32.add x y)-(r32 x+r32 y))<=1/3.
+Proof.
+ intros x y k Fx Fy Hk Hxy.
+ destruct(add_real_large x y Fx Fy ltac:(lra))as[F R].
+ split;[exact F|];rewrite R;pose proof(RN_error(r32 x+r32 y))as E.
+ rewrite u_value,eta_value in *.
+ assert(E':Rabs(RN(r32 x+r32 y)-(r32 x+r32 y))<= /16777216*(4*k+4)+/1427247692705959881058285969449495136382746624)by nra.
+ split;[exact E'|];eapply Rle_trans;[exact E'|];lra.
+Qed.
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"

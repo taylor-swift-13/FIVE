@@ -1,0 +1,7 @@
+From PprzTrigCBMC Require Import ArrayEntry.
+Check ArrayEntry.init_reachable_array_origins.
+Check ArrayEntry.low_reachable_array_origins.
+Check ArrayEntry.plain_reachable_array_origins.
+Print Assumptions ArrayEntry.init_reachable_array_origins.
+Print Assumptions ArrayEntry.low_reachable_array_origins.
+Print Assumptions ArrayEntry.plain_reachable_array_origins.

@@ -1,0 +1,49 @@
+{
+  "kind": "proof-tool resource failure, not program execution error",
+  "failed_author_run": "runs/20261119T191206-e9665beca7/five-rocq",
+  "failed_command": {
+    "id": "003-state-speed-rocq-MemoryLayout",
+    "status": "failed",
+    "exit_code": 137,
+    "wall_seconds": 363.97192769999674,
+    "gnu_time": {
+      "max_process_rss_kib": 14511032,
+      "user_seconds": 70.08,
+      "system_seconds": 139.29,
+      "elapsed_seconds": 363.96,
+      "exit_code": 0
+    },
+    "peak_process_tree_rss_sampled_bytes": 14843236352
+  },
+  "kernel_observation": {
+    "source": "Read-only dmesg --ctime filtered to large or rocq victims",
+    "timestamp_local": "2026-11-20 03:21:12",
+    "process": "rocqworker",
+    "pid": 11403,
+    "anonymous_rss_kib": 14508376,
+    "interpretation": "Timing/process/size are consistent with the failed reflection compile; raw command exit137 remains primary status."
+  },
+  "host_observation": {
+    "wsl_service": "running",
+    "vmcompute_service": "running",
+    "host_free_physical_kib": 10924244,
+    "vmmem_working_set_bytes": 5386735616
+  },
+  "recovery": {
+    "distribution_restarted": false,
+    "unrelated_processes_terminated": false,
+    "root_liveness_client_killed": false,
+    "liveness_probe": "wsl -d Ubuntu-22.04 --exec /bin/true",
+    "liveness_exit_code": 0,
+    "owned_MemoryLayout_process_remaining": false
+  },
+  "correction": "Preserve failed original source/logs, avoid full ge/proof VM expansion, use selective lazy/layout facts; future owned proof runner inherits RLIMIT_AS about3GiB without wrapping direct rocq argv.",
+  "proof_status": "No failure or service timeout is counted as a passed theorem.",
+  "subsequent_diagnosis": {
+    "source": "Author direct rocq compile -time logs under3GiB cap",
+    "actual_failure_location": "Elaboration/guard checking of new Fixpoint path_info, before composites/ce/ge queries",
+    "cause": "Missing explicit structural recursion parameter {struct path}; inference first attempted the type parameter and unfolded the large environment",
+    "correction": "Add explicit {struct path}; keep lightweight projections and process memory cap",
+    "status": "Corrected source is being checked; original failed inputs/logs/status retained."
+  }
+}

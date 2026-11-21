@@ -1,0 +1,180 @@
+/* Exact pinned original slices; open external bindings are explicit. */
+#include <stdint.h>
+#include <stdbool.h>
+#include <math.h>
+#define COMMANDS_NB 4
+#define COMMAND_THRUST 3
+#define BFP_OF_REAL(_vr, _frac)    ((_vr)*(1<<(_frac)))
+
+#define INT32_ANGLE_FRAC 12
+
+#define ANGLE_BFP_OF_REAL(_af)  BFP_OF_REAL((_af), INT32_ANGLE_FRAC)
+
+#define GH_GAIN_SCALE 2
+
+  #define M_PI 3.14159265358979323846
+
+#define RadOfDeg(x) ((x) * (M_PI/180.))
+
+#define GUIDANCE_H_MAX_BANK RadOfDeg(20)
+
+#define GUIDANCE_H_THRUST_CMD_FILTER 10
+
+  #define TRUE true
+
+#define GUIDANCE_H_USE_SPEED_REF TRUE
+
+#define INT32_ACCEL_FRAC 10
+
+#define INT32_ANGLE_PI_2   (int32_t)ANGLE_BFP_OF_REAL(   1.5707963267948966192313216916397514)
+
+#define INT32_POS_FRAC 8
+
+#define INT32_QUAT_FRAC 15
+
+#define INT32_RATE_FRAC 12
+
+#define INT32_SPEED_FRAC 19
+
+#define INT32_TRIG_FRAC 14
+
+#define VECT2_ASSIGN(_a, _x, _y) {    \
+    (_a).x = (_x);        \
+    (_a).y = (_y);        \
+  }
+
+#define INT_VECT2_ZERO(_v) VECT2_ASSIGN(_v, 0, 0)
+
+#define POS_BFP_OF_REAL(_af)    BFP_OF_REAL((_af), INT32_POS_FRAC)
+
+#define MAX_POS_ERR   POS_BFP_OF_REAL(16.)
+
+#define MAX_PPRZ 9600
+
+#define SPEED_BFP_OF_REAL(_af)  BFP_OF_REAL((_af), INT32_SPEED_FRAC)
+
+#define MAX_SPEED_ERR SPEED_BFP_OF_REAL(16.)
+
+#define Min(x,y) (x < y ? x : y)
+
+#define POS_NED_I  1
+
+#define SPEED_NED_I   1
+
+#define VECT2_DIFF(_c, _a, _b) {                \
+    (_c).x = (_a).x - (_b).x;     \
+    (_c).y = (_a).y - (_b).y;     \
+  }
+
+#define VECT2_STRIM(_v, _min, _max) {         \
+    (_v).x = (_v).x < _min ? _min : (_v).x > _max ? _max : (_v).x;  \
+    (_v).y = (_v).y < _min ? _min : (_v).y > _max ? _max : (_v).y;  \
+  }
+
+  #define bit_is_set(x, b) ((x >> b) & 0x1)
+
+struct Int32Vect2 {
+  int32_t x;
+  int32_t y;
+};
+
+struct GuidancePID {
+  // horizontal gains
+  int32_t kp;
+  int32_t kd;
+  int32_t ki;
+  int32_t kv;
+  int32_t ka;
+  // vertical gains
+  int32_t v_kp;
+  int32_t v_kd;
+  int32_t v_ki;
+  // outputs
+  struct Int32Vect2 cmd_earth;  // Horizontal guidance command (north/east with #INT32_ANGLE_FRAC)
+  int32_t cmd_thrust;           // Vertical guidance command (in pprz_t)
+  // options
+  bool approx_force_by_thrust;  // Correction of force commands from thrust
+  bool adapt_throttle_enabled;  // Use adaptive throttle command estimation
+};
+
+struct HorizontalGuidanceSetpoint {
+  /** horizontal position setpoint in NED.
+   *  fixed point representation: Q23.8
+   *  accuracy 0.0039, range 8388km
+   */
+  struct Int32Vect2 pos;
+  struct Int32Vect2 speed;  ///< only used in HOVER mode if GUIDANCE_H_USE_SPEED_REF or in GUIDED mode
+  struct Int32Vect2 accel;  ///< For direct control of acceleration, if the guidance scheme is able to provide it
+
+  float heading;
+  float heading_rate;
+
+  enum {
+    GUIDANCE_H_SP_POS   = 0,
+    GUIDANCE_H_SP_SPEED = 1,
+    GUIDANCE_H_SP_ACCEL = 2,
+    GUIDANCE_H_SP_ALL   = 3
+  } h_mask;
+  enum {
+    GUIDANCE_H_SP_YAW       = 0,
+    GUIDANCE_H_SP_YAW_RATE  = 1
+  } yaw_mask;
+};
+
+struct HorizontalGuidanceReference {
+  struct Int32Vect2 pos;     ///< with #INT32_POS_FRAC
+  struct Int32Vect2 speed;   ///< with #INT32_SPEED_FRAC
+  struct Int32Vect2 accel;   ///< with #INT32_ACCEL_FRAC
+};
+
+struct HorizontalGuidanceRCInput {
+  struct Int32Vect2 vect;
+  float heading;
+  float last_ts;
+};
+
+struct HorizontalGuidance {
+  uint8_t mode;
+  /* configuration options */
+  bool use_ref;
+
+  struct HorizontalGuidanceSetpoint sp;   ///< setpoints
+  struct HorizontalGuidanceReference ref; ///< reference calculated from setpoints
+  struct HorizontalGuidanceRCInput rc_sp; ///< remote control setpoint
+};
+
+struct EcefCoor_i {
+  int32_t x; ///< in centimeters
+  int32_t y; ///< in centimeters
+  int32_t z; ///< in centimeters
+};
+
+struct LlaCoor_i {
+  int32_t lat; ///< in degrees*1e7
+  int32_t lon; ///< in degrees*1e7
+  int32_t alt; ///< in millimeters above WGS84 reference ellipsoid
+};
+
+struct Int32RMat {
+  int32_t m[3 * 3];
+};
+
+struct LtpDef_i {
+  struct EcefCoor_i ecef;        ///< Reference point in ecef
+  struct LlaCoor_i  lla;         ///< Reference point in lla
+  struct Int32RMat ltp_of_ecef; ///< Rotation matrix
+  int32_t hmsl;                  ///< Height above mean sea level in mm
+};
+
+struct NedCoor_i {
+  int32_t x;  ///< North
+  int32_t y;  ///< East
+  int32_t z;  ///< Down
+};
+
+struct EnuCoor_i {
+  int32_t x;  ///< East
+  int32_t y;  ///< North
+  int32_t z;  ///< Up
+};
+

@@ -1,0 +1,233 @@
+
+FILE NoSubHiddenPre.v
+From Stdlib Require Import List Bool.
+From compcert Require Import Coqlib Maps AST Integers Values Memory Events Globalenvs Ctypes Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation.
+From PidPositionSafety Require Import HiddenResultLhs HiddenResultContext HiddenResultPre.
+From PidPositionTranslationAttempt002 Require Import NoSubSyntax.
+Module A:=HiddenResultPre.
+Module L:=HiddenResultLhs.
+Lemma lhs_no_sub:forall sid ires br ret st,no_sub(L.lhs sid ires br ret st)=true.
+Proof. intros;destruct st;reflexivity. Qed.
+Lemma hidden_no_sub:forall sid ires br ret st fn args post,
+ no_sub post=true ->no_sub fn=true ->no_sub_list args=true ->
+ no_sub(hidden_expr(L.lhs sid ires br ret st)fn args post(L.sty sid))=true.
+Proof.
+ intros;unfold hidden_expr;cbn[no_sub];rewrite lhs_no_sub,H,H0,H1;reflexivity.
+Qed.
+Lemma hidden_no_sub_operands:forall sid ires br ret st fn args post,
+ no_sub(hidden_expr(L.lhs sid ires br ret st)fn args post(L.sty sid))=true ->
+ no_sub fn=true /\no_sub_list args=true.
+Proof.
+ intros;unfold hidden_expr in H;cbn[no_sub]in H.
+ repeat rewrite Bool.andb_true_iff in H;tauto.
+Qed.
+Section PRE.
+Variable ge:genv.
+Variable caller leaf:function.
+Variable e:env.
+Variable k:cont.
+Variable m:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable params:list type.
+Variable cc:AST.calling_convention.
+Variable vf:val.
+Variable values:list val.
+Variable post:expr.
+Hypothesis local_res:e!ires=Some(br,tptr(L.sty sid)).
+Hypothesis res_before:Cexec.do_deref_loc ge quiet_world(tptr(L.sty sid))m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis find_leaf:Genv.find_funct ge vf=Some(Internal leaf).
+Hypothesis leaf_type:type_of_fundef(Internal leaf)=Tfunction params tvoid cc.
+Hypothesis post_no_sub:no_sub post=true.
+Definition prepared(fn:expr)(args:exprlist):Prop:=
+ A.prepared ge e m params cc vf values fn args /\no_sub fn=true /\no_sub_list args=true.
+Definition pre_or_call(s:Csem.state):Prop:=
+ (exists st fn args,prepared fn args /\s=A.pre_state caller e k m sid ires br ret post st fn args) \/
+ (exists st,s=Callstate(Internal leaf)values(A.frame caller e k sid ires br ret post st)m).
+Lemma prepared_pre_no_sub:forall st fn args,prepared fn args ->
+ no_sub(A.pre_expr sid ires br ret post st fn args)=true.
+Proof. intros st fn args[P[NF NA]];unfold A.pre_expr;apply hidden_no_sub;assumption. Qed.
+Theorem pre_all_successors:forall st fn args t next,
+ prepared fn args ->
+ Csem.step ge(A.pre_state caller e k m sid ires br ret post st fn args)t next ->
+ pre_or_call next.
+Proof.
+ intros st fn args t next PN STEP.
+ pose proof(prepared_pre_no_sub st fn args PN)as NS.
+ assert(NEXT:expr_no_sub next).
+ { destruct STEP as[ES|SS].
+   - eapply no_sub_estep;[exact NS|exact ES].
+   - unfold A.pre_state,A.pre_expr,hidden_expr in SS;inversion SS. }
+ pose proof(proj2(A.pre_all_successors ge caller leaf e k m sid ires br ret params cc vf values post
+ local_res res_before find_leaf leaf_type st fn args t next(proj1 PN)STEP))as CL.
+ destruct CL as[[st'[fn'[args'[PRE EQ]]]]|[st' EQ]].
+ - subst next;cbn[expr_no_sub A.pre_state]in NEXT.
+   destruct(hidden_no_sub_operands sid ires br ret st' fn' args' post NEXT)as[NF NA].
+   left;exists st',fn',args';split;[exact(conj PRE(conj NF NA))|reflexivity].
+ - right;exists st';exact EQ.
+Qed.
+Theorem pre_progress:forall st fn args,prepared fn args ->
+ exists t next,Csem.step ge(A.pre_state caller e k m sid ires br ret post st fn args)t next /\pre_or_call next.
+Proof.
+ intros st fn args PN.
+ destruct(A.pre_progress ge caller leaf e k m sid ires br ret params cc vf values post
+ local_res res_before find_leaf leaf_type st fn args(proj1 PN))as[t[next[STEP CL]]].
+ exists t,next;split;[exact STEP|eapply pre_all_successors;[exact PN|exact STEP]].
+Qed.
+End PRE.
+Print Assumptions pre_all_successors.
+
+
+FILE safety/HiddenResultContext.v
+From Stdlib Require Import List.
+From compcert Require Import Values Ctypes Csyntax Csyntaxdefs Csem.
+Import ListNotations.
+Definition hidden_expr(l fn:expr)(args:exprlist)(post:expr)(ty:type):expr:=
+ Eassign l(Ecomma(Ecall fn args tvoid)post ty)ty.
+Inductive hidden_hole(l fn:expr)(args:exprlist)(post:expr)(ty:type):
+ kind->(expr->expr)->expr->Prop:=
+ | hh_whole:hidden_hole l fn args post ty RV(fun x=>x)(hidden_expr l fn args post ty)
+ | hh_lhs:forall from D a,context from LV D ->l=D a ->
+ hidden_hole l fn args post ty from
+ (fun x=>Eassign(D x)(Ecomma(Ecall fn args tvoid)post ty)ty)a
+ | hh_comma:hidden_hole l fn args post ty RV
+ (fun x=>Eassign l x ty)(Ecomma(Ecall fn args tvoid)post ty)
+ | hh_call:hidden_hole l fn args post ty RV
+ (fun x=>Eassign l(Ecomma x post ty)ty)(Ecall fn args tvoid)
+ | hh_function:forall from D a,context from RV D ->fn=D a ->
+ hidden_hole l fn args post ty from
+ (fun x=>Eassign l(Ecomma(Ecall(D x)args tvoid)post ty)ty)a
+ | hh_argument:forall from D a,contextlist from D ->args=D a ->
+ hidden_hole l fn args post ty from
+ (fun x=>Eassign l(Ecomma(Ecall fn(D x)tvoid)post ty)ty)a.
+Lemma hidden_context_decompose:forall from C a l fn args post ty,
+ context from RV C ->C a=hidden_expr l fn args post ty ->
+ hidden_hole l fn args post ty from C a.
+Proof.
+ intros from C a l fn args post ty CT EQ;unfold hidden_expr in EQ.
+ inversion CT;subst;cbn in EQ;try discriminate.
+ - subst a;constructor.
+ - inversion EQ;subst;eapply hh_lhs;[eassumption|reflexivity].
+ - inversion EQ;subst.
+   match goal with CT0:Csem.context _ RV ?D,EQ0:?D a = Ecomma _ _ _ |- _=>
+   inversion CT0;subst;cbn in EQ0;try discriminate end.
+   + subst a;constructor.
+   + match goal with E:Ecomma _ _ _=Ecomma _ _ _ |- _=>inversion E;subst end.
+     match goal with CT1:Csem.context _ RV ?D,EQ1:?D a = Ecall _ _ _ |- _=>
+     inversion CT1;subst;cbn in EQ1;try discriminate end.
+     * subst a;constructor.
+     * match goal with E:Ecall _ _ _=Ecall _ _ _ |- _=>inversion E;subst end.
+       eapply hh_function;[eassumption|reflexivity].
+     * match goal with E:Ecall _ _ _=Ecall _ _ _ |- _=>inversion E;subst end.
+       eapply hh_argument;[eassumption|reflexivity].
+Qed.
+Print Assumptions hidden_context_decompose.
+
+
+FILE safety/HiddenResultLhs.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+From FiveGuidanceAllOrder Require Import PureDenotation PureProgress FactorShell.
+Import ListNotations.
+Inductive lhs_stage:=H0|H1|H2|H3.
+Section LHS.
+Variable ge:genv.
+Variable f:function.
+Variable e:env.
+Variable m:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Definition sty:=Tstruct sid noattr.
+Definition lhs(st:lhs_stage):expr:=match st with
+ | H0=>Ederef(Evalof(Evar ires(tptr sty))(tptr sty))sty
+ | H1=>Ederef(Evalof(Eloc br Ptrofs.zero Full(tptr sty))(tptr sty))sty
+ | H2=>Ederef(Eval(Vptr ret Ptrofs.zero)(tptr sty))sty
+ | H3=>Eloc ret Ptrofs.zero Full sty end.
+Definition addr(st:lhs_stage):expr:=Eaddrof(lhs st)(tptr sty).
+Definition addr_state(st:lhs_stage):Csem.state:=ExprState f(addr st)Kstop e m.
+Definition addr_done:Csem.state:=ExprState f(Eval(Vptr ret Ptrofs.zero)(tptr sty))Kstop e m.
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_deref:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Lemma lhs_simple:forall st,simple(lhs st)=true.
+Proof. destruct st;reflexivity. Qed.
+Lemma lhs_type:forall st,typeof(lhs st)=sty.
+Proof. destruct st;reflexivity. Qed.
+Lemma lhs_big:forall st,eval_simple_lvalue ge e m(lhs st)ret Ptrofs.zero Full.
+Proof.
+ assert(D:deref_loc ge(tptr sty)m br Ptrofs.zero Full E0(Vptr ret Ptrofs.zero)).
+ { exact(proj1(Cexec.do_deref_loc_sound ge quiet_world(tptr sty)m br Ptrofs.zero Full quiet_world E0(Vptr ret Ptrofs.zero)res_deref)). }
+ destruct st;cbn[lhs].
+ - eapply esl_deref;eapply esr_rvalof;[apply esl_var_local;exact local_res|reflexivity|reflexivity|exact D].
+ - eapply esl_deref;eapply esr_rvalof;[constructor|reflexivity|reflexivity|exact D].
+ - apply esl_deref;constructor.
+ - constructor.
+Qed.
+Lemma type_eq_diag:forall(A:Type)ty(x y:A),(if Ctypes.type_eq ty ty then x else y)=x.
+Proof. intros;destruct(Ctypes.type_eq ty ty);auto;contradiction n;reflexivity. Qed.
+Definition addr_class(s:Csem.state):Prop:=(exists st,s=addr_state st)\/s=addr_done.
+Lemma addr_animator:forall st rule t next,
+ In(TR rule t next)(Cexec.do_step ge FactorShell.null_external FactorShell.null_external quiet_world(addr_state st)) ->
+ t=E0 /\addr_class next.
+Proof.
+ intros st rule t next;destruct st;
+ cbn[addr_state addr lhs Cexec.do_step Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc
+ Cexec.incontext Cexec.topred Cexec.stuck];
+ rewrite ?local_res,?res_deref;
+ repeat rewrite type_eq_diag;
+ cbn[Cexec.do_deref_loc sty access_mode type_is_volatile];
+ cbn[Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd];
+ intros IN;simpl in IN;repeat rewrite type_eq_diag in IN;
+ cbn[Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd]in IN;
+ simpl in IN;repeat destruct IN as[EQ|IN];try contradiction;inversion EQ;subst.
+ all: split;[reflexivity|unfold addr_class;first[
+ left;first[solve[exists H0;reflexivity]|solve[exists H1;reflexivity]|solve[exists H2;reflexivity]|solve[exists H3;reflexivity]]
+ |right;reflexivity]].
+Qed.
+Lemma addr_silent:forall st,silent_state ge(addr_state st).
+Proof.
+ intros st t next[ES|SS];[|inversion SS].
+ assert(SI:simple(addr st)=true)by(destruct st;reflexivity).
+ inversion ES;subst;auto.
+ all: try match goal with SI:simple ?ORIG=true,EQ:?C ?A = ?ORIG |- _=>rewrite <-EQ in SI end.
+ pose proof(PureDenotation.simple_context_hole RV RV C H11 a SI)as SA.
+ destruct(PureDenotation.pure_rred ge e a m t a' m' SA H10)as[MM[TT REST]];exact TT.
+
+Qed.
+Lemma addr_all_successors:forall st t next,Csem.step ge(addr_state st)t next ->
+ t=E0 /\addr_class next.
+Proof.
+ intros st t next STEP;pose proof(addr_silent st t next STEP)as TT;subst t.
+ destruct(pure_do_step_complete ge FactorShell.null_external FactorShell.null_external quiet_world
+ (addr_state st)E0 next quiet_world ltac:(destruct st;reflexivity)(possible_trace_nil _)STEP)as[rule IN].
+ eapply addr_animator;exact IN.
+Qed.
+Lemma lhs_lred_closed:forall st C a b mf,
+ context LV LV C ->lhs st=C a ->lred ge e a m b mf ->
+ mf=m /\exists st',C b=lhs st'.
+Proof.
+ intros st C a b mf CT EQ RED.
+ assert(STEP:Csem.step ge(addr_state st)E0(ExprState f(Eaddrof(C b)(tptr sty))Kstop e mf)).
+ { unfold addr_state,addr;rewrite EQ;left;eapply step_lred with(C:=fun x=>Eaddrof(C x)(tptr sty));[exact RED|constructor;exact CT]. }
+ destruct(addr_all_successors st E0 _ STEP)as[TT[[st' SAME]|DONE]].
+ - unfold addr_state,addr in SAME;inversion SAME;subst;split;[reflexivity|exists st';congruence].
+ - discriminate DONE.
+Qed.
+Lemma lhs_rred_closed:forall st C a b t mf,
+ context RV LV C ->lhs st=C a ->rred ge a m t b mf ->
+ mf=m /\t=E0/\exists st',C b=lhs st'.
+Proof.
+ intros st C a b t mf CT EQ RED.
+ assert(STEP:Csem.step ge(addr_state st)t(ExprState f(Eaddrof(C b)(tptr sty))Kstop e mf)).
+ { unfold addr_state,addr;rewrite EQ;left;eapply step_rred with(C:=fun x=>Eaddrof(C x)(tptr sty));[exact RED|constructor;exact CT]. }
+ destruct(addr_all_successors st t _ STEP)as[TT[[st' SAME]|DONE]].
+ - unfold addr_state,addr in SAME;inversion SAME;subst;repeat split;auto;exists st';congruence.
+ - discriminate DONE.
+Qed.
+End LHS.
+Print Assumptions lhs_lred_closed.
+Print Assumptions lhs_rred_closed.
+

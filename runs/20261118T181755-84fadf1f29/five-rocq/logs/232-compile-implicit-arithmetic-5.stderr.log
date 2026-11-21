@@ -1,0 +1,77 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/ImplicitArithmetic.v", line 45, characters 28-39:
+Error:
+In environment
+initial : mem
+prefix : trace
+f : function
+C : expr -> expr
+k : cont
+e : env
+mp : mem
+b : block
+ofs : ptrofs
+INIT : initial_low initial
+PATH :
+  star Csem.step PprzTrigInit.Execution.ge
+    (PprzTrigInit.Execution.entry [] initial) prefix
+    (ExprState f (C (Epostincr Incr (Eloc b ofs Full tshort) tshort)) k e mp)
+CT : context RV RV C
+w' : world
+TYPE : tshort = tshort
+PT :
+  possible_trace
+    (World (fun (_ : string) (_ : list eventval) => None)
+       (fun (_ : memory_chunk) (_ : ident) (_ : ptrofs) => None)
+       (fun (_ : memory_chunk) (_ : ident) (_ : ptrofs) (_ : eventval) =>
+        None))
+    E0 w'
+x : int
+CC :=
+  fun a : expr =>
+  C
+    (Ecomma (Eassign (Eloc b ofs Full tshort) a tshort)
+       (Eval (Vint x) tshort) tshort)
+  : expr -> expr
+CONTEXT : context RV RV CC
+NEXT :
+  star Csem.step PprzTrigInit.Execution.ge
+    (PprzTrigInit.Execution.entry [] initial) prefix
+    (ExprState f
+       (CC
+          (Ebinop Oadd (Eval (Vint x) tshort) (Eval (Vint Int.one) tint) tint))
+       k e mp)
+next :=
+  Ecomma
+    (Eassign (Eloc b ofs Full tshort)
+       (Ebinop Oadd (Eval (Vint x) tshort) (Eval (Vint Int.one) tint) tint)
+       tshort)
+    (Eval (Vint x) tshort) tshort
+  : expr
+RED :
+  rred PprzTrigInit.Execution.ge
+    (Epostincr Incr (Eloc b ofs Full tshort) tshort) mp E0 next mp
+D : deref_loc PprzTrigInit.Execution.ge tshort mp b ofs Full E0 (Vint x)
+out : val
+SEM :
+  sem_binary_operation PprzTrigInit.Execution.ge Oadd 
+    (Vint x) tshort (Vint Int.one) tint mp =
+  Some out
+GUARD : signed32 (Int.signed x + Int.signed Int.one)
+ONE : Vint Int.one = Vint Int.one
+Unable to unify "By_value Mint16signed" with
+ "match ?ty with
+  | Tvoid => By_nothing
+  | Tint I8 Signed _ => By_value Mint8signed
+  | Tint I8 Unsigned _ => By_value Mint8unsigned
+  | Tint I16 Signed _ => By_value Mint16signed
+  | Tint I16 Unsigned _ => By_value Mint16unsigned
+  | Tint I32 _ _ => By_value Mint32
+  | Tint IBool _ _ => By_value Mbool
+  | Tlong _ _ => By_value Mint64
+  | Tfloat F32 _ => By_value Mfloat32
+  | Tfloat F64 _ => By_value Mfloat64
+  | Tpointer _ _ => By_value Mptr
+  | Tarray _ _ _ | Tfunction _ _ _ => By_reference
+  | _ => By_copy
+  end".
+

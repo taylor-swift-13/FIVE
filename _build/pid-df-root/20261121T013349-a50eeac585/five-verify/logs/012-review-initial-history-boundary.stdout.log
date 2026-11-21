@@ -1,0 +1,29 @@
+From Stdlib Require Import Reals ZArith Lia Lra Psatz.
+From compcert Require Import Integers Floats.
+From FivePidDfRoundoffSupport Require Export Reference FloatRange.
+Open Scope R_scope.
+Definition prev32(x:nat->float32)(n:nat):float32:=match n with O=>Float32.zero|S k=>x k end.
+Definition step(a b c y e0 e1 x:float32):float32:=
+ Float32.add(Float32.add(Float32.add y(Float32.mul a x))(Float32.mul b e0))(Float32.mul c e1).
+Fixpoint actual(a b c:float32)(x:nat->float32)(n:nat):float32:=
+ match n with O=>Float32.zero|S k=>step a b c(actual a b c x k)(x k)(prev32 x k)(x(S k))end.
+Definition Unit(f:float32):Prop:=finite f /\ Rabs(r32 f)<=1.
+Definition Admissible(a b c:float32)(x:nat->float32):Prop:=
+ Unit a /\ Unit b /\ Unit c /\ x O=Float32.zero /\ forall n,Unit(x n).
+Lemma previous_real:forall x n,r32(prev32 x n)=previous(fun k=>r32(x k))n.
+Proof. intros x[|n];reflexivity. Qed.
+Lemma prev_unit:forall x,(forall n,Unit(x n))->forall n,Unit(prev32 x n).
+Proof. intros x X[|n];[split;[reflexivity|change(Rabs 0<=1);rewrite Rabs_R0;lra]|apply X]. Qed.
+Definition roundoff_envelope(n:nat):R:=16*u*INR n*(INR n+1).
+Definition total_envelope(a b c:float32)(P H D:R)(n:nat):R:=
+ roundoff_envelope n+INR n*Delta(r32 a)(r32 b)(r32 c)(P+H+D)(-P+H-2*D)D.
+Definition stored_a(Kp Kd Ki Ts:float32):float32:=
+ Float32.add(Float32.add Kp(Float32.div(Float32.mul Ki Ts)(Float32.of_bits(Int.repr 1073741824))))(Float32.div Kd Ts).
+Definition stored_b(Kp Kd Ki Ts:float32):float32:=
+ Float32.sub(Float32.add(Float32.neg Kp)(Float32.div(Float32.mul Ki Ts)(Float32.of_bits(Int.repr 1073741824))))(Float32.div(Float32.mul(Float32.of_bits(Int.repr 1073741824))Kd)Ts).
+Definition stored_c(Kp Kd Ki Ts:float32):float32:=Float32.div Kd Ts.
+Definition nominal_H(Ki Ts:float32):R:=r32 Ki*r32 Ts/2.
+Definition nominal_D(Kd Ts:float32):R:=r32 Kd/r32 Ts.
+Lemma envelope_explicit:forall n,roundoff_envelope n= /1048576*INR n*(INR n+1).
+Proof. intros;unfold roundoff_envelope;rewrite u_value;ring. Qed.
+

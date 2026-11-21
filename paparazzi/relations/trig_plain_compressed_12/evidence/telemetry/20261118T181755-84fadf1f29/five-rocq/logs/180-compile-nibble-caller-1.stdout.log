@@ -1,0 +1,43 @@
+Chars 0 - 55 [From~Stdlib~Require~Import~Boo...] 0.21 secs (0.111u,0.099s)
+Chars 56 - 192 [From~compcert~Require~Import~C...] 0.264 secs (0.148u,0.116s)
+Chars 193 - 221 [Require~PprzTrigInit.Source.] 0.001 secs (0.001u,0.s)
+Chars 222 - 276 [From~PprzTrigRelationSupport~R...] 0. secs (0.u,0.s)
+Chars 277 - 377 [From~PprzTrigInitSupport~Requi...] 0.004 secs (0.002u,0.002s)
+Chars 378 - 421 [From~PprzTrigCBMC~Require~Impo...] 0. secs (0.u,0.s)
+Chars 422 - 443 [Import~ListNotations.] 0. secs (0.u,0.s)
+Chars 444 - 469 [#[local]~Open~Scope~Z_scope.] 0. secs (0.u,0.s)
+Chars 470 - 500 [#[local]~Open~Scope~string_scope.] 0. secs (0.u,0.s)
+Chars 501 - 1298 [Theorem~nibble_caller_certific...] 0.003 secs (0.003u,0.s)
+Chars 1299 - 1305 [Proof.] 0. secs (0.u,0.s)
+Chars 1307 - 1409 [intros~ge~TARGET~caller~kont~e...] 0. secs (0.u,0.s)
+Chars 1411 - 1472 [pose~proof~(short_deref~ge~Con...] 0. secs (0.u,0.s)
+Chars 1474 - 1524 [pose~proof~(short_add_one~ge~m...] 0.001 secs (0.u,0.s)
+Chars 1526 - 1581 [pose~proof~(short_increment_ca...] 0. secs (0.u,0.s)
+Chars 1583 - 1690 [change~~~(sem_cast~(Vint~(Int....] 0. secs (0.u,0.s)
+Chars 1692 - 1761 [pose~proof~(short_assign~ge~Co...] 0. secs (0.u,0.s)
+Chars 1763 - 1858 [assert~~(ARGCAST~:~~~sem_cast~...] 0. secs (0.u,0.s)
+Chars 1860 - 1861 [{] 0. secs (0.u,0.s)
+Chars 1862 - 1933 [change~~~(Some~(Vint~(Int.zero...] 0. secs (0.u,0.s)
+Chars 1934 - 1977 [rewrite~zero_ext16_repr~by~lia...] 0. secs (0.u,0.s)
+Chars 1978 - 1979 [}] 0. secs (0.u,0.s)
+Chars 1981 - 2127 [assert~~(FADDR0~:~~~Cexec.do_d...] 0. secs (0.u,0.s)
+Chars 2129 - 2276 [assert~~(FADDR1~:~~~Cexec.do_d...] 0. secs (0.u,0.s)
+Chars 2278 - 3845 [Ltac~~stage_step~ET~EI~EF~SYM~...] 0.001 secs (0.001u,0.s)
+Chars 3847 - 3992 [assert~~(S125~:~~~first_call_c...] 0. secs (0.u,0.s)
+Chars 3994 - 3995 [{] 0. secs (0.u,0.s)
+(map (expr_final_state caller kont e)
+   (incontext2
+      (fun x : expr =>
+       Eassign x
+         (Ecall (Eval (Vptr bf Ptrofs.zero) nibble_fun_type)
+            (Econs (Eval (Vint (Int.repr p)) short_type) Enil)
+            nibble_return_type)
+         short_type)
+      []
+      (fun x : expr =>
+       Eassign (Eloc bt Ptrofs.zero Full short_type) x short_type)
+      (topred
+         (Callred "red_call" (Internal Source.f_get_nibble)
+            [Vint (Int.repr p)] nibble_return_type mi))) <>
+ [])
+Chars 3996 - 4072 [stage_step~ET~EI~EF~SYM~FUN~DE...] 0.029 secs (0.029u,0.s)

@@ -1,0 +1,49 @@
+File "./paparazzi/relations/lowpass_roundoff_bound/support/FloatBounds.v", line 73, characters 10-81:
+Error:
+In environment:
+x, y : float32
+Fx : finite x
+Fy : finite y
+Hxy : Rabs (r32 x + r32 y) <= 8
+H :
+  if
+   Rlt_bool
+     (Rabs
+        (round radix2 (SpecFloat.fexp 24 128)
+           (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)
+           (B2R 24 128 x + B2R 24 128 y)))
+     (bpow radix2 128)
+  then
+   B2R 24 128
+     (Bplus 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+        x y) =
+   round radix2 (SpecFloat.fexp 24 128)
+     (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)
+     (B2R 24 128 x + B2R 24 128 y) /\
+   is_finite 24 128
+     (Bplus 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+        x y) =
+   true /\
+   Bsign 24 128
+     (Bplus 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+        x y) =
+   match Rcompare (B2R 24 128 x + B2R 24 128 y) 0 with
+   | Eq =>
+       match BinarySingleNaN.mode_NE with
+       | BinarySingleNaN.mode_DN => (Bsign 24 128 x || Bsign 24 128 y)%bool
+       | _ => (Bsign 24 128 x && Bsign 24 128 y)%bool
+       end
+   | Lt => true
+   | Gt => false
+   end
+  else
+   B2FF 24 128
+     (Bplus 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+        x y) =
+   binary_overflow 24 128 BinarySingleNaN.mode_NE (Bsign 24 128 x) /\
+   Bsign 24 128 x = Bsign 24 128 y
+Could not find an instance for the following existential variables:
+?y : ?T
+
+?y0 : ?T
+

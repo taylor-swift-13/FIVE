@@ -1,0 +1,409 @@
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+
+Scheme expr_core_ind := Induction for expr Sort Prop
+with exprlist_core_ind := Induction for exprlist Sort Prop.
+Combined Scheme expr_exprlist_ind from expr_core_ind,exprlist_core_ind.
+Scheme context_core_ind := Induction for context Sort Prop
+with contextlist_core_ind := Induction for contextlist Sort Prop.
+Combined Scheme context_contextlist_ind from context_core_ind,contextlist_core_ind.
+Section CLOSURE.
+Variable ge:genv.
+Variable allowed:Csyntax.fundef -> Prop.
+Variable call_budget:type -> Csyntax.fundef -> Prop.
+Definition nv (ty:type):Prop := type_is_volatile ty=false.
+Definition valid_call (tyf tyout:type):Prop :=
+ forall vf fd tyargs tyres cc,
+ Genv.find_funct ge vf=Some fd ->
+ classify_fun tyf=fun_case_f tyargs tyres cc ->
+ type_of_fundef fd=Tfunction tyargs tyres cc -> allowed fd /\ call_budget tyout fd.
+Fixpoint core_expr (a:expr):Prop :=
+ match a with
+ | Eval _ ty | Eloc _ _ _ ty | Evar _ ty | Esizeof _ ty | Ealignof _ ty => nv ty
+ | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+ | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty /\ core_expr a
+ | Ebinop _ a b ty | Eassign a b ty | Ecomma a b ty
+ | Eseqand a b ty | Eseqor a b ty => nv ty /\ core_expr a /\ core_expr b
+ | Eassignop _ a b tyres ty => nv ty /\ nv tyres /\ core_expr a /\ core_expr b
+ | Econdition a b c ty => nv ty /\ core_expr a /\ core_expr b /\ core_expr c
+ | Ecall a al ty => nv ty /\ core_expr a /\ core_exprlist al /\ valid_call(typeof a) ty
+ | Ebuiltin ef _ al ty => nv ty /\ executable_builtin ef=true /\ core_exprlist al
+ | _ => False end
+with core_exprlist (al:exprlist):Prop :=
+ match al with Enil => True | Econs a al => core_expr a /\ core_exprlist al end.
+
+Ltac unpack := repeat match goal with H:_ /\ _ |- _ => destruct H end.
+Lemma core_nv: forall a, core_expr a -> nv(typeof a).
+Proof. destruct a; simpl; intros; unpack; tauto. Qed.
+Lemma core_no_builtin_mut:
+ (forall a,core_expr a -> no_builtin a=true) /\
+ (forall al,core_exprlist al -> no_builtin_list al=true).
+Proof.
+ apply expr_exprlist_ind; simpl; intros; unpack; try contradiction;
+ repeat match goal with |- _ && _=true => apply Bool.andb_true_iff;split end; auto.
+Qed.
+Lemma context_type_equal_mut:
+ (forall from to C, context from to C -> forall a b,
+ typeof a=typeof b -> typeof(C a)=typeof(C b)) /\
+ (forall from C, contextlist from C -> True).
+Proof.
+ apply context_contextlist_ind; simpl; intros; auto.
+Qed.
+Lemma core_context_mut:
+ (forall from to C, context from to C -> forall a b,
+ core_expr(C a) -> core_expr a /\
+ (typeof a=typeof b -> core_expr b -> core_expr(C b))) /\
+ (forall from C, contextlist from C -> forall a b,
+ core_exprlist(C a) -> core_expr a /\
+ (typeof a=typeof b -> core_expr b -> core_exprlist(C b))).
+Proof.
+ apply context_contextlist_ind; simpl; intros; unpack; try contradiction;
+ try (split; auto; intros; repeat split; auto; fail).
+ all: try match goal with IH:forall a b, _ |- _ =>
+   specialize(IH a b ltac:(assumption)); destruct IH as [HO HR];
+   split; auto; intros; repeat split; auto end.
+ all: try match goal with CT:Csem.context _ _ ?C, VC:valid_call(typeof(?C ?A)) _ |- _ =>
+   rewrite <-(proj1 context_type_equal_mut _ _ _ CT _ _ ltac:(assumption)); assumption end.
+all: assert(VC:valid_call(typeof(C b)) ty) by (rewrite <-(proj1 context_type_equal_mut k RV C c a b H);exact H3).
+ all: destruct(VC vf fd tyargs tyres cc H5 H6 H7);assumption.
+Qed.
+Lemma core_context_hole: forall from to C, context from to C -> forall a,
+ core_expr(C a) -> core_expr a.
+Proof. intros; exact(proj1(proj1 core_context_mut _ _ _ H a a H0)). Qed.
+Lemma core_context_replace: forall from to C, context from to C -> forall a b,
+ core_expr(C a) -> typeof a=typeof b -> core_expr b -> core_expr(C b).
+Proof. intros; eapply(proj2(proj1 core_context_mut _ _ _ H a b H0));eauto. Qed.
+
+Lemma lred_type: forall e a m a' m', lred ge e a m a' m' -> typeof a'=typeof a.
+Proof. intros; inversion H; subst; simpl; auto. Qed.
+Lemma rred_type: forall a m t a' m', rred ge a m t a' m' -> typeof a'=typeof a.
+Proof. intros; inversion H; subst; simpl; auto. Qed.
+Lemma core_lred: forall e a m a' m',
+ core_expr a -> lred ge e a m a' m' -> core_expr a'.
+Proof. intros; inversion H0; subst; simpl in *; unpack; auto. Qed.
+Lemma nv_deref_silent: forall ty m b ofs bf t v,
+ nv ty -> deref_loc ge ty m b ofs bf t v -> t=E0.
+Proof. intros; inversion H0; subst; unfold nv in *; congruence. Qed.
+Lemma nv_assign_silent: forall ty m b ofs bf v t m' v',
+ nv ty -> assign_loc ge ty m b ofs bf v t m' v' -> t=E0.
+Proof. intros; inversion H0; subst; unfold nv in *; congruence. Qed.
+Lemma core_rred: forall a m t a' m',
+ core_expr a -> rred ge a m t a' m' -> t=E0 /\ core_expr a'.
+Proof.
+ intros a m t a' m' CO RED; inversion RED; subst; simpl in CO; unpack;
+ try contradiction; split; simpl; eauto using nv_deref_silent,nv_assign_silent;
+ try (repeat split; auto; fail).
+ - destruct b; simpl; repeat split; auto.
+ - eapply(proj1(executable_builtin_silent _ _ _ _ _ _ _ ltac:(eassumption) ltac:(eassumption))).
+Qed.
+Lemma core_callred: forall a m fd args ty,
+ core_expr a -> callred ge a m fd args ty -> allowed fd /\ call_budget ty fd /\ nv ty /\ typeof a=ty.
+Proof.
+ intros a m fd args ty CO RED; inversion RED; subst; simpl in CO; unpack;
+ destruct(H6 vf fd tyargs tyres cconv H H2 H1);repeat split;auto.
+Qed.
+
+Fixpoint core_stmt (s:statement):Prop :=
+ match s with
+ | Sskip | Sreturn None => True
+ | Sdo a | Sreturn(Some a) => core_expr a
+ | Ssequence a b => core_stmt a /\ core_stmt b
+ | Sifthenelse a b c => core_expr a /\ core_stmt b /\ core_stmt c
+ | _ => False end.
+Inductive core_cont:cont -> Prop :=
+ | core_stop: core_cont Kstop
+ | core_seq: forall s k, core_stmt s -> core_cont k -> core_cont(Kseq s k)
+ | core_do: forall k, core_cont k -> core_cont(Kdo k)
+ | core_return: forall k, core_cont k -> core_cont(Kreturn k)
+ | core_if: forall a b k, core_stmt a -> core_stmt b -> core_cont k -> core_cont(Kifthenelse a b k)
+ | core_call: forall f e C ty k,
+   context RV RV C -> nv ty ->
+   (forall a, typeof a=ty -> core_expr a -> core_expr(C a)) ->
+   core_cont k -> core_cont(Kcall f e C ty k).
+
+Definition source_state (s:Csem.state):Prop :=
+ match s with
+ | State _ stmt k _ _ => core_stmt stmt /\ core_cont k
+ | ExprState _ a k _ _ => core_expr a /\ core_cont k
+ | Callstate fd _ k _ => allowed fd /\ core_cont k
+ | Returnstate _ k _ => core_cont k
+ | Stuckstate => True end.
+Hypothesis internal_body: forall f, allowed(Internal f) -> core_stmt(fn_body f).
+Hypothesis external_supported: forall ef args ret cc,
+ allowed(External ef args ret cc) -> executable_builtin ef=true.
+
+Lemma source_callback_free: forall s,source_state s -> callback_free_state s.
+Proof.
+ destruct s; simpl; intros; unpack; auto.
+ - eapply(proj1 core_no_builtin_mut);eauto.
+ - destruct fd; simpl;auto;eauto.
+From Stdlib Require Import List Bool Lia Arith.
+From compcert Require Import AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Smallstep Csyntaxdefs.
+From FiveShared.verification Require Import Obligations.
+From FiveGhSpeed Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure WeightedTermination SourceTermination TableSupport.
+Import ListNotations.
+
+Definition sqrt_weight:nat := 10 + statement_rank(fun _=>0)(fn_body Source.f_five_sqrtf).
+Definition void_weight:nat := 10 + statement_rank(fun ty=>if type_eq ty tfloat then sqrt_weight else 0)(fn_body Source.f_gh_saturate_accel).
+Definition call_weight(ty:type):nat :=
+ if type_eq ty tfloat then sqrt_weight else if type_eq ty tvoid then void_weight else 0.
+Definition allowed := TableSupport.allowed Source.global_definitions.
+Definition budget := SourceTermination.static_budget call_weight.
+Definition ge := Csem.globalenv Source.prog.
+Local Notation CE := (SourceClosure.core_expr ge allowed budget).
+Local Notation CS := (SourceClosure.core_stmt ge allowed budget).
+Local Notation SS := (SourceClosure.source_state ge allowed budget).
+
+Definition check_global := TableSupport.check_global call_weight.
+Lemma function_in_global:forall v fd,Genv.find_funct ge v=Some fd -> exists id,In(id,Gfun fd)Source.global_definitions.
+Proof. intros;exact(TableSupport.global_function_in Source.prog _ _ H). Qed.
+Lemma checked_float_table:
+ forallb(check_global(Tfunction[tfloat]tfloat cc_default)tfloat) Source.global_definitions=true.
+Proof. vm_compute;reflexivity. Qed.
+Lemma checked_sat_table:
+ forallb(check_global(Tfunction[tptr(Tstruct Source._FloatVect2 noattr)]tvoid cc_default)tvoid) Source.global_definitions=true.
+Proof. vm_compute;reflexivity. Qed.
+
+Lemma float_call_closed:
+ SourceClosure.valid_call ge allowed budget (Tfunction [tfloat] tfloat cc_default) tfloat.
+Proof. apply(TableSupport.checked_call_closed ge Source.global_definitions call_weight function_in_global);exact checked_float_table. Qed.
+Lemma sat_call_closed:
+ SourceClosure.valid_call ge allowed budget
+ (Tfunction [tptr(Tstruct Source._FloatVect2 noattr)] tvoid cc_default) tvoid.
+Proof. apply(TableSupport.checked_call_closed ge Source.global_definitions call_weight function_in_global);exact checked_sat_table. Qed.
+
+Ltac build_core :=
+ repeat match goal with
+ | |- _ /\ _ => split
+ | |- True => exact I end;
+ try reflexivity; try exact float_call_closed;try exact sat_call_closed.
+Lemma sqrt_body_core:CS(fn_body Source.f_five_sqrtf).
+Proof. cbn [fn_body CS Source.f_five_sqrtf SourceClosure.core_stmt SourceClosure.core_expr SourceClosure.core_exprlist SourceClosure.nv];build_core. Qed.
+Lemma sat_body_core:CS(fn_body Source.f_gh_saturate_accel).
+Proof. cbn [fn_body CS Source.f_gh_saturate_accel SourceClosure.core_stmt SourceClosure.core_expr SourceClosure.core_exprlist SourceClosure.nv];build_core. Qed.
+Lemma entry_body_core:CS(fn_body Source.f_gh_update_ref_from_speed_sp).
+Proof. cbn [fn_body CS Source.f_gh_update_ref_from_speed_sp SourceClosure.core_stmt SourceClosure.core_expr SourceClosure.core_exprlist SourceClosure.nv];build_core. Qed.
+Lemma internal_body:forall f,allowed(Internal f) -> CS(fn_body f).
+Proof.
+ intros f [id IN].
+ pose proof(internal_functions_in _ _ _ IN) as IF.
+ change (In f [Source.f_five_sqrtf;Source.f_gh_update_ref_from_speed_sp;Source.f_gh_saturate_accel]) in IF.
+ destruct IF as [EQ|[EQ|[EQ|IF]]];try contradiction;subst f;
+ auto using sqrt_body_core,sat_body_core,entry_body_core.
+Qed.
+Lemma external_supported:forall ef args ret cc,
+ allowed(External ef args ret cc) -> executable_builtin ef=true.
+Proof. auto. Qed.
+
+Theorem entry_source:forall args m,SS(Execution.entry args m).
+Proof.
+ intros;split;[|constructor].
+ exists Source._gh_update_ref_from_speed_sp.
+ cbn [Source.global_definitions In].
+ repeat first [left;reflexivity|right].
+Qed.
+Theorem source_step_invariant:forall s t s',SS s -> Csem.step ge s t s' -> t=E0 /\ SS s'.
+Proof. exact(SourceClosure.source_step_invariant ge allowed budget internal_body external_supported). Qed.
+Theorem all_successor_termination:forall args m,
+ Acc(successor ge)(Execution.entry args m).
+Proof. intros;apply(SourceTermination.source_all_successors_accessible ge allowed call_weight internal_body external_supported);apply entry_source. Qed.
+Theorem one_step_correspondence:forall cb asm w s t s',SS s ->
+ ((exists rule,In(TR rule t s')(Cexec.do_step ge cb asm w s)) <-> Csem.step ge s t s').
+Proof. exact(SourceClosure.source_do_step_exact ge allowed budget internal_body external_supported). Qed.
+Print Assumptions all_successor_termination.
+Print Assumptions one_step_correspondence.
+
+
+Definition closed_step := Execution.model_step Execution.no_external Execution.no_external Execution.quiet_world.
+Theorem source_reachable:forall args m t reached,
+ star Csem.step ge(Execution.entry args m)t reached -> SS reached.
+Proof.
+ intros args m t reached PATH.
+ pose proof(entry_source args m) as INIT.
+ induction PATH;auto;apply IHPATH;exact(proj2(source_step_invariant _ _ _ INIT H)).
+Qed.
+Theorem whole_execution_correspondence:forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step ge(Execution.entry args m)t final.
+Proof.
+ intros args m t final;split;intro PATH;
+ pose proof(entry_source args m) as INIT;
+ revert INIT;induction PATH;intros INV;[constructor| |constructor|].
+ - pose proof(proj1(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV)H)as STEP.
+   eapply star_step;[exact STEP|apply IHPATH;exact(proj2(source_step_invariant _ _ _ INV STEP))|assumption].
+ - eapply star_step.
+   + apply(proj2(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact H.
+   + apply IHPATH;exact(proj2(source_step_invariant _ _ _ INV H)).
+   + assumption.
+Qed.
+Theorem invalid_operation_correspondence:forall args m t reached,
+ star Csem.step ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <->
+ ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Proof.
+ intros args m t reached PATH.
+ pose proof(source_reachable _ _ _ _ PATH)as INV.
+ unfold Execution.source_error;split;intros[N STOP];split;auto;intros tr nxt STEP;apply(STOP tr nxt).
+ - apply(proj1(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact STEP.
+ - apply(proj2(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact STEP.
+(** Restricted form of the CompCert Cexec animator correctness proof.
+    Original Cexec.v copyright INRIA; distributed under the CompCert license. *)
+From Coq Require Import Bool List ZArith Classical String.
+From compcert Require Import Axioms Coqlib Decidableplus Errors Maps Integers Floats AST Values Memory Events Globalenvs Builtins Determinism Ctypes Cop Csyntax Csem Cexec.
+Import ListNotations.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+
+Definition executable_builtin (ef: external_function): bool :=
+ match ef with
+ | EF_builtin name sg | EF_runtime name sg =>
+   match lookup_builtin_function name sg with Some _ => true | None => false end
+ | _ => false end.
+
+(** Syntactic closure only: no conditions on values, memory, permissions or definedness. *)
+Fixpoint no_builtin (a: expr): bool :=
+  match a with
+  | Ebuiltin ef _ al _ => executable_builtin ef && no_builtin_list al
+  | Efield a _ _ | Evalof a _ | Ederef a _ | Eaddrof a _
+  | Eunop _ a _ | Ecast a _ | Epostincr _ a _ | Eparen a _ _ => no_builtin a
+  | Ebinop _ a b _ | Eseqand a b _ | Eseqor a b _
+  | Eassign a b _ | Eassignop _ a b _ _ | Ecomma a b _ => no_builtin a && no_builtin b
+  | Econdition a b c _ => no_builtin a && no_builtin b && no_builtin c
+  | Ecall a al _ => no_builtin a && no_builtin_list al
+  | _ => true
+  end
+with no_builtin_list (al: exprlist): bool :=
+  match al with Enil => true | Econs a al => no_builtin a && no_builtin_list al end.
+
+Section LOCAL_EXEC.
+Variable ge: genv.
+Variable do_external_function do_inline_assembly:
+  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+Variable e: env.
+Variable w: world.
+Local Notation step_expr := (Cexec.step_expr ge do_external_function do_inline_assembly e w).
+Local Notation step_exprlist := (Cexec.step_exprlist ge do_external_function do_inline_assembly e w).
+
+Lemma executable_builtin_sound:
+ forall ef w args m w2 t v m2,
+ executable_builtin ef = true ->
+ Cexec.do_external ge do_external_function do_inline_assembly ef w args m = Some(w2,t,v,m2) ->
+ external_call ef ge args m t v m2 /\ possible_trace w t w2.
+Proof.
+ intros ef w0 args m0 w2 t v m2 HB; destruct ef; simpl in HB; try discriminate;
+ unfold Cexec.do_external, Cexec.do_builtin_or_external;
+ unfold external_call, builtin_or_external_sem;
+ destruct (lookup_builtin_function name sg) as [bf|] eqn:LOOK; try discriminate;
+ destruct (builtin_function_sem bf args) eqn:RES; intros E; inversion E; subst;
+ split; constructor; auto.
+Qed.
+Lemma executable_builtin_complete:
+ forall ef w args m w2 t v m2,
+ executable_builtin ef = true -> external_call ef ge args m t v m2 ->
+ possible_trace w t w2 ->
+ Cexec.do_external ge do_external_function do_inline_assembly ef w args m = Some(w2,t,v,m2).
+Proof.
+ intros ef w0 args m0 w2 t v m2 HB; destruct ef; simpl in HB; try discriminate;
+ unfold external_call, builtin_or_external_sem;
+ unfold Cexec.do_external, Cexec.do_builtin_or_external;
+ destruct (lookup_builtin_function name sg) as [bf|] eqn:LOOK; try discriminate;
+ intros E PT; inversion E; subst; inversion PT; subst; try congruence.
+ all: rewrite H; reflexivity.
+Qed.
+
+Local Hint Constructors context Csem.contextlist : core.
+Ltac unpack_nb := repeat match goal with H: _ && _ = true |- _ => apply andb_true_iff in H; let A := fresh "NB" in let B := fresh "NB" in destruct H as [A B] end.
+Ltac pure_myinv :=
+  match goal with
+  | [ H: False |- _ ] => destruct H
+  | [ H: _ /\ _ |- _ ] => destruct H; pure_myinv
+  | [ H: exists _, _ |- _ ] => destruct H; pure_myinv
+  | _ => idtac
+  end.
+Theorem pure_step_expr_sound:
+  forall a k m, no_builtin a = true -> reducts_ok ge e w k a m (step_expr k a m)
+with pure_step_exprlist_sound:
+  forall al m, no_builtin_list al = true -> list_reducts_ok ge e w al m (step_exprlist al m).
+Proof with (try (apply not_invert_ok; simpl; intro; pure_myinv; intuition congruence; fail)).
+  induction a; intros k m NB; simpl in NB; unpack_nb; try discriminate; simpl; destruct k; try (apply wrong_kind_ok; simpl; congruence).
+(* Eval *)
+  split; intros. tauto. simpl; congruence.
+(* Evar *)
+  destruct (e!x) as [[b ty']|] eqn:?.
+  destruct (type_eq ty ty')...
+  subst. apply topred_ok; auto. apply red_var_local; auto.
+  destruct (Genv.find_symbol ge x) as [b|] eqn:?...
+  apply topred_ok; auto. apply red_var_global; auto.
+(* Efield *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?.
+
+Local Hint Extern 3 => exact I : core.
+
+Theorem do_step_sound:
+  forall w S rule t S',
+  In (TR rule t S') (do_step w S) ->
+  Csem.step ge S t S' \/ (t = E0 /\ S' = Stuckstate /\ can_crash_world w S).
+Proof with try (left; right; econstructor; eauto; fail).
+  intros until S'. destruct S; simpl.
+(* State *)
+  destruct s; myinv...
+  (* skip *)
+  destruct k; myinv...
+  (* break *)
+  destruct k; myinv...
+  (* continue *)
+  destruct k; myinv...
+  (* goto *)
+  destruct p as [s' k']. myinv...
+(* ExprState *)
+  destruct (is_val r) as [[v ty]|] eqn:?.
+  (* expression is a value *)
+  rewrite (is_val_inv _ _ _ Heqo).
+  destruct k; myinv...
+  (* expression reduces *)
+  intros. exploit list_in_map_inv; eauto. intros [[C rd] [A B]].
+  generalize (step_expr_sound e w r RV m). unfold reducts_ok. intros [P Q].
+  exploit P; eauto. intros [a' [k' [CTX [EQ RD]]]].
+  unfold expr_final_state in A. simpl in A.
+  destruct k'; destruct rd; inv A; simpl in RD; try contradiction.
+  (* lred *)
+  left; left; apply step_lred; auto.
+  (* stuck lred *)
+  exploit not_imm_safe_t; eauto. intros [R | R]; eauto.
+  (* rred *)
+  destruct RD. left; left; apply step_rred; auto.
+  (* callred *)
+  destruct RD; subst m'. left; left; apply step_call; eauto.
+  (* stuck rred *)
+  exploit not_imm_safe_t; eauto. intros [R | R]; eauto.
+(* callstate *)
+  destruct fd; myinv.
+  (* internal *)
+  destruct (do_alloc_variables empty_env m (fn_params f ++ fn_vars f)) as [e m1] eqn:?.
+  myinv. left; right; apply step_internal_function with m1. auto.
+  change e with (fst (e,m1)). change m1 with (snd (e,m1)) at 2. rewrite <- Heqp.
+  apply do_alloc_variables_sound. eapply sem_bind_parameters_sound; eauto.
+  (* external *)
+  destruct p as [[[w' tr] v] m']. myinv. left; right; constructor.
+  eapply do_ef_external_sound; eauto.
+(* returnstate *)
+  destruct k; myinv...
+(* stuckstate *)
+  contradiction.
+Qed.
+
+Remark estep_not_val:
+  forall f a k e m t S, estep ge (ExprState f a k e m) t S -> is_val a = None.
+Proof.
+  intros.
+  assert (forall b from to C, context from to C -> (from = to /\ C = fun x => x) \/ is_val (C b) = None).
+    induction 1; simpl; auto.
+  inv H.
+  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+  destruct (H0 a0 _ _ _ H8) as [[A B] | A]. subst. destruct a0; auto. elim H9. constructor. auto.
+Qed.
+

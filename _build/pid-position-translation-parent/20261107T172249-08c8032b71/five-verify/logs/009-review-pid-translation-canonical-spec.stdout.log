@@ -1,0 +1,90 @@
+From Stdlib Require Import List ZArith Bool.
+From compcert Require Import AST Integers Floats Values Memory Events Globalenvs Ctypes Csyntax Csem Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic WitnessSetup.
+Import ListNotations.
+Open Scope Z_scope.
+Module Source := PidPositionRunPos.Source.
+Module Execution := PidPositionRunPos.Execution.
+Definition ref_pos (axis:ident) := [Source._ref;Source._pos;axis].
+Definition measured_pos (axis:ident) := [Source._ned_pos_i;axis].
+Definition bounded_path m b ty path lo hi : Prop :=
+ exists v, load_path Mint32 m b ty path=Some(Vint v) /\ lo<=Int.signed v<=hi.
+Definition bounded_global m id ty path lo hi : Prop :=
+ exists v, load_global Mint32 m id ty path=Some(Vint v) /\ lo<=Int.signed v<=hi.
+Definition field_byte (base:block) ty path (b:block) (ofs:Z) : Prop :=
+ b=base /\ exists ft start, path_info ty path=Some(ft,start) /\ start<=ofs<start+4.
+Definition translated_byte (gh:block) (b:block) (ofs:Z) : Prop :=
+ (exists axis, In axis [Source._x;Source._y] /\ field_byte gh gh_type (ref_pos axis) b ofs)
+ \/ (exists sb axis, Genv.find_symbol Execution.ge Source._state=Some sb /\ In axis [Source._x;Source._y] /\ field_byte sb state_type (measured_pos axis) b ofs).
+Definition same_except_positions_and_return (gh ret:block) (a b:mem) : Prop :=
+ Mem.nextblock a=Mem.nextblock b
+ /\ (forall blk ofs k p, Mem.perm a blk ofs k p <-> Mem.perm b blk ofs k p)
+ /\ (forall blk ofs, ~translated_byte gh blk ofs -> blk<>ret -> Mem.loadbytes a blk ofs 1=Mem.loadbytes b blk ofs 1).
+Definition global_bytes_initialized (m:mem) : Prop :=
+ exists init, Genv.init_mem Source.prog=Some init /\ forall b gv, Genv.find_var_info Execution.ge b=Some gv ->
+ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Readable /\ (gvar_readonly gv=true -> forall ofs, 0<=ofs<sizeof ce (gvar_info gv) -> Mem.loadbytes m b ofs 1=Mem.loadbytes init b ofs 1).
+Definition writable_controller_globals (m:mem) : Prop :=
+ forall id, In id [Source._guidance_pid;Source._guidance_pid_pos_err;Source._guidance_pid_speed_err;Source._guidance_pid_trim_att_integrator] ->
+ exists b gv, Genv.find_symbol Execution.ge id=Some b /\ Genv.find_var_info Execution.ge b=Some gv /\ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Writable.
+Definition caches_valid (m:mem) : Prop :=
+ exists ps ss, load_global Mint16unsigned m Source._state state_type [Source._pos_status]=Some(Vint ps)
+ /\ load_global Mint16unsigned m Source._state state_type [Source._speed_status]=Some(Vint ss)
+ /\ Int.and ps (Int.repr 2)=Int.repr 2 /\ Int.and ss (Int.repr 2)=Int.repr 2.
+Definition heading_safe (m:mem) : Prop :=
+ exists h, load_global Mfloat32 m Source._guidance_h gh_type [Source._sp;Source._heading]=Some(Vsingle h)
+ /\ Float32.cmp Cle (Float32.of_int(Int.repr(-3))) h=true
+ /\ Float32.cmp Cle h (Float32.of_int(Int.repr 3))=true.
+Definition InputGood (m:mem) (gh ret:block) : Prop :=
+ gh<>ret
+ /\ (forall id, Genv.find_symbol Execution.ge id<>Some gh /\ Genv.find_symbol Execution.ge id<>Some ret)
+ /\ Mem.range_perm m gh 0 (sizeof ce gh_type) Cur Readable
+ /\ Mem.range_perm m ret 0 (sizeof ce sp_type) Cur Writable
+ /\ global_bytes_initialized m /\ writable_controller_globals m /\ caches_valid m
+ /\ load_global Mint8unsigned m Source._guidance_pid pid_type [Source._approx_force_by_thrust]=Some(Vint Int.zero)
+ /\ heading_safe m
+ /\ (forall gain, In gain [Source._kp;Source._kd;Source._ki;Source._kv;Source._ka] -> bounded_global m Source._guidance_pid pid_type [gain] 0 100)
+ /\ (forall axis, In axis [Source._x;Source._y] ->
+ bounded_global m Source._guidance_pid_trim_att_integrator vec_type [axis] (-100000000) 100000000
+ /\ bounded_path m gh gh_type [Source._ref;Source._speed;axis] (-10000) 10000
+ /\ bounded_path m gh gh_type [Source._ref;Source._accel;axis] (-10000) 10000
+ /\ bounded_global m Source._state state_type [Source._ned_speed_i;axis] (-10000) 10000).
+Definition AxisTranslation (gh:block) (a b:mem) (axis:ident) (delta:Z) : Prop :=
+ exists ra pa rb pb,
+ load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint pa)
+ /\ load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint rb)
+ /\ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint pb)
+ /\ physical_translation (Int.signed ra) (Int.signed pa) delta
+ /\ Int.signed rb=Int.signed ra+delta /\ Int.signed pb=Int.signed pa+delta.
+Definition InputPair (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputGood a gh ret /\ InputGood b gh ret
+ /\ same_except_positions_and_return gh ret a b
+ /\ AxisTranslation gh a b Source._x dx /\ AxisTranslation gh a b Source._y dy.
+Definition call_args (gh ret:block) (flight:bool) : list val :=
+ [Vptr ret Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero].
+Definition NormalCall (gh ret:block) (flight:bool) (m mf:mem) : Prop :=
+ exists t v, star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t (Returnstate v Kstop mf).
+Definition ActiveReturnEqual (ret:block) (a b:mem) : Prop :=
+ forall path, In path [[Source._type];[Source._format];[Source._sp;Source._ltp_i;Source._vect;Source._x];[Source._sp;Source._ltp_i;Source._vect;Source._y];[Source._sp;Source._ltp_i;Source._heading]] ->
+ load_path Mint32 a ret sp_type path=load_path Mint32 b ret sp_type path.
+Definition ControllerEqual (a b:mem) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ load_global Mint32 a Source._guidance_pid pid_type [Source._cmd_earth;axis]=load_global Mint32 b Source._guidance_pid pid_type [Source._cmd_earth;axis]
+ /\ load_global Mint32 a Source._guidance_pid_trim_att_integrator vec_type [axis]=load_global Mint32 b Source._guidance_pid_trim_att_integrator vec_type [axis].
+Definition FinalRelation gh ret a b : Prop :=
+ ControllerEqual a b /\ ActiveReturnEqual ret a b /\ same_except_positions_and_return gh ret a b.
+Definition PositionTranslationGoal : Prop :=
+ forall gh ret a b dx dy flight, InputPair gh ret a b dx dy ->
+ (exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf)
+ /\ (forall af bf, NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> FinalRelation gh ret af bf).
+Definition NoErrorGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret -> forall t s,
+ star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t s -> ~Execution.source_error s.
+Definition AllSuccessorTerminationGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret ->
+ Acc (fun dst src=>exists t,Csem.step Execution.ge src t dst) (Execution.entry(call_args gh ret flight)m).
+Definition NonzeroNonvacuityGoal : Prop :=
+ exists gh ret a b dx dy, InputPair gh ret a b dx dy /\ dx<>0 /\ (exists ra pa, load_path Mint32 a gh gh_type (ref_pos Source._x)=Some(Vint ra) /\ load_global Mint32 a Source._state state_type (measured_pos Source._x)=Some(Vint pa) /\ Int.signed ra-Int.signed pa<>0)
+ /\ forall flight, exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf /\ FinalRelation gh ret af bf.
+

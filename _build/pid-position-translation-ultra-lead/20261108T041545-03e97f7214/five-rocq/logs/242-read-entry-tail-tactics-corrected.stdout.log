@@ -1,0 +1,110 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceEntry Require Import BigstepSupport EffectfulSupport.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics ReturnSemantics.
+From PidPositionTranslationAttempt002 Require Import FrontSemantics.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+Definition entry_return_assignment:=match after_front with Ssequence a _=>a|_=>Sskip end.
+Definition entry_return_lvalue:=match entry_return_assignment with Sdo(Eassign l _ _)=>l|_=>Eval Vundef tvoid end.
+Definition entry_return_rvalue:=match entry_return_assignment with Sdo(Eassign _ r _)=>r|_=>Eval Vundef tvoid end.
+Definition entry_core_call:=match entry_return_rvalue with Ecomma a _ _=>a|_=>Eval Vundef tvoid end.
+Definition entry_core_function:=match entry_core_call with Ecall f _ _=>f|_=>Eval Vundef tvoid end.
+Definition entry_core_args:=match entry_core_call with Ecall _ args _=>args|_=>Enil end.
+Definition entry_core_result:=match entry_return_rvalue with Ecomma _ a _=>a|_=>Eval Vundef tvoid end.
+Ltac ert_rv LR LF LG LC NC SC :=
+ lazymatch goal with
+ | |-eval_simple_rvalue _ _ _(Eval _ _)_=>constructor
+ | |-eval_simple_rvalue _ _ _(Eaddrof _ _)_=>apply esr_addrof;ert_lv LR LF LG LC NC SC
+ | |-eval_simple_rvalue _ _ _(Evalof ?l ?ty)_=>
+   let mode:=eval hnf in(access_mode ty)in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[ert_lv LR LF LG LC NC SC|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_reference=>eapply esr_rvalof;[ert_lv LR LF LG LC NC SC|reflexivity|reflexivity|apply deref_loc_reference;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+     [ert_lv LR LF LG LC NC SC|reflexivity|reflexivity|reflexivity|
+      lazymatch goal with |-Mem.loadv ?c ?mm(Vptr ?bb ?oo)=Some ?vv=>
+      change(Mem.load c mm bb 0=Some vv);eassumption end]
+   end
+ end
+with ert_lv LR LF LG LC NC SC :=
+ lazymatch goal with
+ | |-eval_simple_lvalue _ _ _(Evar ?id _)_ _ _=>
+   lazymatch id with
+   | S.__res=>eapply esl_var_local;exact LR
+   | S._in_flight=>eapply esl_var_local;exact LF
+   | S._gh=>eapply esl_var_local;exact LG
+   | S.__res__1=>eapply esl_var_local;exact LC
+   | S._guidance_pid_h_run=>eapply esl_var_global;[exact NC|exact SC]
+   end
+ | |-eval_simple_lvalue _ _ _(Ederef _ _)_ _ _=>eapply esl_deref;ert_rv LR LF LG LC NC SC
+ end.
+Ltac unfold_entry_return :=
+ unfold entry_core_function,entry_core_args,entry_core_call,entry_core_result,
+ entry_return_lvalue,entry_return_rvalue,entry_return_assignment,after_front;
+ cbn[S.f_guidance_pid_h_run_pos fn_body].
+
+Theorem original_entry_return_tail : forall e m mc br bf bg temp funb gh ret(flight:bool)x y heading,
+ e!S.__res=Some(br,tptr sp_type) ->e!S._in_flight=Some(bf,tbool) ->
+ e!S._gh=Some(bg,tptr gh_type) ->e!S.__res__1=Some(temp,sp_type) ->
+ e!S._guidance_pid_h_run=None ->
+ Genv.find_symbol E.ge S._guidance_pid_h_run=Some funb ->
+ Genv.find_funct E.ge(Vptr funb Ptrofs.zero)=Some(Internal S.f_guidance_pid_h_run) ->
+ temp<>ret ->
+ Mem.load Mint64 m br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mint64 mc br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mbool m bf 0=Some(Vint(if flight then Int.one else Int.zero)) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Cstrategy.eval_funcall E.ge m(Internal S.f_guidance_pid_h_run)
+ [Vptr temp Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero]E0 mc Vundef ->
+rc ret:block)(o:ptrofs)(h:int):list val :=
+ [Vptr ret Ptrofs.zero;Vptr src o;Vint h].
+Lemma factory_normal_syntax:forall src ret o h m,
+ normal_state(Callstate(Internal S.f_stab_sp_from_ltp_i)(args src ret o h)Kstop m)=true.
+Proof. intros;vm_compute;reflexivity. Qed.
+Lemma factory_names:forall src ret o h m,
+ call_names(Callstate(Internal S.f_stab_sp_from_ltp_i)(args src ret o h)Kstop m).
+Proof. intros;repeat constructor;simpl;intuition discriminate. Qed.
+
+Theorem original_factory_all_orders:forall m src ret o h x y,
+ Mem.load Mint32 m src(Ptrofs.unsigned o)=Some(Vint x) ->
+ Mem.load Mint32 m src(Ptrofs.unsigned o+4)=Some(Vint y) ->
+ (4|Ptrofs.unsigned o) ->
+ Mem.range_perm m src(Ptrofs.unsigned o)(Ptrofs.unsigned o+8)Cur Readable ->
+ Mem.range_perm m ret 0 36 Cur Writable ->
+ exists mf,
+ active_fields mf ret x y h /\
+ (forall t reached,
+ star Csem.step F.ge(Callstate(Internal S.f_stab_sp_from_ltp_i)(args src ret o h)Kstop m)t reached ->
+ normal_return reached \/ exists tr next,Csem.step F.ge reached tr next) /\
+ (forall t v mr,
+ star Csem.step F.ge(Callstate(Internal S.f_stab_sp_from_ltp_i)(args src ret o h)Kstop m)t(Returnstate v Kstop mr) ->
+ v=Vundef /\ mr=mf) /\
+ (forall base,is_call_cont base ->
+ certificate F.ge(callee_invariant F.ge base Vundef mf)(Returnstate Vundef base mf) /\
+ callee_invariant F.ge base Vundef mf
+ (Callstate(Internal S.f_stab_sp_from_ltp_i)(args src ret o h)base m)).
+Proof.
+ intros m src ret o h x y LX LY AL RP WR.
+ destruct(FactoryCall.original_factory_csem_normal m src ret o h x y LX LY AL RP WR)
+ as[mf[PATH ACTIVE]].
+ pose proof(factory_normal_syntax src ret o h m)as SYNTAX.
+ pose proof(factory_names src ret o h m)as NAMES.
+ destruct(normal_witness_certifies_all_orders F.ge _ E0 Vundef mf SYNTAX NAMES PATH)
+ as[PROGRESS UNIQUE].
+ exists mf;split;[exact ACTIVE|];split;[exact PROGRESS|];split;[exact UNIQUE|].
+ intros base BASE;split.
+ - split.
+   + intros s INV;eapply callee_invariant_progress;eauto.
+   + intros s t next INV ND STEP;eapply callee_invariant_all_successors;eauto.
+ - pose proof(callee_invariant_entry F.ge base _ E0 Vundef mf SYNTAX NAMES PATH)as ENTRY.
+   exact ENTRY.
+Qed.
+Print Assumptions original_factory_all_orders.
+

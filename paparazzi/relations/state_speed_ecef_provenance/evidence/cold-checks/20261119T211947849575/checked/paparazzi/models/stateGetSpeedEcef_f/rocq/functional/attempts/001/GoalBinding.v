@@ -1,0 +1,4 @@
+Require Import StateSpeedGetterFunctionalProblem.Spec.
+Require Import StateSpeedGetterFunctionalAttempt001.Proof.
+Definition goal_0 : StateSpeedGetterFunctionalProblem.Spec.OriginalResultGoal := StateSpeedGetterFunctionalAttempt001.Proof.proved_original_result.
+Print Assumptions goal_0.

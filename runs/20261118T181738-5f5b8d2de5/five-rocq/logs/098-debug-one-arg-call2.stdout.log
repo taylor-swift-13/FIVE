@@ -1,0 +1,664 @@
+53 focused goals (shelved: 159)
+  
+  ge : genv
+  Q : val -> mem -> Prop
+  f : function
+  e : PTree.tree (block * type)
+  m : mem
+  k : cont
+  fnid, argid : positive
+  targetty, returnty : type
+  target : function
+  funblock, argblock : block
+  a : int
+  castarg : val
+  EF : e ! fnid = None
+  EA : e ! argid = Some (argblock, tint)
+  SYM : Genv.find_symbol ge fnid = Some funblock
+  ARG :
+    do_deref_loc ge quiet tint m argblock Ptrofs.zero Full =
+    Some (quiet, E0, Vint a)
+  FUN :
+    Genv.find_funct ge (Vptr funblock Ptrofs.zero) = Some (Internal target)
+  TY :
+    type_of_fundef (Internal target) =
+    Tfunction [targetty] returnty cc_default
+  CAST : sem_cast (Vint (Int.neg a)) tint targetty m = Some castarg
+  NV : nv returnty = true
+  END :
+    total ge Q
+      (Callstate (Internal target) [castarg]
+         (Kcall f e (fun x : expr => Eunop Oneg x tint) returnty k) m)
+  FADDR :
+    do_deref_loc ge quiet (Tfunction [targetty] returnty cc_default) m
+      funblock Ptrofs.zero Full =
+    Some (quiet, E0, Vptr funblock Ptrofs.zero)
+  ============================
+  expr_final_state f k e
+    (fun x : expr =>
+     Eunop Oneg
+       (Ecall (Evalof x (Tfunction [targetty] returnty cc_default))
+          (Econs (Eunop Oneg (Evalof (Evar argid tint) tint) tint) Enil)
+          returnty)
+       tint,
+     Lred "red_var_global"
+       (Eloc funblock Ptrofs.zero Full
+          (Tfunction [targetty] returnty cc_default))
+       m) =
+  TR ?rule ?t ?next \/
+  expr_final_state f k e
+    (fun x : expr =>
+     Eunop Oneg
+       (Ecall
+          (Evalof (Evar fnid (Tfunction [targetty] returnty cc_default))
+             (Tfunction [targetty] returnty cc_default))
+          (Econs (Eunop Oneg (Evalof x tint) tint) Enil) returnty)
+       tint,
+     Lred "red_var_local" (Eloc argblock Ptrofs.zero Full tint) m) =
+  TR ?rule ?t ?next \/ False
+
+goal 2 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall x (Econs (Eunop Oneg (Evalof (Evar argid tint) tint) tint) Enil)
+         returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule0 ?t0 ?next0 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof
+            (Eloc funblock Ptrofs.zero Full
+               (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg (Evalof x tint) tint) Enil) returnty)
+      tint,
+    Lred "red_var_local" (Eloc argblock Ptrofs.zero Full tint) m) =
+ TR ?rule0 ?t0 ?next0 \/ False
+goal 3 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg (Evalof x tint) tint) Enil) returnty)
+      tint,
+    Lred "red_var_local" (Eloc argblock Ptrofs.zero Full tint) m) =
+ TR ?rule1 ?t1 ?next1 \/ False
+goal 4 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg x tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule2 ?t2 ?next2 \/ False
+goal 5 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule3 ?t3 ?next3 \/ False
+goal 6 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule4 ?t4 ?next4 \/ False
+goal 7 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall x
+         (Econs
+            (Eunop Oneg (Evalof (Eloc argblock Ptrofs.zero Full tint) tint)
+               tint)
+            Enil)
+         returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule5 ?t5 ?next5 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof
+            (Eloc funblock Ptrofs.zero Full
+               (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg x tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule5 ?t5 ?next5 \/ False
+goal 8 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg x tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule6 ?t6 ?next6 \/ False
+goal 9 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule7 ?t7 ?next7 \/ False
+goal 10 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule8 ?t8 ?next8 \/ False
+goal 11 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall x (Econs (Eunop Oneg (Eval (Vint a) tint) tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule9 ?t9 ?next9 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof
+            (Eloc funblock Ptrofs.zero Full
+               (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule9 ?t9 ?next9 \/ False
+goal 12 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule10 ?t10 ?next10 \/ False
+goal 13 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule11 ?t11 ?next11 \/ False
+goal 14 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg (Ecall x (Econs (Eval (Vint (Int.neg a)) tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule12 ?t12 ?next12 \/ False
+goal 15 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule13 ?t13 ?next13 \/ False
+goal 16 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall (Evalof x (Tfunction [targetty] returnty cc_default))
+         (Econs
+            (Eunop Oneg (Evalof (Eloc argblock Ptrofs.zero Full tint) tint)
+               tint)
+            Enil)
+         returnty)
+      tint,
+    Lred "red_var_global"
+      (Eloc funblock Ptrofs.zero Full
+         (Tfunction [targetty] returnty cc_default))
+      m) =
+ TR ?rule14 ?t14 ?next14 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof (Evar fnid (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg x tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule14 ?t14 ?next14 \/ False
+goal 17 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall x
+         (Econs
+            (Eunop Oneg (Evalof (Eloc argblock Ptrofs.zero Full tint) tint)
+               tint)
+            Enil)
+         returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule15 ?t15 ?next15 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof
+            (Eloc funblock Ptrofs.zero Full
+               (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg x tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule15 ?t15 ?next15 \/ False
+goal 18 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg x tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule16 ?t16 ?next16 \/ False
+goal 19 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule17 ?t17 ?next17 \/ False
+goal 20 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule18 ?t18 ?next18 \/ False
+goal 21 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall x (Econs (Eunop Oneg (Eval (Vint a) tint) tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule19 ?t19 ?next19 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof
+            (Eloc funblock Ptrofs.zero Full
+               (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule19 ?t19 ?next19 \/ False
+goal 22 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule20 ?t20 ?next20 \/ False
+goal 23 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule21 ?t21 ?next21 \/ False
+goal 24 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg (Ecall x (Econs (Eval (Vint (Int.neg a)) tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule22 ?t22 ?next22 \/ False
+goal 25 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule23 ?t23 ?next23 \/ False
+goal 26 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall (Evalof x (Tfunction [targetty] returnty cc_default))
+         (Econs (Eunop Oneg (Eval (Vint a) tint) tint) Enil) returnty)
+      tint,
+    Lred "red_var_global"
+      (Eloc funblock Ptrofs.zero Full
+         (Tfunction [targetty] returnty cc_default))
+      m) =
+ TR ?rule24 ?t24 ?next24 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof (Evar fnid (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule24 ?t24 ?next24 \/ False
+goal 27 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall x (Econs (Eunop Oneg (Eval (Vint a) tint) tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule25 ?t25 ?next25 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Evalof
+            (Eloc funblock Ptrofs.zero Full
+               (Tfunction [targetty] returnty cc_default))
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule25 ?t25 ?next25 \/ False
+goal 28 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall
+         (Eval (Vptr funblock Ptrofs.zero)
+            (Tfunction [targetty] returnty cc_default))
+         (Econs x Enil) returnty)
+      tint,
+    Rred "red_unop" (Eval (Vint (Int.neg a)) tint) m E0) =
+ TR ?rule26 ?t26 ?next26 \/ False
+goal 29 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule27 ?t27 ?next27 \/ False
+goal 30 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg (Ecall x (Econs (Eval (Vint (Int.neg a)) tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule28 ?t28 ?next28 \/ False
+goal 31 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule29 ?t29 ?next29 \/ False
+goal 32 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg
+      (Ecall (Evalof x (Tfunction [targetty] returnty cc_default))
+         (Econs (Eval (Vint (Int.neg a)) tint) Enil) returnty)
+      tint,
+    Lred "red_var_global"
+      (Eloc funblock Ptrofs.zero Full
+         (Tfunction [targetty] returnty cc_default))
+      m) =
+ TR ?rule30 ?t30 ?next30 \/ False
+goal 33 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Eunop Oneg (Ecall x (Econs (Eval (Vint (Int.neg a)) tint) Enil) returnty)
+      tint,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule31 ?t31 ?next31 \/ False
+goal 34 is:
+ expr_final_state f k e
+   (fun x : expr => Eunop Oneg x tint,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule32 ?t32 ?next32 \/ False
+goal 35 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall (Evalof x (Tfunction [targetty] returnty cc_default))
+      (Econs (Evalof (Evar argid tint) tint) Enil) returnty,
+    Lred "red_var_global"
+      (Eloc funblock Ptrofs.zero Full
+         (Tfunction [targetty] returnty cc_default))
+      m) =
+ TR ?rule33 ?t33 ?next33 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Evalof (Evar fnid (Tfunction [targetty] returnty cc_default))
+         (Tfunction [targetty] returnty cc_default))
+      (Econs (Evalof x tint) Enil) returnty,
+    Lred "red_var_local" (Eloc argblock Ptrofs.zero Full tint) m) =
+ TR ?rule33 ?t33 ?next33 \/ False
+goal 36 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall x (Econs (Evalof (Evar argid tint) tint) Enil) returnty,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule34 ?t34 ?next34 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Evalof
+         (Eloc funblock Ptrofs.zero Full
+            (Tfunction [targetty] returnty cc_default))
+         (Tfunction [targetty] returnty cc_default))
+      (Econs (Evalof x tint) Enil) returnty,
+    Lred "red_var_local" (Eloc argblock Ptrofs.zero Full tint) m) =
+ TR ?rule34 ?t34 ?next34 \/ False
+goal 37 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      (Econs (Evalof x tint) Enil) returnty,
+    Lred "red_var_local" (Eloc argblock Ptrofs.zero Full tint) m) =
+ TR ?rule35 ?t35 ?next35 \/ False
+goal 38 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      (Econs x Enil) returnty,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule36 ?t36 ?next36 \/ False
+goal 39 is:
+ expr_final_state f k e
+   (fun x : expr => x,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule37 ?t37 ?next37 \/ False
+goal 40 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall x (Econs (Evalof (Eloc argblock Ptrofs.zero Full tint) tint) Enil)
+      returnty,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule38 ?t38 ?next38 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Evalof
+         (Eloc funblock Ptrofs.zero Full
+            (Tfunction [targetty] returnty cc_default))
+         (Tfunction [targetty] returnty cc_default))
+      (Econs x Enil) returnty,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule38 ?t38 ?next38 \/ False
+goal 41 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      (Econs x Enil) returnty,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule39 ?t39 ?next39 \/ False
+goal 42 is:
+ expr_final_state f k e
+   (fun x : expr => x,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule40 ?t40 ?next40 \/ False
+goal 43 is:
+ expr_final_state f k e
+   (fun x : expr => Ecall x (Econs (Eval (Vint a) tint) Enil) returnty,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule41 ?t41 ?next41 \/ False
+goal 44 is:
+ expr_final_state f k e
+   (fun x : expr => x,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule42 ?t42 ?next42 \/ False
+goal 45 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall (Evalof x (Tfunction [targetty] returnty cc_default))
+      (Econs (Evalof (Eloc argblock Ptrofs.zero Full tint) tint) Enil)
+      returnty,
+    Lred "red_var_global"
+      (Eloc funblock Ptrofs.zero Full
+         (Tfunction [targetty] returnty cc_default))
+      m) =
+ TR ?rule43 ?t43 ?next43 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Evalof (Evar fnid (Tfunction [targetty] returnty cc_default))
+         (Tfunction [targetty] returnty cc_default))
+      (Econs x Enil) returnty,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule43 ?t43 ?next43 \/ False
+goal 46 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall x (Econs (Evalof (Eloc argblock Ptrofs.zero Full tint) tint) Enil)
+      returnty,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule44 ?t44 ?next44 \/
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Evalof
+         (Eloc funblock Ptrofs.zero Full
+            (Tfunction [targetty] returnty cc_default))
+         (Tfunction [targetty] returnty cc_default))
+      (Econs x Enil) returnty,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule44 ?t44 ?next44 \/ False
+goal 47 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      (Econs x Enil) returnty,
+    Rred "red_rvalof" (Eval (Vint a) tint) m E0) =
+ TR ?rule45 ?t45 ?next45 \/ False
+goal 48 is:
+ expr_final_state f k e
+   (fun x : expr => x,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule46 ?t46 ?next46 \/ False
+goal 49 is:
+ expr_final_state f k e
+   (fun x : expr => Ecall x (Econs (Eval (Vint a) tint) Enil) returnty,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule47 ?t47 ?next47 \/ False
+goal 50 is:
+ expr_final_state f k e
+   (fun x : expr => x,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule48 ?t48 ?next48 \/ False
+goal 51 is:
+ expr_final_state f k e
+   (fun x : expr =>
+    Ecall (Evalof x (Tfunction [targetty] returnty cc_default))
+      (Econs (Eval (Vint a) tint) Enil) returnty,
+    Lred "red_var_global"
+      (Eloc funblock Ptrofs.zero Full
+         (Tfunction [targetty] returnty cc_default))
+      m) =
+ TR ?rule49 ?t49 ?next49 \/ False
+goal 52 is:
+ expr_final_state f k e
+   (fun x : expr => Ecall x (Econs (Eval (Vint a) tint) Enil) returnty,
+    Rred "red_rvalof"
+      (Eval (Vptr funblock Ptrofs.zero)
+         (Tfunction [targetty] returnty cc_default))
+      m E0) =
+ TR ?rule50 ?t50 ?next50 \/ False
+goal 53 is:
+ expr_final_state f k e
+   (fun x : expr => x,
+    Callred "red_call" (Internal target) [castarg] returnty m) =
+ TR ?rule51 ?t51 ?next51 \/ False

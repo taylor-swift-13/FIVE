@@ -1,0 +1,295 @@
+Float32.cmp =
+fun (c : Integers.comparison) (f1 f2 : float32) =>
+cmp_of_comparison c (Float32.compare f1 f2)
+     : Integers.comparison -> float32 -> float32 -> bool
+
+Arguments Float32.cmp c f1 f2
+Binary.Bcompare_correct
+     : forall (prec emax : Z) (f1 f2 : Binary.binary_float prec emax),
+       Binary.is_finite prec emax f1 = true ->
+       Binary.is_finite prec emax f2 = true ->
+       Binary.Bcompare prec emax f1 f2 =
+       Some
+         (Raux.Rcompare (Binary.B2R prec emax f1) (Binary.B2R prec emax f2))
+Binary.Bmult_correct
+     : forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+         (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+         (mult_nan : Binary.binary_float prec emax ->
+                     Binary.binary_float prec emax ->
+                     {x : Binary.binary_float prec emax
+                     | Binary.is_nan prec emax x = true})
+         (m : BinarySingleNaN.mode) (x y : Binary.binary_float prec emax),
+       if
+        Raux.Rlt_bool
+          (Rabs
+             (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+                (BinarySingleNaN.round_mode m)
+                (Binary.B2R prec emax x * Binary.B2R prec emax y)))
+          (Raux.bpow Zaux.radix2 emax)
+       then
+        Binary.B2R prec emax
+          (Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ mult_nan m x y) =
+        Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+          (BinarySingleNaN.round_mode m)
+          (Binary.B2R prec emax x * Binary.B2R prec emax y) /\
+        Binary.is_finite prec emax
+          (Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ mult_nan m x y) =
+        (Binary.is_finite prec emax x && Binary.is_finite prec emax y)%bool /\
+        (Binary.is_nan prec emax
+           (Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ mult_nan m x y) =
+         false ->
+         Binary.Bsign prec emax
+           (Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ mult_nan m x y) =
+         xorb (Binary.Bsign prec emax x) (Binary.Bsign prec emax y))
+       else
+        Binary.B2FF prec emax
+          (Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ mult_nan m x y) =
+        Binary.binary_overflow prec emax m
+          (xorb (Binary.Bsign prec emax x) (Binary.Bsign prec emax y))
+Generic_fmt.valid_rnd_ZR: Generic_fmt.Valid_rnd Raux.Ztrunc
+Raux.Ztrunc_IZR: forall n : Z, Raux.Ztrunc (IZR n) = n
+Raux.Ztrunc_le: forall x y : R, (x <= y)%R -> Raux.Ztrunc x <= Raux.Ztrunc y
+Raux.Ztrunc_abs: forall x : R, Raux.Ztrunc (Rabs x) = Z.abs (Raux.Ztrunc x)
+Raux.Ztrunc_opp: forall x : R, Raux.Ztrunc (- x) = - Raux.Ztrunc x
+Raux.Ztrunc_floor: forall x : R, (0 <= x)%R -> Raux.Ztrunc x = Raux.Zfloor x
+Raux.Ztrunc_ceil: forall x : R, (x <= 0)%R -> Raux.Ztrunc x = Raux.Zceil x
+Raux.Ztrunc_lub:
+  forall (n : Z) (x : R), (IZR n <= Rabs x)%R -> n <= Z.abs (Raux.Ztrunc x)
+Generic_fmt.round_ZR_opp:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R),
+  Generic_fmt.round beta fexp Raux.Ztrunc (- x) =
+  (- Generic_fmt.round beta fexp Raux.Ztrunc x)%R
+Generic_fmt.round_ZR_pt:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall x : R,
+  Defs.Rnd_ZR_pt (Generic_fmt.generic_format beta fexp) x
+    (Generic_fmt.round beta fexp Raux.Ztrunc x)
+Generic_fmt.Zrnd_ZR_or_AW:
+  forall rnd : R -> Z,
+  Generic_fmt.Valid_rnd rnd ->
+  forall x : R, rnd x = Raux.Ztrunc x \/ rnd x = Raux.Zaway x
+Raux.Ztrunc_div:
+  forall x y : Z, y <> 0 -> Raux.Ztrunc (IZR x / IZR y) = x ÷ y
+Generic_fmt.scaled_mantissa_generic:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R),
+  Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.scaled_mantissa beta fexp x =
+  IZR (Raux.Ztrunc (Generic_fmt.scaled_mantissa beta fexp x))
+Generic_fmt.round_ZR_abs:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall x : R,
+  Generic_fmt.round beta fexp Raux.Ztrunc (Rabs x) =
+  Rabs (Generic_fmt.round beta fexp Raux.Ztrunc x)
+Round.inbetween_int_ZR:
+  forall (x : R) (m : Z) (l : SpecFloat.location),
+  Bracket.inbetween_int m x l ->
+  Raux.Ztrunc x = Round.cond_incr (Round.round_ZR (m <? 0) l) m
+Generic_fmt.round_ZR_UP:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R),
+  (x <= 0)%R ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  Generic_fmt.round beta fexp Raux.Zceil x
+Generic_fmt.round_ZR_DN:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R),
+  (0 <= x)%R ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  Generic_fmt.round beta fexp Raux.Zfloor x
+Ztrunc_range_zero: forall x : R, Raux.Ztrunc x = 0 -> (-1 < x < 1)%R
+Round.inbetween_int_ZR_sign:
+  forall (x : R) (m : Z) (l : SpecFloat.location),
+  Bracket.inbetween_int m (Rabs x) l ->
+  Raux.Ztrunc x = SpecFloat.cond_Zopp (Raux.Rlt_bool x 0) m
+Ztrunc_range_pos:
+  forall x : R,
+  0 < Raux.Ztrunc x -> (IZR (Raux.Ztrunc x) <= x < IZR (Raux.Ztrunc x + 1))%R
+ZofB_correct:
+  forall (prec emax : Z) (f : Binary.binary_float prec emax),
+  ZofB prec emax f =
+  (if Binary.is_finite prec emax f
+   then Some (Raux.Ztrunc (Binary.B2R prec emax f))
+   else None)
+BinarySingleNaN.Btrunc_correct:
+  forall prec emax : Z,
+  BinarySingleNaN.Prec_lt_emax prec emax ->
+  forall x : BinarySingleNaN.binary_float prec emax,
+  IZR (BinarySingleNaN.Btrunc x) =
+  Generic_fmt.round Zaux.radix2 (FIX.FIX_exp 0) Raux.Ztrunc
+    (BinarySingleNaN.B2R x)
+Binary.Btrunc_correct:
+  forall prec emax : Z,
+  BinarySingleNaN.Prec_lt_emax prec emax ->
+  forall x : Binary.binary_float prec emax,
+  IZR (Binary.Btrunc prec emax x) =
+  Generic_fmt.round Zaux.radix2 (FIX.FIX_exp 0) Raux.Ztrunc
+    (Binary.B2R prec emax x)
+Generic_fmt.round_ZR_or_AW:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (rnd : R -> Z),
+  Generic_fmt.Valid_rnd rnd ->
+  forall x : R,
+  Generic_fmt.round beta fexp rnd x =
+  Generic_fmt.round beta fexp Raux.Ztrunc x \/
+  Generic_fmt.round beta fexp rnd x =
+  Generic_fmt.round beta fexp Raux.Zaway x
+Generic_fmt.mag_round_ZR:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall x : R,
+  Generic_fmt.round beta fexp Raux.Ztrunc x <> 0%R ->
+  Raux.mag_val beta (Generic_fmt.round beta fexp Raux.Ztrunc x)
+    (Raux.mag beta (Generic_fmt.round beta fexp Raux.Ztrunc x)) =
+  Raux.mag_val beta x (Raux.mag beta x)
+Round.inbetween_float_ZR:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R) 
+    (m : Z) (l : SpecFloat.location),
+  let e := Generic_fmt.cexp beta fexp x in
+  Bracket.inbetween_float beta m e x l ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  Defs.F2R
+    {|
+      Defs.Fnum := Round.cond_incr (Round.round_ZR (m <? 0) l) m;
+      Defs.Fexp := e
+    |}
+ZofB_range_correct:
+  forall (prec emax : Z) (f : Binary.binary_float prec emax) (min max : Z),
+  let n := Raux.Ztrunc (Binary.B2R prec emax f) in
+  ZofB_range prec emax f min max =
+  (if (Binary.is_finite prec emax f && (min <=? n) && (n <=? max))%bool
+   then Some n
+   else None)
+Generic_fmt.subnormal_exponent:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  Generic_fmt.Exp_not_FTZ fexp ->
+  forall (e : Z) (x : R),
+  e <= fexp e ->
+  Generic_fmt.generic_format beta fexp x ->
+  x =
+  Defs.F2R
+    {|
+      Defs.Fnum := Raux.Ztrunc (x * Raux.bpow beta (- fexp e));
+      Defs.Fexp := fexp e
+    |}
+Round.inbetween_float_ZR_sign:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R) 
+    (m : Z) (l : SpecFloat.location),
+  let e := Generic_fmt.cexp beta fexp x in
+  Bracket.inbetween_float beta m e (Rabs x) l ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  Defs.F2R
+    {|
+      Defs.Fnum := SpecFloat.cond_Zopp (Raux.Rlt_bool x 0) m; Defs.Fexp := e
+    |}
+Round.round_ZR_correct:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R) 
+    (m e : Z) (l : SpecFloat.location),
+  Bracket.inbetween_float beta m e x l ->
+  e = Generic_fmt.cexp beta fexp x \/
+  l = SpecFloat.loc_Exact /\ Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  Defs.F2R
+    {|
+      Defs.Fnum :=
+        (fun (m0 : Z) (l0 : SpecFloat.location) =>
+         Round.cond_incr (Round.round_ZR (m0 <? 0) l0) m0) m l;
+      Defs.Fexp := e
+    |}
+Round.round_sign_ZR_correct:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R) 
+    (m e : Z) (l : SpecFloat.location),
+  Bracket.inbetween_float beta m e (Rabs x) l ->
+  e = Generic_fmt.cexp beta fexp x \/
+  l = SpecFloat.loc_Exact /\ Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  Defs.F2R
+    {|
+      Defs.Fnum :=
+        SpecFloat.cond_Zopp (Raux.Rlt_bool x 0)
+          ((fun (_ : bool) (m0 : Z) (_ : SpecFloat.location) => m0)
+             (Raux.Rlt_bool x 0) m l);
+      Defs.Fexp := e
+    |}
+Round.round_trunc_ZR_correct':
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall (x : R) (m e : Z) (l : SpecFloat.location),
+  (0 <= x)%R ->
+  Bracket.inbetween_float beta m e x l ->
+  e <= Generic_fmt.cexp beta fexp x \/ l = SpecFloat.loc_Exact ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  (let
+   '(m', e', l') := Round.truncate beta fexp (m, e, l) in
+    Defs.F2R
+      {|
+        Defs.Fnum :=
+          (fun (m0 : Z) (l0 : SpecFloat.location) =>
+           Round.cond_incr (Round.round_ZR (m0 <? 0) l0) m0) m' l';
+        Defs.Fexp := e'
+      |})
+Round.round_trunc_sign_ZR_correct':
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall (x : R) (m e : Z) (l : SpecFloat.location),
+  Bracket.inbetween_float beta m e (Rabs x) l ->
+  e <= Generic_fmt.cexp beta fexp x \/ l = SpecFloat.loc_Exact ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  (let
+   '(m', e', l') := Round.truncate beta fexp (m, e, l) in
+    Defs.F2R
+      {|
+        Defs.Fnum :=
+          SpecFloat.cond_Zopp (Raux.Rlt_bool x 0)
+            ((fun (_ : bool) (m0 : Z) (_ : SpecFloat.location) => m0)
+               (Raux.Rlt_bool x 0) m' l');
+        Defs.Fexp := e'
+      |})
+Round.round_trunc_ZR_correct:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall (x : R) (m e : Z) (l : SpecFloat.location),
+  (0 <= x)%R ->
+  Bracket.inbetween_float beta m e x l ->
+  e <= fexp (Digits.Zdigits beta m + e) \/ l = SpecFloat.loc_Exact ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  (let
+   '(m', e', l') := Round.truncate beta fexp (m, e, l) in
+    Defs.F2R
+      {|
+        Defs.Fnum :=
+          (fun (m0 : Z) (l0 : SpecFloat.location) =>
+           Round.cond_incr (Round.round_ZR (m0 <? 0) l0) m0) m' l';
+        Defs.Fexp := e'
+      |})
+Round.round_trunc_sign_ZR_correct:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall (x : R) (m e : Z) (l : SpecFloat.location),
+  Bracket.inbetween_float beta m e (Rabs x) l ->
+  e <= fexp (Digits.Zdigits beta m + e) \/ l = SpecFloat.loc_Exact ->
+  Generic_fmt.round beta fexp Raux.Ztrunc x =
+  (let
+   '(m', e', l') := Round.truncate beta fexp (m, e, l) in
+    Defs.F2R
+      {|
+        Defs.Fnum :=
+          SpecFloat.cond_Zopp (Raux.Rlt_bool x 0)
+            ((fun (_ : bool) (m0 : Z) (_ : SpecFloat.location) => m0)
+               (Raux.Rlt_bool x 0) m' l');
+        Defs.Fexp := e'
+      |})
+Generic_fmt.round_le
+     : forall (beta : Zaux.radix) (fexp : Z -> Z),
+       Generic_fmt.Valid_exp fexp ->
+       forall rnd : R -> Z,
+       Generic_fmt.Valid_rnd rnd ->
+       forall x y : R,
+       (x <= y)%R ->
+       (Generic_fmt.round beta fexp rnd x <=
+        Generic_fmt.round beta fexp rnd y)%R
+Generic_fmt.round_generic
+     : forall (beta : Zaux.radix) (fexp : Z -> Z) (rnd : R -> Z),
+       Generic_fmt.Valid_rnd rnd ->
+       forall x : R,
+       Generic_fmt.generic_format beta fexp x ->
+       Generic_fmt.round beta fexp rnd x = x

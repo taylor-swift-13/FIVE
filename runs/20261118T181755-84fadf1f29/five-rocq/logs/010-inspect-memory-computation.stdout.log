@@ -1,0 +1,86 @@
+198:Lemma range_perm_dec:
+275:Lemma valid_access_dec:
+Definition valid_access (m: mem) (chunk: memory_chunk) (b: block) (ofs: Z) (p: permission): Prop :=
+  range_perm m b ofs (ofs + size_chunk chunk) Cur p
+  /\ (align_chunk chunk | ofs).
+
+Theorem valid_access_implies:
+  forall m chunk b ofs p1 p2,
+  valid_access m chunk b ofs p1 -> perm_order p1 p2 ->
+  valid_access m chunk b ofs p2.
+Proof.
+  intros. inv H. constructor; eauto with mem.
+Qed.
+
+Theorem valid_access_freeable_any:
+  forall m chunk b ofs p,
+  valid_access m chunk b ofs Freeable ->
+  valid_access m chunk b ofs p.
+Proof.
+  intros.
+  eapply valid_access_implies; eauto. constructor.
+Qed.
+
+Local Hint Resolve valid_access_implies: mem.
+
+Theorem valid_access_valid_block:
+  forall m chunk b ofs,
+  valid_access m chunk b ofs Nonempty ->
+  valid_block m b.
+Proof.
+  intros. destruct H.
+  assert (perm m b ofs Cur Nonempty).
+    apply H. generalize (size_chunk_pos chunk). lia.
+  eauto with mem.
+Qed.
+
+Local Hint Resolve valid_access_valid_block: mem.
+
+Lemma valid_access_perm:
+  forall m chunk b ofs k p,
+  valid_access m chunk b ofs p ->
+  perm m b ofs k p.
+Proof.
+  intros. destruct H. apply perm_cur. apply H. generalize (size_chunk_pos chunk). lia.
+Qed.
+
+Lemma valid_access_compat:
+  forall m chunk1 chunk2 b ofs p,
+  size_chunk chunk1 = size_chunk chunk2 ->
+  align_chunk chunk2 <= align_chunk chunk1 ->
+  valid_access m chunk1 b ofs p->
+  valid_access m chunk2 b ofs p.
+Proof.
+  intros. inv H1. rewrite H in H2. constructor; auto.
+  eapply Z.divide_trans; eauto. eapply align_le_divides; eauto.
+Qed.
+
+Lemma valid_access_dec:
+  forall m chunk b ofs p,
+  {valid_access m chunk b ofs p} + {~ valid_access m chunk b ofs p}.
+Proof.
+  intros.
+  destruct (range_perm_dec m b ofs (ofs + size_chunk chunk) Cur p).
+  destruct (Zdivide_dec (align_chunk chunk) ofs).
+  left; constructor; auto.
+  right; red; intro V; inv V; contradiction.
+  right; red; intro V; inv V; contradiction.
+Defined.
+
+(** [valid_pointer m b ofs] returns [true] if the address [b, ofs]
+  is nonempty in [m] and [false] if it is empty. *)
+Definition valid_pointer (m: mem) (b: block) (ofs: Z): bool :=
+  perm_dec m b ofs Cur Nonempty.
+
+Theorem valid_pointer_nonempty_perm:
+  forall m b ofs,
+  valid_pointer m b ofs = true <-> perm m b ofs Cur Nonempty.
+Proof.
+  intros. unfold valid_pointer.
+  destruct (perm_dec m b ofs Cur Nonempty); simpl;
+  intuition congruence.
+Qed.
+
+647:Definition alloc_global (m: mem) (idg: ident * globdef F V): option mem :=
+666:Fixpoint alloc_globals (m: mem) (gl: list (ident * globdef F V))
+1252:Definition init_mem (p: program F V) :=

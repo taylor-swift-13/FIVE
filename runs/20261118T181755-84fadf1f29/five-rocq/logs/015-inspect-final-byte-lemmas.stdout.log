@@ -1,0 +1,92 @@
+(** We define functions to convert between integers and lists of bytes
+  of a given length *)
+
+Fixpoint bytes_of_int (n: nat) (x: Z) {struct n}: list byte :=
+  match n with
+  | O => nil
+  | S m => Byte.repr x :: bytes_of_int m (x / 256)
+  end.
+
+Fixpoint int_of_bytes (l: list byte): Z :=
+  match l with
+  | nil => 0
+  | b :: l' => Byte.unsigned b + int_of_bytes l' * 256
+  end.
+
+Definition rev_if_be (l: list byte) : list byte :=
+  if Archi.big_endian then List.rev l else l.
+
+Definition encode_int (sz: nat) (x: Z) : list byte :=
+  rev_if_be (bytes_of_int sz x).
+
+Definition decode_int (b: list byte) : Z :=
+  int_of_bytes (rev_if_be b).
+
+(** Length properties *)
+
+Lemma length_bytes_of_int:
+  forall n x, length (bytes_of_int n x) = n.
+
+#[global]
+Hint Rewrite bits_zero_ext bits_sign_ext: ints.
+
+Theorem zero_ext_above:
+  forall n x, n >= zwordsize -> zero_ext n x = x.
+Proof.
+  intros. apply same_bits_eq; intros.
+  rewrite bits_zero_ext. apply zlt_true. lia. lia.
+Qed.
+
+Theorem zero_ext_below:
+  forall n x, n <= 0 -> zero_ext n x = zero.
+Proof.
+  intros. bit_solve. destruct (zlt i n); auto. apply bits_below; lia. lia.
+Qed.
+
+Theorem sign_ext_above:
+  forall n x, n >= zwordsize -> sign_ext n x = x.
+Proof.
+  intros. apply same_bits_eq; intros.
+  unfold sign_ext; rewrite testbit_repr; auto.
+  rewrite Zsign_ext_spec. rewrite zlt_true. auto. lia. lia.
+Qed.
+
+Theorem sign_ext_below:
+  forall n x, n <= 0 -> sign_ext n x = zero.
+Proof.
+  intros. bit_solve. apply bits_below. destruct (zlt i n); lia.
+Qed.
+
+Theorem zero_ext_and:
+  forall n x, 0 <= n -> zero_ext n x = and x (repr (two_p n - 1)).
+Proof.
+  bit_solve. rewrite testbit_repr; auto. rewrite Ztestbit_two_p_m1; intuition.
+  destruct (zlt i n).
+  rewrite andb_true_r; auto.
+  rewrite andb_false_r; auto.
+  tauto.
+Qed.
+
+Theorem zero_ext_mod:
+  forall n x, 0 <= n < zwordsize ->
+  unsigned (zero_ext n x) = Z.modulo (unsigned x) (two_p n).
+Proof.
+  intros. apply equal_same_bits. intros.
+  rewrite Ztestbit_mod_two_p; auto.
+  fold (testbit (zero_ext n x) i).
+  destruct (zlt i zwordsize).
+  rewrite bits_zero_ext; auto.
+  rewrite bits_above. rewrite zlt_false; auto. lia. lia.
+  lia.
+Qed.
+
+Theorem zero_ext_widen:
+  forall x n n', 0 <= n <= n' ->
+  zero_ext n' (zero_ext n x) = zero_ext n x.
+Proof.
+  bit_solve. destruct (zlt i n).
+  apply zlt_true. lia.
+  destruct (zlt i n'); auto.
+98:Definition v_pprz_trig_int_compr := {|
+949:Definition v_data_buf_12 := {|
+1087:Definition f_pprz_trig_int_init := {|

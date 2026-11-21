@@ -1,0 +1,29 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/ExecutionAlignment.v", line 76, characters 59-79:
+Error:
+In environment
+args : list val
+m : mem
+prefix : trace
+s : Csem.state
+cb, asm : PprzTrigPlain.Execution.callback
+w : world
+t : trace
+next : Csem.state
+H :
+  star Csem.step PprzTrigPlain.Execution.ge
+    (PprzTrigPlain.Execution.entry args m) prefix s
+Unable to unify
+ "match ?s with
+  | State f s k _ _ =>
+      f = PprzTrigPlain.Source.f_pprz_itrig_sin /\
+      core_stmt s = true /\ core_cont k = true
+  | ExprState f a k _ _ =>
+      f = PprzTrigPlain.Source.f_pprz_itrig_sin /\
+      core_expr a = true /\ core_expr_cont k = true
+  | Callstate fd _ k _ =>
+      fd = Internal PprzTrigPlain.Source.f_pprz_itrig_sin /\ k = Kstop
+  | Returnstate _ k _ => k = Kstop
+  | Stuckstate => True
+  end"
+with "core_stmt (fn_body ?sine_function) = true".
+

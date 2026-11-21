@@ -1,0 +1,220 @@
+paparazzi/models/get_first_order_low_pass/rocq/report/costs.json
+paparazzi/models/get_first_order_low_pass/rocq/report/report.md
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/problem/Spec.v
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/problem/status.json
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/problem/report.md
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/provenance.json
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/check.py
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/costs.json
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/certificate-kernel-evidence.json
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/goal-validation.json
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/gate-kernel-evidence.json
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/evidence/kernel-evidence.json
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/Proof.v
+paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/report.md
+paparazzi/models/get_first_order_low_pass/rocq/functional/problem/Spec.v
+paparazzi/models/get_first_order_low_pass/rocq/functional/problem/status.json
+paparazzi/models/get_first_order_low_pass/rocq/functional/problem/report.md
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/provenance.json
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/check.py
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/costs.json
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/evidence/certificate-kernel-evidence.json
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/evidence/goal-validation.json
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/evidence/gate-kernel-evidence.json
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/evidence/kernel-evidence.json
+paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/Proof.v
+from pathlib import Path
+import json,hashlib,re,subprocess
+root=Path.cwd(); up=root/"_build/paparazzi/upstream"; pin="abfee3dd56eeab12c528635504a429db3daf409a"
+assert subprocess.check_output(["git","-C",str(up),"rev-parse","HEAD"],text=True).strip()==pin
+files={"entry":"sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.c","struct":"sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h","float":"sw/airborne/math/pprz_algebra_float.h","int":"sw/airborne/math/pprz_algebra_int.h","bound":"sw/include/std.h"}
+src={k:(up/v).read_text() for k,v in files.items()}
+def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def dump(p,o):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+"\n")
+def extract(k,pattern):
+ m=re.search(pattern,src[k],re.S|re.M);assert m;return m.group()
+parts=[("float",extract("float",r"^struct FloatVect2 \{.*?^};")),("int",extract("int",r"^struct Int64Vect2 \{.*?^};")),("struct",extract("struct",r"^struct GuidanceHRef \{.*?^};")),("bound",extract("bound",r"^#define Bound\(_x, _min, _max\).*?$"))]
+target={"semantics":"CompCert Csem/Cexec","arch":"x86","bitsize":64,"system":"linux","endianness":"little","float32":"IEEE754 binary32","rounding":"round-to-nearest-ties-to-even","nan_policy":"CompCert x86_64 Archi and Floats pinned by generated manifest"}
+for entry in ("gh_set_omega","gh_set_zeta"):
+ case=root/"paparazzi/models"/entry; p=case/"prepare"; (p/"source").mkdir(parents=True,exist_ok=True);(p/"report").mkdir(exist_ok=True)
+ body=extract("entry",r"^float "+entry+r"\(float \w+\)\n\{.*?^}")
+ text="/* Exact pinned Paparazzi dependency/entry slices; see extraction.json. */\n#include <stdint.h>\n\n"+"\n\n".join(s for _,s in parts)+"\n\nstruct GuidanceHRef gh_ref;\n\n"+body+"\n"
+ out=p/"source"/(entry+".c");out.write_text(text)
+ index=[]
+ for key,s in parts+[("entry",body)]:
+  start=src[key].index(s); index.append({"upstream_path":files[key],"source_sha256":sha(up/files[key]),"start_line":src[key][:start].count("\n")+1,"end_line":src[key][:start+len(s)].count("\n")+1,"slice_sha256":hashlib.sha256(s.encode()).hexdigest()})
+ for key,v in files.items():
+  dest=p/"upstream"/v;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes((up/v).read_bytes())
+ dump(p/"extraction.json",{"upstream_commit":pin,"method":"exact unchanged textual slices; original complete snapshots outside compilation input","slices":index,"added_scaffolding":["stdint.h target standard typedef int64_t","original tentative definition struct GuidanceHRef gh_ref;"],"excluded":"unreachable functions, includes and configuration macros not referenced by retained entry closure"})
+ dump(p/"source/bindings.json",{"entry":entry,"source":"prepare/source/"+entry+".c","sha256":sha(out),"signature":"float "+entry+"(float)","upstream_commit":pin,"upstream_sources":{v:sha(up/v) for v in files.values()},"callees":[],"external_bindings":[],"global_objects":[{"name":"gh_ref","type":"complete original GuidanceHRef","initialization":"original C tentative zero initialization"}],"target":target,"dependency_closure":"original complete GuidanceHRef, FloatVect2, Int64Vect2, Bound; target int64_t","correspondence_scope":"exact entry body and dependency slices of pinned upstream; original full application build/configuration not executed"})
+ dump(p/"verification-request.json",{"schema":"five-verification-request/1","authorization":"User requested complete no-error, all-successor termination, full actual CBMC recheck and cross-entry final named-state bit equality for parameter setter order","entry":entry,"implementation":"prepare/source/"+entry+".c","assumptions":[],"domain":"all binary32 parameter and initialized named state field bitpatterns including NaNs, infinities and signed zeros; valid writable global object, no concurrent writer","properties":["automatic CBMC bounds/pointer/overflow/shift checks","returned parameter bits equal actual Bound result","written coefficient bits equal source-ordered binary32 multiplication","all unrelated named fields retain initial bits"],"bounds":{"loops":"none","recursion":"none","unwind":1},"target":target,"harness":"cbmc/harness.c","memory_observation":"named scalar fields by binary32/int64 bits, little endian, padding excluded; exact write offsets and frame in Rocq"})
+ (p/"report/report.md").write_text("# Preparation\n\nFrozen exact pinned entry body, Bound macro and complete original GuidanceHRef/type closure. No callee or external call. Original snapshots retained outside compilation input. Target x86-64 Linux little endian CompCert binary32; all parameter and initialized named-field bitpatterns remain in scope. No finite-only restriction. Extraction reproduces retained text mechanically; it does not establish whole-application compiler equivalence.\n")
+ print(entry,sha(out))
+from pathlib import Path
+import sys,json,hashlib
+sys.path.insert(0,'scripts')
+from five_telemetry import Run
+ROOT=Path.cwd();CASE=ROOT/'paparazzi/models/guidance_pid_h_run_pos';BASE=ROOT/'_build/pid-position-translation-worker';SESSION='/mnt/c/Users/50635/.codex/sessions/2026/11/08/rollout-2026-11-08T01-23-47-01a1b709-ae78-7392-95be-439d969f4adc.jsonl'
+def dump(p,x):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(x,indent=2)+'\n')
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def cost(stage,run):
+ m=json.loads((run.folder/'metrics.json').read_text());t=m['tokens'];z={'stage':stage,'run':str(run.folder.relative_to(ROOT)),'status':'recorded','evidence':[str((run.folder/'run.json').relative_to(ROOT)),str((run.folder/'metrics.json').relative_to(ROOT))],'time':{'wall_seconds':m['time']['wall_seconds'],'tool_cpu_seconds':m['time']['cpu_tool_seconds']},'token':{'input':t.get('input_tokens'),'output':t.get('output_tokens'),'total':t.get('total_tokens'),'cached_input':t.get('cached_input_tokens'),'reasoning_output':t.get('reasoning_output_tokens')},'memory':{'tool_peak_rss_bytes':m['memory']['peak_process_tree_rss_sampled_bytes']},'scope':'Actual worker phase session; GNU time and sampled process-tree RSS; model server memory unavailable.'}
+ dump(CASE/stage/'report/costs.json',{'schema':'five-stage-costs/1','records':[z]})
+def hand(stage,status,paths,limitations):
+ dump(CASE/stage/'handoff.json',{'schema':'five-stage-handoff/1','case_id':'guidance_pid_h_run_pos','stage':stage,'status':status,'target':json.loads((CASE/'prepare/source/bindings.json').read_text())['target'],'paths_relative_to':'case','outputs':[{'role':role,'path':str(p.relative_to(CASE)),'sha256':sha(p)} for role,p in paths.items()],'limitations':limitations})
+def start(stage):
+ r=Run.start(BASE,'five-'+stage,[],{'entry':'guidance_pid_h_run_pos','relation':'pid_position_translation','requested_model':'gpt-6.1-sol','requested_effort':'medium'},usage_session=SESSION,invocation_kind='skill-session');dump(BASE/(stage+'-run.json'),{'run':str(r.folder)});return r
+if __name__=='__main__':
+ stage=sys.argv[1]
+ if stage=='prepare':
+  r=Run(BASE/'20261107T172515-669303e1f8/five-prepare');p=CASE/'prepare';source=p/'source/guidance_pid_h_run_pos.c';ex=json.loads((p/'extraction.json').read_text());target=json.loads((ROOT/'paparazzi/models/gh_update_ref_from_speed_sp/prepare/source/bindings.json').read_text())['target']
+  limits=['Open external bindings stateCalcPositionNed_i, stateCalcSpeedNed_i, atan2f: complete original reachable implementation/environment coverage is pending.','Selected exact controller configuration COMMANDS_NB=4, COMMAND_THRUST=3; no full aircraft configuration/build equivalence claim.','No native libm equivalence or GCC/hardware correspondence proved.']
+  dump(p/'source/bindings.json',{'entry':'guidance_pid_h_run_pos','signature':'struct StabilizationSetpoint (bool, struct HorizontalGuidance *)','upstream_commit':'abfee3dd56eeab12c528635504a429db3daf409a','prepared_source':{'path':source.name,'sha256':sha(source)},'target':target,'compilation_options':['-fstruct-passing'],'configuration':ex['profile'],'external_calls':[{'original':n,'actual':n,'kind':'unmodified unresolved original external','coverage':'pending'} for n in ex['open_calls']],'dependencies':ex['slices'],'limitations':limits})
+  dump(p/'verification-request.json',{'schema':'five-verification-request/1','entry':'guidance_pid_h_run_pos','implementation':'prepare/source/guidance_pid_h_run_pos.c','target':target,'relation':'same original entry in two memories; translate reference and measured positions by equal representable int32 displacement; derive equal errors; compare control, integrator and active return fields','proof_scope':'valid NEDi caches; approx_force_by_thrust=false; both flight values; safe bounded arithmetic domain for initial BMC attempt','requested_goals':['all-reachable Csem no_error','all-successor Csem termination','full unrestricted execution correspondence','all actual CBMC properties independent recheck','functional exact control transition','position translation relation','nonzero displacement and position-error nonvacuity'],'model_domain':'all original list val arguments and all CompCert memories; no proof-domain clipping','limitations':limits})
+  (p/'report/report.md').write_text('# Preparation\n\nExact original selected entry, static controller, getter bodies and factory retained with complete original structure layouts and referenced macros. All runtime branches remain. The state conversion and atan2f bindings are OPEN; their implementation closure and unrestricted external-environment coverage are pending. This is an open model preparation, not a verified full aircraft slice.\n\nThe selected controller configuration uses four command slots with thrust slot three, default 20 degree trajectory bank, 45 degree total bank and filter divisor eleven. It does not use the inconsistent DUMMY test configuration.\n')
+  for role,q in {'source':source,'bindings':p/'source/bindings.json','request':p/'verification-request.json','extraction':p/'extraction.json','extractor':ROOT/'paparazzi/report/pid_position_translation/prepare.py'}.items():r.capture(q,role,area='inputs')
+  r.finish('passed','Prepared open original-C controller slice; external implementation coverage remains pending.',{'source':source,'bindings':p/'source/bindings.json','extraction':p/'extraction.json'})
+  cost('prepare',r);hand('prepare','pending',{'source':source,'bindings':p/'source/bindings.json','verification-request':p/'verification-request.json','extraction':p/'extraction.json','costs':p/'report/costs.json'},limits)
+ else:start(stage)
+# CompCert 生成与规约映射契约
+
+本契约用于 five-align 的生成/映射交付。实际证明归 five-rocq，最终验收归 five-verify；详见 [证明证据与验收](../../five-verify/references/proof-evidence.md)。
+
+## 导出与来源审计
+
+```sh
+source scripts/env.sh
+python3 scripts/compcert-align.py export --source path/to/code.c \
+  --function f_function_name --output _build/compcert/case \
+  --namespace CaseName --request path/to/request.json --session SESSION_JSONL
+python3 scripts/compcert-align.py audit \
+  --manifest _build/compcert/case/compcert-manifest.json
+```
+
+`--include-dir`、`--define` 可重复。固定实际 CompCert 安装配置，当前是 x86-64 Linux 小端。request 的 purpose 为 execution-translation，execution_backend 为 compcert-csyntax-cexec，target 与 manifest 一致，domain 表示全部机器输入/状态。生成阶段不会把 request 改成有限输入表。
+
+导出保留原 C、完整预处理、Source.v、原始 Cexec 的 Execution.v、Extraction.v，并自动生成 `proof/Precondition.v`、`proof/Obligations.v`、`proof/Proofs.v`。manifest 绑定文件、工具、CompCert 语义依赖及真实命令。generated/来源审计通过表示生成步骤完成，coverage 和程序性质仍可为 pending。
+
+audit 从原 C/头文件重新导出，比较预处理、AST、包装和依赖。只忽略 `Info.source_file` 文件名元数据；不能规范化运算、类型或其他 AST 内容。源码、工具、头文件、模型、前条件或证明变化后重新绑定证据，不能只替换 hash 沿用旧证明结论。
+
+## 前条件与待证目标
+
+已有 Csyntax 模型可单独生成：
+
+```sh
+python3 scripts/generate-obligations.py \
+  --source-module CaseName.Source --function f_function_name \
+  --precondition-module CaseName.proof.Precondition \
+  --output model/proof/Obligations.v
+```
+
+省略 `--precondition` 表示具体条件待填写；只给出 `list val -> mem -> Prop` 接口，两个目标以条件为显式参数。已由用户/上游明确提供谓词时可以用 `--precondition NAME` 引用，不能自行补全或加强。重生成保留已有前条件和证明，自动目标冲突时报错。Rocq 编译映射模型命名空间以及 `shared/` 到 `FiveShared`。
+
+无错误是所有 Csem 可达状态均非“非正常返回且 nostep”；终止性为 Csem 全后继的 `Acc`。两者没有 fuel 限制，也不要求直接计算模型。manifest 的 `generated_obligations` 记录前条件待填写/复核、目标未证明及生成器/通用定义 hash。声明编译和 kernel check 不代表程序性质成立。
+
+entry 和 transitions 仍覆盖原始机器参数/内存及全部后继。清点调用、外部环境、事件/世界和正常/错误/字节观察，将覆盖缺口转换为明确待证义务。closed_transitions 不能用于尚未建立相容性证明的外部或带事件环境。对应定理、适配器证明和函数性质由 five-rocq 完成。
+
+## CBMC → Rocq 映射交接
+
+有 CBMC 输入时交付 `spec-map.json`，schema 为 `five-cbmc-rocq-map/1`：
+
+- `request_sha256`、`backend_manifest_sha256`：同一原始请求与模型。
+- `verification_method`：`traditional-bounded-model-checking`。
+- `cbmc_run`、`cbmc_command_id`、`cbmc_json`、`cbmc_input_sha256`：绑定真实 CBMC 命令、原始结果、C/harness，不自行生成新的属性 ID。
+- `properties`：每个实际 property ID 一项；保留 `cbmc_status`、`scope`（原前条件、位置、内存、调用/展开范围、观察方式）、`rocq_goal`（模块符号和声明文件），以及输入/状态/观察对应关系。
+- 每项 `mapping_status` 为 `mapped` 或 `mapping-gap`，`proof_status` 为 `pending`；缺口列 `gaps`。真实 FAILURE 附原始 trace 引用及已知位/字节信息，未知部分明确标注。不得以映射完成代表属性已证明。
+
+无 CBMC 输入时 report 中记 not_applicable，不制造空重验结果。五类信息缺失（属性、输入、程序位置、范围、观察）时列 mapping-gap，不用同名断言代替映射。
+
+five-rocq 消费映射并完成独立重验/反驳；结果使用 `spec-recheck.json`，与 pending 的 spec-map 分开。CBMC 结论不能成为 Rocq 公理。涉及抽象功能模型时，执行层与抽象之间的衔接本身也是 five-rocq 的证明目标。
+
+## 生成阶段完成条件
+
+生成文件与来源审计匹配、前条件接口和两个自动目标齐全、实际属性全部映射或明确列缺口、外部环境/覆盖义务有记录。本阶段真实实现问题须修复；待证明不等于生成失败。存在 mapping-gap 或覆盖缺口时不得声称对应部分完成。
+
+这里不运行要求完整证明的交付门禁。`compcert-verify.py gate` 由 five-verify 在相应证明齐备后调用，不是 align 的阶段验收条件。
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"
+/*
+ * Copyright (C) 2008-2014 The Paparazzi Team
+ *
+ * This file is part of paparazzi.
+ *
+ * paparazzi is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * paparazzi is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with paparazzi; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @file pprz_algebra_float.h
+ * @brief Paparazzi floating point algebra.
+ *
+ * @addtogroup math_algebra
+ * @{
+ * @defgroup math_algebra_float Float Algebra
+ * @{
+ */
+
+#ifndef PPRZ_ALGEBRA_FLOAT_H
+#define PPRZ_ALGEBRA_FLOAT_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "pprz_algebra.h"
+#include "message_pragmas.h"
+
+#include <math.h>
+#include <float.h> // for FLT_MIN
+
+/* this seems to be missing for some arch */
+#ifndef M_SQRT2
+#define M_SQRT2         1.41421356237309504880
+#endif
+
+struct FloatVect2 {
+  float x;
+  float y;
+};
+
+struct FloatVect3 {
+  float x;
+  float y;
+  float z;
+};
+
+/**
+ * @brief Roation quaternion
+ */
+struct FloatQuat {
+  float qi;
+  float qx;
+  float qy;
+  float qz;
+};
+
+struct FloatMat33 {
+  float m[3 * 3];
+};
+
+/**
+ * @brief rotation matrix
+ */
+struct FloatRMat {
+  float m[3 * 3];
+};
+

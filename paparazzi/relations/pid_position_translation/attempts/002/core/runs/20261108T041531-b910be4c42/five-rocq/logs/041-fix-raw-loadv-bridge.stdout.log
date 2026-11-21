@@ -1,0 +1,21 @@
+Definition loadv (chunk: memory_chunk) (m: mem) (addr: val) : option val :=
+  match addr with
+  | Vptr b ofs =>
+      if zle (Ptrofs.unsigned ofs + size_chunk chunk) Ptrofs.modulus
+      then load chunk m b (Ptrofs.unsigned ofs)
+      else None
+  | _ => None
+  end.
+
+(** [loadbytes m b ofs n] reads [n] consecutive bytes starting at
+  location [(b, ofs)].  Returns [None] if the accessed locations are
+  not readable. *)
+
+Definition loadbytes (m: mem) (b: block) (ofs n: Z): option (list memval) :=
+  if range_perm_dec m b ofs (ofs + n) Cur Readable
+  then Some (getN (Z.to_nat n) ofs (m.(mem_contents)#b))
+  else None.
+
+(** Memory stores. *)
+
+(** Wr

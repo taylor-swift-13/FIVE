@@ -1,0 +1,1068 @@
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress.
+Import ListNotations.
+Inductive normal_outcome := Nnormal | Nreturn (v:val).
+
+Fixpoint stmt_eval (ge:genv) (e:env) (ret:type) (s:statement) (m:mem): option (normal_outcome * mem) :=
+  match s with
+  | Sskip => Some (Nnormal,m)
+  | Sdo a => match atomic_eval ge e m a with Some (_,m') => Some (Nnormal,m') | None => None end
+  | Ssequence s1 s2 =>
+      match stmt_eval ge e ret s1 m with
+      | Some (Nnormal,m') => stmt_eval ge e ret s2 m'
+      | Some (Nreturn v,m') => Some (Nreturn v,m')
+      | None => None end
+  | Sifthenelse a s1 s2 =>
+      match pure_rval ge e m a with
+      | Some v => match bool_val v (typeof a) m with
+        | Some b => stmt_eval ge e ret (if b then s1 else s2) m
+        | None => None end
+      | None => None end
+  | Sreturn None => Some (Nreturn Vundef,m)
+  | Sreturn (Some a) =>
+      match pure_rval ge e m a with
+      | Some v => match sem_cast v (typeof a) ret m with
+          | Some v' => Some (Nreturn v',m) | None => None end
+      | None => None end
+  | _ => None
+  end.
+
+Fixpoint cont_eval (ge:genv) (e:env) (ret:type) (k:cont) (out:normal_outcome) (m:mem): option (val*mem) :=
+  match out with
+  | Nreturn v => match Mem.free_list m (blocks_of_env ge e) with Some m' => Some (v,m') | None => None end
+  | Nnormal =>
+      match k with
+      | Kstop => match Mem.free_list m (blocks_of_env ge e) with Some m' => Some (Vundef,m') | None => None end
+      | Kseq s k =>
+          match stmt_eval ge e ret s m with
+          | Some (out,m') => cont_eval ge e ret k out m' | None => None end
+      | _ => None end
+  end.
+
+Lemma cont_eval_return:
+  forall ge e ret k v m,
+  cont_eval ge e ret k (Nreturn v) m =
+  match Mem.free_list m (blocks_of_env ge e) with Some m' => Some (v,m') | None => None end.
+Proof. destruct k; reflexivity. Qed.
+
+Definition state_eval (ge:genv) (S:Csem.state): option (val*mem) :=
+  match S with
+  | State f s k e m =>
+      match stmt_eval ge e (fn_return f) s m with
+      | Some (out,m') => cont_eval ge e (fn_return f) k out m' | None => None end
+  | ExprState f a k e m =>
+      match k with
+      | Kdo k => match atomic_eval ge e m a with
+          | Some (_,m') => cont_eval ge e (fn_return f) k Nnormal m' | None => None end
+      | Kifthenelse s1 s2 k =>
+          match pure_rval ge e m a with
+          | Some v => match bool_val v (typeof a) m with
+            | Some b => match stmt_eval ge e (fn_return f) (if b then s1 else s2) m with
+              | Some (out,m') => cont_eval ge e (fn_return f) k out m'
+              | None => None end
+            | None => None end
+          | None => None end
+      | Kreturn k =>
+          match pure_rval ge e m a with
+          | Some v => match sem_cast v (typeof a) (fn_return f) m with
+              | Some v' => cont_eval ge e (fn_return f) k (Nreturn v') m | None => None end
+          | None => None end
+      | _ => None end
+  | Callstate (Internal f) args k m =>
+      match Cexec.do_alloc_variables ge empty_env m (fn_params f ++ fn_vars f) with
+      | (e,m') => match Cexec.sem_bind_parameters ge quiet_world e m' (fn_params f) args with
+          | Some m'' => match stmt_eval ge e (fn_return f) (fn_body f) m'' with
+              | Some (out,m''') => cont_eval ge e (fn_return f) k out m''' | None => None end
+          | None => None end end
+  | Returnstate v Kstop m => Some (v,m)
+  | _ => None
+  end.
+
+Fixpoint normal_stmt (s:statement): bool :=
+  match s with
+  | Sskip | Sreturn None => true
+  | Sdo a => atomic_expr a
+  | Sreturn (Some a) => simple a
+  | Ssequence s1 s2 => normal_stmt s1 && normal_stmt s2
+  | Sifthenelse a s1 s2 => simple a && normal_stmt s1 && normal_stmt s2
+  | _ => false end.
+Fixpoint normal_cont (k:cont): bool :=
+  match k with Kstop => true | Kseq s k => normal_stmt s && normal_cont k | _ => false end.
+Definition normal_state (S:Csem.state): bool :=
+  match S with
+  | State _ s k _ _ => normal_stmt s && normal_cont k
+  | ExprState _ a (Kdo k) _ _ => atomic_expr a && normal_cont k
+  | ExprState _ a (Kreturn k) _ _ => simple a && normal_cont k
+  | ExprState _ a (Kifthenelse s1 s2 k) _ _ => simple a && normal_stmt s1 && normal_stmt s2 && normal_cont k
+  | ExprState _ _ _ _ _ => false
+  | Callstate (Internal f) _ Kstop _ => normal_stmt (fn_body f)
+  | Returnstate _ Kstop _ | Stuckstate => true
+  | _ => false end.
+
+Lemma normal_cont_call:
+  forall k, normal_cont k = true -> call_cont k = Kstop.
+Proof. induction k; simpl; intros H; core_unpack; try discriminate; auto. Qed.
+Lemma normal_cont_is_call:
+  forall k, normal_cont k = true -> is_call_cont k -> k = Kstop.
+Proof. destruct k; simpl; intros; try discriminate; tauto. Qed.
+
+
+Lemma normal_estep_forward: forall ge f a k e m t next result,
+ normal_state(ExprState f a k e m)=true ->
+ state_eval ge(ExprState f a k e m)=Some result ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ normal_state next=true /\ state_eval ge next=Some result.
+Proof.
+ intros ge f a k e m t next result NORMAL EV STEP.
+ destruct k;simpl in NORMAL;try discriminate;core_unpack.
+ - cbn[state_eval] in EV.
+   destruct(atomic_eval ge e m a) as [[v mf]|]eqn:AE;try discriminate.
+   destruct(atomic_defined_estep ge f a (Kdo k) e m t next v mf ltac:(assumption) AE STEP)
+    as [a'[m'[EQ[TT[SI DEN]]]]];subst next.
+   split;[simpl;core_build;auto|cbn[state_eval];rewrite DEN;exact EV].
+ - assert(NS:Csem.not_stuck ge e a m).
+   { cbn[state_eval] in EV;destruct(pure_rval ge e m a)eqn:PV;try discriminate;eapply pure_not_stuck;eauto. }
+   match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a (Kifthenelse s s0 k)e m t next SI STEP)
+    as [BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + subst next;inversion STEP;subst.
+     exfalso;match goal with N:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _ |- _=>
+      apply N;apply(NS _ _ _ CT eq_refl) end.
+   + subst next;split;[simpl;core_build;auto|].
+     cbn[state_eval] in *;rewrite DEN,<-TY in EV;exact EV.
+ - assert(NS:Csem.not_stuck ge e a m).
+   { cbn[state_eval] in EV;destruct(pure_rval ge e m a)eqn:PV;try discriminate;eapply pure_not_stuck;eauto. }
+   match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a (Kreturn k)e m t next SI STEP)
+    as [BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + subst next;inversion STEP;subst.
+     exfalso;match goal with N:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _ |- _=>
+      apply N;apply(NS _ _ _ CT eq_refl) end.
+   + subst next;split;[simpl;core_build;auto|].
+     cbn[state_eval] in *;rewrite DEN,<-TY in EV;exact EV.
+Qed.
+Lemma normal_sstep_preserved:
+  forall ge S t S', normal_state S = true -> Csem.sstep ge S t S' -> normal_state S' = true.
+Proof.
+  intros ge S t S' NORMAL STEP; inversion STEP; subst; simpl in NORMAL;
+    repeat match goal with H: _ /\ _ |- _ => destruct H end;
+    core_unpack; try discriminate; simpl; core_build; auto.
+  - destruct b; simpl; core_build; auto.
+  - rewrite (normal_cont_call _ NORMAL); reflexivity.
+  - rewrite (normal_cont_call _ NORMAL); reflexivity.
+  - assert (HK: k = Kstop) by (eapply normal_cont_is_call; eauto). subst; reflexivity.
+  - destruct k;simpl in NORMAL;try discriminate;exact NORMAL.
+  - destruct k;simpl in NORMAL;try discriminate;reflexivity.
+Qed.
+
+Lemma normal_sstep_denotation:
+  forall ge S t S', normal_state S = true -> Csem.sstep ge S t S' ->
+  state_eval ge S = state_eval ge S'.
+Proof.
+  intros ge S t S' NORMAL STEP; inversion STEP; subst; simpl in NORMAL;
+    repeat match goal with H: _ /\ _ |- _ => destruct H end;
+    core_unpack; try discriminate; simpl; auto.
+  - destruct (atomic_eval ge e m x) as [[v mx]|]; reflexivity.
+  - destruct (stmt_eval ge e (fn_return f) s1 m) as [[out mx]|]; simpl; auto.
+    destruct out; try rewrite cont_eval_return; reflexivity.
+  - destruct (pure_rval ge e m a) as [v|]; simpl; auto.
+    destruct (bool_val v (typeof a) m); reflexivity.
+  - match goal with H:bool_val _ _ _=Some _ |- _ => rewrite H end; reflexivity.
+  - rewrite (normal_cont_call _ NORMAL), cont_eval_return. simpl.
+    match goal with H: Mem.free_list _ _ = Some _ |- _ => rewrite H end; reflexivity.
+  - destruct (pure_rval ge e m x) as [v|]; simpl; auto.
+    destruct (sem_cast v (typeof x) (fn_return f) m); reflexivity.
+  - rewrite (normal_cont_call _ NORMAL).
+    match goal with H: sem_cast _ _ _ _ = Some _ |- _ => rewrite H end.
+    rewrite cont_eval_return. simpl. match goal with H: Mem.free_list _ _ = Some _ |- _ => rewrite H end; reflexivity.
+  - assert (HK: k = Kstop) by (eapply normal_cont_is_call; eauto). subst; simpl.
+    match goal with H: Mem.free_list _ _ = Some _ |- _ => rewrite H end; reflexivity.
+  - match goal with A: alloc_variables ge _ _ _ _ _ |- _ =>
+      rewrite (do_alloc_variables_complete ge _ _ _ _ _ A) end.
+    match goal with B: bind_parameters ge _ _ _ _ _ |- _ =>
+      rewrite (sem_bind_parameters_complete ge quiet_world _ _ _ _ _ B) end.
+    reflexivity.
+Qed.
+
+
+Lemma normal_estep_backward: forall ge f a k e m t next,
+ normal_state(ExprState f a k e m)=true ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ normal_state next=true /\
+ forall result,state_eval ge next=Some result ->
+ state_eval ge(ExprState f a k e m)=Some result.
+Proof.
+ intros ge f a k e m t next NORMAL STEP.
+ destruct k;simpl in NORMAL;try discriminate;core_unpack.
+ - match goal with AT:atomic_expr a=true |- _=>
+   destruct(atomic_estep ge f a (Kdo k)e m t next AT STEP)
+    as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]] end.
+   + subst;split;[reflexivity|simpl;discriminate].
+   + subst;split;[simpl;core_build;auto|].
+     cbn[state_eval];rewrite DEN;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a (Kifthenelse s s0 k)e m t next SI STEP)
+    as [BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + subst;split;[reflexivity|simpl;discriminate].
+   + subst;split;[simpl;core_build;auto|].
+     cbn[state_eval];rewrite DEN,<-TY;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a (Kreturn k)e m t next SI STEP)
+    as [BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + subst;split;[reflexivity|simpl;discriminate].
+   + subst;split;[simpl;core_build;auto|].
+     cbn[state_eval];rewrite DEN,<-TY;auto.
+Qed.
+Theorem normal_step_backward: forall ge S t next,
+ normal_state S=true -> Csem.step ge S t next ->
+ normal_state next=true /\
+ forall result,state_eval ge next=Some result -> state_eval ge S=Some result.
+Proof.
+ intros ge S t next NORMAL [ES|SS].
+ - destruct S;inversion ES;subst;eapply normal_estep_backward;eauto.
+ - split;[eapply normal_sstep_preserved;eauto|].
+   rewrite(normal_sstep_denotation _ _ _ _ NORMAL SS);auto.
+Qed.
+Theorem all_order_normal_correspondence: forall ge S t v mf,
+ normal_state S=true ->
+ star Csem.step ge S t(Returnstate v Kstop mf) ->
+ state_eval ge S=Some(v,mf).
+Proof.
+ intros ge S t v mf NORMAL PATH.
+ remember(Returnstate v Kstop mf)as FINAL.
+ revert NORMAL;induction PATH;intros NORMAL;subst.
+ - reflexivity.
+ - destruct(normal_step_backward _ _ _ _ NORMAL H)as [NN BACK].
+   apply BACK;apply IHPATH;auto.
+Qed.
+Print Assumptions all_order_normal_correspondence.
+
+Definition call_names(s:Csem.state):Prop :=
+ match s with
+ | Callstate(Internal f)_ _ _=>list_norepet(var_names(fn_params f)++var_names(fn_vars f))
+ | _=>True end.
+Lemma normal_no_callred: forall ge f a k e m from C sub fd args ty,
+ normal_state(ExprState f a k e m)=true ->
+ context from RV C -> a=C sub -> callred ge sub m fd args ty -> False.
+Proof.
+ intros ge f a k e m from C sub fd args ty NORMAL CT EQ CR;subst a.
+ destruct k;simpl in NORMAL;try discriminate;core_unpack.
+ - pose proof(atomic_context_hole _ _ _ CT sub ltac:(assumption))as BAD.
+   inversion CR;subst;discriminate.
+ - pose proof(simple_context_hole _ _ _ CT sub ltac:(assumption))as BAD.
+   inversion CR;subst;discriminate.
+ - pose proof(simple_context_hole _ _ _ CT sub ltac:(assumption))as BAD.
+   inversion CR;subst;discriminate.
+Qed.
+Lemma normal_step_names: forall ge S t next,
+ normal_state S=true -> call_names S -> Csem.step ge S t next -> call_names next.
+Proof.
+ intros ge S t next NORMAL NAMES [ES|SS].
+ - inversion ES;subst;simpl;auto.
+   exfalso;eapply normal_no_callred;eauto.
+ - inversion SS;subst;simpl;auto.
+Qed.
+Lemma normal_step_forward: forall ge S t next result,
+ normal_state S=true -> state_eval ge S=Some result -> Csem.step ge S t next ->
+ normal_state next=true /\ state_eval ge next=Some result.
+Proof.
+ intros ge S t next result NORMAL EV [ES|SS].
+ - destruct S;inversion ES;subst;eapply normal_estep_forward;eauto.
+ - split;[eapply normal_sstep_preserved;eauto|].
+   rewrite <-(normal_sstep_denotation _ _ _ _ NORMAL SS);exact EV.
+Qed.
+Definition execution_invariant(ge:genv)(s:Csem.state):Prop :=
+ normal_state s=true /\ call_names s /\ exists result,state_eval ge s=Some result.
+Definition normal_return(s:Csem.state):Prop :=exists v m,s=Returnstate v Kstop m.
+Lemma invariant_preserved: forall ge s t next,
+ execution_invariant ge s -> Csem.step ge s t next -> execution_invariant ge next.
+Proof.
+ intros ge s t next [N[CN[r EV]]] STEP.
+ destruct(normal_step_forward _ _ _ _ _ N EV STEP)as [NN EN].
+ split;[exact NN|]. split;[exact(normal_step_names ge s t next N CN STEP)|exists r;exact EN].
+Qed.
+Lemma immediate_has_step: forall ge f a k e m,
+ literal RV a=false -> imm_safe ge e RV a m ->
+ exists t next,Csem.step ge(ExprState f a k e m)t next.
+Proof.
+ intros ge f a k e m NL IS;inversion IS;subst;try discriminate.
+ - eexists;eexists;left;eapply step_lred;eauto.
+ - eexists;eexists;left;eapply step_rred;eauto.
+ - eexists;eexists;left;eapply Csem.step_call;eauto.
+Qed.
+Theorem invariant_progress : forall ge s,
+ execution_invariant ge s -> normal_return s \/ exists t s',Csem.step ge s t s'.
+Proof.
+ intros ge s [NORMAL[NAMES[result EVAL]]].
+ destruct s as [f stmt k e m|f a k e m|fd args k m|v k m|];
+ cbn [normal_state] in NORMAL; try discriminate.
+ - core_unpack.
+   destruct stmt; cbn [normal_stmt] in *; core_unpack;try discriminate.
+   + destruct k; cbn [normal_cont] in *;core_unpack;try discriminate.
+     * cbn [state_eval stmt_eval cont_eval] in EVAL.
+       destruct(Mem.free_list m (blocks_of_env ge e))eqn:FREE;try discriminate.
+       right; eexists;eexists;right;eapply step_skip_call;[exact I|exact FREE].
+     * right;eexists;eexists;right;eapply step_skip_seq.
+   + right;eexists;eexists;right;eapply step_do_1.
+   + right;eexists;eexists;right;eapply step_seq.
+   + right;eexists;eexists;right;eapply step_ifthenelse_1.
+   + destruct o as [a|].
+     * right;eexists;eexists;right;eapply step_return_1.
+     * cbn [state_eval stmt_eval] in EVAL. rewrite cont_eval_return in EVAL.
+       destruct(Mem.free_list m (blocks_of_env ge e))eqn:FREE;try discriminate.
+       right;eexists;eexists;right;eapply step_return_0;exact FREE.
+ - 
+   destruct k; cbn [normal_state] in NORMAL;try discriminate;core_unpack.
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as [v[ty EQ]];subst a.
+       right;eexists;eexists;right;eapply step_do_2.
+     * right;eapply immediate_has_step;eauto.
+       cbn [state_eval] in EVAL;destruct(atomic_eval ge e m a)as [[v mx]|]eqn:EV;
+       try discriminate;pose proof(atomic_not_stuck _ _ _ _ _ _ ltac:(eassumption) EV) as NS;exact(NS RV (fun x=>x) a (ctx_top RV) eq_refl).
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as [v[ty EQ]];subst a.
+       cbn [state_eval pure_rval typeof] in EVAL.
+       destruct(bool_val v ty m)eqn:BOOL;try discriminate.
+       right;eexists;eexists;right;eapply step_ifthenelse_2;exact BOOL.
+     * right;eapply immediate_has_step;eauto.
+       cbn [state_eval] in EVAL;destruct(pure_rval ge e m a)eqn:EV;try discriminate.
+       eapply simple_immediate;eauto;congruence.
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as [v[ty EQ]];subst a.
+       change((match sem_cast v ty (fn_return f) m with
+        | Some v2=>cont_eval ge e (fn_return f) k (Nreturn v2) m
+        | None=>None end)=Some result) in EVAL.
+       destruct(sem_cast v ty (fn_return f) m)eqn:CAST;try discriminate.
+       rewrite cont_eval_return in EVAL.
+       destruct(Mem.free_list m (blocks_of_env ge e))eqn:FREE;try discriminate.
+       right;eexists;eexists;right;eapply step_return_2;eauto.
+     * right;eapply immediate_has_step;eauto.
+       cbn [state_eval] in EVAL;destruct(pure_rval ge e m a)eqn:EV;try discriminate.
+       eapply simple_immediate;eauto;congruence.
+ - destruct fd;try discriminate. destruct k;try discriminate.
+   cbn [state_eval] in EVAL.
+   destruct(do_alloc_variables ge empty_env m
+    (fn_params f++fn_vars f))as [e ma]eqn:ALLOC.
+   destruct(sem_bind_parameters ge quiet_world e ma
+    (fn_params f) args)eqn:BIND;try discriminate.
+   right;eexists;eexists;right;eapply step_internal_function.
+   + exact NAMES.
+   + pose proof(do_alloc_variables_sound ge
+      (fn_params f++fn_vars f) empty_env m)as A.
+     rewrite ALLOC in A;exact A.
+   + eapply sem_bind_parameters_sound;exact BIND.
+ - destruct k;try discriminate;left;unfold normal_return;eauto.
+Qed.
+
+
+Theorem reachable_invariant: forall ge initial t reached,
+ execution_invariant ge initial ->
+ star Csem.step ge initial t reached -> execution_invariant ge reached.
+Proof.
+ intros ge initial t reached INV PATH;revert INV;induction PATH;intros INV;auto.
+ apply IHPATH;eapply invariant_preserved;eauto.
+Qed.
+
+(** A constructive normal execution discharges the denotation premise.  Syntax,
+    rather than an assumed safety predicate, ensures all alternate operand orders
+    preserve the same denotation. *)
+Theorem normal_witness_certifies_all_orders: forall ge initial tw v mf,
+ normal_state initial=true -> call_names initial ->
+ star Csem.step ge initial tw(Returnstate v Kstop mf) ->
+ (forall t reached,star Csem.step ge initial t reached ->
+   normal_return reached \/ exists tr next,Csem.step ge reached tr next) /\
+ (forall t v' mf',star Csem.step ge initial t(Returnstate v' Kstop mf') ->
+   v'=v /\ mf'=mf).
+Proof.
+ intros ge initial tw v mf NORMAL NAMES WITNESS.
+ pose proof(all_order_normal_correspondence ge initial tw v mf NORMAL WITNESS)as DEN.
+ assert(INV:execution_invariant ge initial).
+ { split;auto;split;auto;exists(v,mf);exact DEN. }
+ split.
+ - intros t reached PATH;apply invariant_progress.
+   eapply reachable_invariant;eauto.
+ - intros t v' mf' PATH.
+   pose proof(all_order_normal_correspondence ge initial t v' mf' NORMAL PATH)as DEN'.
+   rewrite DEN in DEN';inversion DEN';auto.
+Qed.
+Corollary normal_witness_excludes_all_errors: forall ge initial tw v mf,
+ normal_state initial=true -> call_names initial ->
+ star Csem.step ge initial tw(Returnstate v Kstop mf) ->
+ forall t reached,star Csem.step ge initial t reached ->
+ ~(~normal_return reached /\ nostep Csem.step ge reached).
+Proof.
+ intros ge initial tw v mf NORMAL NAMES WIT t reached PATH[NR STOP].
+ destruct(proj1(normal_witness_certifies_all_orders ge initial tw v mf NORMAL NAMES WIT)
+   t reached PATH)as [DONE|[tr[next STEP]]].
+ - contradiction.
+ - exact(STOP tr next STEP).
+Qed.
+Print Assumptions normal_witness_certifies_all_orders.
+Print Assumptions normal_witness_excludes_all_errors.
+From Stdlib Require Import Bool List ZArith Classical.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress ContinuationLift.
+Import ListNotations.
+Fixpoint block_stmt(s:statement):bool :=
+ match s with
+ | Sskip=>true | Sdo a=>atomic_expr a
+ | Ssequence a b=>block_stmt a && block_stmt b
+ | Sifthenelse a b c=>simple a && block_stmt b && block_stmt c
+ | _=>false end.
+Fixpoint block_cont(k:cont):bool :=
+ match k with Kstop=>true|Kseq s k=>block_stmt s && block_cont k|_=>false end.
+Definition block_state(s:Csem.state):bool :=
+ match s with
+ | State _ st k _ _=>block_stmt st && block_cont k
+ | ExprState _ a(Kdo k)_ _=>atomic_expr a && block_cont k
+ | ExprState _ a(Kifthenelse b c k)_ _=>simple a && block_stmt b && block_stmt c && block_cont k
+ | _=>false end.
+Fixpoint block_eval(ge:genv)(e:env)(s:statement)(m:mem):option mem :=
+ match s with
+ | Sskip=>Some m
+ | Sdo a=>option_map snd(atomic_eval ge e m a)
+ | Ssequence a b=>match block_eval ge e a m with Some ma=>block_eval ge e b ma|None=>None end
+ | Sifthenelse a b c=>
+   match pure_rval ge e m a with
+   | Some v=>match bool_val v(typeof a)m with Some bv=>block_eval ge e(if bv then b else c)m|None=>None end
+   | None=>None end
+ | _=>None end.
+Fixpoint block_tail(ge:genv)(e:env)(k:cont)(m:mem):option mem :=
+ match k with
+ | Kstop=>Some m
+ | Kseq s k=>match block_eval ge e s m with Some ma=>block_tail ge e k ma|None=>None end
+ | _=>None end.
+Definition block_denotation(ge:genv)(s:Csem.state):option mem :=
+ match s with
+ | State _ st k e m=>match block_eval ge e st m with Some ma=>block_tail ge e k ma|None=>None end
+ | ExprState _ a(Kdo k)e m=>match atomic_eval ge e m a with Some(_,ma)=>block_tail ge e k ma|None=>None end
+ | ExprState _ a(Kifthenelse b c k)e m=>
+   match pure_rval ge e m a with
+   | Some v=>match bool_val v(typeof a)m with
+     | Some bv=>match block_eval ge e(if bv then b else c)m with Some ma=>block_tail ge e k ma|None=>None end
+     | None=>None end
+   | None=>None end
+ | _=>None end.
+Definition block_done(s:Csem.state):Prop :=
+ exists f e m,s=State f Sskip Kstop e m.
+Lemma block_stmt_normal:forall s,block_stmt s=true -> CallfreeExecution.normal_stmt s=true.
+Proof. induction s;simpl;intros;core_unpack;try discriminate;core_build;eauto. Qed.
+Lemma block_cont_normal:forall k,block_cont k=true -> CallfreeExecution.normal_cont k=true.
+Proof. induction k;simpl;intros;core_unpack;try discriminate;core_build;eauto using block_stmt_normal. Qed.
+Lemma block_state_normal:forall s,block_state s=true -> CallfreeExecution.normal_state s=true.
+Proof.
+ destruct s;simpl;intros;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+ destruct k;simpl in *;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+Qed.
+Lemma block_estep:forall ge f a k e m t next,
+ block_state(ExprState f a k e m)=true ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ (next=Stuckstate \/
+ block_state next=true /\
+ block_denotation ge(ExprState f a k e m)=block_denotation ge next).
+Proof.
+ intros ge f a k e m t next BL STEP.
+ destruct k;simpl in BL;try discriminate;core_unpack.
+ - match goal with AT:atomic_expr a=true |- _=>
+   destruct(atomic_estep ge f a(Kdo k)e m t next AT STEP)
+    as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a(Kifthenelse s s0 k)e m t next SI STEP)
+    as[BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN,<-TY;auto.
+Qed.
+Lemma block_sstep:forall ge s t next,
+ block_state s=true -> ~block_done s -> Csem.sstep ge s t next ->
+ block_state next=true /\ block_denotation ge s=block_denotation ge next.
+Proof.
+ intros ge s t next BL ND STEP;inversion STEP;subst;simpl in BL;core_unpack;try discriminate.
+ all: try solve[split;[simpl;core_build;auto|reflexivity]].
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(atomic_eval ge e m x)as [[v ma]|];reflexivity.
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(block_eval ge e s1 m);reflexivity.
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(pure_rval ge e m a);[destruct(bool_val v(typeof a)m)|];reflexivity.
+ - split;[destruct b;simpl;core_build;auto|].
+   cbn[block_denotation pure_rval typeof];rewrite H;reflexivity.
+ - destruct k;simpl in BL;core_unpack;try discriminate.
+   + exfalso;apply ND;unfold block_done;eauto.
+   + contradiction.
+Qed.
+
+Lemma block_expression_not_stuck:forall ge f a k e m mf,
+ block_state(ExprState f a k e m)=true ->
+ block_denotation ge(ExprState f a k e m)=Some mf ->
+ not_stuck ge e a m.
+Proof.
+ intros ge f a k e m mf BL DEN;destruct k;simpl in BL;try discriminate;core_unpack;
+ cbn[block_denotation] in DEN.
+ - destruct(atomic_eval ge e m a)as [[v ma]|]eqn:AE;try discriminate.
+   eapply atomic_not_stuck;eauto.
+ - destruct(pure_rval ge e m a)eqn:PV;try discriminate.
+   eapply pure_not_stuck;eauto.
+Qed.
+Lemma block_estep_defined:forall ge f a k e m mf t next,
+ block_state(ExprState f a k e m)=true ->
+ block_denotation ge(ExprState f a k e m)=Some mf ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ block_state next=true /\ block_denotation ge next=Some mf.
+Proof.
+ intros ge f a k e m mf t next BL DEN STEP.
+ destruct(block_estep _ _ _ _ _ _ _ _ BL STEP)as [BAD|[BN EQ]].
+ - subst next;inversion STEP;subst;exfalso.
+   match goal with N:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _ |- _=>
+     apply N;eapply block_expression_not_stuck;[exact BL|exact DEN|exact CT|reflexivity] end.
+ - split;auto;congruence.
+Qed.
+Definition block_invariant(ge:genv)(mf:mem)(s:Csem.state):Prop :=
+ block_state s=true /\ block_denotation ge s=Some mf.
+Lemma block_successors:forall ge mf s t next,
+ block_invariant ge mf s -> ~block_done s ->
+ Csem.step ge s t next -> block_invariant ge mf next.
+Proof.
+ intros ge mf s t next[BL DEN]ND[ES|SS].
+ - destruct s;inversion ES;subst;eapply block_estep_defined;eauto.
+ - destruct(block_sstep ge s t next BL ND SS)as [BN EQ];split;auto;congruence.
+Qed.
+Lemma block_progress_raw:forall ge mf s,
+ block_invariant ge mf s ->
+ block_done s \/ exists t next,Csem.step ge s t next.
+Proof.
+ intros ge mf s[BL DEN].
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];
+ cbn[block_state] in BL;try discriminate.
+ - core_unpack;destruct st;cbn[block_stmt] in *;core_unpack;try discriminate.
+   + destruct k;cbn[block_cont] in *;core_unpack;try discriminate.
+     * left;unfold block_done;eauto.
+     * right;eexists;eexists;right;eapply step_skip_seq.
+   + right;eexists;eexists;right;eapply step_do_1.
+   + right;eexists;eexists;right;eapply step_seq.
+   + right;eexists;eexists;right;eapply step_ifthenelse_1.
+ - destruct k;cbn[block_state] in BL;try discriminate;core_unpack.
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as[v[ty EQ]];subst a.
+       right;eexists;eexists;right;eapply step_do_2.
+     * right;eapply CallfreeExecution.immediate_has_step;eauto.
+       pose proof(block_expression_not_stuck ge f a(Kdo k)e m mf ltac:(simpl;core_build;eauto)DEN)as NS;
+       exact(NS RV(fun x=>x)a(ctx_top RV)eq_refl).
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as[v[ty EQ]];subst a.
+       cbn[block_denotation pure_rval typeof] in DEN.
+       destruct(bool_val v ty m)eqn:BV;try discriminate.
+       right;eexists;eexists;right;eapply step_ifthenelse_2;exact BV.
+     * right;eapply CallfreeExecution.immediate_has_step;eauto.
+       pose proof(block_expression_not_stuck ge f a(Kifthenelse s s0 k)e m mf ltac:(simpl;core_build;eauto)DEN)as NS;
+       exact(NS RV(fun x=>x)a(ctx_top RV)eq_refl).
+Qed.
+Print Assumptions block_successors.
+
+Lemma nostep_path_eq:forall ge s t next,
+ nostep Csem.step ge s -> star Csem.step ge s t next -> next=s /\ t=E0.
+Proof. intros ge s t next NS PATH;inversion PATH;subst;auto;exfalso;eapply NS;eauto. Qed.
+Lemma stuck_nostep:forall ge,nostep Csem.step ge Stuckstate.
+Proof. intros ge t next[ES|SS];inversion ES||inversion SS. Qed.
+Lemma return_stop_nostep:forall ge v m,nostep Csem.step ge(Returnstate v Kstop m).
+Proof. intros ge v m t next[ES|SS];inversion ES||inversion SS. Qed.
+Lemma block_done_path_eq:forall ge f e m t f' e' mf,
+ star Csem.step ge(State f Sskip Kstop e m)t(State f' Sskip Kstop e' mf) ->
+ State f' Sskip Kstop e' mf=State f Sskip Kstop e m.
+Proof.
+ intros ge f e m t f' e' mf PATH;inversion PATH;subst;auto.
+ destruct H as[ES|SS];[inversion ES|].
+ inversion SS;subst.
+ match goal with P:star _ _ (Returnstate _ Kstop _) _ _ |- _=>
+   destruct(nostep_path_eq _ _ _ _ (return_stop_nostep _ _ _) P)as[EQ TT];discriminate EQ end.
+Qed.
+Theorem block_normal_correspondence:forall ge initial t f e mf,
+ block_state initial=true ->
+ star Csem.step ge initial t(State f Sskip Kstop e mf) ->
+ block_denotation ge initial=Some mf.
+Proof.
+ intros ge initial t f e mf BL PATH.
+ remember(State f Sskip Kstop e mf)as FINAL.
+ revert BL;induction PATH;intros BL;subst.
+ - reflexivity.
+ - destruct(classic(block_done s1))as[DONE|ND].
+   + destruct DONE as[ff[ee[mm EQ]]];subst s1.
+     assert(PP:exists tr,star Csem.step ge(State ff Sskip Kstop ee mm)tr(State f Sskip Kstop e mf)).
+     { eexists;eapply star_step;[exact H|exact PATH|reflexivity]. }
+     destruct PP as[tr PP];pose proof(block_done_path_eq _ _ _ _ _ _ _ _ PP)as EQ.
+     inversion EQ;subst;reflexivity.
+   + destruct H as[ES|SS].
+     * destruct s1;try solve[inversion ES].
+       destruct(block_estep _ _ _ _ _ _ _ _ BL ES)as[BAD|[BN DEN]].
+       -- inversion BAD;subst;destruct(nostep_path_eq _ _ _ _ (stuck_nostep ge) PATH)as[EQ TT];discriminate EQ.
+       -- rewrite DEN;apply IHPATH;auto.
+     * destruct(block_sstep _ _ _ _ BL ND SS)as[BN DEN].
+       rewrite DEN;apply IHPATH;auto.
+Qed.
+Print Assumptions block_normal_correspondence.
+
+Lemma block_plug_sstep:forall ge base s t next,
+ block_state s=true -> ~block_done s -> Csem.sstep ge s t next ->
+ Csem.sstep ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next BL ND STEP;inversion STEP;subst;simpl in BL;core_unpack;try discriminate;
+ cbn[plug_state plug_cont];try solve[constructor;auto].
+ destruct k;simpl in BL;core_unpack;try discriminate.
+ - exfalso;apply ND;unfold block_done;eauto.
+ - contradiction.
+Qed.
+Lemma block_plug_sstep_inverse:forall ge base s t next,
+ block_state s=true -> ~block_done s ->
+ Csem.sstep ge(plug_state base s)t next ->
+ exists raw,next=plug_state base raw /\ Csem.sstep ge s t raw.
+Proof.
+ intros ge base s t next BL ND STEP.
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];
+ cbn[block_state plug_state] in BL,STEP;try discriminate.
+ - destruct st;cbn[block_stmt] in BL;core_unpack;try discriminate;
+   destruct k;cbn[block_cont plug_cont] in *;core_unpack;try discriminate;
+   try solve[exfalso;apply ND;unfold block_done;eauto];
+   inversion STEP;subst;cbn[is_call_cont] in *;try contradiction;
+   repeat match goal with H:_ \/ _ |- _=>destruct H end;try discriminate;
+   try solve[eexists;split;[|eauto 8 using step_skip_seq,step_do_1,step_seq,step_ifthenelse_1,step_do_2,step_ifthenelse_2];reflexivity].
+ - destruct k;cbn[block_state] in BL;try discriminate;core_unpack;
+   cbn[plug_cont] in STEP;inversion STEP;subst;cbn[is_call_cont] in *;try contradiction;
+   repeat match goal with H:_ \/ _ |- _=>destruct H end;try discriminate;
+   try solve[eexists;split;[|eauto 8 using step_skip_seq,step_do_1,step_seq,step_ifthenelse_1,step_do_2,step_ifthenelse_2];reflexivity].
+Qed.
+Lemma block_plug_step:forall ge base s t next,
+ block_state s=true -> ~block_done s -> Csem.step ge s t next ->
+ Csem.step ge(plug_state base s)t(plug_state base next).
+Proof.
+ intros ge base s t next BL ND[ES|SS].
+ - left;eapply plug_normal_estep;[apply block_state_normal;exact BL|exact ES].
+ - right;eapply block_plug_sstep;eauto.
+Qed.
+Lemma block_plug_step_inverse:forall ge base s t next,
+ block_state s=true -> ~block_done s ->
+ Csem.step ge(plug_state base s)t next ->
+ exists raw,next=plug_state base raw /\ Csem.step ge s t raw.
+Proof.
+ intros ge base s t next BL ND[ES|SS].
+ - destruct(plug_estep_inverse ge base s t next(block_state_normal _ BL)ES)as[raw[EQ STEP]].
+   exists raw;split;auto;left;exact STEP.
+ - destruct(block_plug_sstep_inverse ge base s t next BL ND SS)as[raw[EQ STEP]].
+   exists raw;split;auto;right;exact STEP.
+Qed.
+Definition block_owner(f:function)(e:env)(s:Csem.state):Prop :=
+ match s with State f' _ _ e' _ |ExprState f' _ _ e' _=>f'=f /\ e'=e|_=>False end.
+Lemma block_owner_preserved:forall ge f e s t next mf0,
+ block_state s=true -> block_denotation ge s=Some mf0 -> ~block_done s -> block_owner f e s ->
+ Csem.step ge s t next -> block_owner f e next.
+Proof.
+ intros ge f e s t next mf0 BL DEN ND OWN[ES|SS].
+ - destruct s;try solve[inversion ES];simpl in OWN;destruct OWN;subst.
+   pose proof(proj1(block_estep_defined _ _ _ _ _ _ _ _ _ BL DEN ES))as BN.
+   inversion ES;subst;simpl in BN;try discriminate;simpl;auto.
+ - inversion SS;subst;simpl in BL,OWN;core_unpack;try discriminate;simpl;auto.
+ destruct k;simpl in BL,H;try discriminate;try contradiction.
+ apply ND;unfold block_done;eauto.
+Qed.
+Definition block_context_invariant(ge:genv)(base:cont)(f:function)(e:env)(mf:mem)(s:Csem.state):Prop :=
+ exists raw,s=plug_state base raw /\ block_invariant ge mf raw /\ block_owner f e raw.
+Lemma block_context_entry:forall ge base f e st m t mf,
+ block_stmt st=true ->
+ star Csem.step ge(State f st Kstop e m)t(State f Sskip Kstop e mf) ->
+ block_context_invariant ge base f e mf(State f st base e m).
+Proof.
+ intros ge base f e st m t mf BS PATH.
+ exists(State f st Kstop e m);split;[reflexivity|];split.
+ - split;[simpl;core_build;auto|eapply block_normal_correspondence;[simpl;core_build;auto|exact PATH]].
+ - split;reflexivity.
+Qed.
+Theorem block_context_progress:forall ge base f e mf s,
+ block_context_invariant ge base f e mf s ->
+ s=State f Sskip base e mf \/
+ exists t next,Csem.step ge s t next /\ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s[raw[EQ[INV OWN]]];subst s.
+ destruct(classic(block_done raw))as[DONE|ND].
+ - destruct DONE as[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;left;reflexivity.
+ - destruct(block_progress_raw ge mf raw INV)as[DONE|[t[next STEP]]];[contradiction|].
+   right;exists t,(plug_state base next);split.
+   + apply block_plug_step;auto;exact(proj1 INV).
+   + exists next;split;auto;split.
+     * eapply block_successors;eauto.
+     * eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Theorem block_context_all_successors:forall ge base f e mf s t next,
+ block_context_invariant ge base f e mf s ->
+ s<>State f Sskip base e mf -> Csem.step ge s t next ->
+ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s t next[raw[EQ[INV OWN]]]NF STEP;subst s.
+ assert(ND:~block_done raw).
+ { intros[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;apply NF;reflexivity. }
+ destruct(block_plug_step_inverse ge base raw t next(proj1 INV)ND STEP)as[raw'[EQ STEP']].
+ exists raw';split;auto;split.
+ - eapply block_successors;eauto.
+ - eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Print Assumptions block_context_all_successors.
+Print Assumptions block_context_entry.
+Print Assumptions block_context_progress.
+From Stdlib Require Import List.
+From compcert Require Import Integers Values Memory Events Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FivePaparazziState Require Import State.
+From FiveGuidanceEntry Require Import Entry ConditionalCompletion.
+From FiveGuidanceMode Require Import Spec.
+From FiveGuidanceAllOrder Require Import PhaseComposition SpeedExecution AccelExecution EntryCorollaries.
+Require FiveGuidanceSemantics.SpeedSource FiveGuidanceSemantics.AccelSource.
+Require FiveGuidanceEntry.SaturationBody FiveGuidanceEntry.SaturationBodyAccel.
+Import ListNotations.
+
+Lemma certificate_normal_path:forall ge P target initial,
+ certificate ge P target ->P initial ->Acc(successor ge)initial ->
+ exists t,star Csem.step ge initial t target.
+Proof.
+ intros ge P target initial CERT PI ACCESS;revert PI.
+ induction ACCESS as[s ACCESS IH];intros PI.
+ destruct(proj1 CERT s PI)as[EQ|[t[next[STEP PN]]]].
+ - subst s;exists E0;apply star_refl.
+ - destruct(IH next ltac:(exists t;exact STEP)PN)as[tail PATH].
+   exists(t**tail);eapply star_step;[exact STEP|exact PATH|reflexivity].
+Qed.
+Theorem speed_safe_termination_given_software:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->forall s sp m bg src o,
+ speed_initial s sp m bg src o ->
+ safe_termination FiveGhSpeed.Execution.ge(FiveGhSpeed.Execution.entry[Vptr src o]m).
+Proof.
+ intros SQ s sp m bg src o INIT;split.
+ - intros t reached PATH[NOTFINAL STOP].
+   destruct(speed_no_error_given_software SQ s sp m bg src o INIT t reached PATH)as[[mf EQ]|[tr[next STEP]]].
+   + apply NOTFINAL;exists Vundef,mf;exact EQ.
+   + exact(STOP tr next STEP).
+ - apply FiveGuidanceSemantics.SpeedSource.all_successor_termination.
+Qed.
+Theorem accel_safe_termination_given_software:
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->forall s sp m bg src o,
+ accel_initial s sp m bg src o ->
+ safe_termination FiveGhAccel.Execution.ge(FiveGhAccel.Execution.entry[Vptr src o]m).
+Proof.
+ intros SQ s sp m bg src o INIT;split.
+ - intros t reached PATH[NOTFINAL STOP].
+   destruct(accel_no_error_given_software SQ s sp m bg src o INIT t reached PATH)as[[mf EQ]|[tr[next STEP]]].
+   + apply NOTFINAL;exists Vundef,mf;exact EQ.
+   + exact(STOP tr next STEP).
+ - apply FiveGuidanceSemantics.AccelSource.all_successor_termination.
+Qed.
+Theorem normal_completion_from_all_orders:
+ FiveGuidanceEntry.SaturationBody.sqrt_call_contract ->
+ FiveGuidanceEntry.SaturationBodyAccel.sqrt_call_contract ->NormalCompletion.
+Proof.
+ intros SQ AQ;unfold NormalCompletion;intros s sp a ma mb ba bb pa pb oa ob IA IB MATCH.
+ destruct MATCH as[si[INT BITS]];apply vector_bits_injective in BITS;subst a.
+ destruct(speed_entry_certificate SQ s sp ma ba pa oa IA)as(sf&fa&PS&US&CS&IS&RS&RESTS).
+ destruct(accel_entry_certificate AQ s(raw_speed_accel si sp)mb bb pb ob IB)as(sg&fb&PA&UA&CA&INA&RA&RESTA).
+ pose proof(matching_accel_after_integration fixed_maximum s si sp INT)as MATCHUPDATE.
+ rewrite <-MATCHUPDATE,US in UA;injection UA as EQ;subst sg.
+ destruct(certificate_normal_path _ PS _ _ CS IS(FiveGuidanceSemantics.SpeedSource.all_successor_termination _ _))as[ts PATHS].
+ destruct(certificate_normal_path _ PA _ _ CA INA(FiveGuidanceSemantics.AccelSource.all_successor_termination _ _))as[ta PATHA].
+ exists fa,fb,sf;split.
+ - exists ts,Vundef;exact PATHS.
+ - split;[exists ta,Vundef;exact PATHA|auto].
+Qed.
+Print Assumptions speed_safe_termination_given_software.
+Print Assumptions accel_safe_termination_given_software.
+Print Assumptions normal_completion_from_all_orders.
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+
+Scheme expr_core_ind := Induction for expr Sort Prop
+with exprlist_core_ind := Induction for exprlist Sort Prop.
+Combined Scheme expr_exprlist_ind from expr_core_ind,exprlist_core_ind.
+Scheme context_core_ind := Induction for context Sort Prop
+with contextlist_core_ind := Induction for contextlist Sort Prop.
+Combined Scheme context_contextlist_ind from context_core_ind,contextlist_core_ind.
+Section CLOSURE.
+Variable ge:genv.
+Variable allowed:Csyntax.fundef -> Prop.
+Variable call_budget:type -> Csyntax.fundef -> Prop.
+Definition nv (ty:type):Prop := type_is_volatile ty=false.
+Definition valid_call (tyf tyout:type):Prop :=
+ forall vf fd tyargs tyres cc,
+ Genv.find_funct ge vf=Some fd ->
+ classify_fun tyf=fun_case_f tyargs tyres cc ->
+ type_of_fundef fd=Tfunction tyargs tyres cc -> allowed fd /\ call_budget tyout fd.
+Fixpoint core_expr (a:expr):Prop :=
+ match a with
+ | Eval _ ty | Eloc _ _ _ ty | Evar _ ty | Esizeof _ ty | Ealignof _ ty => nv ty
+ | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+ | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty /\ core_expr a
+ | Ebinop _ a b ty | Eassign a b ty | Ecomma a b ty
+ | Eseqand a b ty | Eseqor a b ty => nv ty /\ core_expr a /\ core_expr b
+ | Eassignop _ a b tyres ty => nv ty /\ nv tyres /\ core_expr a /\ core_expr b
+ | Econdition a b c ty => nv ty /\ core_expr a /\ core_expr b /\ core_expr c
+ | Ecall a al ty => nv ty /\ core_expr a /\ core_exprlist al /\ valid_call(typeof a) ty
+ | Ebuiltin ef _ al ty => nv ty /\ executable_builtin ef=true /\ core_exprlist al
+ | _ => False end
+with core_exprlist (al:exprlist):Prop :=
+ match al with Enil => True | Econs a al => core_expr a /\ core_exprlist al end.
+
+Ltac unpack := repeat match goal with H:_ /\ _ |- _ => destruct H end.
+Lemma core_nv: forall a, core_expr a -> nv(typeof a).
+Proof. destruct a; simpl; intros; unpack; tauto. Qed.
+Lemma core_no_builtin_mut:
+ (forall a,core_expr a -> no_builtin a=true) /\
+ (forall al,core_exprlist al -> no_builtin_list al=true).
+Proof.
+ apply expr_exprlist_ind; simpl; intros; unpack; try contradiction;
+ repeat match goal with |- _ && _=true => apply Bool.andb_true_iff;split end; auto.
+Qed.
+Lemma context_type_equal_mut:
+ (forall from to C, context from to C -> forall a b,
+ typeof a=typeof b -> typeof(C a)=typeof(C b)) /\
+ (forall from C, contextlist from C -> True).
+Proof.
+ apply context_contextlist_ind; simpl; intros; auto.
+Qed.
+Lemma core_context_mut:
+ (forall from to C, context from to C -> forall a b,
+ core_expr(C a) -> core_expr a /\
+ (typeof a=typeof b -> core_expr b -> core_expr(C b))) /\
+ (forall from C, contextlist from C -> forall a b,
+ core_exprlist(C a) -> core_expr a /\
+ (typeof a=typeof b -> core_expr b -> core_exprlist(C b))).
+Proof.
+ apply context_contextlist_ind; simpl; intros; unpack; try contradiction;
+ try (split; auto; intros; repeat split; auto; fail).
+ all: try match goal with IH:forall a b, _ |- _ =>
+   specialize(IH a b ltac:(assumption)); destruct IH as [HO HR];
+   split; auto; intros; repeat split; auto end.
+ all: try match goal with CT:Csem.context _ _ ?C, VC:valid_call(typeof(?C ?A)) _ |- _ =>
+   rewrite <-(proj1 context_type_equal_mut _ _ _ CT _ _ ltac:(assumption)); assumption end.
+all: assert(VC:valid_call(typeof(C b)) ty) by (rewrite <-(proj1 context_type_equal_mut k RV C c a b H);exact H3).
+ all: destruct(VC vf fd tyargs tyres cc H5 H6 H7);assumption.
+Qed.
+Lemma core_context_hole: forall from to C, context from to C -> forall a,
+ core_expr(C a) -> core_expr a.
+Proof. intros; exact(proj1(proj1 core_context_mut _ _ _ H a a H0)). Qed.
+Lemma core_context_replace: forall from to C, context from to C -> forall a b,
+ core_expr(C a) -> typeof a=typeof b -> core_expr b -> core_expr(C b).
+Proof. intros; eapply(proj2(proj1 core_context_mut _ _ _ H a b H0));eauto. Qed.
+
+Lemma lred_type: forall e a m a' m', lred ge e a m a' m' -> typeof a'=typeof a.
+Proof. intros; inversion H; subst; simpl; auto. Qed.
+Lemma rred_type: forall a m t a' m', rred ge a m t a' m' -> typeof a'=typeof a.
+Proof. intros; inversion H; subst; simpl; auto. Qed.
+Lemma core_lred: forall e a m a' m',
+ core_expr a -> lred ge e a m a' m' -> core_expr a'.
+Proof. intros; inversion H0; subst; simpl in *; unpack; auto. Qed.
+Lemma nv_deref_silent: forall ty m b ofs bf t v,
+ nv ty -> deref_loc ge ty m b ofs bf t v -> t=E0.
+Proof. intros; inversion H0; subst; unfold nv in *; congruence. Qed.
+Lemma nv_assign_silent: forall ty m b ofs bf v t m' v',
+ nv ty -> assign_loc ge ty m b ofs bf v t m' v' -> t=E0.
+Proof. intros; inversion H0; subst; unfold nv in *; congruence. Qed.
+Lemma core_rred: forall a m t a' m',
+ core_expr a -> rred ge a m t a' m' -> t=E0 /\ core_expr a'.
+Proof.
+ intros a m t a' m' CO RED; inversion RED; subst; simpl in CO; unpack;
+ try contradiction; split; simpl; eauto using nv_deref_silent,nv_assign_silent;
+ try (repeat split; auto; fail).
+ - destruct b; simpl; repeat split; auto.
+ - eapply(proj1(executable_builtin_silent _ _ _ _ _ _ _ ltac:(eassumption) ltac:(eassumption))).
+Qed.
+Lemma core_callred: forall a m fd args ty,
+ core_expr a -> callred ge a m fd args ty -> allowed fd /\ call_budget ty fd /\ nv ty /\ typeof a=ty.
+Proof.
+ intros a m fd args ty CO RED; inversion RED; subst; simpl in CO; unpack;
+ destruct(H6 vf fd tyargs tyres cconv H H2 H1);repeat split;auto.
+Qed.
+
+Fixpoint core_stmt (s:statement):Prop :=
+ match s with
+ | Sskip | Sreturn None => True
+ | Sdo a | Sreturn(Some a) => core_expr a
+ | Ssequence a b => core_stmt a /\ core_stmt b
+ | Sifthenelse a b c => core_expr a /\ core_stmt b /\ core_stmt c
+ | _ => False end.
+Inductive core_cont:cont -> Prop :=
+ | core_stop: core_cont Kstop
+ | core_seq: forall s k, core_stmt s -> core_cont k -> core_cont(Kseq s k)
+ | core_do: forall k, core_cont k -> core_cont(Kdo k)
+ | core_return: forall k, core_cont k -> core_cont(Kreturn k)
+ | core_if: forall a b k, core_stmt a -> core_stmt b -> core_cont k -> core_cont(Kifthenelse a b k)
+ | core_call: forall f e C ty k,
+   context RV RV C -> nv ty ->
+   (forall a, typeof a=ty -> core_expr a -> core_expr(C a)) ->
+   core_cont k -> core_cont(Kcall f e C ty k).
+
+Definition source_state (s:Csem.state):Prop :=
+ match s with
+ | State _ stmt k _ _ => core_stmt stmt /\ core_cont k
+ | ExprState _ a k _ _ => core_expr a /\ core_cont k
+ | Callstate fd _ k _ => allowed fd /\ core_cont k
+ | Returnstate _ k _ => core_cont k
+ | Stuckstate => True end.
+Hypothesis internal_body: forall f, allowed(Internal f) -> core_stmt(fn_body f).
+Hypothesis external_supported: forall ef args ret cc,
+ allowed(External ef args ret cc) -> executable_builtin ef=true.
+
+Lemma source_callback_free: forall s,source_state s -> callback_free_state s.
+Proof.
+ destruct s; simpl; intros; unpack; auto.
+ - eapply(proj1 core_no_builtin_mut);eauto.
+ - destruct fd; simpl;auto;eauto.
+Qed.
+Lemma core_call_cont: forall k,core_cont k -> core_cont(call_cont k).
+Proof. induction 1;simpl;auto using core_cont. Qed.
+Lemma source_estep: forall s t s',source_state s -> estep ge s t s' -> t=E0 /\ source_state s'.
+Proof.
+ intros s t s' INV STEP; inversion STEP; subst; simpl in INV;unpack.
+ - split;auto;simpl;split;auto.
+   eapply core_context_replace;[eassumption|eassumption|symmetry;eapply lred_type;eauto|].
+   eapply core_lred;[eapply core_context_hole;eauto|eauto].
+ - pose proof(core_context_hole _ _ _ H0 _ H1) as CA.
+   destruct(core_rred _ _ _ _ _ CA H) as [TR CO];split;auto;simpl;split;auto.
+   eapply core_context_replace;[eassumption|eassumption|symmetry;eapply rred_type;eauto|eauto].
+ - pose proof(core_context_hole _ _ _ H0 _ H1) as CA.
+   destruct(core_callred _ _ _ _ _ CA H) as [ALLOW [BUD [NV TY]]].
+   split;auto;simpl;split;auto.
+   eapply core_call;[eassumption|exact NV| |eassumption].
+   intros a0 HT CO;eapply core_context_replace;[eassumption|eassumption|congruence|eassumption].
+ - split;auto;exact I.
+Qed.
+Lemma source_sstep: forall s t s',source_state s -> sstep ge s t s' -> t=E0 /\ source_state s'.
+Proof.
+ intros s t s' INV STEP;inversion STEP;subst;simpl in INV;unpack;try contradiction;
+ split;auto;simpl;try (repeat split;eauto using core_cont,core_call_cont,internal_body;fail).
+ all: try match goal with CC:core_cont(Kseq _ _) |- _ => inversion CC;subst;auto end.
+ all: try match goal with CC:core_cont(Kdo _) |- _ => inversion CC;subst;auto end.
+ all: try match goal with CC:core_cont(Kifthenelse _ _ _) |- _ => inversion CC;subst;auto end.
+ all: try match goal with CC:core_cont(Kreturn _) |- _ => inversion CC;subst;eauto using core_call_cont end.
+ all: try match goal with CC:core_cont(Kcall _ _ _ _ _) |- _ => inversion CC;subst;auto end.
+ all: try match goal with CC:core_cont ?K |- _ => tryif is_var K then fail else (inversion CC;subst;auto) end.
+ - destruct b;auto.
+ - eapply(proj1(executable_builtin_silent _ _ _ _ _ _ _ ltac:(eapply external_supported;eauto) ltac:(eassumption))).
+Qed.
+Theorem source_step_invariant: forall s t s',source_state s -> Csem.step ge s t s' -> t=E0 /\ source_state s'.
+Proof. intros s t s' INV [ES|SS];eauto using source_estep,source_sstep. Qed.
+Theorem source_silent:forall s,source_state s -> silent_state ge s.
+Proof. intros s INV t s' STEP;exact(proj1(source_step_invariant _ _ _ INV STEP)). Qed.
+Theorem source_do_step_exact:forall cb asm w s t s',source_state s ->
+ ((exists rule, In(TR rule t s')(Cexec.do_step ge cb asm w s)) <-> Csem.step ge s t s').
+Proof. intros;apply pure_do_step_exact;eauto using source_callback_free,source_silent. Qed.
+End CLOSURE.
+Print Assumptions source_step_invariant.
+Print Assumptions source_do_step_exact.
+From Stdlib Require Import List ZArith Bool.
+From compcert Require Import AST Integers Floats Values Memory Events Globalenvs Ctypes Csyntax Csem Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic WitnessSetup.
+Import ListNotations.
+Open Scope Z_scope.
+Module Source := PidPositionRunPos.Source.
+Module Execution := PidPositionRunPos.Execution.
+Definition ref_pos (axis:ident) := [Source._ref;Source._pos;axis].
+Definition measured_pos (axis:ident) := [Source._ned_pos_i;axis].
+Definition bounded_path m b ty path lo hi : Prop :=
+ exists v, load_path Mint32 m b ty path=Some(Vint v) /\ lo<=Int.signed v<=hi.
+Definition bounded_global m id ty path lo hi : Prop :=
+ exists v, load_global Mint32 m id ty path=Some(Vint v) /\ lo<=Int.signed v<=hi.
+Definition field_byte (base:block) ty path (b:block) (ofs:Z) : Prop :=
+ b=base /\ exists ft start, path_info ty path=Some(ft,start) /\ start<=ofs<start+4.
+Definition translated_byte (gh:block) (b:block) (ofs:Z) : Prop :=
+ (exists axis, In axis [Source._x;Source._y] /\ field_byte gh gh_type (ref_pos axis) b ofs)
+ \/ (exists sb axis, Genv.find_symbol Execution.ge Source._state=Some sb /\ In axis [Source._x;Source._y] /\ field_byte sb state_type (measured_pos axis) b ofs).
+Definition same_except_positions_and_return (gh ret:block) (a b:mem) : Prop :=
+ Mem.nextblock a=Mem.nextblock b
+ /\ (forall blk ofs k p, Mem.perm a blk ofs k p <-> Mem.perm b blk ofs k p)
+ /\ (forall blk ofs, ~translated_byte gh blk ofs -> blk<>ret -> Mem.loadbytes a blk ofs 1=Mem.loadbytes b blk ofs 1).
+Definition global_bytes_initialized (m:mem) : Prop :=
+ exists init, Genv.init_mem Source.prog=Some init /\ forall b gv, Genv.find_var_info Execution.ge b=Some gv ->
+ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Readable /\ (gvar_readonly gv=true -> forall ofs, 0<=ofs<sizeof ce (gvar_info gv) -> Mem.loadbytes m b ofs 1=Mem.loadbytes init b ofs 1).
+Definition writable_controller_globals (m:mem) : Prop :=
+ forall id, In id [Source._guidance_pid;Source._guidance_pid_pos_err;Source._guidance_pid_speed_err;Source._guidance_pid_trim_att_integrator] ->
+ exists b gv, Genv.find_symbol Execution.ge id=Some b /\ Genv.find_var_info Execution.ge b=Some gv /\ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Writable.
+Definition caches_valid (m:mem) : Prop :=
+ exists ps ss, load_global Mint16unsigned m Source._state state_type [Source._pos_status]=Some(Vint ps)
+ /\ load_global Mint16unsigned m Source._state state_type [Source._speed_status]=Some(Vint ss)
+ /\ Int.and ps (Int.repr 2)=Int.repr 2 /\ Int.and ss (Int.repr 2)=Int.repr 2.
+Definition heading_safe (m:mem) : Prop :=
+ exists h, load_global Mfloat32 m Source._guidance_h gh_type [Source._sp;Source._heading]=Some(Vsingle h)
+ /\ Float32.cmp Cle (Float32.of_int(Int.repr(-3))) h=true
+ /\ Float32.cmp Cle h (Float32.of_int(Int.repr 3))=true.
+Definition InputGood (m:mem) (gh ret:block) : Prop :=
+ gh<>ret
+ /\ (forall id, Genv.find_symbol Execution.ge id=Some gh -> id=Source._guidance_h) /\ (forall id, Genv.find_symbol Execution.ge id<>Some ret)
+ /\ Mem.range_perm m gh 0 (sizeof ce gh_type) Cur Readable
+ /\ Mem.range_perm m ret 0 (sizeof ce sp_type) Cur Writable
+ /\ global_bytes_initialized m /\ writable_controller_globals m /\ caches_valid m
+ /\ load_global Mint8unsigned m Source._guidance_pid pid_type [Source._approx_force_by_thrust]=Some(Vint Int.zero)
+ /\ heading_safe m
+ /\ (forall gain, In gain [Source._kp;Source._kd;Source._ki;Source._kv;Source._ka] -> bounded_global m Source._guidance_pid pid_type [gain] 0 100)
+ /\ (forall axis, In axis [Source._x;Source._y] ->
+ bounded_global m Source._guidance_pid_trim_att_integrator vec_type [axis] (-100000000) 100000000
+ /\ bounded_path m gh gh_type [Source._ref;Source._speed;axis] (-10000) 10000
+ /\ bounded_path m gh gh_type [Source._ref;Source._accel;axis] (-10000) 10000
+ /\ bounded_global m Source._state state_type [Source._ned_speed_i;axis] (-10000) 10000).
+Definition AxisTranslation (gh:block) (a b:mem) (axis:ident) (delta:Z) : Prop :=
+ exists ra pa rb pb,
+ load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint pa)
+ /\ load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint rb)
+ /\ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint pb)
+ /\ physical_translation (Int.signed ra) (Int.signed pa) delta
+ /\ Int.signed rb=Int.signed ra+delta /\ Int.signed pb=Int.signed pa+delta.
+Definition InputPair (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputGood a gh ret /\ InputGood b gh ret
+ /\ same_except_positions_and_return gh ret a b
+ /\ AxisTranslation gh a b Source._x dx /\ AxisTranslation gh a b Source._y dy.
+Definition call_args (gh ret:block) (flight:bool) : list val :=
+ [Vptr ret Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero].
+Definition NormalCall (gh ret:block) (flight:bool) (m mf:mem) : Prop :=
+ exists t v, star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t (Returnstate v Kstop mf).
+Definition same_loaded_int32 (a b:option val) : Prop :=
+ exists v, a=Some(Vint v) /\ b=Some(Vint v).
+Definition ActiveReturnEqual (ret:block) (a b:mem) : Prop :=
+ load_path Mint32 a ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 b ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 a ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ load_path Mint32 b ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ forall path, In path [[Source._sp;Source._ltp_i;Source._vect;Source._x];[Source._sp;Source._ltp_i;Source._vect;Source._y];[Source._sp;Source._ltp_i;Source._heading]] ->
+ same_loaded_int32 (load_path Mint32 a ret sp_type path) (load_path Mint32 b ret sp_type path).
+Definition ControllerEqual (a b:mem) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ same_loaded_int32 (load_global Mint32 a Source._guidance_pid pid_type [Source._cmd_earth;axis]) (load_global Mint32 b Source._guidance_pid pid_type [Source._cmd_earth;axis])
+ /\ same_loaded_int32 (load_global Mint32 a Source._guidance_pid_trim_att_integrator vec_type [axis]) (load_global Mint32 b Source._guidance_pid_trim_att_integrator vec_type [axis]).
+Definition FinalRelation (gh ret:block) (a b:mem) : Prop := ControllerEqual a b /\ ActiveReturnEqual ret a b.
+Definition PositionTranslationGoal : Prop :=
+ forall gh ret a b dx dy flight, InputPair gh ret a b dx dy ->
+ (exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf)
+ /\ (forall af bf, NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> FinalRelation gh ret af bf).
+Definition NoErrorGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret -> forall t s,
+ star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t s -> ~Execution.source_error s.
+Definition AllSuccessorTerminationGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret ->
+ Acc (fun dst src=>exists t,Csem.step Execution.ge src t dst) (Execution.entry(call_args gh ret flight)m).
+Definition NonzeroInput (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputPair gh ret a b dx dy /\ dx<>0
+ /\ exists ra pa, load_path Mint32 a gh gh_type (ref_pos Source._x)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos Source._x)=Some(Vint pa)
+ /\ Int.signed ra-Int.signed pa<>0.
+Definition InputNonvacuityGoal : Prop := exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy.
+Definition NonzeroNonvacuityGoal : Prop :=
+ exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy
+ /\ forall flight, exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf /\ FinalRelation gh ret af bf.
+Definition RelationalFrameGoal : Prop :=
+ forall gh ret a b dx dy flight af bf, InputPair gh ret a b dx dy ->
+ NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> same_except_positions_and_return gh ret af bf.

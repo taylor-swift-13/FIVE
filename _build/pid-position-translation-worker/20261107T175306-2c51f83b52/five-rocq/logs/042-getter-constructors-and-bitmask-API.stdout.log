@@ -1,0 +1,132 @@
+1767:Theorem and_shru:
+1768-  forall x y n,
+1769-  and (shru x n) (shru y n) = shru (and x y) n.
+1770-Proof.
+1771-  intros. apply bitwise_binop_shru with andb; auto. exact bits_and.
+1772-Qed.
+1773-
+1774-Theorem or_shru:
+1775-  forall x y n,
+--
+1828:Theorem and_shr:
+1829-  forall x y n,
+1830-  and (shr x n) (shr y n) = shr (and x y) n.
+1831-Proof.
+1832-  intros. apply bitwise_binop_shr with andb. exact bits_and.
+1833-Qed.
+1834-
+1835-Theorem or_shr:
+1836-  forall x y n,
+--
+1871:Theorem and_shr_shru:
+1872-  forall x y z,
+1873-  and (shr x z) (shru y z) = shru (and x y) z.
+1874-Proof.
+1875-  intros. apply same_bits_eq; intros.
+1876-  rewrite bits_and; auto. rewrite bits_shr; auto. rewrite !bits_shru; auto.
+1877-  destruct (zlt (i + unsigned z) zwordsize).
+1878-  - rewrite bits_and; auto. generalize (unsigned_range z); lia.
+1879-  - apply andb_false_r.
+--
+1882:Theorem shr_and_shru_and:
+1883-  forall x y z,
+1884-  shru (shl z y) y = z ->
+1885-  and (shr x y) z = and (shru x y) z.
+1886-Proof.
+1887-  intros.
+1888-  rewrite <- H.
+1889-  rewrite and_shru. rewrite and_shr_shru. auto.
+1890-Qed.
+--
+2516:Theorem shr_and_is_shru_and:
+2517-  forall x y z,
+2518-  lt y zero = false -> shr (and x y) z = shru (and x y) z.
+2519-Proof.
+2520-  intros. apply shr_shru_positive. apply and_positive.
+2521-  unfold lt in H. rewrite signed_zero in H. destruct (zlt (signed y) 0). congruence. auto.
+2522-Qed.
+2523-
+2524-(** ** Properties of [mulhu] (upper bits of unsigned multiplication) *)
+1889:with eval_funcall: mem -> fundef -> list val -> trace -> mem -> val -> Prop :=
+1890-  | eval_funcall_internal: forall m f vargs t e m1 m2 m3 out vres m4,
+1891-      list_norepet (var_names f.(fn_params) ++ var_names f.(fn_vars)) ->
+1892-      alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
+1893-      bind_parameters ge e m1 f.(fn_params) vargs m2 ->
+1894-      exec_stmt e m2 f.(fn_body) t m3 out ->
+1895-      outcome_result_value out f.(fn_return) vres m3 ->
+1896-      Mem.free_list m3 (blocks_of_env ge e) = Some m4 ->
+1897-      eval_funcall m (Internal f) vargs t m4 vres
+1898-  | eval_funcall_external: forall m ef targs tres cconv vargs t vres m',
+1899-      external_call ef ge vargs m t vres m' ->
+1900-      eval_funcall m (External ef targs tres cconv) vargs t m' vres.
+1901-
+1902-Scheme eval_expression_ind5 := Minimality for eval_expression Sort Prop
+1903-  with eval_expr_ind5 := Minimality for eval_expr Sort Prop
+1904-  with eval_exprlist_ind5 := Minimality for eval_exprlist Sort Prop
+1905-  with exec_stmt_ind5 := Minimality for exec_stmt Sort Prop
+1906:  with eval_funcall_ind5 := Minimality for eval_funcall Sort Prop.
+1907-
+1908-Combined Scheme bigstep_induction from
+1909-        eval_expression_ind5,  eval_expr_ind5,  eval_exprlist_ind5,
+1910-        exec_stmt_ind5, eval_funcall_ind5.
+1911-
+1912-(** [evalinf_expr ge e m1 K a T] denotes the fact that expression [a]
+1913-  diverges in initial state [m1].  [T] is the trace of input/output
+1914-  events performed during this evaluation.  *)
+1915-
+1916-CoInductive evalinf_expr: env -> mem -> kind -> expr -> traceinf -> Prop :=
+1917-  | evalinf_field: forall e m a t f ty,
+1918-      evalinf_expr e m RV a t ->
+1919-      evalinf_expr e m LV (Efield a f ty) t
+1920-  | evalinf_valof: forall e m a t ty,
+1921-      evalinf_expr e m LV a t ->
+1922-      evalinf_expr e m RV (Evalof a ty) t
+1923-  | evalinf_deref: forall e m a t ty,
+1924-      evalinf_expr e m RV a t ->
+1925-      evalinf_expr e m LV (Ederef a ty) t
+1926-  | evalinf_addrof: forall e m a t ty,
+1927-      evalinf_expr e m LV a t ->
+1928-      evalinf_expr e m RV (Eaddrof a ty) t
+1929-  | evalinf_unop: forall e m a t op ty,
+1930-      evalinf_expr e m RV a t ->
+1931-      evalinf_expr e m RV (Eunop op a ty) t
+1932-  | evalinf_binop_left: forall e m a1 t1 a2 op ty,
+1933-      evalinf_expr e m RV a1 t1 ->
+1934-      evalinf_expr e m RV (Ebinop op a1 a2 ty) t1
+1935-  | evalinf_binop_right: forall e m a1 t1 m' a1' a2 t2 op ty,
+1936-      eval_expr e m RV a1 t1 m' a1' -> evalinf_expr e m' RV a2 t2 ->
+1937-      evalinf_expr e m RV (Ebinop op a1 a2 ty) (t1 *** t2)
+1938-  | evalinf_cast: forall e m a t ty,
+1939-      evalinf_expr e m RV a t ->
+1940-      evalinf_expr e m RV (Ecast a ty) t
+1941-  | evalinf_seqand: forall e m a1 a2 ty t1,
+1942-      evalinf_expr e m RV a1 t1 ->
+1943-      evalinf_expr e m RV (Eseqand a1 a2 ty) t1
+1944-  | evalinf_seqand_2: forall e m a1 a2 ty t1 m' a1' v1 t2,
+1945-      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1946-      bool_val v1 (typeof a1) m' = Some true ->
+1947-      evalinf_expr e m' RV a2 t2 ->
+1948-      evalinf_expr e m RV (Eseqand a1 a2 ty) (t1***t2)
+1949-  | evalinf_seqor: forall e m a1 a2 ty t1,
+1950-      evalinf_expr e m RV a1 t1 ->
+1951-      evalinf_expr e m RV (Eseqor a1 a2 ty) t1
+1952-  | evalinf_seqor_2: forall e m a1 a2 ty t1 m' a1' v1 t2,
+1953-      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1954-      bool_val v1 (typeof a1) m' = Some false ->
+1955-      evalinf_expr e m' RV a2 t2 ->
+1956-      evalinf_expr e m RV (Eseqor a1 a2 ty) (t1***t2)
+1957-  | evalinf_condition: forall e m a1 a2 a3 ty t1,
+1958-      evalinf_expr e m RV a1 t1 ->
+1959-      evalinf_expr e m RV (Econdition a1 a2 a3 ty) t1
+1960-  | evalinf_condition_2: forall e m a1 a2 a3 ty t1 m' a1' v1 t2 b,
+1961-      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1962-      bool_val v1 (typeof a1) m' = Some b ->
+1963-      evalinf_expr e m' RV (if b then a2 else a3) t2 ->
+1964-      evalinf_expr e m RV (Econdition a1 a2 a3 ty) (t1***t2)
+1965-  | evalinf_assign_left: forall e m a1 t1 a2 ty,
+1966-      evalinf_expr e m LV a1 t1 ->
+1967-      evalinf_expr e m RV (Eassign a1 a2 ty) t1
+1968-  | evalinf_assign_right: forall e m a1 t1 m' a1' a2 t2 ty,
+1969-      eval_expr e m LV a1 t1 m' a1' -> evalinf_expr e m' RV a2 t2 ->
+1970-      evalinf_expr e m RV (Eassign a1 a2 ty) (t1 *** t2)
+1971-  | evalinf_assignop_left: forall e m a1 t1 a2 op tyres ty,

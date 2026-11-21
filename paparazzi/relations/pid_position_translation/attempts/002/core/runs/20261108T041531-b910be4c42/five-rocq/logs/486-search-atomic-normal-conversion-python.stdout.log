@@ -1,0 +1,17 @@
+CallfreeExecution.v 10   | Sdo a => match atomic_eval ge e m a with Some (_,m') => Some (Nnormal,m') | None => None end
+BlockExecution.v 37  | ExprState _ a(Kdo k)e m=>match atomic_eval ge e m a with Some(_,ma)=>block_tail ge e k ma|None=>None end
+AtomicProgress.v 15  atomic_eval ge e m(Eassignop op l r tr ty)=Some(v,mf) ->
+AtomicProgress.v 33  atomic_eval ge e m(Eassignop op l r tr ty)=Some(v,mf) ->
+AtomicProgress.v 59  atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) -> Csem.not_stuck ge e a m.
+AtomicProgress.v 94  atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) ->
+AtomicProgress.v 97  atomic_expr a'=true /\ atomic_eval ge e m' a'=Some(v,mf).
+AtomicProgress.v 107  atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) ->
+AtomicProgress.v 110  atomic_expr a'=true /\ atomic_eval ge e m' a'=Some(v,mf) /\
+GetterAssignmentPost.v 88 Lemma post_atomic_denotation:forall ls rs,
+GetterAssignmentPost.v 89  atomic_eval ge e m(post_expr ls rs)=Some(Vint difference,mf).
+GetterAssignmentPost.v 113  - apply post_atomic_denotation.
+AtomicPhase.v 5  atomic_expr a=true ->atomic_eval ge e m a=Some(v,mf) ->
+GetterArithmeticPost.v 89 Lemma post_atomic_denotation:forall ls rs,
+GetterArithmeticPost.v 90  atomic_eval ge e m(post_expr ls rs)=Some(Vint difference,mf).
+GetterArithmeticPost.v 128  eapply arithmetic_atomic_initial;[apply post_atomic_syntax|apply post_atomic_denotation|apply post_arithmetic_tree].
+HiddenResultPost.v 56 Lemma normalized_value:forall st,atomic_eval ge e m(normalized st)=Some(copied,mf).

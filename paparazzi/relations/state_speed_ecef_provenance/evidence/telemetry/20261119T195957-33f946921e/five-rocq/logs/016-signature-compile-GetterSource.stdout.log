@@ -1,0 +1,73 @@
+Closed under the global context
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+inline_assembly_sem : string -> signature -> extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+external_functions_sem : string -> signature -> extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+1 goal
+  
+  f : function
+  k : cont
+  e : env
+  m : mem
+  C : expr -> expr
+  vf : val
+  tyf : type
+  el : exprlist
+  ty0 : type
+  CORE : core_expr ge allowed budget (C (Ecall (Eval vf tyf) el ty0))
+  CONT : core_cont ge allowed budget k
+  ENV : safe_environment e
+  fd : fundef
+  args : list val
+  HC : context RV RV C
+  CO : core_expr ge allowed budget (Ecall (Eval vf tyf) el ty0)
+  RED :
+    callred ge (Ecall (Eval vf tyf) el ty0) m fd args
+      (typeof (Ecall (Eval vf tyf) el ty0))
+  ALLOW : allowed fd
+  NV : nv (typeof (Ecall (Eval vf tyf) el ty0))
+  BUD : (activation_rank signature_weight fd + 2 < signature_weight tyf)%nat
+  tyargs : list type
+  tyres : type
+  cconv : calling_convention
+  H : Genv.find_funct ge vf = Some fd
+  H0 : cast_arguments m el tyargs args
+  H1 : type_of_fundef fd = Tfunction tyargs tyres cconv
+  H2 : classify_fun tyf = fun_case_f tyargs tyres cconv
+  H7 : ty0 = typeof (Ecall (Eval vf tyf) el ty0)
+  ============================
+  (activation_rank signature_weight fd + 2 <
+   1 + signature_weight (typeof (Eval vf tyf)) + 0 +
+   expressionlist_rank signature_weight el)%nat

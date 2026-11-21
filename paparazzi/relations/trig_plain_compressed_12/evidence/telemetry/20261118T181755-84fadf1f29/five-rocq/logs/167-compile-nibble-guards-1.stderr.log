@@ -1,0 +1,48 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/NibbleGuards.v", line 110, characters 75-84:
+Error:
+In environment
+e : PTree.tree (block * type)
+m : mem
+bp, bc : block
+p : Z
+P : 0 <= p < 3379
+POS : e ! Source._pos = Some (bp, tushort)
+LOCAL : e ! Source._pprz_trig_int_compr = None
+SYMBOL :
+  Genv.find_symbol (globalenv PprzTrigInit.Source.prog)
+    Source._pprz_trig_int_compr =
+  Some bc
+LP : Mem.load Mint16unsigned m bp 0 = Some (Vint (Int.repr p))
+LB :
+  Mem.load Mint8unsigned m bc (p / 2) =
+  Some (Vint (Int.repr (source_byte p)))
+OFFSET : Ptrofs.unsigned (nibble_offset (Int.repr p)) = p / 2
+BOUND : 0 <= source_nibble p <= 15
+RESULT :
+  nibble_machine (Int.repr p) (Int.repr (source_byte p)) =
+  Some (Vint (Int.repr (source_nibble p)))
+BYTE :
+  Mem.load Mint8unsigned m bc (Ptrofs.unsigned (nibble_offset (Int.repr p))) =
+  Some (Vint (Int.repr (source_byte p)))
+OBS_POS :
+  source_observation (globalenv PprzTrigInit.Source.prog) e m
+    nibble_position_expression (Vint (Int.repr p))
+OBS_INDEX :
+  source_observation (globalenv PprzTrigInit.Source.prog) e m
+    nibble_index_expression (Vint (Int.divs (Int.repr p) (Int.repr 2)))
+OBS_MOD :
+  source_observation (globalenv PprzTrigInit.Source.prog) e m
+    nibble_mod_expression (Vint (Int.mods (Int.repr p) (Int.repr 2)))
+OBS_SHIFT :
+  source_observation (globalenv PprzTrigInit.Source.prog) e m
+    nibble_shift_expression (Vint (nibble_shift (Int.repr p)))
+OBS_BYTE :
+  source_observation (globalenv PprzTrigInit.Source.prog) e m
+    nibble_byte_expression (Vint (Int.repr (source_byte p)))
+INDEX : Int.signed (Int.divs (Int.repr p) (Int.repr 2)) = p / 2
+MOD : Int.signed (Int.mods (Int.repr p) (Int.repr 2)) = p mod 2
+SHIFT : Int.signed (nibble_shift (Int.repr p)) = 4 * (p mod 2)
+H : 0 <= p mod 2 < 2
+Unable to unify "(0 ?= ?a / ?b) = Gt -> False" with 
+"0 <= p / 2 < 1690".
+

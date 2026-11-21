@@ -1,0 +1,59 @@
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/EncoderCall.v", line 46, characters 31-37:
+Error:
+In environment
+m : mem
+bb : block
+cnt, previous : Z
+tb : block
+tofs : ptrofs
+COUNT : 0 <= cnt < 6434
+PREVIOUS : 0 <= previous <= 16383
+PREFIX : packed_prefix cnt m bb
+SYMBOL : Genv.find_symbol (globalenv Source.prog) _data_buf_12 = Some bb
+VALUE : 0 <= table_at cnt <= 16383
+OLD : Mem.valid_block m bb
+e : env
+mp : mem
+SETUP : encoder_setup m (table_at cnt) previous cnt tb tofs e mp
+ENTRY :
+  exists ma : mem,
+    do_alloc_variables (globalenv Source.prog) empty_env m
+      (fn_params f_table_encode_12 ++ fn_vars f_table_encode_12) =
+    (e, ma) /\
+    sem_bind_parameters (globalenv Source.prog) quiet e ma
+      (fn_params f_table_encode_12)
+      [Vint (Int.repr (table_at cnt)); Vint (Int.repr previous);
+       Vint (Int.repr cnt); Vptr tb tofs] =
+    Some mp
+CV : short_cell e mp _val (table_at cnt)
+CP : short_cell e mp _val_prev previous
+CC : short_cell e mp _cnt cnt
+PTR :
+  exists b : block,
+    e ! _tab = Some (b, pointer_type) /\
+    Mem.load Mptr mp b 0 = Some (Vptr tb tofs)
+SHADOW : e ! _data_buf_12 = None
+ND : NoDup (map region_block (blocks_of_env (globalenv Source.prog) e))
+REG : Forall (region_freeable mp) (blocks_of_env (globalenv Source.prog) e)
+FRESH : Forall (region_fresh m) (blocks_of_env (globalenv Source.prog) e)
+SETUP_FRAME :
+  Mem.unchanged_on (fun (b : block) (_ : Z) => Mem.valid_block m b) m mp
+PREFIX0 : packed_prefix cnt mp bb
+m1, m2 : mem
+LOW :
+  Mem.store Mint8unsigned mp bb cnt (Vint (Int.repr (low_written cnt))) =
+  Some m1
+HIGH :
+  Mem.store Mint8unsigned m1 bb (high_address cnt)
+    (Vint (Int.repr (high_written cnt))) =
+  Some m2
+COMPLETE : packed_prefix (cnt + 1) m2 bb
+CV1 : short_cell e m1 _val (table_at cnt)
+CC1 : short_cell e m1 _cnt cnt
+CP1 : short_cell e m1 _val_prev previous
+CP2 : short_cell e m2 _val_prev previous
+BOUNDS : 6434 <= high_address cnt < 9651
+NE : cnt <> high_address cnt
+The term "BOUNDS" has type "6434 <= high_address cnt < 9651"
+while it is expected to have type "0 <= high_address cnt < 9651".
+

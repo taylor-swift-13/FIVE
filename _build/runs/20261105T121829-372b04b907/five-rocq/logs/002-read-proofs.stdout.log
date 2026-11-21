@@ -1,0 +1,90 @@
+From Stdlib Require Import List.
+From compcert Require Import Values Memory Floats Csem Smallstep.
+From FiveSum3.proof Require Import Obligations.
+From FiveShared.verification Require Import Obligations.
+From FiveSum3Proof Require Import Core Invariant.
+From FiveSum3Proof Require Import NoErrorSpec.
+Import ListNotations.
+
+Theorem generated_no_error_goal :
+  NoErrorSpec.Goal.
+Proof.
+  unfold NoErrorSpec.Goal, FiveSum3.proof.Obligations.no_error_goal,
+         FiveShared.verification.Obligations.no_error.
+  intros args m [a [b [c EQ]]] t reached PATH; subst args.
+  change (~ Invariant.source_error reached).
+  eapply Core.sum3_all_reachable_no_error; [unfold Core.sum3_pre; eauto 7|].
+  exact PATH.
+Qed.
+Print Assumptions generated_no_error_goal.
+# no_error attempt 001
+
+The generated no-error goal is proved for exactly three binary32 arguments and arbitrary initial CompCert memory. The quantifier covers every reachable state.
+
+Spec SHA-256: `ac4eb14e579d239f39eb8730a4f08ae60296405828ba550492b708e101413a0e`. Proof SHA-256: `1cc239a49d347ec87175cd1ec8f8e3014b968a187f8ec43a492e6f1159d72733`.
+
+## Model configuration
+
+| Field | Value |
+| --- | --- |
+| Entry | `sum3` / `f_sum3` |
+| Namespace | `FiveSum3` |
+| Target | CompCert 3.17 Csem/Cexec, x86-64 Linux, standard ABI, little endian, IEEE 754 binary32, nearest ties to even |
+| Rocq | 9.2 (rebuild environment), OCaml 4.14.2 |
+| Frontend options | No explicit frontend or preprocessor arguments |
+| External bindings | None |
+| Bindings SHA-256 | c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4 |
+| align/model/compcert-manifest.json SHA-256 | c4c5a5b39e4c0cf2f1e05ce18f6454af9652b2bd4d1dac1b0f9bc0f8d87f04f2 |
+| align/model/Source.v SHA-256 | 73e34704b1ea03671de34f619daa475cc70dff336f1720e64c431995008d373e |
+| align/model/Execution.v SHA-256 | cac05564097b235e3c31d3bf9a826b8bfd1929b2d9dba7368737baa4a0f79ebe |
+| align/model/proof/Obligations.v SHA-256 | e2f1294af7aea0efa22eba759d46d1526a44ffbbe0e7b051ace62c2535ccf921 |
+| prepare/source/sum3.c SHA-256 | 25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03 |
+
+The backend manifest records tool and CompCert semantic dependency hashes, including the NaN policy inputs.
+
+## Evidence and costs
+
+The shared [stage run](../../../report/evidence/run.json) and [original build log](../../../report/evidence/logs/009-complete-proof-check.stdout.log) record compilation, inherited assumptions and kernel checks. The inherited assumptions include classical logic, functional extensionality, classical real-number decision principles, and CompCert external-function and inline-assembly semantics. Cost figures are recorded for the shared Rocq stage in `../../../report/costs.json`; the original run did not separate the costs by obligation.
+
+The [attempt cost record](costs.json) uses the `time`, `token`, and `memory` groups and references the shared measurement.
+
+Agent model `gpt-6.1-terra`. Requested reasoning effort `None`. Actual reasoning effort `high` from the session `turn_context` at `2026-11-04T03:47:25.222Z`.
+(* Generated targets only: precondition pending; both proofs pending.
+   All possible original CompCert Csem steps are covered, without a fuel bound. *)
+From Stdlib Require Import List.
+From compcert Require Import Values Memory Ctypes Csem.
+From FiveShared.verification Require Import Obligations.
+From FiveSum3 Require Import Source.
+From FiveSum3.proof Require Import Precondition.
+
+Definition goal_ge : Csem.genv := Csem.globalenv FiveSum3.Source.prog.
+Definition goal_entry (args : list val) (m : mem) : Csem.state :=
+  Callstate (Ctypes.Internal FiveSum3.Source.f_sum3) args Kstop m.
+
+(* [pre] is a bound parameter, not a global axiom or a chosen input domain. *)
+Definition no_error_goal (pre : FiveSum3.proof.Precondition.precondition_type) : Prop :=
+  forall args m, pre args m ->
+    FiveShared.verification.Obligations.no_error goal_ge (goal_entry args m).
+
+Definition termination_goal (pre : FiveSum3.proof.Precondition.precondition_type) : Prop :=
+  forall args m, pre args m ->
+    FiveShared.verification.Obligations.terminates goal_ge (goal_entry args m).
+# sum3: stage review
+
+| Stage | Input and output | Result |
+| --- | --- | --- |
+| Prepare | `prepare/handoff.json`, `prepare/source/sum3.c` | Entry and target fixed; source-level closure has no callees. |
+| CBMC | `prepare/handoff.json` → `cbmc/handoff.json` | Traditional CBMC: 10 checks passed. Concrete output-bit assertion covers one input; the safety call has arbitrary binary32 arguments. |
+| Align | `cbmc/handoff.json` → `align/handoff.json` | CompCert model generated and source audit passed; CBMC property mappings have explicit gaps. |
+| Rocq | `align/handoff.json` → `rocq/handoff.json` | No-error, termination and CBMC recheck await GPT-6.1 Sol medium attempts. |
+
+Stage cost reports record observed figures with their measurement scope. Raw run evidence remains available for audit. Run `source scripts/env.sh && python3 examples/models/sum3/rocq/check.py` to rebuild and independently check the Rocq specifications. No end-to-end verification claim is made while the pending obligations remain.
+
+## Authoritative case format
+
+This case is the FIVE reference for four-stage handoffs and proof reporting. Rocq organizes `no_error`, `termination`, and `cbmc_recheck` as named problems. Each `problem/` holds its specification and report. Each numbered `attempts/` entry records the proof, actual outcome, model configuration, input hashes, evidence, and observed costs or a reference to the shared stage run. The three problem specifications are ready for new proof attempts. Cross-model obligations use the same `problem/` and `attempts/` structure in `relations/<name>/`.
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"

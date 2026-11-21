@@ -1,0 +1,50 @@
+assert(SAMESTATE:sb=sa)by(congruence);subst sb.
+ assert(DX:Int.sub rax pax=Int.sub rbx pbx).
+ { eapply axis_translation_sub_equal;[exact TX|exact RAX| |exact RBX|].
+   - unfold load_global;rewrite STA;exact PAX.
+   - unfold load_global;rewrite STA;exact PBX. }
+ assert(DY:Int.sub ray pay=Int.sub rby pby).
+ { eapply axis_translation_sub_equal;[exact TY|exact RAY| |exact RBY|].
+   - unfold load_global;rewrite STA;exact PAY.
+   - unfold load_global;rewrite STA;exact PBY. }
+ assert(GRET:gh<>ret)by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(RET:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(SRET:sa<>ret)by(intro EQUAL;subst sa;apply(RET S._state);exact STA).
+ change(Mem.load Mint32 a gh 52=Some(Vint sax))in SAX.
+ change(Mem.load Mint32 a gh 56=Some(Vint say))in SAY.
+ change(Mem.load Mint32 b gh 52=Some(Vint sbx))in SBX.
+ change(Mem.load Mint32 b gh 56=Some(Vint sby))in SBY.
+ let agree LA LB OUT :=
+ lazymatch type of LA with Mem.load ?ch a ?blk ?ofs=Some ?v=>
+ let TRANS:=fresh "TRANSFER" in
+ assert(TRANS:Mem.load ch b blk ofs=Some v)by(
+ eapply canonical_frame_load_transfer;[exact FRAME|exact OUT| |exact LA];
+ intros i R T;pose proof(translated_byte_offset _ _ _ T)as RANGE;cbn[size_chunk]in R;lia);
+ rewrite LB in TRANS;congruence end in
+ assert(ESX:sax=sbx)by(agree SAX SBX GRET);
+ assert(ESY:say=sby)by(agree SAY SBY GRET);
+ assert(EVX:vax=vbx)by(agree VAX VBX SRET);
+ assert(EVY:vay=vby)by(agree VAY VBY SRET).
+ assert(CMDX:entry_axis_command a gh DA flight rax pax sax vax(cid_ax _ _ DA)(cid_ix _ _ DA)=
+ entry_axis_command b gh DB flight rbx pbx sbx vbx(cid_ax _ _ DB)(cid_ix _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAX,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(CMDY:entry_axis_command a gh DA flight ray pay say vay(cid_ay _ _ DA)(cid_iy _ _ DA)=
+ entry_axis_command b gh DB flight rby pby sby vby(cid_ay _ _ DB)(cid_iy _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAY,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ assert(INTX:entry_axis_integral a gh DA flight rax pax sax vax(cid_ix _ _ DA)=
+ entry_axis_integral b gh DB flight rbx pbx sbx vbx(cid_ix _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(INTY:entry_axis_integral a gh DA flight ray pay say vay(cid_iy _ _ DA)=
+ entry_axis_integral b gh DB flight rby pby sby vby(cid_iy _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ rewrite<-CMDX,<-CMDY,<-EHEAD in ACTB.
+ rewrite<-EIBLOCK,<-INTX in IBX;rewrite<-EIBLOCK,<-INTY in IBY.
+ rewrite<-EPID,<-CMDX in CBX;rewrite<-EPID,<-CMDY in CBY.
+ exists af,bf;split;[exact CALLA|];split;[exact CALLB|];split.
+ - eapply equal_raw_controller_observation;
+   [exact(cid_pid_symbol _ _ DA)|exact(cid_i_symbol _ _ DA)|exact CAX|exact CBX|exact CAY|exact CBY|exact IAX|exact IBX|exact IAY|exact IBY].
+ - eapply active_fields_pair_observation;[exact ACTA|exact ACTB].
+Qed.
+Print Assumptions constructed_original_position_translation.
+

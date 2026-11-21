@@ -1,0 +1,503 @@
+FILE FrameRelation.v
+From Stdlib Require Import List ZArith Lia Classical.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement CoreInputs DataAgreement NormalReturn.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+
+From PidPositionTranslationAttempt002 Require Import ComputedRelation FramedNormalReturn StackAgreement ByteSubrange MainGoals.
+From PidPositionTranslationCore Require Import MemoryShape.
+Theorem constructed_original_framed_translation : forall gh ret a b dx dy flight,
+ InputPair gh ret a b dx dy ->
+ exists af bf,NormalCall gh ret flight a af /\NormalCall gh ret flight b bf /\same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dx dy flight INPUT;pose proof INPUT as[A[B[FRAME[TX TY]]]].
+ destruct(inputgood_core_initial_data a gh ret A)as[DA _].
+ destruct(inputgood_core_initial_data b gh ret B)as[DB _].
+ pose proof(canonical_pair_core_parameters_agree a b gh ret dx dy DA DB INPUT)as EQ.
+ unfold core_parameters_agree in EQ;destruct EQ as(EPID&EIBLOCK&EKP&EKD&EKI&EKV&EKA&EAX&EAY&EIX&EIY&EHEAD).
+ destruct(original_entry_framed_normal_result a gh ret flight DA A)
+ as(af&rax&ray&pax&pay&sax&say&vax&vay&sa&pea&sea&
+ CALLA&STA&RAX&RAY&PAX&PAY&SAX&SAY&VAX&VAY&ACTA&IAX&IAY&CAX&CAY&PEA0&PEA4&SEA0&SEA4&FRAX&FRAY&SPEA&SSEA&SHAPEA&FA&AW0&AW4&AW32&AW36&AWE0&AWE4&AWS0&AWS4).
+ destruct(original_entry_framed_normal_result b gh ret flight DB B)
+ as(bf&rbx&rby&pbx&pby&sbx&sby&vbx&vby&sb&peb&seb&
+ CALLB&STB&RBX&RBY&PBX&PBY&SBX&SBY&VBX&VBY&ACTB&IBX&IBY&CBX&CBY&PEB0&PEB4&SEB0&SEB4&FRBX&FRBY&SPEB&SSEB&SHAPEB&FB&BW0&BW4&BW32&BW36&BWE0&BWE4&BWS0&BWS4).
+ assert(SAMESTATE:sb=sa)by(congruence);subst sb.
+ assert(DX:Int.sub rax pax=Int.sub rbx pbx).
+ { eapply axis_translation_sub_equal;[exact TX|exact RAX| |exact RBX|].
+   - unfold load_global;rewrite STA;exact PAX.
+   - unfold load_global;rewrite STA;exact PBX. }
+ assert(DY:Int.sub ray pay=Int.sub rby pby).
+ { eapply axis_translation_sub_equal;[exact TY|exact RAY| |exact RBY|].
+   - unfold load_global;rewrite STA;exact PAY.
+   - unfold load_global;rewrite STA;exact PBY. }
+ assert(GRET:gh<>ret)by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(RET:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(SRET:sa<>ret)by(intro EQUAL;subst sa;apply(RET S._state);exact STA).
+ change(Mem.load Mint32 a gh 52=Some(Vint sax))in SAX.
+ change(Mem.load Mint32 a gh 56=Some(Vint say))in SAY.
+ change(Mem.load Mint32 b gh 52=Some(Vint sbx))in SBX.
+ change(Mem.load Mint32 b gh 56=Some(Vint sby))in SBY.
+ let agree LA LB OUT :=
+ lazymatch type of LA with Mem.load ?ch a ?blk ?ofs=Some ?v=>
+ let TRANS:=fresh "TRANSFER" in
+ assert(TRANS:Mem.load ch b blk ofs=Some v)by(
+ eapply canonical_frame_load_transfer;[exact FRAME|exact OUT| |exact LA];
+ intros i R T;pose proof(translated_byte_offset _ _ _ T)as RANGE;cbn[size_chunk]in R;lia);
+ rewrite LB in TRANS;congruence end in
+ assert(ESX:sax=sbx)by(agree SAX SBX GRET);
+ assert(ESY:say=sby)by(agree SAY SBY GRET);
+ assert(EVX:vax=vbx)by(agree VAX VBX SRET);
+ assert(EVY:vay=vby)by(agree VAY VBY SRET).
+ assert(CMDX:entry_axis_command a gh DA flight rax pax sax vax(cid_ax _ _ DA)(cid_ix _ _ DA)=
+ entry_axis_command b gh DB flight rbx pbx sbx vbx(cid_ax _ _ DB)(cid_ix _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAX,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(CMDY:entry_axis_command a gh DA flight ray pay say vay(cid_ay _ _ DA)(cid_iy _ _ DA)=
+ entry_axis_command b gh DB flight rby pby sby vby(cid_ay _ _ DB)(cid_iy _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAY,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ assert(INTX:entry_axis_integral a gh DA flight rax pax sax vax(cid_ix _ _ DA)=
+ entry_axis_integral b gh DB flight rbx pbx sbx vbx(cid_ix _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(INTY:entry_axis_integral a gh DA flight ray pay say vay(cid_iy _ _ DA)=
+ entry_axis_integral b gh DB flight rby pby sby vby(cid_iy _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ rewrite<-CMDX,<-CMDY,<-EHEAD in ACTB.
+ rewrite<-EIBLOCK,<-INTX in IBX;rewrite<-EIBLOCK,<-INTY in IBY.
+ rewrite<-EPID,<-CMDX in CBX;rewrite<-EPID,<-CMDY in CBY.
+ assert(SAMEPE:peb=pea)by(congruence);subst peb.
+ assert(SAMESE:seb=sea)by(congruence);subst seb.
+ rewrite<-EPID,<-EIBLOCK in FB.
+ rewrite<-EIBLOCK,<-INTX in BW0;rewrite<-EIBLOCK,<-INTY in BW4.
+ rewrite<-EPID,<-CMDX in BW32;rewrite<-EPID,<-CMDY in BW36.
+ rewrite<-DX in BWE0;rewrite<-DY in BWE4.
+ rewrite<-ESX,<-EVX in BWS0;rewrite<-ESY,<-EVY in BWS4.
+ assert(FINAL:same_except_positions_and_return gh ret af bf).
+ { destruct FRAME as[NB0[PERM0 BYTES0]].
+   destruct SHAPEA as[NBA PA];destruct SHAPEB as[NBB PB].
+   split;[rewrite NBA,NBB,NB0;reflexivity|].
+   split.
+   - intros blk ofs k p;rewrite(PA blk ofs k p),(PB blk ofs k p);apply PERM0.
+   - intros blk ofs NT NR.
+     destruct(plt blk(Mem.nextblock a))as[VB|NV].
+     2:{ assert(NA:~Mem.perm af blk ofs Cur Readable).
+         { intro PM;apply NV;eapply Mem.perm_valid_block;apply(PA blk ofs Cur Readable);exact PM. }
+         assert(NB:~Mem.perm bf blk ofs Cur Readable).
+         { intro PM;apply NV;eapply Mem.perm_valid_block;apply(PERM0 blk ofs Cur Readable);apply(PB blk ofs Cur Readable);exact PM. }
+         rewrite(unit_loadbytes_absent _ _ _ NA),(unit_loadbytes_absent _ _ _ NB);reflexivity. }
+     assert(VB2:Mem.valid_block b blk)by(unfold Mem.valid_block;rewrite<-NB0;exact VB).
+     destruct(classic(blk=pea /\0<=ofs<8))as[[EQ RANGE]|NPE].
+     { subst blk;destruct(zlt ofs 4).
+       - eapply equal_int32_words_all_units with(base:=0);[exact AWE0|exact BWE0|lia].
+       - eapply equal_int32_words_all_units with(base:=4);[exact AWE4|exact BWE4|lia]. }
+     destruct(classic(blk=sea /\0<=ofs<8))as[[EQ RANGE]|NSE].
+     { subst blk;destruct(zlt ofs 4).
+       - eapply equal_int32_words_all_units with(base:=0);[exact AWS0|exact BWS0|lia].
+       - eapply equal_int32_words_all_units with(base:=4);[exact AWS4|exact BWS4|lia]. }
+     destruct(classic(blk=cid_pid _ _ DA /\32<=ofs<40))as[[EQ RANGE]|NCP].
+     { subst blk;destruct(zlt ofs 36).
+       - eapply equal_int32_words_all_units with(base:=32);[exact AW32|exact BW32|lia].
+       - eapply equal_int32_words_all_units with(base:=36);[exact AW36|exact BW36|lia]. }
+     destruct(classic(blk=cid_i _ _ DA /\0<=ofs<8))as[[EQ RANGE]|NCI].
+     { subst blk;destruct(zlt ofs 4).
+       - eapply equal_int32_words_all_units with(base:=0);[exact AW0|exact BW0|lia].
+       - eapply equal_int32_words_all_units with(base:=4);[exact AW4|exact BW4|lia]. }
+     assert(DPE:blk<>pea \/ofs+1<=0 \/8<=ofs).
+     { destruct(peq blk(pea))as[EQ|NE];[right;subst blk;clear -NPE;lia|left;exact NE]. }
+     assert(DSE:blk<>sea \/ofs+1<=0 \/8<=ofs).
+     { destruct(peq blk(sea))as[EQ|NE];[right;subst blk;clear -NSE;lia|left;exact NE]. }
+     assert(DCP:blk<>cid_pid _ _ DA \/ofs+1<=32 \/40<=ofs).
+     { destruct(peq blk(cid_pid _ _ DA))as[EQ|NE];[right;subst blk;clear -NCP;lia|left;exact NE]. }
+     assert(DCI:blk<>cid_i _ _ DA \/ofs+1<=0 \/8<=ofs).
+     { destruct(peq blk(cid_i _ _ DA))as[EQ|NE];[right;subst blk;clear -NCI;lia|left;exact NE]. }
+     rewrite(FA blk ofs 1 VB NR DPE DSE DCP DCI ltac:(lia)).
+     rewrite(FB blk ofs 1 VB2 NR DPE DSE DCP DCI ltac:(lia)).
+     apply BYTES0;assumption. }
+ exists af,bf;exact(conj CALLA(conj CALLB FINAL)).
+Qed.
+
+Theorem proved_relational_frame : RelationalFrameGoal.
+Proof.
+ intros gh ret a b dx dy flight af bf PAIR CA CB.
+ destruct(constructed_original_framed_translation gh ret a b dx dy flight PAIR)
+ as[nfa[nfb[NA[NB FRAME]]]].
+ assert(EA:af=nfa)by(eapply original_entry_all_normal_memories_unique;[exact(proj1 PAIR)|exact CA|exact NA]).
+ assert(EB:bf=nfb)by(eapply original_entry_all_normal_memories_unique;[exact(proj1(proj2 PAIR))|exact CB|exact NB]).
+ subst af bf;exact FRAME.
+Qed.
+Print Assumptions proved_relational_frame.
+
+FILE MainGoals.v
+From Stdlib Require Import List.
+From compcert Require Import AST Values Memory Events Csem Smallstep.
+From PidPositionRunPos Require Import Execution.
+From PidPositionTranslationProblem Require Import Spec.
+From FiveGuidanceAllOrder Require Import PhaseComposition BlockExecution.
+From PidPositionSafety Require Import PidTermination.
+From PidPositionTranslationAttempt002 Require Import EntryAllOrder ComputedRelation NonemptyInput.
+
+Theorem original_entry_all_normal_memories_unique :
+ forall m gh ret flight af bf,InputGood m gh ret ->
+ NormalCall gh ret flight m af ->NormalCall gh ret flight m bf ->af=bf.
+Proof.
+ intros m gh ret flight af bf GOOD[ta[va PA]][tb[vb PB]].
+ destruct(original_entry_all_orders m gh ret flight GOOD)as[mf[P[CERT INIT]]].
+ destruct(certificate_normal_unique Execution.ge P Vundef mf _ CERT INIT ta va af PA)as[_ A].
+ destruct(certificate_normal_unique Execution.ge P Vundef mf _ CERT INIT tb vb bf PB)as[_ B].
+ congruence.
+Qed.
+
+Theorem proved_position_translation : PositionTranslationGoal.
+Proof.
+ intros gh ret a b dx dy flight PAIR.
+ destruct(constructed_original_position_translation gh ret a b dx dy flight PAIR)
+ as[af[bf[CA[CB REL]]]].
+ split;[exists af,bf;auto|].
+ intros af' bf' CA' CB'.
+ assert(A:af'=af)by(eapply original_entry_all_normal_memories_unique;[exact(proj1 PAIR)|exact CA'|exact CA]).
+ assert(B:bf'=bf)by(eapply original_entry_all_normal_memories_unique;[exact(proj1(proj2 PAIR))|exact CB'|exact CB]).
+ subst af' bf';exact REL.
+Qed.
+
+Theorem proved_no_error : NoErrorGoal.
+Proof.
+ intros gh ret m flight GOOD t reached PATH.
+ destruct(original_entry_all_orders m gh ret flight GOOD)as[mf[P[CERT INIT]]].
+ pose proof(return_stop_nostep Execution.ge Vundef mf)as STOP.
+ destruct(certificate_no_error Execution.ge P _ _ CERT INIT STOP t reached PATH)
+ as[EQ|[tr[next STEP]]].
+ - subst reached;intros[NONNORMAL NS];apply NONNORMAL;exists Vundef,mf;reflexivity.
+ - intros[NONNORMAL NS];eapply NS;exact STEP.
+Qed.
+
+Theorem proved_all_successor_termination : AllSuccessorTerminationGoal.
+Proof.
+ intros gh ret m flight GOOD.
+ exact(PidTermination.all_successor_termination(call_args gh ret flight)m).
+Qed.
+Theorem proved_input_nonvacuity : InputNonvacuityGoal.
+Proof. exact canonical_input_nonvacuity. Qed.
+Theorem proved_nonzero_nonvacuity : NonzeroNonvacuityGoal.
+Proof. exact canonical_nonzero_execution_nonvacuity. Qed.
+Print Assumptions proved_position_translation.
+Print Assumptions proved_no_error.
+Print Assumptions proved_all_successor_termination.
+Print Assumptions proved_input_nonvacuity.
+Print Assumptions proved_nonzero_nonvacuity.
+
+FILE NonemptyInput.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import WitnessBase WitnessMemory WitnessUpdates ComputedRelation.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent Float32.of_int Float32.cmp Float32.compare.
+Ltac witness_zero_path ZERO :=
+ lazymatch goal with |-load_path ?ch ?mm ?bb ?ty ?path=Some ?v=>
+ let info:=eval vm_compute in(path_info ty path)in
+ lazymatch info with Some(_,?ofs)=>
+ change(Mem.load ch mm bb ofs=Some v);apply(ZERO ch ofs);[lia|cbn;lia|witness_align]
+ end end.
+Theorem canonical_input_nonvacuity : InputNonvacuityGoal.
+Proof.
+ destruct symbolic_witness_base as(base&gh&ret&bp&be&bv&bi&bh&sb&
+ CONTRACT&GHR&GSYM&RSYM&GVAR&WG&WR&SP&VP&SE&VE&SV&VV&SI&VI&SH&SS&VS&
+ WP&WE&WV&WI&WS&ZP&ZI&ZH&ZS).
+ assert(GS:gh<>sb)by(intro EQ;subst gh;apply(GSYM S._state);exact SS).
+ assert(PG:bp<>gh)by(intro EQ;subst bp;apply(GSYM S._guidance_pid);exact SP).
+ assert(IG:bi<>gh)by(intro EQ;subst bi;apply(GSYM S._guidance_pid_trim_att_integrator);exact SI).
+ assert(HG:bh<>gh)by(intro EQ;subst bh;apply(GSYM S._guidance_h);exact SH).
+ assert(PS:bp<>sb)by(eapply Genv.global_addresses_distinct;[|exact SP|exact SS];discriminate).
+ assert(IS:bi<>sb)by(eapply Genv.global_addresses_distinct;[|exact SI|exact SS];discriminate).
+ assert(HS:bh<>sb)by(eapply Genv.global_addresses_distinct;[|exact SH|exact SS];discriminate).
+ assert(ROS:forall b gv,Genv.find_var_info E.ge b=Some gv ->gvar_readonly gv=true ->b<>sb).
+ { intros b gv VAR RO EQ;subst b;rewrite VS in VAR;injection VAR as<-;discriminate. }
+ assert(GOOD:forall shift mf,0<=shift<=25600 ->
+ replay_stores base(witness_updates gh sb shift)=Some mf ->InputGood mf gh ret).
+ { intros shift mf RANGE RUN.
+   destruct(witness_updated_loads base mf gh sb shift GS ZS RUN)
+   as(CP&CS&RX&RY&SX&SY&AX&AY&PX&PY&VX&VY).
+   assert(RAW:raw_writes(fun _=>True)base mf).
+   { eapply replay_stores_raw;[exact RUN|];unfold witness_updates;witness_forall ltac:(exact I). }
+   assert(PZERO:Genv.read_as_zero mf bp 0 48).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZP| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(IZERO:Genv.read_as_zero mf bi 0 8).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZI| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(HZERO:Genv.read_as_zero mf bh 0 84).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZH| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(GLOBAL:global_bytes_initialized mf).
+   { eapply global_contract_after_replay;[exact CONTRACT| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(
+       cbn;first[exact ROS|intros b gv VAR RO;eapply GVAR;exact VAR]). }
+   assert(UNIQUE:forall id,Genv.find_symbol E.ge id=Some gh->id=S._guidance_h).
+   { intros id BAD;exfalso;apply(GSYM id);exact BAD. }
+   assert(GHREAD:Mem.range_perm mf gh 0(sizeof ce gh_type)Cur Readable).
+   { change(Mem.range_perm mf gh 0 84 Cur Readable);intros ofs R.
+     eapply Mem.perm_implies with(p1:=Writable);[apply(proj1(raw_writes_perm _ _ _ RAW gh ofs Cur Writable));apply WG;exact R|constructor]. }
+   assert(RETWRITE:Mem.range_perm mf ret 0(sizeof ce sp_type)Cur Writable).
+   { eapply raw_writes_range;[exact RAW|exact WR]. }
+   assert(CTRL:writable_controller_globals mf).
+   { intros id IN;destruct IN as[<-|[<-|[<-|[<-|[]]]]].
+     - exists bp,S.v_guidance_pid;split;[exact SP|];split;[exact VP|];apply(raw_writes_range _ _ _ RAW);exact WP.
+     - exists be,S.v_guidance_pid_pos_err;split;[exact SE|];split;[exact VE|];apply(raw_writes_range _ _ _ RAW);exact WE.
+     - exists bv,S.v_guidance_pid_speed_err;split;[exact SV|];split;[exact VV|];apply(raw_writes_range _ _ _ RAW);exact WV.
+     - exists bi,S.v_guidance_pid_trim_att_integrator;split;[exact SI|];split;[exact VI|];apply(raw_writes_range _ _ _ RAW);exact WI. }
+   assert(CACHE:caches_valid mf).
+   { exists(Int.repr 2),(Int.repr 2);unfold load_global;rewrite SS;repeat split;assumption||reflexivity. }
+   assert(APP:load_global Mint8unsigned mf S._guidance_pid pid_type[S._approx_force_by_thrust]=Some(Vint Int.zero)).
+   { unfold load_global;rewrite SP;witness_zero_path PZERO. }
+   assert(HEAD:heading_safe mf).
+   { exists Float32.zero;split.
+     - unfold load_global;rewrite SH;witness_zero_path HZERO.
+     - split;reflexivity. }
+   assert(GAINS:forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka]->
+     bounded_global mf S._guidance_pid pid_type[gain]0 100).
+   { intros gain IN;destruct IN as[<-|[<-|[<-|[<-|[<-|[]]]]]];
+     (exists Int.zero;split;
+     [unfold load_global;rewrite SP;witness_zero_path PZERO
+     |rewrite Int.signed_zero;lia]). }
+   assert(AXES:forall axis,In axis[S._x;S._y]->
+     bounded_global mf S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+     bounded_path mf gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+     bounded_path mf gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+     bounded_global mf S._state state_type[S._ned_speed_i;axis](-10000)10000).
+   { intros axis IN;destruct IN as[<-|[<-|[]]].
+     - split.
+       + exists Int.zero;split;[unfold load_global;rewrite SI;witness_zero_path IZERO|rewrite Int.signed_zero;lia].
+       + split.
+         * exists Int.zero;split;[exact SX|rewrite Int.signed_zero;lia].
+         * split.
+           -- exists Int.zero;split;[exact AX|rewrite Int.signed_zero;lia].
+           -- exists Int.zero;split;[unfold load_global;rewrite SS;exact VX|rewrite Int.signed_zero;lia].
+     - split.
+       + exists Int.zero;split;[unfold load_global;rewrite SI;witness_zero_path IZERO|rewrite Int.signed_zero;lia].
+       + split.
+         * exists Int.zero;split;[exact SY|rewrite Int.signed_zero;lia].
+         * split.
+           -- exists Int.zero;split;[exact AY|rewrite Int.signed_zero;lia].
+           -- exists Int.zero;split;[unfold load_global;rewrite SS;exact VY|rewrite Int.signed_zero;lia]. }
+   assert(SAFE:position_subtractions_safe mf gh).
+   { intros axis IN;destruct IN as[<-|[<-|[]]].
+     - exists(Int.repr(512+shift)),(Int.repr shift);split;[exact RX|];split.
+       + unfold load_global;rewrite SS;exact PX.
+       + unfold signed32.
+         rewrite(Int.signed_repr(512+shift))by(change(-2147483648<=512+shift<=2147483647);lia).
+         rewrite(Int.signed_repr shift)by(change(-2147483648<=shift<=2147483647);lia);lia.
+     - exists Int.zero,Int.zero;split;[exact RY|];split.
+       + unfold load_global;rewrite SS;exact PY.
+       + unfold signed32;rewrite Int.signed_zero;lia. }
+   assert(INITPOS:initialized_positions mf gh).
+   { intros axis IN;destruct(SAFE axis IN)as(r&p&R&P&N);exists r,p;auto. }
+   unfold InputGood;split;[unfold InputGoodLegacy;tauto|tauto]. }
+ destruct(witness_updates_exist base gh sb 0 WG WS)as[a RA].
+ destruct(witness_updates_exist base gh sb 25600 WG WS)as[b RB].
+ pose proof(GOOD 0 a ltac:(lia)RA)as GA.
+ pose proof(GOOD 25600 b ltac:(lia)RB)as GB.
+ destruct(witness_updated_loads base a gh sb 0 GS ZS RA)as(CPA&CSA&RXA&RYA&SXA&SYA&AXA&AYA&PXA&PYA&VXA&VYA).
+ destruct(witness_updated_loads base b gh sb 25600 GS ZS RB)as(CPB&CSB&RXB&RYB&SXB&SYB&AXB&AYB&PXB&PYB&VXB&VYB).
+ assert(FRAME:same_except_positions_and_return gh ret a b)by(eapply witness_replays_related;eauto).
+ assert(TX:AxisTranslation gh a b S._x 25600).
+ { exists(Int.repr 512),Int.zero,(Int.repr 26112),(Int.repr 25600).
+   split;[exact RXA|];split;[unfold load_global;rewrite SS;exact PXA|].
+   split;[exact RXB|];split;[unfold load_global;rewrite SS;exact PXB|].
+   rewrite(Int.signed_repr 512)by(change(-2147483648<=512<=2147483647);lia).
+   rewrite Int.signed_zero.
+   rewrite(Int.signed_repr 26112)by(change(-2147483648<=26112<=2147483647);lia).
+   rewrite(Int.signed_repr 25600)by(change(-2147483648<=25600<=2147483647);lia).
+   unfold physical_translation,signed32;repeat split;lia. }
+ assert(TY:AxisTranslation gh a b S._y 0).
+ { exists Int.zero,Int.zero,Int.zero,Int.zero.
+   split;[exact RYA|];split;[unfold load_global;rewrite SS;exact PYA|].
+   split;[exact RYB|];split;[unfold load_global;rewrite SS;exact PYB|].
+   rewrite Int.signed_zero;unfold physical_translation,signed32;repeat split;lia. }
+ exists gh,ret,a,b,25600,0;split.
+ - exact(conj GA(conj GB(conj FRAME(conj TX TY)))).
+ - split;[lia|]. exists(Int.repr 512),Int.zero;split;[exact RXA|];split.
+   + unfold load_global;rewrite SS;exact PXA.
+   + rewrite(Int.signed_repr 512)by(change(-2147483648<=512<=2147483647);lia);rewrite Int.signed_zero;lia.
+Qed.
+Theorem canonical_nonzero_execution_nonvacuity : NonzeroNonvacuityGoal.
+Proof.
+ destruct canonical_input_nonvacuity as(gh&ret&a&b&dx&dy&NONZERO).
+ exists gh,ret,a,b,dx,dy;split;[exact NONZERO|].
+ intro flight;exact(constructed_original_position_translation gh ret a b dx dy flight(proj1 NONZERO)).
+Qed.
+Print Assumptions canonical_input_nonvacuity.
+Print Assumptions canonical_nonzero_execution_nonvacuity.
+
+FILE DataAgreement.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement CoreInputs.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Lemma translated_byte_offset : forall gh blk ofs,
+ translated_byte gh blk ofs ->44<=ofs<52\/100<=ofs<108.
+Proof.
+ intros gh blk ofs;unfold translated_byte,field_byte.
+ intros[(axis&AX&EQ&ft&start&OFF&R)|(sb&axis&SYM&AX&EQ&ft&start&OFF&R)].
+ - destruct AX as[<-|[<-|[]]].
+   + change(Some(tint,44)=Some(ft,start))in OFF;inversion OFF;subst;left;lia.
+   + change(Some(tint,48)=Some(ft,start))in OFF;inversion OFF;subst;left;lia.
+ - destruct AX as[<-|[<-|[]]].
+   + change(Some(tint,100)=Some(ft,start))in OFF;inversion OFF;subst;right;lia.
+   + change(Some(tint,104)=Some(ft,start))in OFF;inversion OFF;subst;right;lia.
+Qed.
+Definition core_parameters_agree m1 m2 gh(D1:core_initial_data m1 gh)(D2:core_initial_data m2 gh):Prop:=
+ cid_pid _ _ D1=cid_pid _ _ D2 /\cid_i _ _ D1=cid_i _ _ D2 /\
+ cid_kp _ _ D1=cid_kp _ _ D2 /\cid_kd _ _ D1=cid_kd _ _ D2 /\
+ cid_ki _ _ D1=cid_ki _ _ D2 /\cid_kv _ _ D1=cid_kv _ _ D2 /\cid_ka _ _ D1=cid_ka _ _ D2 /\
+ cid_ax _ _ D1=cid_ax _ _ D2 /\cid_ay _ _ D1=cid_ay _ _ D2 /\
+ cid_ix _ _ D1=cid_ix _ _ D2 /\cid_iy _ _ D1=cid_iy _ _ D2 /\cid_hbits _ _ D1=cid_hbits _ _ D2.
+
+Theorem canonical_pair_core_parameters_agree : forall m1 m2 gh ret dx dy
+ (D1:core_initial_data m1 gh)(D2:core_initial_data m2 gh),
+ InputPair gh ret m1 m2 dx dy ->core_parameters_agree m1 m2 gh D1 D2.
+Proof.
+ intros m1 m2 gh ret dx dy D1 D2[GOOD1[GOOD2[FRAME REST]]].
+ destruct D1 as[bp bi bt bu bh bf kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ destruct D2 as[bp2 bi2 bt2 bu2 bh2 bf2 kp2 kd2 ki2 kv2 ka2 ax2 ay2 ix2 iy2 h2 heading2
+ SP2 SI2 ST2 SU2 SH2 SF2 FF2 APP2 KP2 KD2 KI2 KV2 KA2 AX2 AY2 IX2 IY2 LT2 LU2 HEAD2 CAST2 HB2 WP2 WI2].
+ assert(BP:bp2=bp)by(congruence);subst bp2.
+ assert(BI:bi2=bi)by(congruence);subst bi2.
+ assert(BH:bh2=bh)by(congruence);subst bh2.
+ assert(RET:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct GOOD1 as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(PRET:bp<>ret)by(intro EQ;subst bp;apply(RET S._guidance_pid);exact SP).
+ assert(IRET:bi<>ret)by(intro EQ;subst bi;apply(RET S._guidance_pid_trim_att_integrator);exact SI).
+ assert(HRET:bh<>ret)by(intro EQ;subst bh;apply(RET S._guidance_h);exact SH).
+ assert(GRET:gh<>ret)by(destruct GOOD1 as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ let agree LA LB OUT :=
+ lazymatch type of LA with Mem.load ?ch m1 ?blk ?ofs=Some ?v=>
+ let TRANS:=fresh "TRANSFER" in
+ assert(TRANS:Mem.load ch m2 blk ofs=Some v)by(
+ eapply canonical_frame_load_transfer;[exact FRAME|exact OUT| |exact LA];
+ intros i R T;pose proof(translated_byte_offset _ _ _ T)as RANGE;cbn[size_chunk]in R;lia);
+ rewrite LB in TRANS;congruence end in
+ assert(EKP:kp=kp2)by(agree KP KP2 PRET);
+ assert(EKD:kd=kd2)by(agree KD KD2 PRET);
+ assert(EKI:ki=ki2)by(agree KI KI2 PRET);
+ assert(EKV:kv=kv2)by(agree KV KV2 PRET);
+ assert(EKA:ka=ka2)by(agree KA KA2 PRET);
+ assert(EAX:ax=ax2)by(agree AX AX2 GRET);
+ assert(EAY:ay=ay2)by(agree AY AY2 GRET);
+ assert(EIX:ix=ix2)by(agree IX IX2 IRET);
+ assert(EIY:iy=iy2)by(agree IY IY2 IRET);
+ assert(EH:h=h2)by(agree HEAD HEAD2 HRET).
+ subst h2.
+ pose proof(CAST m1)as HC1;pose proof(CAST2 m1)as HC2.
+ assert(EHEAD:heading=heading2)by(congruence).
+ cbv beta iota zeta delta[core_parameters_agree cid_pid cid_i cid_kp cid_kd cid_ki cid_kv cid_ka cid_ax cid_ay cid_ix cid_iy cid_hbits].
+ repeat split;assumption||reflexivity.
+Qed.
+Print Assumptions canonical_pair_core_parameters_agree.
+
+FILE ByteAgreement.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata.
+From PidPositionTranslationCore Require Import FactoryMemory.
+From PidPositionTranslationProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma loadbytes_from_equal_units : forall n a b blk ofs bytes,
+ Mem.loadbytes a blk ofs(Z.of_nat n)=Some bytes ->
+ (forall i,0<=i<Z.of_nat n ->Mem.loadbytes a blk(ofs+i)1=Mem.loadbytes b blk(ofs+i)1) ->
+ Mem.loadbytes b blk ofs(Z.of_nat n)=Some bytes.
+Proof.
+ induction n as[|n IH];intros a b blk ofs bytes LOAD UNIT.
+ - change(Mem.loadbytes a blk ofs 0=Some bytes)in LOAD.
+   rewrite Mem.loadbytes_empty in LOAD by lia;inversion LOAD;subst bytes.
+   apply Mem.loadbytes_empty;lia.
+ - replace(Z.of_nat(S n))with(1+Z.of_nat n)in LOAD by lia.
+   destruct(Mem.loadbytes_split a blk ofs 1(Z.of_nat n)bytes LOAD ltac:(lia)ltac:(lia))
+    as[head[tail[HEAD[TAIL EQ]]]];subst bytes.
+   replace(Z.of_nat(S n))with(1+Z.of_nat n)by lia.
+   apply Mem.loadbytes_concat;try lia.
+   + replace ofs with(ofs+0)at 1 by lia.
+     rewrite<-(UNIT 0 ltac:(lia));replace(ofs+0)with ofs by lia;exact HEAD.
+   + apply IH with(a:=a);[exact TAIL|].
+     intros i RANGE;replace(ofs+1+i)with(ofs+(1+i))by lia;apply UNIT;lia.
+Qed.
+
+Lemma scalar_load_from_equal_units : forall ch a b blk ofs v,
+ Mem.load ch a blk ofs=Some v ->
+ (forall i,0<=i<size_chunk ch ->Mem.loadbytes a blk(ofs+i)1=Mem.loadbytes b blk(ofs+i)1) ->
+ Mem.load ch b blk ofs=Some v.
+Proof.
+ intros ch a b blk ofs v LOAD UNIT.
+ destruct(Mem.load_loadbytes _ _ _ _ _ LOAD)as[bytes[BY DECODE]].
+ rewrite DECODE;apply Mem.loadbytes_load.
+ - replace(size_chunk ch)with(Z.of_nat(Z.to_nat(size_chunk ch)))in BY|-* by(rewrite Z2Nat.id;[reflexivity|pose proof(size_chunk_pos ch);lia]).
+   eapply loadbytes_from_equal_units;[exact BY|].
+   intros i R;apply UNIT;rewrite Z2Nat.id in R;[exact R|pose proof(size_chunk_pos ch);lia].
+ - exact(proj2(Mem.load_valid_access _ _ _ _ _ LOAD)).
+Qed.
+
+Lemma canonical_frame_load_transfer : forall gh ret a b ch blk ofs v,
+ same_except_positions_and_return gh ret a b ->
+ blk<>ret ->
+ (forall i,0<=i<size_chunk ch ->~translated_byte gh blk(ofs+i)) ->
+ Mem.load ch a blk ofs=Some v ->Mem.load ch b blk ofs=Some v.
+Proof.
+ intros gh ret a b ch blk ofs v[_[_ BY]]RET NOT LOAD.
+ eapply scalar_load_from_equal_units;[exact LOAD|].
+ intros i R;apply BY;[apply NOT;exact R|exact RET].
+Qed.
+
+Lemma synchronized_store_preserves_canonical_frame : forall gh ret a b dst ofs ch v af bf,
+ same_except_positions_and_return gh ret a b ->
+ Mem.store ch a dst ofs v=Some af ->Mem.store ch b dst ofs v=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dst ofs ch v af bf[NEXT[PERM BY]]SA SB;split.
+ - rewrite(Mem.nextblock_store _ _ _ _ _ _ SA),(Mem.nextblock_store _ _ _ _ _ _ SB);exact NEXT.
+ - split.
+   + intros blk i k p;split;intro H.
+     * eapply Mem.perm_store_1;[exact SB|]. apply(proj1(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SA|exact H].
+     * eapply Mem.perm_store_1;[exact SA|]. apply(proj2(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SB|exact H].
+   + intros blk i NT RET.
+     destruct(peq blk dst)as[->|DIFF].
+     * destruct(zlt i ofs)as[LEFT|LEFT].
+       -- rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA dst i 1)by(right;right;left;lia).
+          rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB dst i 1)by(right;right;left;lia).
+          apply BY;assumption.
+       -- destruct(zle(ofs+size_chunk ch)i)as[RIGHT|RIGHT].
+          ++ rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA dst i 1)by(right;right;right;lia).
+             rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB dst i 1)by(right;right;right;lia).
+             apply BY;assumption.
+          ++ pose proof(Mem.loadbytes_store_same _ _ _ _ _ _ SA)as LA.
+             pose proof(Mem.loadbytes_store_same _ _ _ _ _ _ SB)as LB.
+             replace i with(ofs+(i-ofs))by lia.
+             eapply loadbytes_equal_subrange;[exact LA|exact LB|lia|lia|lia].
+     * rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA blk i 1)by(left;exact DIFF).
+       rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB blk i 1)by(left;exact DIFF).
+       apply BY;assumption.
+Qed.
+Print Assumptions canonical_frame_load_transfer.
+Print Assumptions synchronized_store_preserves_canonical_frame.
+
+WITNESSES [PosixPath('paparazzi/relations/pid_position_translation/attempts/002/WitnessMemory.v'), PosixPath('paparazzi/relations/pid_position_translation/attempts/002/WitnessBase.v'), PosixPath('paparazzi/relations/pid_position_translation/attempts/002/WitnessUpdates.v')]

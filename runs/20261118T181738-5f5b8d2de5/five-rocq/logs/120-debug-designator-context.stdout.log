@@ -1,0 +1,35 @@
+2 goals
+  
+  ge : genv
+  allowed : function -> Prop
+  e : env
+  a : expr
+  m : mem
+  a' : expr
+  m' : mem
+  C0 : expr -> expr
+  ty : type
+  DES : designator e (Evalof (C0 a) ty)
+  CT : context LV RV (fun x : expr => Evalof (C0 x) ty)
+  LR : lred ge e a m a' m'
+  id : positive
+  args : list type
+  ret : type
+  cc : calling_convention
+  b : block
+  target : function
+  H : e ! id = None
+  H0 : Genv.find_symbol ge id = Some b
+  H1 : Genv.find_funct ge (Vptr b Ptrofs.zero) = Some (Internal target)
+  H2 : allowed target
+  H3 :
+    Evalof (Evar id (Tfunction args ret cc)) (Tfunction args ret cc) =
+    Evalof (C0 a) ty
+  k : kind
+  H4 : context LV LV C0
+  H5 : k = LV
+  ============================
+  designator e (Evalof (C0 a') ty)
+
+goal 2 is:
+ designator e (Evalof (C0 a') ty)

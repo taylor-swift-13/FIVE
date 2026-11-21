@@ -1,0 +1,36 @@
+write_local
+     : forall (e : Csem.env) (q v out : Values.block)
+         (qi qx qy qz vx vy vz : Floats.float32)
+         (rho : Maps.PTree.t Values.val) (m : Memory.Mem.mem)
+         (id : BinNums.positive) (b : Values.block) 
+         (r : Csyntax.expr) (vr : Values.val) (x : Floats.float32),
+       StackAllocation.env_separated e ->
+       Nonlocal e q v out ->
+       Context e q v out qi qx qy qz vx vy vz rho m ->
+       Maps.PTree.get id e = Some (b, Ctypesdefs.tfloat) ->
+       PureDenotation.pure_rval Execution.ge e m r = Some vr ->
+       Cop.sem_cast vr (Csyntax.typeof r) Ctypesdefs.tfloat m =
+       Some (Values.Vsingle x) ->
+       exists mf : Memory.Mem.mem,
+         AtomicDenotation.atomic_eval Execution.ge e m
+           (Csyntax.Eassign (Csyntax.Evar id Ctypesdefs.tfloat) r
+              Ctypesdefs.tfloat) =
+         Some (Values.Vsingle x, mf) /\
+         Context e q v out qi qx qy qz vx vy vz
+           (Maps.PTree.set id (Values.Vsingle x) rho) mf /\
+         Memory.Mem.store AST.Mfloat32 m b BinNums.Z0 (Values.Vsingle x) =
+         Some mf
+store_context
+     : forall (e : Csem.env) (q v out : Values.block)
+         (qi qx qy qz vx vy vz : Floats.float32)
+         (rho : Maps.PTree.t Values.val) (m : Memory.Mem.mem)
+         (id : BinNums.positive) (b : Values.block) 
+         (x : Floats.float32) (mf : Memory.Mem.mem),
+       StackAllocation.env_separated e ->
+       Nonlocal e q v out ->
+       Context e q v out qi qx qy qz vx vy vz rho m ->
+       Maps.PTree.get id e = Some (b, Ctypesdefs.tfloat) ->
+       Memory.Mem.store AST.Mfloat32 m b BinNums.Z0 (Values.Vsingle x) =
+       Some mf ->
+       Context e q v out qi qx qy qz vx vy vz
+         (Maps.PTree.set id (Values.Vsingle x) rho) mf

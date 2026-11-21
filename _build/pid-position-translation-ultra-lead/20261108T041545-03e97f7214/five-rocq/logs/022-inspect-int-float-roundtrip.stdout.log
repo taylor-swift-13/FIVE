@@ -1,0 +1,80 @@
+Float32.of_int_double:
+  forall n : int, Float32.of_int n = Float32.of_double (Float.of_int n)
+Float.of_int_of_long:
+  forall n : int, Float.of_int n = Float.of_long (Int64.repr (Int.signed n))
+Float.of_intu_of_int_1:
+  forall x : int,
+  Int.ltu x Float.ox8000_0000 = true -> Float.of_intu x = Float.of_int x
+Float.of_int_from_words:
+  forall x : int,
+  Float.of_int x =
+  Float.sub
+    (Float.from_words Float.ox4330_0000 (Int.add x Float.ox8000_0000))
+    (Float.from_words Float.ox4330_0000 Float.ox8000_0000)
+Float.mul2_add:
+  forall f : float,
+  Float.add f f =
+  Float.mul f
+    (Float.of_int (Int.repr (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+Float.of_intu_of_int_3:
+  forall x : int,
+  Float.of_intu x =
+  Float.sub (Float.of_int (Int.and x Float.ox7FFF_FFFF))
+    (Float.of_int (Int.and x Float.ox8000_0000))
+Float.of_intu_of_int_2:
+  forall x : int,
+  Int.ltu x Float.ox8000_0000 = false ->
+  Float.of_intu x =
+  Float.add (Float.of_int (Int.sub x Float.ox8000_0000))
+    (Float.of_intu Float.ox8000_0000)
+Float.of_longu_of_long_2:
+  forall x : int64,
+  Int64.ltu x (Int64.repr Int64.half_modulus) = false ->
+  Float.of_longu x =
+  Float.mul
+    (Float.of_long
+       (Int64.or (Int64.shru x Int64.one) (Int64.and x Int64.one)))
+    (Float.of_int (Int.repr (BinInt.Z.pos (BinNums.xO BinNums.xH))))
+Float.of_long_decomp:
+  forall l : int64,
+  Float.of_long l =
+  Float.add
+    (Float.mul (Float.of_int (Int64.hiword l))
+       (IEEE754_extra.BofZ
+          (BinInt.Z.pos
+             (BinNums.xI
+                (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+          (BinInt.Z.pos
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO
+                               (BinNums.xO
+                                  (BinNums.xO
+                                     (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+          eq_refl eq_refl
+          (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+             (BinInt.Z.pos
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))
+    (Float.of_intu (Int64.loword l))
+Float32.to_int_double:
+  forall (f : float32) (n : int),
+  Float32.to_int f = Some n -> Float.to_int (Float32.to_double f) = Some n
+Float.to_int_to_long:
+  forall (f : float) (n : int),
+  Float.to_int f = Some n ->
+  Float.to_long f = Some (Int64.repr (Int.signed n))
+Float.to_intu_to_int_1:
+  forall (x : float) (n : int),
+  Float.cmp Clt x (Float.of_intu Float.ox8000_0000) = true ->
+  Float.to_intu x = Some n -> Float.to_int x = Some n
+Float.to_intu_to_int_2:
+  forall (x : float) (n : int),
+  Float.cmp Clt x (Float.of_intu Float.ox8000_0000) = false ->
+  Float.to_intu x = Some n ->
+  Float.to_int (Float.sub x (Float.of_intu Float.ox8000_0000)) =
+  Some (Int.sub n Float.ox8000_0000)

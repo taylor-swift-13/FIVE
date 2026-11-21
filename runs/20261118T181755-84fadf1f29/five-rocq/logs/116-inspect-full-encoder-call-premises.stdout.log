@@ -1,0 +1,121 @@
+34:Lemma encoder_low_fact : forall e m m1 bb cnt,
+35- 0<=cnt<6434 ->short_cell e m Source._val(table_at cnt) ->short_cell e m Source._cnt cnt ->
+36- e!Source._data_buf_12=None ->Genv.find_symbol(Csem.globalenv Source.prog)Source._data_buf_12=Some bb ->
+37- Mem.store Mint8unsigned m bb cnt(Vint(Int.repr(low_written cnt)))=Some m1 ->
+38- atom_eval(Csem.globalenv Source.prog)e m encode_low=Some(Vint(Int.repr(low_written cnt)),m1).
+39-Proof.
+40- intros e m m1 bb cnt C[bv[BV[LV RV]]][bc[BC[LC RC]]]LOCAL SYMBOL STORE.
+41- destruct(literal_encoder_machine cnt C)as[LOW[HIGH[COND[VAL REST]]]].
+42- rewrite<-VAL. eapply encoder_low_raw;eauto. rewrite LOW,VAL;exact STORE.
+43-Qed.
+44-
+45:Lemma encoder_cond_raw : forall e m bc c,
+46- e!Source._cnt=Some(bc,tshort) ->Mem.load Mint16signed m bc 0=Some(Vint c) ->
+47- pure_rval(Csem.globalenv Source.prog)e m encode_cond=Some(Val.of_bool(encoder_even_choice c)).
+48-Proof.
+49- intros e m bc c BC LC. unfold encode_cond,encoder_parts.
+50- cbv beta iota zeta delta[Source.f_table_encode_12 fn_body pure_rval pure_lval typeof].
+51- repeat rewrite dec_eq_true. rewrite BC. unfold tshort,tint. repeat rewrite dec_eq_true.
+52- cbn [Cexec.do_deref_loc type_is_volatile access_mode Mem.loadv attr_of_type attr_volatile noattr size_chunk].
+53- rewrite Ptrofs.unsigned_zero. rewrite zle_true by(change(2<=18446744073709551616);lia). rewrite LC.
+54- cbv beta iota zeta delta[sem_binary_operation sem_mod sem_cmp classify_cmp sem_binarith classify_binarith
+55- binarith_type typeconv sem_cast classify_cast cast_int_int Archi.ptr64].
+56- assert(E0:Int.eq(Int.repr 2)Int.zero=false)by(vm_compute;reflexivity).
+57- assert(EM:Int.eq(Int.repr 2)Int.mone=false)by(vm_compute;reflexivity).
+58- rewrite E0,EM,!andb_false_r. reflexivity.
+59-Qed.
+60-Lemma encoder_even_raw : forall e m m2 bv bc bb v c,
+61- e!Source._val=Some(bv,tshort) ->e!Source._cnt=Some(bc,tshort) ->
+62- e!Source._data_buf_12=None ->Genv.find_symbol(Csem.globalenv Source.prog)Source._data_buf_12=Some bb ->
+--
+118:Lemma encoder_high_fact : forall e m m2 bb cnt,
+119- 0<=cnt<6434 ->short_cell e m Source._val(table_at cnt) ->short_cell e m Source._cnt cnt ->
+120- e!Source._data_buf_12=None ->Genv.find_symbol(Csem.globalenv Source.prog)Source._data_buf_12=Some bb ->
+121- Mem.load Mint8unsigned m bb(high_address cnt)=Some(Vint(Int.repr(buffer_view cnt(high_address cnt)))) ->
+122- Mem.store Mint8unsigned m bb(high_address cnt)(Vint(Int.repr(high_written cnt)))=Some m2 ->
+123- atom_eval(Csem.globalenv Source.prog)e m(if encoder_even_choice(Int.repr cnt)then encode_even else encode_odd)=
+124- Some(Vint(Int.repr(high_written cnt)),m2).
+125-Proof.
+126- intros e m m2 bb cnt C[bv[BV[LV RV]]][bc[BC[LC RC]]]LOCAL SYMBOL OLD STORE.
+127- destruct(literal_encoder_machine cnt C)as[LOW[HIGH[COND[VAL WRITE]]]].
+128- unfold encoder_high_machine in WRITE. destruct(encoder_even_choice(Int.repr cnt))eqn:CHOICE.
+129- - rewrite<-WRITE. eapply encoder_even_raw;eauto. rewrite HIGH,WRITE;exact STORE.
+130- - rewrite<-WRITE. eapply encoder_odd_raw;eauto.
+131-   + rewrite HIGH;exact OLD.
+132-   + rewrite HIGH,WRITE;exact STORE.
+133-Qed.
+134:Lemma encoder_prev_fact : forall e m prev,
+135- short_cell e m Source._val_prev prev ->
+136- pure_rval(Csem.globalenv Source.prog)e m encode_prev=Some(Vint(Int.repr prev)).
+137-Proof.
+138- intros e m prev[b[B[L R]]]. unfold encode_prev,encoder_parts.
+139- cbv beta iota zeta delta[Source.f_table_encode_12 fn_body pure_rval pure_lval typeof].
+140- repeat rewrite dec_eq_true. rewrite B. unfold tshort,tvoid. repeat rewrite dec_eq_true.
+141- cbn [Cexec.do_deref_loc type_is_volatile access_mode Mem.loadv attr_of_type attr_volatile noattr size_chunk].
+142- rewrite Ptrofs.unsigned_zero. rewrite zle_true by(change(2<=18446744073709551616);lia). rewrite L;reflexivity.
+143-Qed.
+144:Lemma encoder_tab_fact : forall e m bt tab,
+145- e!Source._tab=Some(bt,tptr tshort) ->Mem.load Mptr m bt 0=Some tab ->
+146- pure_rval(Csem.globalenv Source.prog)e m encode_tab=Some tab.
+147-Proof.
+148- intros e m bt tab B L. unfold encode_tab,encoder_parts.
+149- cbv beta iota zeta delta[Source.f_table_encode_12 fn_body pure_rval pure_lval typeof].
+150- repeat rewrite dec_eq_true. rewrite B. unfold tshort,tvoid,tptr. repeat rewrite dec_eq_true.
+151- cbn [Cexec.do_deref_loc type_is_volatile access_mode Mem.loadv attr_of_type attr_volatile noattr size_chunk].
+152- rewrite Ptrofs.unsigned_zero. rewrite zle_true by(change(8<=18446744073709551616);lia). rewrite L;reflexivity.
+153-Qed.
+From PprzTrigRelationSupport Require Import TrigData PackedPrefix.
+Open Scope Z_scope.
+Lemma byte_store_same : forall m m' b ofs z,
+ 0<=z<256 -> Mem.store Mint8unsigned m b ofs (Vint(Int.repr z))=Some m' ->
+ Mem.load Mint8unsigned m' b ofs=Some(Vint(Int.repr z)).
+Proof.
+ intros m m' b ofs z R S. pose proof(@Mem.load_store_same Mint8unsigned m b ofs (Vint(Int.repr z)) m' S)as H.
+ cbn [Val.load_result] in H. rewrite byte_extension in H by exact R. exact H.
+Qed.
+Lemma byte_store_other : forall m m' b ofs z i,
+ Mem.store Mint8unsigned m b ofs (Vint(Int.repr z))=Some m' -> i<>ofs ->
+ Mem.load Mint8unsigned m' b i=Mem.load Mint8unsigned m b i.
+Proof.
+ intros m m' b ofs z i S NE. apply(@Mem.load_store_other Mint8unsigned m b ofs (Vint(Int.repr z))m' S Mint8unsigned b i).
+ right;cbn [size_chunk];lia.
+Qed.
+Lemma byte_store_range : forall m m' b ofs z,
+ Mem.store Mint8unsigned m b ofs (Vint(Int.repr z))=Some m' ->
+ Mem.range_perm m b 0 9651 Cur Writable ->Mem.range_perm m' b 0 9651 Cur Writable.
+Proof.
+ intros m m' b ofs z S R i I. eapply Mem.perm_store_1;[exact S|]. apply R;exact I.
+Qed.
+Lemma byte_store_exists : forall m b ofs z,
+ Mem.range_perm m b 0 9651 Cur Writable ->0<=ofs<9651 ->
+ exists m',Mem.store Mint8unsigned m b ofs(Vint(Int.repr z))=Some m'.
+Proof.
+ intros m b ofs z R I. destruct(Mem.valid_access_store m Mint8unsigned b ofs(Vint(Int.repr z)))as[m' S].
+ - split.
+   + intros j J. apply R. cbn [size_chunk] in J;lia.
+   + change(1|ofs);exists ofs;lia.
+ - exists m';exact S.
+Qed.
+Theorem packed_prefix_advance : forall cnt m b,
+ 0<=cnt<6434 ->packed_prefix cnt m b ->
+ exists m1 m2,
+ Mem.store Mint8unsigned m b cnt(Vint(Int.repr(low_written cnt)))=Some m1 /\
+ Mem.store Mint8unsigned m1 b(high_address cnt)(Vint(Int.repr(high_written cnt)))=Some m2 /\
+ packed_prefix(cnt+1)m2 b.
+Proof.
+ intros cnt m b C [R V].
+ destruct(byte_store_exists m b cnt(low_written cnt)R ltac:(lia))as[m1 S1].
+ pose proof(byte_store_range m m1 b cnt(low_written cnt)S1 R)as R1.
+ pose proof(high_address_bounds cnt C)as[HB NE].
+ destruct(byte_store_exists m1 b(high_address cnt)(high_written cnt)R1 ltac:(lia))as[m2 S2].
+ exists m1,m2;split;[exact S1|]. split;[exact S2|]. split.
+ - eapply byte_store_range;[exact S2|exact R1].
+ - intros i I. pose proof(view_advance_at cnt C)as[LOW[HIGH HR]].
+   destruct(Z.eq_dec i(high_address cnt))as[E|E].
+   + subst i. rewrite<-HIGH. eapply byte_store_same;[lia|exact S2].
+   + rewrite(byte_store_other _ _ _ _ _ _ S2 E).
+     destruct(Z.eq_dec i cnt)as[F|F].
+     * subst i. rewrite<-LOW. eapply byte_store_same;[unfold low_written,low_byte;apply Z.mod_pos_bound;lia|exact S1].
+     * rewrite(byte_store_other _ _ _ _ _ _ S1 F).
+       rewrite buffer_view_other by assumption. apply V;exact I.
+Qed.

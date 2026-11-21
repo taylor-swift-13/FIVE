@@ -1,0 +1,208 @@
+StandaloneCallShell.v
+PureIfShell.v
+EntrySafety.v
+AtomicDenotation.v
+SpeedExecution.v
+SaturationFunction.v
+EntryCorollaries.v
+SaturationFunctionAccel.v
+FactorInstanceAccel.v
+CallInstances.v
+ConcretePhases.v
+FactorInstance.v
+AccelExecution.v
+CallfreeExecution.v
+FactorShell.v
+CallInstancesAccel.v
+BlockExecution.v
+PhaseComposition.v
+SpeedPrefixPhases.v
+ContinuationLift.v
+SaturationPhasesAccel.v
+AtomicProgress.v
+PureSyntax.v
+Unconditional.v
+PureDenotation.v
+LeafInstances.v
+SaturationPhases.v
+PhaseWiring.v
+PureProgress.v
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+Import ListNotations.
+
+(** These predicates constrain syntax only.  Values, argument lists, memories,
+    allocation, initialization, alignment and permissions remain arbitrary. *)
+Definition nv (ty: type) := negb (type_is_volatile ty).
+Fixpoint core_expr (a: expr): bool :=
+  match a with
+  | Eval _ ty | Evar _ ty | Eloc _ _ _ ty => nv ty
+  | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+  | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty && core_expr a
+  | Ebinop _ a b ty | Eassign a b ty => nv ty && core_expr a && core_expr b
+  | _ => false
+  end.
+Fixpoint core_stmt (s: statement): bool :=
+  match s with
+  | Sskip | Sreturn None => true
+  | Sdo a | Sreturn (Some a) => core_expr a
+  | Ssequence a b => core_stmt a && core_stmt b
+  | Sifthenelse a b c => core_expr a && core_stmt b && core_stmt c
+  | _ => false
+  end.
+Fixpoint core_cont (k: cont): bool :=
+  match k with
+  | Kstop => true
+  | Kseq s k => core_stmt s && core_cont k
+  | _ => false
+  end.
+Definition core_expr_cont (k: cont): bool :=
+  match k with Kdo k | Kreturn k => core_cont k
+ | Kifthenelse a b k => core_stmt a && core_stmt b && core_cont k
+ | _ => false end.
+
+Ltac core_unpack := repeat match goal with H: _ && _ = true |- _ =>
+  apply andb_true_iff in H; let A := fresh "CORE" in let B := fresh "CORE" in destruct H as [A B] end.
+Ltac core_build := repeat match goal with |- _ && _ = true => apply andb_true_iff; split end.
+
+Lemma core_expr_no_builtin:
+  forall a, core_expr a = true -> no_builtin a = true.
+Proof.
+  induction a; simpl; intros H; core_unpack; try discriminate; core_build; eauto.
+Qed.
+
+Lemma core_context_hole:
+  forall from to C, context from to C -> forall a,
+  core_expr (C a) = true -> core_expr a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+Qed.
+
+Lemma core_context_replace:
+  forall from to C, context from to C -> forall a b,
+  core_expr (C a) = true -> core_expr b = true -> core_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HA HB; core_unpack; try discriminate;
+    core_build; eauto.
+Qed.
+
+Lemma core_lred:
+  forall ge e a m a' m', core_expr a = true -> lred ge e a m a' m' -> core_expr a' = true.
+Proof.
+  intros ge e a m a' m' HA HR; inversion HR; subst; simpl in *; core_unpack; auto.
+Qed.
+
+Lemma deref_loc_silent:
+  forall ge ty m b ofs bf t v, nv ty = true -> deref_loc ge ty m b ofs bf t v -> t = E0.
+Proof.
+  intros ge ty m b ofs bf t v NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma assign_loc_silent:
+  forall ge ty m b ofs bf v t m' v', nv ty = true -> assign_loc ge ty m b ofs bf v t m' v' -> t = E0.
+Proof.
+  intros ge ty m b ofs bf v t m' v' NV HR; unfold nv in NV; apply negb_true_iff in NV.
+  inversion HR; subst; auto; congruence.
+Qed.
+Lemma core_rred:
+  forall ge a m t a' m', core_expr a = true -> rred ge a m t a' m' ->
+  t = E0 /\ core_expr a' = true.
+Proof.
+  intros ge a m t a' m' HA HR; inversion HR; subst; simpl in HA; core_unpack; try discriminate;
+    split; simpl; eauto using deref_loc_silent, assign_loc_silent.
+Qed.
+Lemma core_no_callred:
+  forall ge a m fd args ty, core_expr a = true -> callred ge a m fd args ty -> False.
+Proof. intros ge a m fd args ty HA HR; inversion HR; subst; discriminate. Qed.
+
+Lemma core_cont_call:
+  forall k, core_cont k = true -> call_cont k = Kstop.
+Proof.
+  induction k; simpl; intros H; core_unpack; try discriminate; auto.
+Qed.
+Lemma core_cont_is_call:
+  forall k, core_cont k = true -> is_call_cont k -> k = Kstop.
+Proof. destruct k; simpl; intros; try discriminate; tauto. Qed.
+
+
+From Stdlib Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+Import ListNotations.
+
+Definition commit (ge:genv) (m:mem) (ty:type) (loc:block*ptrofs*bitfield) (v:val) (vty:type) : option(val*mem) :=
+ let '(b,ofs,bf):=loc in
+ match sem_cast v vty ty m with
+ | Some vc => match Cexec.do_assign_loc ge quiet_world ty m b ofs bf vc with
+   | Some (_,_,mf,vf)=>Some(vf,mf) | None=>None end
+ | None=>None end.
+Definition atomic_expr (a:expr):bool :=
+ match a with
+ | Eassign l r _ | Eassignop _ l r _ _ => simple l && simple r && nv(typeof l)
+ | _=>simple a end.
+Definition atomic_eval (ge:genv) (e:env) (m:mem) (a:expr):option(val*mem) :=
+ match a with
+ | Eassign l r ty =>
+   if type_eq (typeof l) ty then
+   match pure_lval ge e m l,pure_rval ge e m r with
+   | Some loc,Some v=>commit ge m (typeof l) loc v (typeof r)
+   | _,_=>None end else None
+ | Eassignop op l r tyres ty =>
+   if type_eq (typeof l) ty then
+   match pure_lval ge e m l,pure_rval ge e m r with
+   | Some(b,ofs,bf),Some vr=>
+     match Cexec.do_deref_loc ge quiet_world (typeof l) m b ofs bf with
+     | Some(_,_,vl)=>match sem_binary_operation ge op vl (typeof l) vr (typeof r) m with
+       | Some vo=>commit ge m (typeof l) (b,ofs,bf) vo tyres
+       | None=>None end
+     | None=>None end
+   | _,_=>None end else None
+ | _=>option_map (fun v=>(v,m)) (pure_rval ge e m a)
+ end.
+Lemma atomic_simple: forall a,simple a=true -> atomic_expr a=true.
+Proof. destruct a;simpl;auto;discriminate. Qed.
+Lemma atomic_eval_simple: forall ge e m a,simple a=true ->
+ atomic_eval ge e m a=option_map(fun v=>(v,m))(pure_rval ge e m a).
+Proof. destruct a;simpl;auto;discriminate. Qed.
+Lemma atomic_context_hole: forall from to C,context from to C -> forall a,
+ atomic_expr(C a)=true -> atomic_expr a=true.
+Proof. induction 1;simpl;intros a HA;core_unpack;try discriminate;eauto using atomic_simple,simple_context_hole. Qed.
+Lemma atomic_context_replace: forall from to C,context from to C -> forall a b,
+ typeof a=typeof b -> atomic_expr(C a)=true -> simple b=true -> atomic_expr(C b)=true.
+Proof.
+ induction 1;simpl;intros a b HT HA HB;core_unpack;try discriminate;core_build;
+ eauto using simple_context_replace,atomic_simple.
+ all: try (rewrite <-(context_type_eq _ _ _ H a b HT);assumption).
+Qed.
+Lemma atomic_effect_root: forall C,context RV RV C -> forall a,
+ atomic_expr(C a)=true -> simple a=false -> forall z,C z=z.
+Proof.
+ intros C HC a HA SA;inversion HC;subst;simpl in HA;core_unpack;try discriminate;auto;
+ exfalso;match goal with
+ | CT:Csem.context _ _ ?C,SI:simple(?C a)=true |- _=>
+ pose proof(simple_context_hole _ _ _ CT a SI);congruence end.
+Qed.
+Lemma atomic_context_congr: forall ge e m from C,
+ context from RV C -> forall a b,
+ typeof a=typeof b -> simple a=true -> simple b=true ->
+ pure_eq ge e m from a b ->
+ atomic_eval ge e m (C a)=atomic_eval ge e m (C b).
+Proof.
+ intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+ try (repeat rewrite atomic_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+ all: try (match goal with
+ | |- atomic_eval ?ge ?e ?m ?A = atomic_eval ?ge ?e ?m ?B =>
+ change (option_map (fun v=>(v,m)) (pure_rval ge e m A) =
+         option_map (fun v=>(v,m)) (pure_rval ge e m B))
+ end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+ all: simpl;rewrite ?(context_type_eq _ _ _ H a b HT),
+ (pure_context_congr ge e m _ _ _ H a b HT HE);reflexivity.
+Qed.
+Lemma atomic_assign_head: forall ge e m l r ty t a' mf,
+ atomic_expr(Eassign l r ty)=true -> rred ge(Eassign l r ty)m t a' mf ->
+ t=E0 /\ atomic_eval ge e m(Eassign l r ty)=atomic_eval ge e mf a'.
+Proof.
+ intros ge e m l r ty t a' mf AT HR;inversion HR;subst;simpl in AT;core_unpack.
+ assert(TT:t=E0) by(eapply assign_loc_silent;eauto). subst t;split;auto.
+ cbn[atomic_eval pur

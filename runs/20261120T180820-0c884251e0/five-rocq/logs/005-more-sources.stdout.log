@@ -1,0 +1,170 @@
+Module Float32.
+
+Definition neg_nan (f : float32) : { x : float32 | is_nan _ _ x = true } :=
+  match f with
+  | B754_nan s p H => exist _ (B754_nan 24 128 (negb s) p H) (eq_refl true)
+  | _ => default_nan_32
+  end.
+
+Definition abs_nan (f : float32) : { x : float32 | is_nan _ _ x = true } :=
+  match f with
+  | B754_nan s p H => exist _ (B754_nan 24 128 false p H) (eq_refl true)
+  | _ => default_nan_32
+  end.
+
+Definition cons_pl (x: float32) (l: list (bool * positive)) :=
+  match x with B754_nan s p _ => (s, p) :: l | _ => l end.
+
+Definition unop_nan (x: float32) : {x : float32 | is_nan _ _ x = true} :=
+  quiet_nan_32 (Archi.choose_nan_32 (cons_pl x [])).
+
+Definition binop_nan (x y: float32) : {x : float32 | is_nan _ _ x = true} :=
+  quiet_nan_32 (Archi.choose_nan_32 (cons_pl x (cons_pl y []))).
+
+Definition fma_nan_1 (x y z: float32) : {x : float32 | is_nan _ _ x = true} :=
+  let '(a, b, c) := Archi.fma_order x y z in
+  quiet_nan_32 (Archi.choose_nan_32 (cons_pl a (cons_pl b (cons_pl c [])))).
+
+Definition fma_nan (x y z: float32) : {x : float32 | is_nan _ _ x = true} :=
+  match x, y with
+  | B754_infinity _, B754_zero _ | B754_zero _, B754_infinity _ =>
+      if Archi.fma_invalid_mul_is_nan
+      then quiet_nan_32 (Archi.choose_nan_32 (Archi.default_nan_32 :: cons_pl z []))
+      else fma_nan_1 x y z
+  | _, _ =>
+      fma_nan_1 x y z
+  end.
+
+(** ** Operations over single-precision floats *)
+
+Definition zero: float32 := B754_zero _ _ false. (**r the float [+0.0] *)
+
+Definition eq_dec: forall (f1 f2: float32), {f1 = f2} + {f1 <> f2} := Beq_dec _ _.
+
+(** Arithmetic operations *)
+
+Definition neg: float32 -> float32 := Bopp _ _ neg_nan. (**r opposite (change sign) *)
+Definition abs: float32 -> float32 := Babs _ _ abs_nan. (**r absolute value (set sign to [+]) *)
+Definition sqrt: float32 -> float32 :=
+  Bsqrt 24 128 __ __ unop_nan mode_NE.  (**r square root *)
+Definition add: float32 -> float32 -> float32 :=
+  Bplus 24 128 __ __ binop_nan mode_NE. (**r addition *)
+Definition sub: float32 -> float32 -> float32 :=
+  Bminus 24 128 __ __ binop_nan mode_NE. (**r subtraction *)
+Definition mul: float32 -> float32 -> float32 :=
+  Bmult 24 128 __ __ binop_nan mode_NE. (**r multiplication *)
+Definition div: float32 -> float32 -> float32 :=
+  Bdiv 24 128 __ __ binop_nan mode_NE. (**r division *)
+Definition fma: float32 -> float32 -> float32 -> float32 :=
+  Bfma 24 128 __ __ fma_nan mode_NE. (**r fused multiply-add [x * y + z] *)
+Definition compare (f1 f2: float32) : option Datatypes.comparison := (**r general comparison *)
+  Bcompare 24 128 f1 f2.
+Definition cmp (c:comparison) (f1 f2: float32) : bool := (**r comparison *)
+  cmp_of_comparison c (compare f1 f2).
+Definition ordered (f1 f2: float32) : bool :=
+  ordered_of_comparison (compare f1 f2).
+
+(** Conversions *)
+
+Definition of_double : float -> float32 := Float.to_single.
+Definition to_double : float32 -> float := Float.of_single.
+
+Definition to_int (f:float32): option int := (**r conversion to signed 32-bit int *)
+  option_map Int.repr (ZofB_range _ _ f Int.min_signed Int.max_signed).
+Definition to_intu (f:float32): option int := (**r conversion to unsigned 32-bit int *)
+  option_map Int.repr (ZofB_range _ _ f 0 Int.max_unsigned).
+Definition to_long (f:float32): option int64 := (**r conversion to signed 64-bit int *)
+  option_map Int64.repr (ZofB_range _ _ f Int64.min_signed Int64.max_signed).
+Definition to_longu (f:float32): option int64 := (**r conversion to unsigned 64-bit int *)
+729:Theorem relative_error_N_FLT :
+740:Theorem relative_error_N_FLT_ex :
+753:now apply relative_error_N_FLT.
+756:Theorem relative_error_N_FLT_round :
+766:Theorem relative_error_N_FLT_F2R_emin :
+788:now apply relative_error_N_FLT.
+791:Theorem relative_error_N_FLT_F2R_emin_ex :
+802:now apply relative_error_N_FLT_F2R_emin.
+806:Theorem relative_error_N_FLT_round_F2R_emin :
+832:Lemma error_N_FLT_aux :
+885:Theorem relative_error_N_FLT'_ex :
+912:Theorem relative_error_N_FLT'_ex_separate :
+924:destruct (relative_error_N_FLT'_ex x) as (d, (e, (Bd, (Be, (Hde0, Hde))))).
+949:Theorem error_N_FLT :
+964:  destruct (@error_N_FLT_aux emin prec Pprec
+982:now apply error_N_FLT_aux.
+624:unfold round, scaled_mantissa.
+683:unfold round, scaled_mantissa.
+704:Lemma round_le_pos :
+722:  unfold round, scaled_mantissa, cexp.
+766:unfold round, scaled_mantissa.
+923:Theorem round_le :
+928:3: now apply round_le_pos.
+938:apply (round_le_pos (Zrnd_opp rnd) (-y) (-x)).
+975:now apply round_le.
+978:Theorem round_le_generic :
+983:now apply round_le.
+988:Theorem round_abs_abs :
+999:now apply round_le.
+1012:apply round_le...
+1023:apply round_abs_abs...
+1037:apply (round_abs_abs (fun t rt => forall (ex : Z),
+1056:apply round_abs_abs...
+1062:Theorem abs_round_le_generic :
+1066:apply round_abs_abs...
+1069:apply round_le_generic...
+1110:Theorem round_ZR_abs :
+1112:  round Ztrunc (Rabs x) = Rabs (round Ztrunc x).
+1121:apply round_le...
+1125:apply round_le...
+1139:Theorem round_AW_abs :
+1141:  round Zaway (Rabs x) = Rabs (round Zaway x).
+1150:apply round_le...
+1154:apply round_le...
+1327:  assert (x = round Zfloor x) by now apply Rle_antisym.
+1333:assert (x = round Zceil x) by now apply Rle_antisym.
+1412:rewrite <- round_ZR_abs.
+1415:rewrite round_ZR_abs.
+1431:destruct (round_ZR_or_AW rnd x) as [Hr|Hr] ; rewrite Hr ; clear Hr rnd Hrnd.
+1440:rewrite <- round_AW_abs.
+1444:rewrite round_AW_UP with (1 := Rabs_pos _).
+Variable choice : Z -> bool.
+
+Theorem relative_error_N :
+  forall x,
+  (bpow emin <= Rabs x)%R ->
+  (Rabs (round beta fexp (Znearest choice) x - x) <= /2 * bpow (-p + 1) * Rabs x)%R.
+Proof.
+intros x Hx.
+apply Rle_trans with (/2 * ulp beta fexp x)%R.
+now apply error_le_half_ulp.
+rewrite Rmult_assoc.
+apply Rmult_le_compat_l.
+apply Rlt_le.
+apply Rinv_0_lt_compat.
+now apply IZR_lt.
+assert (Hx': (x <> 0)%R).
+intros H.
+apply Rlt_not_le with (2 := Hx).
+rewrite H, Rabs_R0.
+apply bpow_gt_0.
+rewrite ulp_neq_0; trivial.
+unfold cexp.
+destruct (mag beta x) as (ex, He).
+simpl.
+specialize (He Hx').
+apply Rle_trans with (bpow (-p + 1) * bpow (ex - 1))%R.
+rewrite <- bpow_plus.
+apply bpow_le.
+assert (emin < ex)%Z.
+apply (lt_bpow beta).
+apply Rle_lt_trans with (2 := proj2 He).
+exact Hx.
+generalize (Hmin ex).
+lia.
+apply Rmult_le_compat_l.
+apply bpow_ge_0.
+apply He.
+Qed.
+
+(** 1+#&epsilon;# property in rounding to nearest *)
+Theorem relative_error_N_ex :

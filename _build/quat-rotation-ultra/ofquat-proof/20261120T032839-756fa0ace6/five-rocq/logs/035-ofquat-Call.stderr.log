@@ -1,0 +1,53 @@
+File "/home/yangfp/five/paparazzi/models/float_rmat_of_quat/rocq/support/Call.v", line 17, characters 8-10:
+Error:
+In environment
+e : env
+x : expr
+xs : list expr
+IH :
+  forall (ys : list expr) (m mm mf : mem),
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       xs)
+    m =
+  Some (Nnormal, mm) ->
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       ys)
+    mm =
+  Some (Nnormal, mf) ->
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       (xs ++ ys))
+    m =
+  Some (Nnormal, mf)
+ys : list expr
+m, mm, mf : mem
+v : val
+m1 : mem
+AX : atomic_eval ge e m x = Some (v, m1)
+HX :
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       xs)
+    m1 =
+  Some (Nnormal, mm)
+HY :
+  stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       ys)
+    mm =
+  Some (Nnormal, mf)
+Unable to unify
+ "stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       (xs ++ ?ys))
+    ?m =
+  Some (Nnormal, ?mf)"
+with
+ "stmt_eval ge e tvoid
+    (fold_right (fun (a : expr) (s : statement) => Ssequence (Sdo a) s) Sskip
+       ((x :: xs) ++ ys))
+    m =
+  Some (Nnormal, mf)".
+

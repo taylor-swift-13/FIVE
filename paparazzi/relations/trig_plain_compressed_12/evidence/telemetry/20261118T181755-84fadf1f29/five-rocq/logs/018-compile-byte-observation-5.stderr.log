@@ -1,0 +1,37 @@
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/ByteObservation.v", line 61, characters 67-77:
+Warning: Notation map_length is deprecated since 8.20.
+Use length_map instead.
+[deprecated-syntactic-definition-since-8.20,deprecated-since-8.20,deprecated-syntactic-definition,deprecated,default]
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/ByteObservation.v", line 61, characters 67-77:
+Warning: Notation map_length is deprecated since 8.20.
+Use length_map instead.
+[deprecated-syntactic-definition-since-8.20,deprecated-since-8.20,deprecated-syntactic-definition,deprecated,default]
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/ByteObservation.v", line 85, characters 61-62:
+Error: Cannot infer this placeholder of type "byte" in
+environment:
+m : mem
+b : block
+base : Z
+bytes : list byte
+ofs : Z
+LOAD :
+  Mem.loadbytes m b base (Z.of_nat (length bytes)) = Some (map Byte bytes)
+RANGE : 0 <= ofs < Z.of_nat (length bytes)
+LENGTH : length (map Byte bytes) = length bytes
+ONE :
+  Mem.loadbytes m b (base + ofs) 1 =
+  Some [Byte (nth (Z.to_nat ofs) bytes Byte.zero)]
+NTH :
+  nth (Z.to_nat ofs) (map Byte bytes) Undef =
+  Byte (nth (Z.to_nat ofs) bytes Byte.zero)
+L :
+  Mem.load Mint8unsigned m b (base + ofs) =
+  Some
+    (Vint
+       (Int.zero_ext 8
+          (Int.repr (Byte.unsigned (nth (Z.to_nat ofs) bytes Byte.zero)))))
+DECODE :
+  decode_int [nth (Z.to_nat ofs) bytes Byte.zero] =
+  Byte.unsigned (nth (Z.to_nat ofs) bytes Byte.zero)
+R : 0 <= Byte.unsigned (nth (Z.to_nat ofs) bytes Byte.zero) < Byte.modulus
+

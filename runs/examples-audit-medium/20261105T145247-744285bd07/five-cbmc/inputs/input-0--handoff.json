@@ -1,0 +1,58 @@
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "sum3",
+  "stage": "five-prepare",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "paths_relative_to": "sum3 case root",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/sum3.c",
+      "sha256": "25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4"
+    },
+    {
+      "role": "stage_manifest",
+      "path": "prepare/report/manifest.json",
+      "sha256": "eba000cb3c1e1d76490fb102ccd215023c0bf1aa9134b86961cb9257a24c59eb"
+    },
+    {
+      "role": "stage_costs",
+      "path": "prepare/report/costs.json",
+      "sha256": "48f8889d935c373aead56b8305a82a65daaf2a0ea3e173fdfe350b41d0e17599"
+    }
+  ],
+  "next_stage": "five-cbmc",
+  "verification_request": {
+    "status": "specified",
+    "properties": [
+      "sum3 safety checks for arbitrary binary32 arguments",
+      "sum3 concrete result word equals 0x00000000"
+    ],
+    "input_assumptions": [
+      "Concrete result assertion uses 16777216.0f, 1.0f, -16777216.0f; safety call is unconstrained binary32."
+    ],
+    "bounds": [
+      "No loops or recursion in sum3; CBMC unwinding assertions enabled."
+    ]
+  },
+  "limitations": [
+    "The original translation unit is referenced by Git history; transfer to a different build requires appropriate correspondence.",
+    "Revision cost metrics cover a recorded session, excluding pre-session checks and final report packaging."
+  ],
+  "entry": "sum3",
+  "entry_signature": "float sum3(float a, float b, float c)"
+}

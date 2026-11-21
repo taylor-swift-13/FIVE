@@ -1,0 +1,28 @@
+From StateSpeedGetterExecutionProblem Require Import Spec.
+From StateSpeedGetterSupport Require Import Original GetterSource.
+Theorem proved_domain_preservation:Spec.domain_preservation_goal.
+Proof. intros;split;[reflexivity|apply GetterSource.entry_source]. Qed.
+Lemma reachable_step:Spec.reachable_step_goal.
+Proof. intros args m t reached tr next PATH;apply(GetterSource.one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world);eapply GetterSource.source_reachable;eauto. Qed.
+Theorem proved_floating_point_correspondence:Spec.floating_point_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem proved_machine_integer_correspondence:Spec.machine_integer_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem proved_memory_access_correspondence:Spec.memory_access_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem proved_control_and_exhaustion_correspondence:Spec.control_and_exhaustion_correspondence_goal.
+Proof. exact GetterSource.whole_execution_correspondence. Qed.
+Theorem proved_normal_result_and_memory_correspondence:Spec.normal_result_and_memory_correspondence_goal.
+Proof. intros;split;[apply GetterSource.whole_execution_correspondence|reflexivity]. Qed.
+Theorem proved_invalid_operation_correspondence:Spec.invalid_operation_correspondence_goal.
+Proof. exact GetterSource.invalid_operation_correspondence. Qed.
+Theorem proved_whole_execution_correspondence:Spec.whole_execution_correspondence_goal.
+Proof. exact GetterSource.whole_execution_correspondence. Qed.
+Print Assumptions proved_domain_preservation.
+Print Assumptions proved_floating_point_correspondence.
+Print Assumptions proved_machine_integer_correspondence.
+Print Assumptions proved_memory_access_correspondence.
+Print Assumptions proved_control_and_exhaustion_correspondence.
+Print Assumptions proved_normal_result_and_memory_correspondence.
+Print Assumptions proved_invalid_operation_correspondence.
+Print Assumptions proved_whole_execution_correspondence.

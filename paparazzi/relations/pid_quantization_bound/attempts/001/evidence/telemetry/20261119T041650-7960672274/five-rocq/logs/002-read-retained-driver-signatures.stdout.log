@@ -1,0 +1,17 @@
+Lemma prepare_input : forall m gh ret r r' kp ki ix,
+ -4096<=r'<=4096 ->AlternatingInput m gh ret r kp ki ix ->
+ Mem.range_perm m gh 0 84 Cur Writable ->PrivateBlocks gh ret ->
+ exists q,EnvironmentStep gh m q /\AlternatingInput q gh ret r' kp ki ix /\
+ Mem.range_perm q gh 0 84 Cur Writable.
+Proof.
+Lemma returned_input : forall m mf gh ret r kp ki ix,
+ -4096<=r<=4096 ->0<=kp<=100 ->0<=ki<=100 ->
+ AlternatingInput m gh ret r kp ki ix ->Mem.range_perm m gh 0 84 Cur Writable ->
+ PrivateBlocks gh ret ->NormalCall gh ret true m mf ->
+ exists iy,AlternatingInput mf gh ret r kp ki iy /\Mem.range_perm mf gh 0 84 Cur Writable.
+Proof.
+Theorem initial_private_writable_input_exists : forall A kp ki,Parameters A kp ki ->
+ exists gh ret m,AlternatingInput m gh ret A kp ki Int.zero /\
+ Mem.range_perm m gh 0 84 Cur Writable /\PrivateBlocks gh ret.
+Proof.
+checker not created

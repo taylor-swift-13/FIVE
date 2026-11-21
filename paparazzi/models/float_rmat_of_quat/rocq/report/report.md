@@ -1,0 +1,3 @@
+所请求目标均已闭合：合法、初始化、对齐、不绕回且分离的caller对象前条件下，所有原Csem可达状态no-error；所有原机器args/mem的全部后继Acc终止；8类全域Csem/Cexec执行对应。每个实际源属性在所属96/87/99问题中证明，并由联合300目标及实际trace完整断言反驳覆盖共享301项；本case最终标准gate为300proved+1refuted。两条旋转路径逐位相等为假，不能把反驳写成相等正确。原函数真实调用、输出全字节、caller frame与观察memcpy由关系问题证明。
+
+各具名problem/status.json指向当前attempt；Source/AST不可变，PrintAssumptions、精确GoalBinding、独立kernel及新fresh原CBMC输入均由handoff索引。CompCert/Flocq/Events继承假设保留，不新增未证明公理。逐case费用未独立分摊，costs引用实际共享运行及按事件去重汇总；中断闲置墙钟和历史未知null均保留。

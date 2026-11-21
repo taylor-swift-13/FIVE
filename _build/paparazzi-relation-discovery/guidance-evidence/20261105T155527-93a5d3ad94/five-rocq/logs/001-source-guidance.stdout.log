@@ -1,0 +1,220 @@
+abfee3dd56eeab12c528635504a429db3daf409a
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.h
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.c
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_v_ref.h
+_build/paparazzi/upstream/sw/airborne/firmwares/rotorcraft/guidance/guidance_h_ref.c
+     1	/*
+     2	 * Copyright (C) 2008-2013 The Paparazzi Team
+     3	 *
+     4	 * This file is part of paparazzi.
+     5	 *
+     6	 * paparazzi is free software; you can redistribute it and/or modify
+     7	 * it under the terms of the GNU General Public License as published by
+     8	 * the Free Software Foundation; either version 2, or (at your option)
+     9	 * any later version.
+    10	 *
+    11	 * paparazzi is distributed in the hope that it will be useful,
+    12	 * but WITHOUT ANY WARRANTY; without even the implied warranty of
+    13	 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    14	 * GNU General Public License for more details.
+    15	 *
+    16	 * You should have received a copy of the GNU General Public License
+    17	 * along with paparazzi; see the file COPYING.  If not, write to
+    18	 * the Free Software Foundation, 59 Temple Place - Suite 330,
+    19	 * Boston, MA 02111-1307, USA.
+    20	 */
+    21	
+    22	/** @file firmwares/rotorcraft/guidance/guidance_h_ref.c
+    23	 *  Reference generation for horizontal guidance.
+    24	 *
+    25	 */
+    26	
+    27	#include "firmwares/rotorcraft/guidance/guidance_h_ref.h"
+    28	#include "generated/airframe.h"
+    29	
+    30	struct GuidanceHRef gh_ref;
+    31	
+    32	static const float gh_max_accel = GUIDANCE_H_REF_MAX_ACCEL;
+    33	
+    34	/** default second order model natural frequency */
+    35	#ifndef GUIDANCE_H_REF_OMEGA
+    36	#define GUIDANCE_H_REF_OMEGA RadOfDeg(67.)
+    37	#endif
+    38	/** default second order model damping */
+    39	#ifndef GUIDANCE_H_REF_ZETA
+    40	#define GUIDANCE_H_REF_ZETA  0.85f
+    41	#endif
+    42	
+    43	/** first order time constant */
+    44	#ifndef GUIDANCE_H_REF_TAU
+    45	#define GUIDANCE_H_REF_TAU 0.5f
+    46	#endif
+    47	
+    48	static void gh_saturate_speed(struct FloatVect2 *speed_sp);
+    49	static void gh_saturate_accel(struct FloatVect2 *accel_sp);
+    50	
+    51	void gh_ref_init(void)
+    52	{
+    53	  gh_ref.omega = GUIDANCE_H_REF_OMEGA;
+    54	  gh_ref.zeta = GUIDANCE_H_REF_ZETA;
+    55	  gh_ref.zeta_omega = GUIDANCE_H_REF_ZETA * GUIDANCE_H_REF_OMEGA;
+    56	  gh_ref.omega_2 = GUIDANCE_H_REF_OMEGA * GUIDANCE_H_REF_OMEGA;
+    57	  gh_set_tau(GUIDANCE_H_REF_TAU);
+    58	  gh_set_max_speed(GUIDANCE_H_REF_MAX_SPEED);
+    59	  gh_ref.dt = (1.0f/PERIODIC_FREQUENCY);
+    60	}
+    61	
+    62	
+    63	float gh_set_max_speed(float max_speed)
+    64	{
+    65	  /* limit to 100m/s as int version would overflow at  2^14 = 128 m/s */
+    66	  gh_ref.max_speed = Min(fabsf(max_speed), 100.0f);
+    67	  return gh_ref.max_speed;
+    68	}
+    69	
+    70	float gh_set_tau(float tau)
+    71	{
+    72	  gh_ref.tau = tau;
+    73	  Bound(gh_ref.tau, 0.01f, 2.0f);
+    74	  gh_ref.inv_tau = (1.f / gh_ref.tau);
+    75	  return gh_ref.tau;
+    76	}
+    77	
+    78	float gh_set_omega(float omega)
+    79	{
+    80	  gh_ref.omega = omega;
+    81	  Bound(gh_ref.omega, 0.1f, 5.0f);
+    82	  gh_ref.omega_2 = gh_ref.omega * gh_ref.omega;
+    83	  gh_ref.zeta_omega = gh_ref.zeta * gh_ref.omega;
+    84	  return gh_ref.omega;
+    85	}
+    86	
+    87	float gh_set_zeta(float zeta)
+    88	{
+    89	  gh_ref.zeta = zeta;
+    90	  Bound(gh_ref.zeta, 0.7f, 1.2f);
+    91	  gh_ref.zeta_omega = gh_ref.zeta * gh_ref.omega;
+    92	  return gh_ref.zeta;
+    93	}
+    94	
+    95	void gh_set_ref(struct Int32Vect2 pos, struct FloatVect2 speed, struct FloatVect2 accel)
+    96	{
+    97	  struct Int64Vect2 new_pos;
+    98	  new_pos.x = ((int64_t)pos.x) << (GH_POS_REF_FRAC - INT32_POS_FRAC);
+    99	  new_pos.y = ((int64_t)pos.y) << (GH_POS_REF_FRAC - INT32_POS_FRAC);
+   100	  gh_ref.pos = new_pos;
+   101	  VECT2_COPY(gh_ref.speed, speed);
+   102	  VECT2_COPY(gh_ref.accel, accel);
+   103	}
+   104	
+   105	void gh_update_ref_from_pos_sp(struct Int32Vect2 pos_sp)
+   106	{
+   107	  struct FloatVect2 pos_step, speed_step;
+   108	
+   109	  VECT2_SMUL(pos_step, gh_ref.speed, gh_ref.dt);
+   110	  VECT2_SMUL(speed_step, gh_ref.accel, gh_ref.dt);
+   111	
+   112	  struct Int64Vect2 pos_update;
+   113	  pos_update.x = LBFP_OF_REAL(pos_step.x, GH_POS_REF_FRAC);
+   114	  pos_update.y = LBFP_OF_REAL(pos_step.y, GH_POS_REF_FRAC);
+   115	
+   116	  VECT2_ADD(gh_ref.pos, pos_update);
+   117	  VECT2_ADD(gh_ref.speed, speed_step);
+   118	
+   119	  // compute pos error in pos_frac resolution
+   120	  struct FloatVect2 pos_err;
+   121	  pos_err.x = POS_FLOAT_OF_BFP(pos_sp.x - (gh_ref.pos.x >> (GH_POS_REF_FRAC - INT32_POS_FRAC)));
+   122	  pos_err.y = POS_FLOAT_OF_BFP(pos_sp.y - (gh_ref.pos.y >> (GH_POS_REF_FRAC - INT32_POS_FRAC)));
+   123	
+   124	  // Calculate velocity error
+   125	  struct FloatVect2 vel_sp;
+   126	  VECT2_SMUL(vel_sp, pos_err, gh_ref.omega*0.5/gh_ref.zeta);
+   127	
+   128	  // Saturate vel_sp
+   129	  gh_saturate_speed(&vel_sp);
+   130	
+   131	  // compute the "speed part" of accel = -2*zeta*omega*speed -omega^2(pos - pos_sp)
+   132	  struct FloatVect2 accel_sp;
+   133	  struct FloatVect2 speed_err;
+   134	  VECT2_DIFF(speed_err, vel_sp, gh_ref.speed);
+   135	  VECT2_SMUL(accel_sp, speed_err, 2 * gh_ref.zeta_omega);
+   136	
+   137	  gh_saturate_accel(&accel_sp);
+   138	
+   139	  // copy accel
+   140	  VECT2_COPY(gh_ref.accel, accel_sp);
+   141	}
+   142	
+   143	void gh_update_ref_from_speed_sp(struct FloatVect2 speed_sp)
+   144	{
+   145	  struct FloatVect2 pos_step, speed_step;
+   146	
+   147	  VECT2_SMUL(pos_step, gh_ref.speed, gh_ref.dt);
+   148	  VECT2_SMUL(speed_step, gh_ref.accel, gh_ref.dt);
+   149	
+   150	  struct Int64Vect2 pos_update;
+   151	  pos_update.x = LBFP_OF_REAL(pos_step.x, GH_POS_REF_FRAC);
+   152	  pos_update.y = LBFP_OF_REAL(pos_step.y, GH_POS_REF_FRAC);
+   153	
+   154	  VECT2_ADD(gh_ref.pos, pos_update);
+   155	  VECT2_ADD(gh_ref.speed, speed_step);
+   156	
+   157	  // compute speed error
+   158	  struct FloatVect2 speed_err;
+   159	  VECT2_DIFF(speed_err, gh_ref.speed, speed_sp);
+   160	  // compute accel from speed_sp
+   161	  struct FloatVect2 accel_sp;
+   162	  VECT2_SMUL(accel_sp, speed_err, -gh_ref.inv_tau);
+   163	
+   164	  gh_saturate_accel(&accel_sp);
+   165	
+   166	  // copy accel
+   167	  VECT2_COPY(gh_ref.accel, accel_sp);
+   168	}
+   169	
+   170	void gh_update_ref_from_accel_sp(struct FloatVect2 accel_sp)
+   171	{
+   172	  struct FloatVect2 pos_step, speed_step;
+   173	
+   174	  VECT2_SMUL(pos_step, gh_ref.speed, gh_ref.dt);
+   175	  VECT2_SMUL(speed_step, gh_ref.accel, gh_ref.dt);
+   176	
+   177	  struct Int64Vect2 pos_update;
+   178	  pos_update.x = LBFP_OF_REAL(pos_step.x, GH_POS_REF_FRAC);
+   179	  pos_update.y = LBFP_OF_REAL(pos_step.y, GH_POS_REF_FRAC);
+   180	
+   181	  VECT2_ADD(gh_ref.pos, pos_update);
+   182	  VECT2_ADD(gh_ref.speed, speed_step);
+   183	
+   184	  gh_saturate_accel(&accel_sp);
+   185	
+   186	  // copy accel
+   187	  VECT2_COPY(gh_ref.accel, accel_sp);
+   188	}
+   189	
+   190	static void gh_saturate_speed(struct FloatVect2 *speed_sp)
+   191	{
+   192	  // Speed squared
+   193	  float v_norm2 = VECT2_NORM2(*speed_sp);
+   194	
+   195	  // Apply saturation if above max speed
+   196	  if (v_norm2 > (gh_ref.max_speed * gh_ref.max_speed)) {
+   197	    // speed_sp/sqrt(v_norm2)*vmax
+   198	    float factor = gh_ref.max_speed / sqrtf(v_norm2);
+   199	    VECT2_SMUL(*speed_sp, *speed_sp, factor);
+   200	  }
+   201	}
+   202	
+   203	static void gh_saturate_accel(struct FloatVect2 *accel_sp)
+   204	{
+   205	  // Accel squared
+   206	  float a_norm2 = VECT2_NORM2(*accel_sp);
+   207	
+   208	  // Apply saturation if above max speed
+   209	  if (a_norm2 > (gh_max_accel * gh_max_accel)) {
+   210	    // accel_sp/sqrt(a_norm2)*amax
+   211	    float factor = gh_max_accel / sqrtf(a_norm2);
+   212	    VECT2_SMUL(*accel_sp, *accel_sp, factor);
+   213	  }
+   214	}
+   215	

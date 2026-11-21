@@ -1,0 +1,47 @@
+8:Lemma allocation_load : forall vars e m ch b ofs v,
+16:Lemma allocation_perm : forall vars e m b ofs k p,
+23:Lemma allocation_valid_block : forall vars e m b,
+30:Lemma allocation_keeps_binding : forall vars e m id,
+39:Definition env_valid (m:mem)(e:env):Prop := forall id b ty,e!id=Some(b,ty)->Mem.valid_block m b.
+40:Definition env_separated (e:env):Prop := forall id1 id2 b ty1 ty2,
+42:Lemma allocation_env_valid : forall vars e m,
+51:Lemma allocation_env_separated : forall vars e m,
+67:Lemma allocated_variable : forall vars e m id ty,
+paparazzi/relations/guidance_mode/support/entry/BigstepSupport.v:98: intros;apply strategy_star_csem;eapply Cstrategy.eval_funcall_to_steps;[exact H|exact I].
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v:2640:Lemma eval_funcall_to_steps:
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v:3046:  split. apply eval_funcall_to_steps. eauto. red; auto.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Cexec Smallstep.
+From FiveGuidanceEntry Require Import BigstepSupport.
+Import ListNotations.
+Open Scope Z_scope.
+Inductive raw_writes (allowed:block->Prop):mem->mem->Prop:=
+| raw_writes_refl:forall m,raw_writes allowed m m
+| raw_writes_store:forall m ma mf ch b ofs v,allowed b ->Mem.store ch m b ofs v=Some ma ->raw_writes allowed ma mf ->raw_writes allowed m mf
+| raw_writes_bytes:forall m ma mf b ofs bytes,allowed b ->Mem.storebytes m b ofs bytes=Some ma ->raw_writes allowed ma mf ->raw_writes allowed m mf.
+Lemma raw_writes_perm:forall P m mf,raw_writes P m mf ->forall b o k p,Mem.perm m b o k p<->Mem.perm mf b o k p.
+Proof. intros P m mf H;induction H;intros;[tauto| |];rewrite<-IHraw_writes;split;intros.
+ - eapply Mem.perm_store_1;eauto.
+ - eapply Mem.perm_store_2;eauto.
+ - eapply Mem.perm_storebytes_1;eauto.
+ - eapply Mem.perm_storebytes_2;eauto.
+Qed.
+Lemma raw_writes_load_frame:forall P m mf,raw_writes P m mf ->forall ch b ofs,~P b ->Mem.load ch mf b ofs=Mem.load ch m b ofs.
+Proof. intros P m mf H;induction H;intros;[reflexivity| |];rewrite IHraw_writes by assumption.
+ - eapply Mem.load_store_other;[exact H0|left;intro;subst;contradiction].
+ - eapply Mem.load_storebytes_other;[exact H0|left;intro;subst;contradiction].
+Qed.
+Lemma raw_writes_bytes_frame:forall P m mf,raw_writes P m mf ->forall b ofs n,~P b ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof. intros P m mf H;induction H;intros;[reflexivity| |];rewrite IHraw_writes by assumption.
+ - eapply Mem.loadbytes_store_other;[exact H0|left;intro;subst;contradiction].
+ - eapply Mem.loadbytes_storebytes_other;[exact H0|lia|left;intro;subst;contradiction].
+Qed.
+Lemma raw_writes_range:forall P m mf,raw_writes P m mf ->forall b lo hi k p,Mem.range_perm m b lo hi k p ->Mem.range_perm mf b lo hi k p.
+Proof. intros P m mf H b lo hi k p RP ofs R;apply(proj1(raw_writes_perm P m mf H b ofs k p));apply RP;exact R. Qed.
+Lemma scalar_access_inside:forall m ch b n ofs p,Mem.range_perm m b 0 n Cur p ->0<=ofs ->ofs+size_chunk ch<=n ->(align_chunk ch|ofs) ->Mem.valid_access m ch b ofs p.
+Proof. intros;split;[red;intros;apply H;lia|assumption]. Qed.
+Lemma same_prefix_length:forall(A:Type)(p q r s:list A),length p=length r ->p++q=r++s ->p=r /\ q=s.
+Proof. intros A p;induction p;intros q r s L E;destruct r;simpl in *;try discriminate.
+ - auto.
+ - injection E as X Y;subst;injection L as L;destruct(IHp _ _ _ L Y);subst;auto.
+Qed.

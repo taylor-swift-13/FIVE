@@ -1,0 +1,75 @@
+Constant compcert.cfrontend.Ctypes.type_eq
+1 goal
+  
+  ge : genv
+  caller, leaf : function
+  e : env
+  k : cont
+  m : mem
+  ghid, refid, vectid, nedid, axis, iref, icomponent, ierr, igh, igetter :
+    ident
+  berr, bparam, bgh, bgetter : block
+  dref, dcomponent, daxis : Z
+  reference : int
+  param_local : e ! igh = Some (bparam, tptr ghty)
+  error_global : e ! ierr = None
+  error_symbol : Genv.find_symbol ge ierr = Some berr
+  getter_global : e ! igetter = None
+  getter_symbol : Genv.find_symbol ge igetter = Some bgetter
+  ghco, refco, vecco : composite
+  gh_lookup : ge ! ghid = Some ghco
+  ref_lookup : ge ! refid = Some refco
+  vec_lookup : ge ! vectid = Some vecco
+  gh_field : field_offset ge iref (co_members ghco) = OK (dref, Full)
+  ref_field :
+    field_offset ge icomponent (co_members refco) = OK (dcomponent, Full)
+  axis_field : field_offset ge axis (co_members vecco) = OK (daxis, Full)
+  param_deref :
+    do_deref_loc ge quiet_world (tptr ghty) m bparam Ptrofs.zero Full =
+    Some (quiet_world, E0, Vptr bgh Ptrofs.zero)
+  scalar_deref :
+    do_deref_loc ge quiet_world tint m bgh scalar_offset Full =
+    Some (quiet_world, E0, Vint reference)
+  leaf_find :
+    Genv.find_funct ge (Vptr bgetter Ptrofs.zero) =
+    Some (Ctypes.Internal leaf)
+  leaf_signature : type_of_fundef (Ctypes.Internal leaf) = function_type
+  rule : string
+  t : trace
+  next : Csem.state
+  IN :
+    In (TR rule t next)
+      (map (expr_final_state caller (Kdo k) e)
+         (map
+            (fun z : (expr -> expr) * reduction =>
+             (fun x : expr =>
+              Eassign (Efield (Evalof (Evar ierr vty) vty) axis tint)
+                (fst z x) tint,
+              snd z))
+            (incontext
+               (fun x : expr =>
+                Ebinop Osub
+                  (axis_load
+                     (component_load
+                        (reference_load
+                           (Evalof
+                              (Ederef
+                                 (Evalof (Evar igh (tptr ghty)) (tptr ghty))
+                                 ghty)
+                              ghty))))
+                  x tint)
+               (incontext (fun x : expr => Evalof x tint)
+                  (incontext (fun x : expr => Efield x axis tint)
+                     (incontext (fun x : expr => Evalof x nedty)
+                        (incontext (fun x : expr => Ederef x nedty)
+                           (if
+                             type_eq (Tfunction [] rettype cc_default)
+                               (Tfunction [] rettype cc_default)
+                            then
+                             topred
+                               (Callred "red_call" 
+                                  (Ctypes.Internal leaf) [] rettype m)
+                            else stuck))))))))
+  TE : Tfunction [] rettype cc_default = Tfunction [] rettype cc_default
+  ============================
+  t = E0 /\ pre_or_call next

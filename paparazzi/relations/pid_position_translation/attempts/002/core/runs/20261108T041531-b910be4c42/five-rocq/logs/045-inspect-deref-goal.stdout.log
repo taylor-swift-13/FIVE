@@ -1,0 +1,11 @@
+| esl_deref: forall r ty b ofs,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      eval_simple_lvalue (Ederef r ty) b ofs Full
+  | esl_field_struct: forall r f ty b ofs id co a delta bf,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      typeof r = Tstruct id a ->
+      ge.(genv_cenv)!id = Some co ->
+      field_offset ge f (co_members co) = OK (delta, bf) ->
+      eval_simple_lvalue (Efield r f ty) b (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+  | esl_field_union: forall r f ty b ofs id co a delta bf,
+

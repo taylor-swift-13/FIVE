@@ -1,0 +1,675 @@
+FILE safety/CoreFactoryTail.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport EffectfulSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp FlightSemantics CoreTail ControllerPrefix.
+From PidPositionSafety Require Import FactoryCall FactoryAllOrder PureSound HiddenResultPre HiddenResultComplete.
+From FiveGuidanceAllOrder Require Import PureDenotation PhaseComposition ContinuationLift.
+Import ListNotations.
+Open Scope Z_scope.
+Definition core_return_tail:=drop_statements 8(fn_body S.f_guidance_pid_h_run).
+Definition return_assignment:=match core_return_tail with Ssequence a _=>a|_=>Sskip end.
+Definition return_lvalue:=match return_assignment with Sdo(Eassign l _ _)=>l|_=>Eval Vundef tvoid end.
+Definition return_rvalue:=match return_assignment with Sdo(Eassign _ r _)=>r|_=>Eval Vundef tvoid end.
+Definition factory_call_expr:=match return_rvalue with Ecomma a _ _=>a|_=>Eval Vundef tvoid end.
+Definition factory_function_expr:=match factory_call_expr with Ecall f _ _=>f|_=>Eval Vundef tvoid end.
+Definition factory_args_expr:=match factory_call_expr with Ecall _ args _=>args|_=>Enil end.
+Definition factory_result_expr:=match return_rvalue with Ecomma _ a _=>a|_=>Eval Vundef tvoid end.
+Ltac tail_rv LR LC NP SP NH SH NF SF :=
+ lazymatch goal with
+ | |-eval_simple_rvalue _ _ _(Eval _ _)_=>constructor
+ | |-eval_simple_rvalue _ _ _(Ebinop _ _ _ _)_=>eapply esr_binop;[tail_rv LR LC NP SP NH SH NF SF|tail_rv LR LC NP SP NH SH NF SF|reflexivity]
+ | |-eval_simple_rvalue _ _ _(Eaddrof _ _)_=>apply esr_addrof;tail_lv LR LC NP SP NH SH NF SF
+ | |-eval_simple_rvalue _ _ _(Evalof ?l ?ty)_=>
+   let mode:=eval hnf in(access_mode ty)in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[tail_lv LR LC NP SP NH SH NF SF|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_reference=>eapply esr_rvalof;[tail_lv LR LC NP SP NH SH NF SF|reflexivity|reflexivity|apply deref_loc_reference;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [tail_lv LR LC NP SP NH SH NF SF|reflexivity|reflexivity|reflexivity|raw_scalar_load]
+   end
+ end
+with tail_lv LR LC NP SP NH SH NF SF :=
+ lazymatch goal with
+ | |-eval_simple_lvalue _ _ _(Evar ?id _)_ _ _=>
+   lazymatch id with
+   | S.__res=>eapply esl_var_local;exact LR
+   | S.__res__1=>eapply esl_var_local;exact LC
+   | S._guidance_pid=>eapply esl_var_global;[exact NP|exact SP]
+   | S._guidance_h=>eapply esl_var_global;[exact NH|exact SH]
+   | S._stab_sp_from_ltp_i=>eapply esl_var_global;[exact NF|exact SF]
+   end
+ | |-eval_simple_lvalue _ _ _(Ederef _ _)_ _ _=>eapply esl_deref;tail_rv LR LC NP SP NH SH NF SF
+ | |-eval_simple_lvalue _ _ _(Efield ?r _ _)_ _ _=>
+   let rt:=eval cbv beta iota zeta delta[typeof]in(typeof r)in
+   lazymatch rt with
+   | Tstruct _ _=>eapply esl_field_struct;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|cenv_lookup|cfield_lookup]
+   | Tunion _ _=>eapply esl_field_union;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|idtac|cenv_lookup];cfield_lookup
+   end
+ end.
+Lemma access_preserved_byte_range:forall m mf b lo hi p,
+ access_preserved m mf ->Mem.range_perm m b lo hi Cur p ->Mem.range_perm mf b lo hi Cur p.
+Proof.
+ intros m mf b lo hi p KEEP RANGE x X.
+ assert(VA:Mem.valid_access m Mint8unsigned b x p).
+ { split;[intros z ZR;apply RANGE;change(x<=z<x+1)in ZR;lia|change(1|x);exists x;lia]. }
+ pose proof(KEEP _ _ _ _ VA)as[RP _];apply RP;change(x<=x<x+1);lia.
+Qed.
+Theorem original_factory_tail_assignment_certificate:forall e m br temp bp bh bf ret h heading x y k,
+ e!S.__res=Some(br,tptr spty) ->e!S.__res__1=Some(temp,spty) ->
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!S._guidance_h=None ->Genv.find_symbol ge S._guidance_h=Some bh ->
+ e!S._stab_sp_from_ltp_i=None ->Genv.find_symbol ge S._stab_sp_from_ltp_i=Some bf ->
+ Genv.find_funct ge(Vptr bf Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i) ->
+ br<>temp ->temp<>ret ->
+ Mem.load Mint64 m br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mfloat32 m bh 28=Some(Vsingle h) ->
+ sem_cast(Vsingle(Float32.mul h(Float32.of_int(Int.repr 4096))))tfloat tint m=Some(Vint heading) ->
+ Mem.load Mint32 m bp 32=Some(Vint x) ->Mem.load Mint32 m bp 36=Some(Vint y) ->
+ Mem.range_perm m bp 32 40 Cur Readable ->
+ Mem.range_perm m temp 0 36 Cur Writable ->Mem.range_perm m ret 0 36 Cur Writable ->
+ exists mf P,certificate ge P(State S.f_guidance_pid_h_run Sskip k e mf) /\
+ P(State S.f_guidance_pid_h_run return_assignment k e m) /\
+ active_fields mf ret x y heading /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>temp ->b<>ret ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs n,Mem.valid_block m b ->b<>temp ->b<>ret ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+Proof.
+ intros e m br temp bp bh bf ret h heading x y k LR LC NP SP NH SH NF SF FF DRT DTR RES HEAD CAST LX LY RVS WT WR.
+ destruct(original_factory_funcall m bp temp(Ptrofs.repr 32)heading x y LX LY ltac:(change(4|32);exists 8;reflexivity)RVS WT)
+ as[mc[CALL[ACTIVE[KEEP[FRAME BFRAME]]]]].
+ assert(VBR:Mem.valid_block m br)by(eapply loaded_block;exact RES).
+ assert(RESC:Mem.load Mint64 mc br 0=Some(Vptr ret Ptrofs.zero))by(rewrite FRAME;auto).
+ assert(READTEMP:Mem.range_perm mc temp 0 36 Cur Readable).
+ { eapply access_preserved_byte_range;[exact KEEP|].
+   intros z ZR;eapply Mem.perm_implies;[apply WT;exact ZR|constructor]. }
+ destruct(Mem.range_perm_loadbytes mc temp 0 36 READTEMP)as[bytes BYTES].
+ assert(LEN:Z.of_nat(length bytes)=36).
+ { pose proof(Mem.loadbytes_length _ _ _ _ _ BYTES)as L;rewrite L;reflexivity. }
+ assert(WRMC:Mem.range_perm mc ret 0 36 Cur Writable)by(eapply access_preserved_byte_range;eauto).
+ destruct(Mem.range_perm_storebytes mc ret 0 bytes ltac:(rewrite LEN;exact WRMC))as[mf COPY].
+ assert(RF:eval_simple_rvalue ge e m factory_function_expr(Vptr bf Ptrofs.zero)).
+ { unfold factory_function_expr,factory_call_expr,return_rvalue,return_assignment,core_return_tail;
+   cbn[drop_statements S.f_guidance_pid_h_run fn_body];tail_rv LR LC NP SP NH SH NF SF. }
+ assert(ARGS:eval_simple_list ge e m factory_args_expr
+ [tptr spty;tptr vty;tint][Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]).
+ { unfold factory_args_expr,factory_call_expr,return_rvalue,return_assignment,core_return_tail;
+   cbn[drop_statements S.f_guidance_pid_h_run fn_body].
+   eapply esrl_cons;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|].
+   eapply esrl_cons;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|].
+   eapply esrl_cons with(v':=Vsingle(Float32.mul h(Float32.of_int(Int.repr 4096))));
+   [tail_rv LR LC NP SP NH SH NF SF|exact CAST|constructor]. }
+ exists mf.
+ assert(PATH:star Csem.step ge(Callstate(Internal S.f_stab_sp_from_ltp_i)
+     [Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]Kstop m)
+     E0(Returnstate Vundef Kstop mc)).
+ { apply funcall_original_normal;exact CALL. }
+ destruct(original_factory_all_orders m bp temp(Ptrofs.repr 32)heading x y LX LY
+   ltac:(change(4|32);exists 8;reflexivity)RVS WT)
+ as[mc'[A'[PROG[UNIQUE CAL]]]].
+ destruct(UNIQUE E0 Vundef mc PATH)as[_ MM];subst mc'.
+ assert(D0:Cexec.do_deref_loc ge quiet_world(tptr spty)m br Ptrofs.zero Full=
+   Some(quiet_world,E0,Vptr ret Ptrofs.zero)).
+ { apply Cexec.do_deref_loc_complete;[|constructor].
+   eapply deref_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.loadv;rewrite Ptrofs.unsigned_zero;rewrite zle_true;
+   [exact RES|change(0+8<=18446744073709551616);lia]. }
+ assert(D1:Cexec.do_deref_loc ge quiet_world(tptr spty)mc br Ptrofs.zero Full=
+   Some(quiet_world,E0,Vptr ret Ptrofs.zero)).
+ { apply Cexec.do_deref_loc_complete;[|constructor].
+   eapply deref_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.loadv;rewrite Ptrofs.unsigned_zero;rewrite zle_true;
+   [exact RESC|change(0+8<=18446744073709551616);lia]. }
+ assert(POST:eval_simple_rvalue ge e mc factory_result_expr(Vptr temp Ptrofs.zero)).
+ { unfold factory_result_expr;cbn[return_rvalue return_assignment core_return_tail drop_statements S.f_guidance_pid_h_run fn_body].
+   tail_rv LR LC NP SP NH SH NF SF. }
+ assert(PV:pure_rval ge e mc factory_result_expr=Some(Vptr temp Ptrofs.zero)).
+ { apply(proj1(simple_big_denotation ge e mc));[exact POST|reflexivity]. }
+ assert(COPYA:Cexec.do_assign_loc ge quiet_world spty mc ret Ptrofs.zero Full(Vptr temp Ptrofs.zero)=
+   Some(quiet_world,E0,mf,Vptr temp Ptrofs.zero)).
+ { apply Cexec.do_assign_loc_complete;[|constructor].
+   eapply assign_loc_copy with(bytes:=bytes);[reflexivity|rewrite ge_ce;change(4|0);exists 0;reflexivity|rewrite ge_ce;change(4|0);exists 0;reflexivity|left;exact DTR|rewrite ge_ce;exact BYTES|exact COPY]. }
+ assert(PREP:HiddenResultPre.prepared ge e m[tptr spty;tptr vty;tint]
+  {|cc_vararg:=None;cc_unproto:=false;cc_structret:=true|}
+  (Vptr bf Ptrofs.zero)[Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]
+  factory_function_expr factory_args_expr).
+ { constructor;try reflexivity;[exact RF|exact ARGS]. }
+ destruct(hidden_result_assignment_certificate ge S.f_guidance_pid_h_run S.f_stab_sp_from_ltp_i e k
+   m mc mf S._StabilizationSetpoint S.__res br ret[tptr spty;tptr vty;tint]
+   {|cc_vararg:=None;cc_unproto:=false;cc_structret:=true|}
+   (Vptr bf Ptrofs.zero)[Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]
+   factory_function_expr factory_args_expr factory_result_expr(Vptr temp Ptrofs.zero)
+   (Vptr temp Ptrofs.zero)(Vptr temp Ptrofs.zero)
+   LR D0 D1 FF eq_refl PREP eq_refl eq_refl PV eq_refl COPYA)
+   as[P[CERT IN]].
+ - intros base BASE;exists(callee_invariant ge base Vundef mc);exact(CAL base BASE).
+ - exists P;split;[exact CERT|split;[exact IN|]].
+   split.
+   + unfold active_fields in *;destruct ACTIVE as[L0[L4[L8[L12[L16[L24[L28 L32]]]]]]];repeat split.
+     * replace 0 with(0+0)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L0|lia|change(0+4<=36);lia|change(4|0+0);exists 0;reflexivity].
+     * replace 4 with(0+4)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L4|lia|change(4+4<=36);lia|change(4|0+4);exists 1;reflexivity].
+     * replace 8 with(0+8)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L8|lia|change(8+4<=36);lia|change(4|0+8);exists 2;reflexivity].
+     * replace 12 with(0+12)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L12|lia|change(12+4<=36);lia|change(4|0+12);exists 3;reflexivity].
+     * replace 16 with(0+16)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L16|lia|change(16+4<=36);lia|change(4|0+16);exists 4;reflexivity].
+     * replace 24 with(0+24)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L24|lia|change(24+4<=36);lia|change(4|0+24);exists 6;reflexivity].
+     * replace 28 with(0+28)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L28|lia|change(28+4<=36);lia|change(4|0+28);exists 7;reflexivity].
+     * replace 32 with(0+32)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L32|lia|change(32+4<=36);lia|change(4|0+32);exists 8;reflexivity].
+   + split.
+     * intros ch b ofs p VA;split.
+       -- intros z ZR;eapply Mem.perm_storebytes_1;[exact COPY|exact(proj1(KEEP _ _ _ _ VA)z ZR)].
+       -- exact(proj2 VA).
+     * split.
+       -- intros ch b ofs VB DT DR;erewrite Mem.load_storebytes_other by(exact COPY||(left;exact DR));apply FRAME;assumption.
+       -- intros b ofs n VB DT DR N;erewrite Mem.loadbytes_storebytes_other by(exact COPY||lia||(left;exact DR));apply BFRAME;assumption.
+Qed.
+
+Print Assumptions original_factory_tail_assignment_certificate.
+
+FILE safety/HiddenResultComplete.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation PureProgress AtomicDenotation BlockExecution PhaseComposition FactorShell.
+From PidPositionSafety Require Import HiddenResultLhs HiddenResultContext HiddenResultPre HiddenResultPost ReadonlyPhases.
+Import ListNotations.
+Module A:=HiddenResultPre.
+Module B:=HiddenResultPost.
+Module L:=HiddenResultLhs.
+Section COMPLETE.
+Variable ge:genv.
+Variable caller leaf:function.
+Variable e:env.
+Variable k:cont.
+Variable m mc mf:mem.
+Variable sid ires:AST.ident.
+Variable br ret:block.
+Variable params:list type.
+Variable cc:AST.calling_convention.
+Variable vf:val.
+Variable values:list val.
+Variable fn:expr.
+Variable args:exprlist.
+Variable post:expr.
+Variable v vc copied:val.
+Local Notation sty:=(L.sty sid).
+Hypothesis local_res:e!ires=Some(br,tptr sty).
+Hypothesis res_before:Cexec.do_deref_loc ge quiet_world(tptr sty)m br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis res_after:Cexec.do_deref_loc ge quiet_world(tptr sty)mc br Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr ret Ptrofs.zero).
+Hypothesis find_leaf:Genv.find_funct ge vf=Some(Internal leaf).
+Hypothesis leaf_type:type_of_fundef(Internal leaf)=Tfunction params tvoid cc.
+Hypothesis prepared_initial:A.prepared ge e m params cc vf values fn args.
+Hypothesis post_type:typeof post=sty.
+Hypothesis post_simple:simple post=true.
+Hypothesis post_value:pure_rval ge e mc post=Some v.
+Hypothesis cast_value:sem_cast v sty sty mc=Some vc.
+Hypothesis store_copy:Cexec.do_assign_loc ge quiet_world sty mc ret Ptrofs.zero Full vc=
+ Some(quiet_world,E0,mf,copied).
+Hypothesis callee_certificate:forall base,is_call_cont base ->
+ exists P,certificate ge P(Returnstate Vundef base mc)/\
+ P(Callstate(Internal leaf)values base m).
+Definition prepared_pair:Type:={p:expr*exprlist|A.prepared ge e m params cc vf values(fst p)(snd p)}.
+Definition start_pair:prepared_pair:=exist _ (fn,args)prepared_initial.
+Definition Pre(st:L.lhs_stage)(r:prepared_pair)(_:unit):Csem.state:=
+ A.pre_state caller e k m sid ires br ret post st(fst(proj1_sig r))(snd(proj1_sig r)).
+Definition Frame(st:L.lhs_stage)(_:prepared_pair):cont:=
+ A.frame caller e k sid ires br ret post st.
+Definition Call(st:L.lhs_stage)(r:prepared_pair):Csem.state:=
+ Callstate(Internal leaf)values(Frame st r)m.
+Definition Post(st:L.lhs_stage)(_:prepared_pair):Csem.state:=
+ B.post_state caller e k mc sid ires br ret post st.
+Definition Initial:Csem.state:=State caller
+ (Sdo(hidden_expr(L.lhs sid ires br ret L.H0)fn args post sty))k e m.
+Definition target:=State caller Sskip k e mf.
+Lemma convert_class:forall next,
+ A.pre_or_call ge caller leaf e k m sid ires br ret params cc vf values post next ->
+ ReadonlyPhases.pre_or_call L.lhs_stage prepared_pair unit Pre Call next.
+Proof.
+ intros next[[st[fn'[al'[P EQ]]]]|[st EQ]].
+ - left;exists st,(exist _ (fn',al')P),tt;exact EQ.
+ - right;exists st,start_pair;exact EQ.
+Qed.
+Theorem hidden_result_assignment_certificate:
+ exists P,certificate ge P target/\P Initial.
+Proof.
+ assert(PP:forall st r u,exists t next,Csem.step ge(Pre st r u)t next/\
+ ReadonlyPhases.pre_or_call L.lhs_stage prepared_pair unit Pre Call next).
+ { intros st[[f al]P]u.
+   destruct(A.pre_progress ge caller leaf e k m sid ires br ret params cc vf values post
+   local_res res_before find_leaf leaf_type st f al P)as[t[next[STEP CL]]].
+   exists t,next;split;[exact STEP|apply convert_class;exact CL]. }
+ assert(PC:forall st r u t next,Csem.step ge(Pre st r u)t next ->
+ ReadonlyPhases.pre_or_call L.lhs_stage prepared_pair unit Pre Call next).
+ { intros st[[f al]P]u t next STEP;apply convert_class.
+   exact(proj2(A.pre_all_successors ge caller leaf e k m sid ires br ret params cc vf values post
+   local_res res_before find_leaf leaf_type st f al t next P STEP)). }
+ assert(CAL:forall st r,exists P,certificate ge P(Returnstate Vundef(Frame st r)mc)/\P(Call st r)).
+ { intros;apply callee_certificate;exact I. }
+ assert(RET:forall st r,unique_transition ge(Returnstate Vundef(Frame st r)mc)(Post st r)).
+ { intros;unfold Frame,A.frame,Post,B.post_state,B.comma_expr;split;[right;apply Csem.step_returnstate|].
+   intros t next STEP;exact(FactorShell.return_call_step_unique ge Vundef caller e
+   (fun hole=>Eassign(L.lhs sid ires br ret st)(Ecomma hole post sty)sty)tvoid(Kdo k)mc t next STEP). }
+ assert(POST:forall st r,exists Q,certificate ge Q target/\Q(Post st r)).
+ { intros;eexists;split.
+   - exact(B.post_certificate ge caller e k mc mf sid ires br ret post v vc copied
+     local_res res_after post_type post_simple post_value cast_value store_copy).
+   - apply B.post_initial. }
+ eexists;split.
+ - eapply ReadonlyPhases.readonly_assignment_certificate
+   with(pre:=Pre)(call:=Call)(frame:=Frame)(post:=Post)(initial:=Initial)
+   (result:=Vundef)(m:=mc)(l0:=L.H0)(r0:=start_pair)(f0:=tt).
+   + exact PP.
+   + exact PC.
+   + split;[right;apply Csem.step_do_1|].
+     intros t next STEP;eapply FactorShell.do_step_unique;exact STEP.
+   + exact CAL.
+   + exact RET.
+   + exact POST.
+ - left;reflexivity.
+Qed.
+End COMPLETE.
+Print Assumptions hidden_result_assignment_certificate.
+
+FILE EntryReturn.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceEntry Require Import BigstepSupport EffectfulSupport.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics ReturnSemantics.
+From PidPositionTranslationAttempt002 Require Import FrontSemantics.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+Definition entry_return_assignment:=match after_front with Ssequence a _=>a|_=>Sskip end.
+Definition entry_return_lvalue:=match entry_return_assignment with Sdo(Eassign l _ _)=>l|_=>Eval Vundef tvoid end.
+Definition entry_return_rvalue:=match entry_return_assignment with Sdo(Eassign _ r _)=>r|_=>Eval Vundef tvoid end.
+Definition entry_core_call:=match entry_return_rvalue with Ecomma a _ _=>a|_=>Eval Vundef tvoid end.
+Definition entry_core_function:=match entry_core_call with Ecall f _ _=>f|_=>Eval Vundef tvoid end.
+Definition entry_core_args:=match entry_core_call with Ecall _ args _=>args|_=>Enil end.
+Definition entry_core_result:=match entry_return_rvalue with Ecomma _ a _=>a|_=>Eval Vundef tvoid end.
+Ltac ert_rv LR LF LG LC NC SC :=
+ lazymatch goal with
+ | |-eval_simple_rvalue _ _ _(Eval _ _)_=>constructor
+ | |-eval_simple_rvalue _ _ _(Eaddrof _ _)_=>apply esr_addrof;ert_lv LR LF LG LC NC SC
+ | |-eval_simple_rvalue _ _ _(Evalof ?l ?ty)_=>
+   let mode:=eval hnf in(access_mode ty)in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[ert_lv LR LF LG LC NC SC|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_reference=>eapply esr_rvalof;[ert_lv LR LF LG LC NC SC|reflexivity|reflexivity|apply deref_loc_reference;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+     [ert_lv LR LF LG LC NC SC|reflexivity|reflexivity|reflexivity|
+      lazymatch goal with |-Mem.loadv ?c ?mm(Vptr ?bb ?oo)=Some ?vv=>
+      change(Mem.load c mm bb 0=Some vv);eassumption end]
+   end
+ end
+with ert_lv LR LF LG LC NC SC :=
+ lazymatch goal with
+ | |-eval_simple_lvalue _ _ _(Evar ?id _)_ _ _=>
+   lazymatch id with
+   | S.__res=>eapply esl_var_local;exact LR
+   | S._in_flight=>eapply esl_var_local;exact LF
+   | S._gh=>eapply esl_var_local;exact LG
+   | S.__res__1=>eapply esl_var_local;exact LC
+   | S._guidance_pid_h_run=>eapply esl_var_global;[exact NC|exact SC]
+   end
+ | |-eval_simple_lvalue _ _ _(Ederef _ _)_ _ _=>eapply esl_deref;ert_rv LR LF LG LC NC SC
+ end.
+Ltac unfold_entry_return :=
+ unfold entry_core_function,entry_core_args,entry_core_call,entry_core_result,
+ entry_return_lvalue,entry_return_rvalue,entry_return_assignment,after_front;
+ cbn[S.f_guidance_pid_h_run_pos fn_body].
+
+Theorem original_entry_return_tail : forall e m mc br bf bg temp funb gh ret(flight:bool)x y heading,
+ e!S.__res=Some(br,tptr sp_type) ->e!S._in_flight=Some(bf,tbool) ->
+ e!S._gh=Some(bg,tptr gh_type) ->e!S.__res__1=Some(temp,sp_type) ->
+ e!S._guidance_pid_h_run=None ->
+ Genv.find_symbol E.ge S._guidance_pid_h_run=Some funb ->
+ Genv.find_funct E.ge(Vptr funb Ptrofs.zero)=Some(Internal S.f_guidance_pid_h_run) ->
+ temp<>ret ->
+ Mem.load Mint64 m br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mint64 mc br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mbool m bf 0=Some(Vint(if flight then Int.one else Int.zero)) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Cstrategy.eval_funcall E.ge m(Internal S.f_guidance_pid_h_run)
+ [Vptr temp Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero]E0 mc Vundef ->
+ active_fields mc temp x y heading ->
+ access_preserved m mc ->
+ Mem.range_perm m temp 0 36 Cur Writable ->Mem.range_perm m ret 0 36 Cur Writable ->
+ exists mf bytes,
+ Cstrategy.exec_stmt E.ge e m after_front E0 mf(Out_return None) /\
+ active_fields mf ret x y heading /\access_preserved m mf /\
+ Mem.loadbytes mc temp 0 36=Some bytes /\Mem.storebytes mc ret 0 bytes=Some mf.
+Proof.
+ intros e m mc br bf bg temp funb gh ret flight x y heading
+ LR LF LG LC NC SC FC DIFFERENT RES RESC FLIGHT GH CALL ACTIVE KEEP WT WR.
+ assert(READTEMP:Mem.range_perm mc temp 0 36 Cur Readable).
+ { eapply access_preserved_byte_range;[exact KEEP|].
+   intros z ZR;eapply Mem.perm_implies;[apply WT;exact ZR|constructor]. }
+ destruct(Mem.range_perm_loadbytes mc temp 0 36 READTEMP)as[bytes BYTES].
+ assert(LEN:Z.of_nat(length bytes)=36).
+ { pose proof(Mem.loadbytes_length _ _ _ _ _ BYTES)as L;rewrite L;reflexivity. }
+ assert(WRMC:Mem.range_perm mc ret 0 36 Cur Writable)by(eapply access_preserved_byte_range;eauto).
+ destruct(Mem.range_perm_storebytes mc ret 0 bytes ltac:(rewrite LEN;exact WRMC))as[mf COPY].
+ assert(RF:eval_simple_rvalue E.ge e m entry_core_function(Vptr funb Ptrofs.zero)).
+ { unfold_entry_return;ert_rv LR LF LG LC NC SC. }
+ assert(ARGS:eval_simple_list E.ge e m entry_core_args
+ [tptr sp_type;tbool;tptr gh_type]
+ [Vptr temp Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero]).
+ { unfold_entry_return.
+   eapply esrl_cons;[ert_rv LR LF LG LC NC SC|reflexivity|].
+   eapply esrl_cons;[ert_rv LR LF LG LC NC SC|destruct flight;reflexivity|].
+   eapply esrl_cons;[ert_rv LR LF LG LC NC SC|reflexivity|constructor]. }
+ assert(CALL_EXPR:eval_expr E.ge e m RV entry_core_call E0 mc(Eval Vundef tvoid)).
+ { unfold entry_core_call at 1.
+   eapply simple_call_expr with(vf:=Vptr funb Ptrofs.zero)
+   (vargs:=[Vptr temp Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero])
+   (fd:=Internal S.f_guidance_pid_h_run).
+   - exact RF.
+   - reflexivity.
+   - exact ARGS.
+   - reflexivity.
+   - reflexivity.
+   - exact FC.
+   - reflexivity.
+   - exact CALL. }
+ assert(RHS:eval_expr E.ge e m RV entry_return_rvalue E0 mc entry_core_result).
+ { unfold entry_return_rvalue at 1;cbn[entry_return_assignment after_front S.f_guidance_pid_h_run_pos fn_body].
+   replace E0 with(E0**E0)by reflexivity;eapply eval_comma.
+   - exact CALL_EXPR.
+   - constructor.
+   - eapply(proj1(simple_eval_expr_refl E.ge e mc));[unfold_entry_return;ert_rv LR LF LG LC NC SC|reflexivity].
+   - reflexivity. }
+ exists mf,bytes;split.
+ - unfold after_front;cbn[S.f_guidance_pid_h_run_pos fn_body].
+   eapply sequence_normal;[|constructor].
+   eapply effectful_assign with(mr:=mc)(r':=entry_core_result)(v:=Vptr temp Ptrofs.zero)(vc:=Vptr temp Ptrofs.zero).
+   + ert_lv LR LF LG LC NC SC.
+   + reflexivity.
+   + exact RHS.
+   + ert_lv LR LF LG LC NC SC.
+   + unfold_entry_return;ert_rv LR LF LG LC NC SC.
+   + reflexivity.
+   + eapply assign_loc_copy with(bytes:=bytes).
+     * reflexivity.
+     * change(4|0);exists 0;reflexivity.
+     * change(4|0);exists 0;reflexivity.
+     * left;exact DIFFERENT.
+     * change(Mem.loadbytes mc temp 0 36=Some bytes);exact BYTES.
+     * exact COPY.
+   + reflexivity.
+ - split.
+   + unfold active_fields in *;destruct ACTIVE as[L0[L4[L8[L12[L16[L24[L28 L32]]]]]]];repeat split;
+     match goal with |-Mem.load Mint32 _ _ ?o=Some ?v=>
+      replace o with(0+o)by lia;eapply copy_typed_load;
+      [exact BYTES|exact COPY|eassumption|lia|change(o+4<=36);lia|change(4|0+o);exists(o/4);reflexivity]end.
+   + split.
+     * intros ch b ofs p VA;split.
+       -- intros z ZR;eapply Mem.perm_storebytes_1;[exact COPY|exact(proj1(KEEP _ _ _ _ VA)z ZR)].
+       -- exact(proj2 VA).
+     * split;assumption.
+Qed.
+Lemma returning_statement_original_path : forall ge e f s m mf final k,
+ Cstrategy.exec_stmt ge e m s E0 mf(Out_return None) ->
+ Mem.free_list mf(blocks_of_env ge e)=Some final ->
+ star Csem.step ge(State f s k e m)E0(Returnstate Vundef(call_cont k)final).
+Proof.
+ intros ge e f s m mf final k EXEC FREE.
+ destruct(Cstrategy.exec_stmt_to_steps ge e m s E0 mf(Out_return None)EXEC f k)as[reached[PATH END]].
+ inversion END;subst.
+ eapply star_trans with(t1:=E0)(t2:=E0);[apply strategy_star_csem;exact PATH| |reflexivity].
+ apply star_one;right;rewrite<-H;apply step_return_0;exact FREE.
+Qed.
+Print Assumptions original_entry_return_tail.
+
+FILE NonemptyInput.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import WitnessBase WitnessMemory WitnessUpdates ComputedRelation.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent Float32.of_int Float32.cmp Float32.compare.
+Ltac witness_zero_path ZERO :=
+ lazymatch goal with |-load_path ?ch ?mm ?bb ?ty ?path=Some ?v=>
+ let info:=eval vm_compute in(path_info ty path)in
+ lazymatch info with Some(_,?ofs)=>
+ change(Mem.load ch mm bb ofs=Some v);apply(ZERO ch ofs);[lia|cbn;lia|witness_align]
+ end end.
+Theorem canonical_input_nonvacuity : InputNonvacuityGoal.
+Proof.
+ destruct symbolic_witness_base as(base&gh&ret&bp&be&bv&bi&bh&sb&
+ CONTRACT&GHR&GSYM&RSYM&GVAR&WG&WR&SP&VP&SE&VE&SV&VV&SI&VI&SH&SS&VS&
+ WP&WE&WV&WI&WS&ZP&ZI&ZH&ZS).
+ assert(GS:gh<>sb)by(intro EQ;subst gh;apply(GSYM S._state);exact SS).
+ assert(PG:bp<>gh)by(intro EQ;subst bp;apply(GSYM S._guidance_pid);exact SP).
+ assert(IG:bi<>gh)by(intro EQ;subst bi;apply(GSYM S._guidance_pid_trim_att_integrator);exact SI).
+ assert(HG:bh<>gh)by(intro EQ;subst bh;apply(GSYM S._guidance_h);exact SH).
+ assert(PS:bp<>sb)by(eapply Genv.global_addresses_distinct;[|exact SP|exact SS];discriminate).
+ assert(IS:bi<>sb)by(eapply Genv.global_addresses_distinct;[|exact SI|exact SS];discriminate).
+ assert(HS:bh<>sb)by(eapply Genv.global_addresses_distinct;[|exact SH|exact SS];discriminate).
+ assert(ROS:forall b gv,Genv.find_var_info E.ge b=Some gv ->gvar_readonly gv=true ->b<>sb).
+ { intros b gv VAR RO EQ;subst b;rewrite VS in VAR;injection VAR as<-;discriminate. }
+ assert(GOOD:forall shift mf,0<=shift<=25600 ->
+ replay_stores base(witness_updates gh sb shift)=Some mf ->InputGood mf gh ret).
+ { intros shift mf RANGE RUN.
+   destruct(witness_updated_loads base mf gh sb shift GS ZS RUN)
+   as(CP&CS&RX&RY&SX&SY&AX&AY&PX&PY&VX&VY).
+   assert(RAW:raw_writes(fun _=>True)base mf).
+   { eapply replay_stores_raw;[exact RUN|];unfold witness_updates;witness_forall ltac:(exact I). }
+   assert(PZERO:Genv.read_as_zero mf bp 0 48).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZP| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(IZERO:Genv.read_as_zero mf bi 0 8).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZI| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(HZERO:Genv.read_as_zero mf bh 0 84).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZH| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(GLOBAL:global_bytes_initialized mf).
+   { eapply global_contract_after_replay;[exact CONTRACT| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(
+       cbn;first[exact ROS|intros b gv VAR RO;eapply GVAR;exact VAR]). }
+   assert(UNIQUE:forall id,Genv.find_symbol E.ge id=Some gh->id=S._guidance_h).
+   { intros id BAD;exfalso;apply(GSYM id);exact BAD. }
+   assert(GHREAD:Mem.range_perm mf gh 0(sizeof ce gh_type)Cur Readable).
+   { change(Mem.range_perm mf gh 0 84 Cur Readable);intros ofs R.
+     eapply Mem.perm_implies with(p1:=Writable);[apply(proj1(raw_writes_perm _ _ _ RAW gh ofs Cur Writable));apply WG;exact R|constructor]. }
+   assert(RETWRITE:Mem.range_perm mf ret 0(sizeof ce sp_type)Cur Writable).
+   { eapply raw_writes_range;[exact RAW|exact WR]. }
+   assert(CTRL:writable_controller_globals mf).
+   { intros id IN;destruct IN as[<-|[<-|[<-|[<-|[]]]]].
+     - exists bp,S.v_guidance_pid;split;[exact SP|];split;[exact VP|];apply(raw_writes_range _ _ _ RAW);exact WP.
+     - exists be,S.v_guidance_pid_pos_err;split;[exact SE|];split;[exact VE|];apply(raw_writes_range _ _ _ RAW);exact WE.
+     - exists bv,S.v_guidance_pid_speed_err;split;[exact SV|];split;[exact VV|];apply(raw_writes_range _ _ _ RAW);exact WV.
+     - exists bi,S.v_guidance_pid_trim_att_integrator;split;[exact SI|];split;[exact VI|];apply(raw_writes_range _ _ _ RAW);exact WI. }
+   assert(CACHE:caches_valid mf).
+   { exists(Int.repr 2),(Int.repr 2);unfold load_global;rewrite SS;repeat split;assumption||reflexivity. }
+   assert(APP:load_global Mint8unsigned mf S._guidance_pid pid_type[S._approx_force_by_thrust]=Some(Vint Int.zero)).
+   { unfold load_global;rewrite SP;witness_zero_path PZERO. }
+   assert(HEAD:heading_safe mf).
+   { exists Float32.zero;split.
+     - unfold load_global;rewrite SH;witness_zero_path HZERO.
+     - split;reflexivity. }
+   assert(GAINS:forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka]->
+     bounded_global mf S._guidance_pid pid_type[gain]0 100).
+   { intros gain IN;destruct IN as[<-|[<-|[<-|[<-|[<-|[]]]]]];
+     (exists Int.zero;split;
+     [unfold load_global;rewrite SP;witness_zero_path PZERO
+     |rewrite Int.signed_zero;lia]). }
+   assert(AXES:forall axis,In axis[S._x;S._y]->
+     bounded_global mf S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+     bounded_path mf gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+     bounded_path mf gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+     bounded_global mf S._state state_type[S._ned_speed_i;axis](-10000)10000).
+   { intros axis IN;destruct IN as[<-|[<-|[]]].
+     - split.
+       + exists Int.zero;split;[unfold load_global;rewrite SI;witness_zero_path IZERO|rewrite Int.signed_zero;lia].
+       + split.
+         * exists Int.zero;split;[exact SX|rewrite Int.signed_zero;lia].
+         * split.
+           -- exists Int.zero;split;[exact AX|rewrite Int.signed_zero;lia].
+           -- exists Int.zero;split;[unfold load_global;rewrite SS;exact VX|rewrite Int.signed_zero;lia].
+     - split.
+       + exists Int.zero;split;[unfold load_global;rewrite SI;witness_zero_path IZERO|rewrite Int.signed_zero;lia].
+       + split.
+         * exists Int.zero;split;[exact SY|rewrite Int.signed_zero;lia].
+         * split.
+           -- exists Int.zero;split;[exact AY|rewrite Int.signed_zero;lia].
+           -- exists Int.zero;split;[unfold load_global;rewrite SS;exact VY|rewrite Int.signed_zero;lia]. }
+   assert(SAFE:position_subtractions_safe mf gh).
+   { intros axis IN;destruct IN as[<-|[<-|[]]].
+     - exists(Int.repr(512+shift)),(Int.repr shift);split;[exact RX|];split.
+       + unfold load_global;rewrite SS;exact PX.
+       + unfold signed32.
+         rewrite(Int.signed_repr(512+shift))by(change(-2147483648<=512+shift<=2147483647);lia).
+         rewrite(Int.signed_repr shift)by(change(-2147483648<=shift<=2147483647);lia);lia.
+     - exists Int.zero,Int.zero;split;[exact RY|];split.
+       + unfold load_global;rewrite SS;exact PY.
+       + unfold signed32;rewrite Int.signed_zero;lia. }
+   assert(INITPOS:initialized_positions mf gh).
+   { intros axis IN;destruct(SAFE axis IN)as(r&p&R&P&N);exists r,p;auto. }
+   unfold InputGood;split;[unfold InputGoodLegacy;tauto|tauto]. }
+ destruct(witness_updates_exist base gh sb 0 WG WS)as[a RA].
+ destruct(witness_updates_exist base gh sb 25600 WG WS)as[b RB].
+ pose proof(GOOD 0 a ltac:(lia)RA)as GA.
+ pose proof(GOOD 25600 b ltac:(lia)RB)as GB.
+ destruct(witness_updated_loads base a gh sb 0 GS ZS RA)as(CPA&CSA&RXA&RYA&SXA&SYA&AXA&AYA&PXA&PYA&VXA&VYA).
+ destruct(witness_updated_loads base b gh sb 25600 GS ZS RB)as(CPB&CSB&RXB&RYB&SXB&SYB&AXB&AYB&PXB&PYB&VXB&VYB).
+ assert(FRAME:same_except_positions_and_return gh ret a b)by(eapply witness_replays_related;eauto).
+ assert(TX:AxisTranslation gh a b S._x 25600).
+ { exists(Int.repr 512),Int.zero,(Int.repr 26112),(Int.repr 25600).
+   split;[exact RXA|];split;[unfold load_global;rewrite SS;exact PXA|].
+   split;[exact RXB|];split;[unfold load_global;rewrite SS;exact PXB|].
+   rewrite(Int.signed_repr 512)by(change(-2147483648<=512<=2147483647);lia).
+   rewrite Int.signed_zero.
+   rewrite(Int.signed_repr 26112)by(change(-2147483648<=26112<=2147483647);lia).
+   rewrite(Int.signed_repr 25600)by(change(-2147483648<=25600<=2147483647);lia).
+   unfold physical_translation,signed32;repeat split;lia. }
+ assert(TY:AxisTranslation gh a b S._y 0).
+ { exists Int.zero,Int.zero,Int.zero,Int.zero.
+   split;[exact RYA|];split;[unfold load_global;rewrite SS;exact PYA|].
+   split;[exact RYB|];split;[unfold load_global;rewrite SS;exact PYB|].
+   rewrite Int.signed_zero;unfold physical_translation,signed32;repeat split;lia. }
+ exists gh,ret,a,b,25600,0;split.
+ - exact(conj GA(conj GB(conj FRAME(conj TX TY)))).
+ - split;[lia|]. exists(Int.repr 512),Int.zero;split;[exact RXA|];split.
+   + unfold load_global;rewrite SS;exact PXA.
+   + rewrite(Int.signed_repr 512)by(change(-2147483648<=512<=2147483647);lia);rewrite Int.signed_zero;lia.
+Qed.
+Theorem canonical_nonzero_execution_nonvacuity : NonzeroNonvacuityGoal.
+Proof.
+ destruct canonical_input_nonvacuity as(gh&ret&a&b&dx&dy&NONZERO).
+ exists gh,ret,a,b,dx,dy;split;[exact NONZERO|].
+ intro flight;exact(constructed_original_position_translation gh ret a b dx dy flight(proj1 NONZERO)).
+Qed.
+Print Assumptions canonical_input_nonvacuity.
+Print Assumptions canonical_nonzero_execution_nonvacuity.
+
+FILE Proof.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import AST Integers Values Memory.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma axis_translation_initialized : forall gh a b axis d,
+ AxisTranslation gh a b axis d ->
+ (exists r p, load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint p)) /\
+ (exists r p, load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint p)).
+Proof.
+ intros gh a b axis d [ra [pa [rb [pb [RA [PA [RB [PB REST]]]]]]]].
+ split; [exists ra,pa|exists rb,pb];auto.
+Qed.
+
+Lemma axis_translation_subtractions_safe : forall gh a b axis d,
+ AxisTranslation gh a b axis d ->
+ (exists r p, load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint p) /\
+ signed32(Int.signed r-Int.signed p)) /\
+ (exists r p, load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint p) /\
+ signed32(Int.signed r-Int.signed p)).
+Proof.
+ intros gh a b axis d [ra [pa [rb [pb [RA [PA [RB [PB [PHY [RBE PBE]]]]]]]]]].
+ destruct PHY as [R [P [D [RD [PD ERR]]]]].
+ split.
+ - exists ra,pa;auto.
+ - exists rb,pb;split;[exact RB|];split;[exact PB|]. rewrite RBE,PBE.
+   rewrite common_translation_difference;exact ERR.
+Qed.
+
+Definition LegacyInputPair (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputGoodLegacy a gh ret /\ InputGoodLegacy b gh ret /\
+ same_except_positions_and_return gh ret a b /\
+ AxisTranslation gh a b Source._x dx /\ AxisTranslation gh a b Source._y dy.
+
+Theorem corrected_relation_domain_unchanged : forall gh ret a b dx dy,
+ InputPair gh ret a b dx dy <-> LegacyInputPair gh ret a b dx dy.
+Proof.
+ intros gh ret a b dx dy;split.
+ - intros [[A _] [[B _] REST]];exact(conj A(conj B REST)).
+ - intros [A [B [FRAME [X Y]]]].
+   assert (INIT : initialized_positions a gh /\ initialized_positions b gh).
+   { split;unfold initialized_positions;intros axis AX;
+     destruct AX as [<-|[<-|[]]];
+     [exact(proj1(axis_translation_initialized _ _ _ _ _ X))|
+      exact(proj1(axis_translation_initialized _ _ _ _ _ Y))|
+      exact(proj2(axis_translation_initialized _ _ _ _ _ X))|
+      exact(proj2(axis_translation_initialized _ _ _ _ _ Y))]. }
+   assert (SAFE : position_subtractions_safe a gh /\ position_subtractions_safe b gh).
+   { split;unfold position_subtractions_safe;intros axis AX;
+     destruct AX as [<-|[<-|[]]];
+     [exact(proj1(axis_translation_subtractions_safe _ _ _ _ _ X))|
+      exact(proj1(axis_translation_subtractions_safe _ _ _ _ _ Y))|
+      exact(proj2(axis_translation_subtractions_safe _ _ _ _ _ X))|
+      exact(proj2(axis_translation_subtractions_safe _ _ _ _ _ Y))]. }
+   destruct INIT as [IA IB];destruct SAFE as [SA SB].
+   exact(conj (conj A(conj IA SA))(conj(conj B(conj IB SB))(conj FRAME(conj X Y)))).
+Qed.
+Print Assumptions corrected_relation_domain_unchanged.
+
+Theorem axis_translation_machine_difference : forall gh a b axis d ra pa rb pb,
+ AxisTranslation gh a b axis d ->
+ load_path Mint32 a gh gh_type(ref_pos axis)=Some(Vint ra) ->
+ load_global Mint32 a Source._state state_type(measured_pos axis)=Some(Vint pa) ->
+ load_path Mint32 b gh gh_type(ref_pos axis)=Some(Vint rb) ->
+ load_global Mint32 b Source._state state_type(measured_pos axis)=Some(Vint pb) ->
+ Int.sub ra pa=Int.sub rb pb.
+Proof.
+ intros gh a b axis d ra pa rb pb
+ [ra0[pa0[rb0[pb0[RA[PA[RB[PB[PHY[RBE PBE]]]]]]]]]]RA' PA' RB' PB'.
+ rewrite RA in RA';inversion RA';subst ra0.
+ rewrite PA in PA';inversion PA';subst pa0.
+ rewrite RB in RB';inversion RB';subst rb0.
+ rewrite PB in PB';inversion PB';subst pb0.
+ rewrite!Int.sub_signed;rewrite RBE,PBE,common_translation_difference;reflexivity.
+Qed.
+Print Assumptions axis_translation_machine_difference.
+
+From PidPositionTranslationAttempt002 Require Import NormalReturn.
+Theorem paired_original_normal_returns :
+ forall gh ret a b dx dy flight,InputPair gh ret a b dx dy ->
+ exists af bf,NormalCall gh ret flight a af /\NormalCall gh ret flight b bf.
+Proof.
+ intros gh ret a b dx dy flight[A[B REST]].
+ destruct(original_entry_normal_return a gh ret flight A)as[af AF].
+ destruct(original_entry_normal_return b gh ret flight B)as[bf BF].
+ exists af,bf;auto.
+Qed.
+Print Assumptions paired_original_normal_returns.
+

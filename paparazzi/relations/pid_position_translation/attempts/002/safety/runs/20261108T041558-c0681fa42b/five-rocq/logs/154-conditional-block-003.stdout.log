@@ -1,0 +1,41 @@
+2 goals
+  
+  ge : genv
+  f : function
+  e : env
+  e0 : expr
+  st1, st2 : statement
+  IHst1 :
+    forall m mf : mem,
+    conditional_block st1 = true ->
+    exec_stmt ge e m st1 E0 mf Out_normal ->
+    forall k : cont,
+    exists P : Csem.state -> Prop,
+      certificate ge P (State f Sskip k e mf) /\ P (State f st1 k e m)
+  IHst2 :
+    forall m mf : mem,
+    conditional_block st2 = true ->
+    exec_stmt ge e m st2 E0 mf Out_normal ->
+    forall k : cont,
+    exists P : Csem.state -> Prop,
+      certificate ge P (State f Sskip k e mf) /\ P (State f st2 k e m)
+  m, mf : mem
+  CORE1 : source_simple e0 = true
+  CORE2 : conditional_block st1 = true
+  CORE0 : conditional_block st2 = true
+  EXEC : exec_stmt ge e m (Sifthenelse e0 st1 st2) E0 mf Out_normal
+  k : cont
+  v1 : val
+  t2 : trace
+  H9 : exec_stmt ge e m st1 t2 mf Out_normal
+  H8 : bool_val v1 (typeof e0) m = Some true
+  H5 : eval_expression ge e m e0 E0 m v1
+  H4 : E0 ** t2 = E0
+  H : eval_expr ge e m RV e0 E0 m e0
+  H0 : eval_simple_rvalue ge e m e0 v1
+  PV : pure_rval ge e m e0 = Some v1
+  ============================
+  exec_stmt ge e m st1 E0 mf Out_normal
+
+goal 2 is:
+ exec_stmt ge e m st2 E0 mf Out_normal

@@ -1,0 +1,373 @@
+_build/paparazzi/upstream/tests/modules/generated/modules.h
+_build/paparazzi/upstream/tests/modules/generated/settings.h
+_build/paparazzi/upstream/tests/modules/generated/airframe.h
+_build/paparazzi/upstream/sw/misc/attitude_reference/c_att_refs/generated/airframe.h
+_build/paparazzi/upstream/sw/airborne/test/stabilization/generated/airframe.h
+_build/paparazzi/upstream/sw/airborne/test/ahrs/generated/airframe.h
+_build/paparazzi/upstream/sw/airborne/modules/core/settings.h
+/* Pinned unchanged Paparazzi slices; explicit fixed sqrt binding below. */
+#include <stdint.h>
+/* Fixed executable binding: common loop-free software binary32 sqrt. */
+#include "five_sqrtf.c"
+#define sqrtf(x) five_sqrtf(x)
+
+struct FloatVect2 {
+  float x;
+  float y;
+};
+
+struct Int64Vect2 {
+  int64_t x;
+  int64_t y;
+};
+
+#ifndef GUIDANCE_H_REF_MAX_ACCEL
+#define GUIDANCE_H_REF_MAX_ACCEL 5.66
+#endif
+
+#define GH_POS_REF_FRAC 37
+
+struct GuidanceHRef {
+  /** Reference model acceleration.
+   * in meters/sec2 (output)
+   */
+  struct FloatVect2 accel;
+
+  /** Reference model speed.
+   * in meters/sec
+   * accuracy 0.0000076 , range 16384m/s
+   */
+  struct FloatVect2 speed;
+
+  /** Reference model position.
+   * in meters
+   * with fixedpoint representation: Q37.26
+   */
+  struct Int64Vect2 pos;
+
+  float tau;    ///< first order time constant
+  float omega;  ///< second order model natural frequency
+  float zeta;   ///< second order model damping
+
+  /** Current maximum speed for waypoint navigation.
+   * Defaults to #GUIDANCE_H_REF_MAX_SPEED
+   */
+  float max_speed;
+
+  /*
+   * internal variables
+   */
+  float zeta_omega;
+  float omega_2;
+  float inv_tau;
+
+  /** Integration timestep
+   */
+  float dt;
+};
+
+#define VECT2_COPY(_a, _b) {      \
+    (_a).x = (_b).x;        \
+    (_a).y = (_b).y;        \
+  }
+
+
+#define VECT2_ADD(_a, _b) {     \
+    (_a).x += (_b).x;       \
+    (_a).y += (_b).y;       \
+  }
+
+
+#define VECT2_DIFF(_c, _a, _b) {                \
+    (_c).x = (_a).x - (_b).x;     \
+    (_c).y = (_a).y - (_b).y;     \
+  }
+
+
+#define VECT2_SMUL(_vo, _vi, _s) {    \
+    (_vo).x =  (_vi).x * (_s);      \
+    (_vo).y =  (_vi).y * (_s);      \
+  }
+
+
+#define VECT2_NORM2(_v) ((_v).x*(_v).x + (_v).y*(_v).y)
+
+#define LBFP_OF_REAL(_vr, _frac)   ((_vr)*(1LL<<(_frac)))
+
+struct GuidanceHRef gh_ref;
+extern "C" {
+#endif
+
+#include "math/pprz_algebra_int.h"
+#include "math/pprz_algebra_float.h"
+
+#include "firmwares/rotorcraft/guidance/guidance_h_ref.h"
+#include "firmwares/rotorcraft/stabilization.h"
+#include "generated/airframe.h"
+#include "std.h"
+
+/** Use horizontal guidance reference trajectory.
+ * Default is TRUE, define to FALSE to always disable it.
+ */
+#ifndef GUIDANCE_H_USE_REF
+#define GUIDANCE_H_USE_REF TRUE
+#endif
+
+/** Use horizontal guidance speed reference.
+ * This also allows to give velocity commands via RC in GUIDANCE_H_MODE_HOVER.
+ * Default is TRUE, define to FALSE to always disable it.
+ */
+#ifndef GUIDANCE_H_USE_SPEED_REF
+#define GUIDANCE_H_USE_SPEED_REF TRUE
+#endif
+
+#define GUIDANCE_H_MODE_NONE        0
+#define GUIDANCE_H_MODE_HOVER       1
+#define GUIDANCE_H_MODE_NAV         2
+#define GUIDANCE_H_MODE_GUIDED      3
+
+/** Max bank controlled by guidance
+ */
+#ifndef GUIDANCE_H_MAX_BANK
+#define GUIDANCE_H_MAX_BANK RadOfDeg(20)
+#endif
+
+
+struct HorizontalGuidanceSetpoint {
+  /** horizontal position setpoint in NED.
+   *  fixed point representation: Q23.8
+   *  accuracy 0.0039, range 8388km
+   */
+  struct Int32Vect2 pos;
+  struct Int32Vect2 speed;  ///< only used in HOVER mode if GUIDANCE_H_USE_SPEED_REF or in GUIDED mode
+  struct Int32Vect2 accel;  ///< For direct control of acceleration, if the guidance scheme is able to provide it
+
+  float heading;
+  float heading_rate;
+
+  enum {
+    GUIDANCE_H_SP_POS   = 0,
+    GUIDANCE_H_SP_SPEED = 1,
+    GUIDANCE_H_SP_ACCEL = 2,
+    GUIDANCE_H_SP_ALL   = 3
+  } h_mask;
+  enum {
+    GUIDANCE_H_SP_YAW       = 0,
+    GUIDANCE_H_SP_YAW_RATE  = 1
+  } yaw_mask;
+};
+
+struct HorizontalGuidanceReference {
+  struct Int32Vect2 pos;     ///< with #INT32_POS_FRAC
+  struct Int32Vect2 speed;   ///< with #INT32_SPEED_FRAC
+  struct Int32Vect2 accel;   ///< with #INT32_ACCEL_FRAC
+};
+
+struct HorizontalGuidanceRCInput {
+  struct Int32Vect2 vect;
+  float heading;
+  float last_ts;
+};
+
+struct HorizontalGuidance {
+  uint8_t mode;
+  /* configuration options */
+  bool use_ref;
+
+  struct HorizontalGuidanceSetpoint sp;   ///< setpoints
+  struct HorizontalGuidanceReference ref; ///< reference calculated from setpoints
+  struct HorizontalGuidanceRCInput rc_sp; ///< remote control setpoint
+};
+
+extern struct HorizontalGuidance guidance_h;
+
+extern void guidance_h_init(void);
+extern void guidance_h_mode_changed(uint8_t new_mode);
+extern void guidance_h_run_enter(void);
+extern struct StabilizationSetpoint guidance_h_run(bool in_flight);
+extern struct StabilizationSetpoint guidance_h_run_pos(bool in_flight, struct HorizontalGuidance *gh);
+extern struct StabilizationSetpoint guidance_h_run_speed(bool in_flight, struct HorizontalGuidance *gh);
+extern struct StabilizationSetpoint guidance_h_run_accel(bool in_flight, struct HorizontalGuidance *gh);
+
+extern void guidance_h_hover_enter(void);
+extern void guidance_h_nav_enter(void);
+
+/** Set horizontal guidance from NAV and run control loop
+ */
+extern struct StabilizationSetpoint guidance_h_from_nav(bool in_flight);
+
+/** Run GUIDED mode control
+ */
+extern struct StabilizationSetpoint guidance_h_guided_run(bool in_flight);
+
+/** Set horizontal position setpoint.
+ * @param x North position (local NED frame) in meters.
+ * @param y East position (local NED frame) in meters.
+ */
+extern void guidance_h_set_pos(float x, float y);
+
+/** Set heading setpoint.
+ * @param heading Setpoint in radians.
+ */
+extern void guidance_h_set_heading(float heading);
+
+/** Set body relative horizontal velocity setpoint.
+ * @param vx forward velocity (body frame) in meters/sec.
+ * @param vy right velocity (body frame) in meters/sec.
+ */
+extern void guidance_h_set_body_vel(float vx, float vy);
+/*
+ * Copyright (C) 2008-2009 Antoine Drouin <poinix@gmail.com>
+ *
+ * This file is part of paparazzi.
+ *
+ * paparazzi is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * paparazzi is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with paparazzi; see the file COPYING.  If not, write to
+ * the Free Software Foundation, 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
+ */
+
+/** @file firmwares/rotorcraft/stabilization.h
+ *  General stabilization interface for rotorcrafts.
+ */
+
+#ifndef STABILIZATION_H
+#define STABILIZATION_H
+
+#include "std.h"
+
+#include "generated/airframe.h"
+#include "math/pprz_algebra_int.h"
+#include "math/pprz_algebra_float.h"
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude_rc_setpoint.h"
+
+/** Stabilization modes
+ */
+#define STABILIZATION_MODE_NONE     0
+#define STABILIZATION_MODE_DIRECT   1
+#define STABILIZATION_MODE_RATE     2
+#define STABILIZATION_MODE_ATTITUDE 3
+
+/** Stabilization sub-modes for attitude
+ */
+#define STABILIZATION_ATT_SUBMODE_HEADING   0 // direct heading control
+#define STABILIZATION_ATT_SUBMODE_CARE_FREE 1 // care free heading mode
+#define STABILIZATION_ATT_SUBMODE_FORWARD   2 // forward flight for hybrid-like
+
+/** Stabilization setpoint.
+ *  Struture to store the desired attitude with different
+ *  frames and representations
+ */
+struct StabilizationSetpoint {
+  enum {
+    STAB_SP_QUAT,     ///< LTP to Body orientation in unit quaternion
+    STAB_SP_EULERS,   ///< LTP to Body orientation in euler angles
+    STAB_SP_LTP,      ///< banking and heading in LTP (NED) frame
+    STAB_SP_RATES,     ///< body rates
+    STAB_SP_QUAT_FF_RATE  ///< LTP to Body orientation in unit quaternion with precomputed feedforward rates
+  } type;
+  enum {
+    STAB_SP_INT,
+    STAB_SP_FLOAT
+  } format;
+  union {
+    struct Int32Quat quat_i;
+    struct FloatQuat quat_f;
+    struct Int32Eulers eulers_i;
+    struct FloatEulers eulers_f;
+    struct { struct Int32Vect2 vect; int32_t heading; } ltp_i;
+    struct { struct FloatVect2 vect; float heading; } ltp_f;
+  } sp;
+  union {
+    struct Int32Rates rates_i;
+    struct FloatRates rates_f;
+  } r_sp;
+};
+
+/** Thrust setpoint // TODO to a setpoint header
+ *  Structure to store the desired thrust vector with different format
+ */
+struct ThrustSetpoint {
+  enum {
+    THRUST_SP,        ///< absolute thrust setpoint
+    THRUST_INCR_SP    ///< thrust increment
+/*
+ * Copyright (C) 2011-2012 Felix Ruess <felix.ruess@gmail.com>
+ *
+ * This file is part of paparazzi.
+ *
+ * paparazzi is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * paparazzi is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with paparazzi; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @file state.h
+ *
+ * API to get/set the generic vehicle states.
+ *
+ * Also see the @ref state_interface "State Interface" page.
+ *
+ * @author Felix Ruess <felix.ruess@gmail.com>
+ */
+
+#ifndef STATE_H
+#define STATE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "math/pprz_algebra_int.h"
+#include "math/pprz_algebra_float.h"
+#include "math/pprz_geodetic_int.h"
+#include "math/pprz_geodetic_float.h"
+#include "math/pprz_orientation_conversion.h"
+
+#include "std.h"
+#include <string.h>
+
+/**
+ * This general state interface holds all the most important vehicle states like
+ * position, velocity, attitude, etc. It handles coordinate system and
+ * fixed-/floating-point conversion on the fly when needed.
+ *
+ * <b>IMPORTANT: Don't access the members of the #state struct directly, use the stateSet* and stateGet* functions!</b>
+ *
+ * You can set e.g. the position in any coordinate system you wish:
+ * stateSetPositionNed_i() to set the position in fixed-point NED coordinates.
+ * If you need to read the position somewhere else in a different representation,
+ * call: stateGetPositionLla_f() and only then the LLA float position representation
+ * is calculated on the fly and returned. It's also only calculated once,
+ * until a new position is set which invalidates all the other representations again.
+ */
+
+/**
+ * @defgroup state_interface State interface
+ * @{
+ */
+
+/**
+ * @defgroup state_position Position representations
+ * @{
+ */

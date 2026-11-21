@@ -1,0 +1,31 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/core/CoreMemory.v", line 16, characters 49-51:
+Error:
+In environment
+ch : memory_chunk
+b : block
+ofs : Z
+v : val
+xs : list scalar_update
+IH :
+  forall (ys : list scalar_update) (m mf : mem),
+  replay_stores m (xs ++ ys) = Some mf <->
+  (exists ma : mem,
+     replay_stores m xs = Some ma /\ replay_stores ma ys = Some mf)
+ys : list scalar_update
+m, mf, m0 : mem
+ST : Mem.store ch m b ofs v = Some m0
+Unable to unify
+ "(replay_stores ?m (xs ++ ?ys) = Some ?mf ->
+   exists ma : mem,
+     replay_stores ?m xs = Some ma /\ replay_stores ma ?ys = Some ?mf) /\
+  ((exists ma : mem,
+      replay_stores ?m xs = Some ma /\ replay_stores ma ?ys = Some ?mf) ->
+   replay_stores ?m (xs ++ ?ys) = Some ?mf)"
+with
+ "(replay_stores m (((ch, b, ofs, v) :: xs) ++ ys) = Some mf ->
+   exists ma : mem,
+     replay_stores m0 xs = Some ma /\ replay_stores ma ys = Some mf) /\
+  ((exists ma : mem,
+      replay_stores m0 xs = Some ma /\ replay_stores ma ys = Some mf) ->
+   replay_stores m (((ch, b, ofs, v) :: xs) ++ ys) = Some mf)".
+

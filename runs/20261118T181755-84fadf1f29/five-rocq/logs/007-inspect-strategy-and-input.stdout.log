@@ -1,0 +1,129 @@
+  econstructor; econstructor. left; eapply step_postincr_stuck with (v1 := v1'); eauto.
+  rewrite Heqo; rewrite Heqo0; auto.
+  econstructor; econstructor. left; eapply step_postincr_stuck with (v1 := v1'); eauto.
+  rewrite Heqo; auto.
+  (* builtin *)
+  exploit external_call_trace_length; eauto. destruct t1; simpl; intros.
+  exploit external_call_receptive; eauto. intros [vres2 [m2 EC2]].
+  econstructor; econstructor. left; eapply step_builtin; eauto.
+  extlia.
+  (* external calls *)
+  inv H1.
+  exploit external_call_trace_length; eauto. destruct t1; simpl; intros.
+  exploit external_call_receptive; eauto. intros [vres2 [m2 EC2]].
+  exists (Returnstate vres2 k m2); exists E0; right; econstructor; eauto.
+  extlia.
+(* well-behaved traces *)
+  red; intros. inv H; inv H0; simpl; auto.
+  (* valof volatile *)
+  exploit deref_loc_trace; eauto. destruct t; auto. destruct t; tauto.
+  (* assign *)
+  exploit assign_loc_trace; eauto. destruct t; auto. destruct t; simpl; tauto.
+  (* assignop *)
+  exploit deref_loc_trace; eauto. exploit assign_loc_trace; eauto.
+  destruct t1. destruct t2. simpl; auto. destruct t2; simpl; tauto.
+  destruct t1. destruct t2. simpl; auto. destruct t2; simpl; tauto.
+  tauto.
+  (* assignop stuck *)
+  exploit deref_loc_trace; eauto. destruct t; auto. destruct t; tauto.
+  (* postincr *)
+  exploit deref_loc_trace; eauto. exploit assign_loc_trace; eauto.
+  destruct t1. destruct t2. simpl; auto. destruct t2; simpl; tauto.
+  destruct t1. destruct t2. simpl; auto. destruct t2; simpl; tauto.
+  tauto.
+  (* postincr stuck *)
+  exploit deref_loc_trace; eauto. destruct t; auto. destruct t; tauto.
+  (* builtins *)
+  exploit external_call_trace_length; eauto.
+  destruct t; simpl; auto. destruct t; simpl; auto. intros; extlia.
+  (* external calls *)
+  exploit external_call_trace_length; eauto.
+  destruct t; simpl; auto. destruct t; simpl; auto. intros; extlia.
+Qed.
+
+(** The main simulation result. *)
+
+Theorem strategy_simulation:
+  forall p, backward_simulation (Csem.semantics p) (semantics p).
+Proof.
+  intros.
+  apply backward_simulation_plus with (match_states := fun (S1 S2: state) => S1 = S2); simpl.
+(* symbols *)
+  auto.
+(* initial states exist *)
+  intros. exists s1; auto.
+(* initial states match *)
+  intros. exists s2; auto.
+(* final states match *)
+  intros. subst s2. auto.
+(* progress *)
+  intros. subst s2. apply progress. auto.
+(* simulation *)
+  intros. subst s1. exists s2'; split; auto. apply step_simulation; auto.
+Qed.
+
+(** * A big-step semantics for CompCert C implementing the reduction strategy. *)
+
+Section BIGSTEP.
+
+Variable ge: genv.
+
+(** The execution of a statement produces an ``outcome'', indicating
+  how the execution terminated: either normally or prematurely
+  through the execution of a [break], [continue] or [return] statement. *)
+
+Inductive outcome: Type :=
+   | Out_break: outcome                 (**r terminated by [break] *)
+    or reflexive transitive closure. *)
+
+Inductive star (ge: genv): state -> trace -> state -> Prop :=
+  | star_refl: forall s,
+      star ge s E0 s
+  | star_step: forall s1 t1 s2 t2 s3 t,
+      step ge s1 t1 s2 -> star ge s2 t2 s3 -> t = t1 ** t2 ->
+      star ge s1 t s3.
+
+Lemma star_one:
+  forall ge s1 t s2, step ge s1 t s2 -> star ge s1 t s2.
+Proof.
+  intros. eapply star_step; eauto. apply star_refl. traceEq.
+Qed.
+
+Lemma star_two:
+  forall ge s1 t1 s2 t2 s3 t,
+  step ge s1 t1 s2 -> step ge s2 t2 s3 -> t = t1 ** t2 ->
+  star ge s1 t s3.
+Proof.
+  intros. eapply star_step; eauto. apply star_one; auto.
+Qed.
+
+/*
+ * Copyright (C) 2008-2009 Antoine Drouin <poinix@gmail.com>
+ *
+ * This file is part of paparazzi.
+ *
+ * paparazzi is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * paparazzi is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with paparazzi; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
+
+#define PPRZ_TRIG_INT_COMPR_FLASH
+#define PPRZ_TRIG_INT_COMPR_LOW
+#define USE_REAL_TABLE_12_USE 0
+#include "pprz_trig_config.h"
+const uint8_t pprz_trig_int_compr[TRIG_INT_COMPR_LEN] = {
+  0xF3, 0xCF, 0xFF, 0xFC, 0xCF, 0xFF, 0xFC, 0xCF, 0xFF, 0xFC, 0xCF, 0x9E,
+  0xF3, 0xCF, 0x8F, 0x3C, 0xFF, 0xFC, 0x41, 0xF3, 0xCF, 0x34, 0x9F, 0x3C,
+  0x4F, 0x3C, 0x1F, 0x3C, 0xFF, 0x34, 0xCF, 0x34, 0xBF, 0x34, 0xAF, 0x34,
+  0x8F, 0x34, 0x7F, 0x34, 0x6F, 0x34, 0x6F, 0x34, 0x4F, 0x34, 0x4F, 0x34,
+  0x4F, 0x34, 0x3F, 0x34, 0x2F, 0x34, 0x3F, 0x34, 0x1F, 0x34, 0x1F, 0x34,

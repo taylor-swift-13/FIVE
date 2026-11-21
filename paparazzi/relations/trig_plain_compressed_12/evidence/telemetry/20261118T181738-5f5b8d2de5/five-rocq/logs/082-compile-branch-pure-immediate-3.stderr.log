@@ -1,0 +1,147 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/BranchPure.v", line 1, characters 5-8:
+Warning: "From Coq" has been replaced by "From Stdlib".
+[deprecated-from-Coq,deprecated-since-9.0,deprecated,default]
+File "./paparazzi/relations/trig_plain_compressed_12/support/BranchPure.v", line 164, characters 20-22:
+Error:
+In environment
+a : expr
+ge : genv
+e : env
+m : mem
+CORE : nv (typeof a) = true
+CORE0 : branch_simple a = true
+RV :
+  forall v : val, branch_rval ge e m a = Some v -> imm_safe ge e Csem.RV a m
+LV :
+  forall (b : block) (ofs : ptrofs) (bf : bitfield),
+  branch_lval ge e m a = Some (b, ofs, bf) -> imm_safe ge e Csem.LV a m
+v : val
+OPT : type_eq (typeof a) (typeof a) = left eq_refl
+b : bitfield
+b0 : block
+i : ptrofs
+OPT0 :
+  (fix branch_rval (a : expr) : option val :=
+     match a with
+     | Eval v _ => Some v
+     | Evalof l ty =>
+         if type_eq ty (typeof l)
+         then
+          match branch_lval l with
+          | Some (b, ofs, bf) =>
+              match do_deref_loc ge branch_world ty m b ofs bf with
+              | Some (_, _, v) => Some v
+              | None => None
+              end
+          | None => None
+          end
+         else None
+     | Eaddrof l _ =>
+         match branch_lval l with
+         | Some (b, ofs, Full) => Some (Vptr b ofs)
+         | Some (b, ofs, Bits _ _ _ _) => None
+         | None => None
+         end
+     | Eunop op a0 _ =>
+         match branch_rval a0 with
+         | Some v => sem_unary_operation op v (typeof a0) m
+         | None => None
+         end
+     | Ebinop op a0 b _ =>
+         match branch_rval a0 with
+         | Some v =>
+             match branch_rval b with
+             | Some w =>
+                 sem_binary_operation ge op v (typeof a0) w (typeof b) m
+             | None => None
+             end
+         | None => None
+         end
+     | Ecast a0 ty =>
+         match branch_rval a0 with
+         | Some v => sem_cast v (typeof a0) ty m
+         | None => None
+         end
+     | Econdition a0 b c ty =>
+         match branch_rval a0 with
+         | Some v =>
+             match bool_val v (typeof a0) m with
+             | Some choice =>
+                 match branch_rval (if choice then b else c) with
+                 | Some w =>
+                     sem_cast w (typeof (if choice then b else c)) ty m
+                 | None => None
+                 end
+             | None => None
+             end
+         | None => None
+         end
+     | Esizeof ty _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty)))
+     | Ealignof ty _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty)))
+     | Eparen a0 castty _ =>
+         match branch_rval a0 with
+         | Some v => sem_cast v (typeof a0) castty m
+         | None => None
+         end
+     | _ => None
+     end
+   with branch_lval (a : expr) : option (block * ptrofs * bitfield) :=
+     match a with
+     | Evar id ty =>
+         match e ! id with
+         | Some (b, ty') =>
+             if type_eq ty ty' then Some (b, Ptrofs.zero, Full) else None
+         | None =>
+             match Genv.find_symbol ge id with
+             | Some b => Some (b, Ptrofs.zero, Full)
+             | None => None
+             end
+         end
+     | Efield a0 id _ =>
+         match branch_rval a0 with
+         | Some (Vptr b ofs) =>
+             match typeof a0 with
+             | Tstruct sid _ =>
+                 match ge ! sid with
+                 | Some co =>
+                     match field_offset ge id (co_members co) with
+                     | OK (delta, bf) =>
+                         Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+                     | Error _ => None
+                     end
+                 | None => None
+                 end
+             | Tunion sid _ =>
+                 match ge ! sid with
+                 | Some co =>
+                     match union_field_offset ge id (co_members co) with
+                     | OK (delta, bf) =>
+                         Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+                     | Error _ => None
+                     end
+                 | None => None
+                 end
+             | _ => None
+             end
+         | _ => None
+         end
+     | Ederef a0 _ =>
+         match branch_rval a0 with
+         | Some (Vptr b ofs) => Some (b, ofs, Full)
+         | _ => None
+         end
+     | Eloc b ofs bf _ => Some (b, ofs, bf)
+     | _ => None
+     end
+   for
+   branch_lval) a =
+  Some (b0, i, b)
+w : world
+t : trace
+H : Some v = Some v
+OPT3 : do_deref_loc ge branch_world (typeof a) m b0 i b = Some (w, t, v)
+The term "LV" has type
+ "forall (b : block) (ofs : ptrofs) (bf : bitfield),
+  branch_lval ge e m a = Some (b, ofs, bf) -> imm_safe ge e Csem.LV a m"
+while it is expected to have type "kind".
+

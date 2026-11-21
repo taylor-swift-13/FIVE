@@ -1,0 +1,32 @@
+File "./paparazzi/relations/state_speed_ecef_provenance/support/setters/GuardShell.v", line 350, characters 83-94:
+Error:
+In environment
+ge : genv
+f : function
+e : env
+m : mem
+yes, no : statement
+a, b, c : expr
+SA : simple a = true
+TA : typeof a = tint
+VA : pure_rval ge e m a = Some (Vint Int.zero)
+SB : simple b = true
+TB : typeof b = tint
+VB : pure_rval ge e m b = Some (Vint Int.one)
+x : expr
+s : statement
+k0 : cont
+NF :
+  State f (Sifthenelse (guard_expr a b c) yes no) (Kwhile2 x s k0) e m <>
+  State f no (Kwhile2 x s k0) e m
+SS :
+  sstep ge
+    (State f (Sifthenelse (guard_expr a b c) yes no) (Kwhile2 x s k0) e m) E0
+    (State f (Swhile x s) k0 e m)
+H6 :
+  Sifthenelse (guard_expr a b c) yes no = Sskip \/
+  Sifthenelse (guard_expr a b c) yes no = Scontinue
+Unable to unify
+ "ExprState f (guard_expr a b c) (Kifthenelse yes no (Kwhile2 x s k0)) e m"
+with "State f (Swhile x s) k0 e m".
+

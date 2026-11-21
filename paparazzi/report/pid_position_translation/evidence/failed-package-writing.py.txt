@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,hashlib,sys,os
+sys.path.insert(0,'paparazzi/report/pid_position_translation');from stages import *
+rel=ROOT/'paparazzi/relations/pid_position_translation';attempt=rel/'attempts/001';e=attempt/'evidence';r=Run(json.loads((BASE/'rocq-run.json').read_text())['run'])
+# Runtime metadata only; no conversation or reasoning content is exported.
+context=None
+for line in Path(SESSION).read_text().splitlines():
+ q=json.loads(line)
+ if q.get('type')=='turn_context':context=q;break
+assert context['payload']['model']=='gpt-6.1-sol' and context['payload']['effort']=='medium'
+runtime={'session_id':'01a1b709-ae78-7392-95be-439d969f4adc','model':context['payload']['model'],'requested_reasoning_effort':'medium','actual_reasoning_effort':context['payload']['effort'],'timestamp':context.get('timestamp'),'source':'own Codex session turn_context; no conversation or reasoning content archived'}
+dump(e/'runtime-config.json',runtime)
+goals=['PositionTranslationGoal','NoErrorGoal','AllSuccessorTerminationGoal','InputNonvacuityGoal','NonzeroNonvacuityGoal','RelationalFrameGoal']
+dump(rel/'problem/status.json',{'schema':'five-proof-problem/1','status':'pending','active_attempt':'../attempts/001','specification':'Spec.v','requested_goals':goals,'goal_status':{x:'pending' for x in goals}})
+(rel/'problem/report.md').write_text('''# 位置平移不变性问题
+
+唯一模型入口为原始 guidance_pid_h_run_pos；两次调用使用同一 Source/Execution 模块和两个内存值。结构体返回遵循真实隐藏返回指针 ABI。
+
+Spec.v 量化全部 InputPair、两种 in_flight；每个轴同时平移参考位置和真实 NEDi 缓存位置，并要求加法与误差相减有符号32位可表示。前提没有

@@ -1,0 +1,128 @@
+   as [b[ofs[bf L]]]. exact (proj2(big_immediate ge e m) _ _ _ _ L).
+ - destruct (big_context_hole _ _ _ CT sub ge e m S ltac:(unfold big_defined; eauto))
+   as [w R]. exact (proj1(big_immediate ge e m) _ _ R).
+Qed.
+
+Lemma simple_immediate : forall ge e m a,
+ simple a=true -> pure_rval ge e m a<>None -> imm_safe ge e RV a m.
+Proof.
+ intros ge e m a S D. destruct (pure_rval ge e m a) eqn:E; [|contradiction].
+ eapply (proj1(big_immediate ge e m)); eapply(proj1(pure_eval_big _ ge e m S)); eauto.
+Qed.
+
+Lemma flat_split : forall a,flat_expr a=true ->
+ simple a=true \/ exists l r ty,a=Eassign l r ty /\ simple l=true /\ simple r=true.
+Proof.
+ destruct a; simpl; intros H; try discriminate; try(left;assumption).
+ right; exists a1,a2,ty; apply andb_true_iff in H; tauto.
+Qed.
+
+Lemma flat_immediate : forall ge e m a v m',
+ flat_expr a=true -> flat_eval ge e m a=Some(v,m') -> imm_safe ge e RV a m.
+Proof.
+ intros ge e m a v m' FL E.
+ destruct (flat_split _ FL) as [S|[l[r[ty[EQ[SL SR]]]]]].
+ - rewrite (flat_eval_simple ge e m a S) in E.
+   eapply simple_immediate; eauto. destruct(pure_rval ge e m a); congruence.
+ - subst a. unfold flat_eval in E. option_cases E; inversion E; subst.
+   match goal with L:pure_lval _ _ _ _=Some _ |- _=>
+    pose proof (proj2(pure_eval_big _ ge e m SL) _ _ _ L) as BL end.
+   match goal with R:pure_rval _ _ _ _=Some _ |- _=>
+    pose proof (proj1(pure_eval_big _ ge e m SR) _ R) as BR end.
+   destruct(literal LV l) eqn:LL.
+   + destruct(literal_l_inv _ LL) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst.
+     destruct(literal RV r) eqn:LR.
+     * destruct(literal_r_inv _ LR) as [vr[tr LITERAL_EQ]]; subst r.
+       invert_literal_eval; cbn [typeof] in *; subst.
+       match goal with D:do_assign_loc _ _ _ _ _ _ _ _=Some _ |- _=>
+        destruct(do_assign_loc_sound _ _ _ _ _ _ _ _ _ _ _ _ D) as [AS PT] end.
+       eapply imm_safe_rred with(C:=fun x=>x); [|constructor]. eapply red_assign; eauto.
+     * eapply lift_immediate with(from:=RV) (C:=fun x=>Eassign _ x _); eauto.
+       constructor; constructor.
+       eapply(proj1(big_immediate ge e m)); exact BR.
+   + eapply lift_immediate with(from:=LV) (C:=fun x=>Eassign x r _); eauto.
+     constructor; constructor.
+     eapply(proj2(big_immediate ge e m)); exact BL.
+Qed.
+
+Lemma flat_not_stuck : forall ge e m a v m',
+ flat_expr a=true -> flat_eval ge e m a=Some(v,m') -> Csem.not_stuck ge e a m.
+Proof.
+ intros ge e m a v m' FL EV.
+ destruct(flat_split _ FL) as [S|[l[r[ty[EQ[SL SR]]]]]].
+ - rewrite(flat_eval_simple ge e m a S) in EV.
+   destruct(pure_rval ge e m a) eqn:E; try discriminate.
+   eapply pure_not_stuck; eauto.
+ - subst a. assert(LEFT:exists b ofs bf,pure_lval ge e m l=Some(b,ofs,bf)).
+   { unfold flat_eval in EV; option_cases EV; eauto. }
+   assert(RIGHT:exists w,pure_rval ge e m r=Some w).
+   { unfold flat_eval in EV; option_cases EV; eauto. }
+   intros k C sub CT EQ. inversion CT; subst; try discriminate.
+   + cbn in EQ; subst sub. eapply flat_immediate; eauto.
+   + inversion EQ; subst.
+     destruct LEFT as [b[ofs[bf LE]]].
+     pose proof(proj2(pure_eval_big _ ge e m SL) _ _ _ LE) as BE.
+     match goal with CT:Csem.context _ LV _ |- _ =>
+      pose proof(big_context_hole _ _ _ CT sub ge e m SL ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k; unfold big_defined in HS.
+     * destruct HS as [b0[o0[bf0 HOLE_EVAL]]]. eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w HOLE_EVAL]. eapply(proj1(big_immediate ge e m));eauto.
+   + inversion EQ; subst.
+     destruct RIGHT as [w RE].
+     pose proof(proj1(pure_eval_big _ ge e m SR) _ RE) as BE.
+     match goal with CT:Csem.context _ RV _ |- _ =>
+      pose proof(big_context_hole _ _ _ CT sub ge e m SR ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k; unfold big_defined in HS.
+     * destruct HS as [b0[o0[bf0 HOLE_EVAL]]]. eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w0 HOLE_EVAL]. eapply(proj1(big_immediate ge e m));eauto.
+Qed.
+
+
+
+
+
+
+
+  atom_eval ge e m (C a) = atom_eval ge e m' (C a').
+Proof.
+  intros ge e m a a' m' from C HC KIND FLAT HR; subst from.
+  destruct (pure_lred _ _ _ _ _ _ HR) as [HM [HT [HS HE]]]; subst m'.
+  split; auto; split.
+  - eapply (atom_context_replace _ _ _ HC a a'); eauto; symmetry; exact HT.
+  - assert (SA: simple a = true) by (inversion HR; subst; simpl; auto).
+    exact (atom_context_congr ge e m LV C HC a a' (eq_sym HT) SA HS HE).
+Qed.
+
+Lemma atom_assignop_head:
+ forall ge e m op l r tyres ty t a' m', core_expr(Eassignop op l r tyres ty)=true ->
+ rred ge (Eassignop op l r tyres ty) m t a' m' ->
+ atom_expr a'=true /\ atom_eval ge e m (Eassignop op l r tyres ty)=atom_eval ge e m' a'.
+Proof.
+ intros ge e m op l r tyres ty t a' m' CORE HR;inversion HR;subst;simpl in CORE;core_unpack.
+ split;[reflexivity|]. simpl. rewrite dec_eq_true.
+ assert(HT:t=E0) by (eapply deref_loc_silent;eauto). subst t.
+ match goal with D:deref_loc ge _ _ _ _ _ E0 _ |- _=>
+  rewrite(do_deref_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ D (possible_trace_nil _)) end.
+ reflexivity.
+Qed.
+
+Lemma atom_rred_context:
+ forall ge e m a a' t m' C,
+ Csem.context RV RV C -> atom_expr(C a)=true -> core_expr(C a)=true ->
+ rred ge a m t a' m' -> atom_expr(C a')=true /\
+ atom_eval ge e m (C a)=atom_eval ge e m' (C a').
+Proof.
+ intros ge e m a a' t m' C HC FLAT CORE HR.
+ destruct(simple a) eqn:SA.
+ - destruct(pure_rred ge e a m t a' m' SA HR) as [HM[TT[HT[HS HE]]]];subst m'.
+   split.
+   + exact(atom_context_replace _ _ _ HC a a' (eq_sym HT) FLAT HS).
+   + exact(atom_context_congr ge e m RV C HC a a' (eq_sym HT) SA HS HE).
+ - assert(FA:atom_expr a=true) by (eapply atom_context_hole;eauto).
+   assert(ID:forall z,C z=z) by (eapply atom_context_impure_root;eauto).
+   repeat rewrite ID in FLAT,CORE|-*.
+   destruct a;simpl in SA,FA;try congruence.
+   + inversion HR;subst;split;[reflexivity|]. eapply atom_assign_head;eauto.
+   + eapply atom_assignop_head;eauto.
+Qed.

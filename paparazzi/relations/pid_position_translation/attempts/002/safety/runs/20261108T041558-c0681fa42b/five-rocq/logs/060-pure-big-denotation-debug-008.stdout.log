@@ -1,0 +1,23 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  b : block
+  ofs : ptrofs
+  bf : bitfield
+  l : expr
+  ty : type
+  v : val
+  H : eval_simple_lvalue ge e m l b ofs bf
+  H0 : pure_lval ge e m l = Some (b, ofs, bf)
+  H1 : ty = typeof l
+  H2 : type_is_volatile ty = false
+  H3 : deref_loc ge ty m b ofs bf E0 v
+  CORE : simple l = true
+  CORE0 : negb (type_is_volatile (typeof l)) = true
+  ============================
+  match do_deref_loc ge quiet_world ty m b ofs bf with
+  | Some (_, _, v0) => Some v0
+  | None => None
+  end = Some v

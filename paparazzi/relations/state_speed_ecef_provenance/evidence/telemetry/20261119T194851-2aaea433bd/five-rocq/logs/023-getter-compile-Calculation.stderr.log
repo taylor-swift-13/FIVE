@@ -1,0 +1,37 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/state_speed_ecef_provenance/support/setters
+was previously bound to StateSpeedMemory.setters; it is remapped to
+StateSpeedSetterSupport [overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/models/stateGetSpeedEcef_f/rocq/support/Calculation.v", line 35, characters 16-41:
+Error:
+In environment
+m, m1, m2, m3, mf : mem
+sb : block
+x, y, z : int
+base : cont
+BASE : is_call_cont base
+SYM : Genv.find_symbol ge S._state = Some sb
+STATUS : Mem.load Mint16unsigned m sb 280 = Some (Vint Int.one)
+X : Mem.load Mint32 m sb 296 = Some (Vint x)
+Y : Mem.load Mint32 m sb 300 = Some (Vint y)
+ZS : Mem.load Mint32 m sb 304 = Some (Vint z)
+STX : Mem.store Mfloat32 m sb 328 (Vsingle (decode x)) = Some m1
+STY : Mem.store Mfloat32 m1 sb 332 (Vsingle (decode y)) = Some m2
+STZ : Mem.store Mfloat32 m2 sb 336 (Vsingle (decode z)) = Some m3
+STS : Mem.store Mint16unsigned m3 sb 280 (Vint (Int.repr 33)) = Some mf
+BODY :
+  stmt_eval ge empty_env tvoid (Ssequence conversion_block marker) m =
+  Some (Nnormal, mf)
+EVAL :
+  state_eval ge
+    (State S.f_stateCalcSpeedEcef_f conversion_block 
+       (Kseq marker Kstop) empty_env m) =
+  Some (Vundef, mf)
+L := callee_invariant ge base Vundef mf : Csem.state -> Prop
+Unable to unify
+ "match ?base with
+  | Kstop | Kcall _ _ _ _ _ => True
+  | _ => False
+  end"
+with "Csem.state".
+

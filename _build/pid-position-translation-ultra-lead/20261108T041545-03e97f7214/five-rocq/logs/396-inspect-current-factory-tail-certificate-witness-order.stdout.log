@@ -1,0 +1,40 @@
+ exists mf,(forall k,exists P,certificate ge P(State S.f_guidance_pid_h_run Sskip k e mf) /\
+ P(State S.f_guidance_pid_h_run return_assignment k e m)) /\
+ active_fields mf ret x y heading /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>temp ->b<>ret ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs n,Mem.valid_block m b ->b<>temp ->b<>ret ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+Proof.
+ intros e m br temp bp bh bf ret h heading x y LR LC NP SP NH SH NF SF FF DRT DTR RES HEAD CAST LX LY RVS WT WR.
+ destruct(original_factory_funcall m bp temp(Ptrofs.repr 32)heading x y LX LY ltac:(change(4|
+ assert(PREP:HiddenResultPre.prepared ge e m[tptr spty;tptr vty;tint]
+  {|cc_vararg:=None;cc_unproto:=false;cc_structret:=true|}
+  (Vptr bf Ptrofs.zero)[Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]
+  factory_function_expr factory_args_expr).
+ { constructor;try reflexivity;[exact RF|exact ARGS]. }
+ destruct(hidden_result_assignment_certificate ge S.f_guidance_pid_h_run S.f_stab_sp_from_ltp_i e k
+   m mc mf S._StabilizationSetpoint S.__res br ret[tptr spty;tptr vty;tint]
+   {|cc_vararg:=None;cc_unproto:=false;cc_structret:=true|}
+   (Vptr bf Ptrofs.zero)[Vptr temp Ptrofs.zero;Vptr bp(Ptrofs.repr 32);Vint heading]
+   factory_function_expr factory_args_expr factory_result_expr(Vptr temp Ptrofs.zero)
+   (Vptr temp Ptrofs.zero)(Vptr temp Ptrofs.zero)
+   LR D0 D1 FF eq_refl PREP eq_refl eq_refl PV eq_refl COPYA)
+   as[P[CERT IN]].
+   + intros base BASE;exists(callee_invariant ge base Vundef mc);exact(CAL base BASE).
+   + exists P;split;[exact CERT|exact IN].
+ - split.
+   + unfold active_fields in *;destruct ACTIVE as[L0[L4[L8[L12[L16[L24[L28 L32]]]]]]];repeat split.
+     * replace 0 with(0+0)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L0|lia|change(0+4<=36);lia|change(4|0+0);exists 0;reflexivity].
+     * replace 4 with(0+4)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L4|lia|change(4+4<=36);lia|change(4|0+4);exists 1;reflexivity].
+     * replace 8 with(0+8)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L8|lia|change(8+4<=36);lia|change(4|0+8);exists 2;reflexivity].
+     * replace 12 with(0+12)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L12|lia|change(12+4<=36);lia|change(4|0+12);exists 3;reflexivity].
+     * replace 16 with(0+16)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L16|lia|change(16+4<=36);lia|change(4|0+16);exists 4;reflexivity].
+     * replace 24 with(0+24)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L24|lia|change(24+4<=36);lia|change(4|0+24);exists 6;reflexivity].
+     * replace 28 with(0+28)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L28|lia|change(28+4<=36);lia|change(4|0+28);exists 7;reflexivity].
+     * replace 32 with(0+32)by lia;eapply copy_typed_load;[exact BYTES|exact COPY|exact L32|lia|change(32+4<=36);lia|change(4|0+32);exists 8;reflexivity].
+   + split.
+     * intros ch b ofs p VA;split.
+       -- intros z ZR;eapply Mem.perm_storebytes_1;[exact COPY|exact(proj1(KEEP _ _ _ _ VA)z ZR)].
+       -- exact(proj2 VA).
+     * split.
+       -- intros ch b ofs VB DT DR;erewrite Mem.load_storebytes_other by(exact COPY||(left;exact 

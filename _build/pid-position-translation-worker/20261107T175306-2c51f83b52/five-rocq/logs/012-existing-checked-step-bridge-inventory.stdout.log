@@ -1,0 +1,75 @@
+2242-  generalize (step_expr_context e w _ _ _ H1 a m). unfold reducts_incl.
+2243-  intro. replace C with (fun x => C x). apply H2.
+2244-  rewrite STEP. unfold topred; auto with coqlib.
+2245-  apply extensionality; auto.
+2246-(* rred *)
+2247-  unfold do_step; rewrite NOTVAL.
+2248-  exploit rred_topred; eauto. instantiate (1 := e). intros (rule & STEP).
+2249-  exists rule.
+2250-  change (TR rule t (ExprState f (C a') k e m')) with (expr_final_state f k e (C, Rred rule a' m' t)).
+2251-  apply in_map.
+2252-  generalize (step_expr_context e w _ _ _ H1 a m). unfold reducts_incl.
+2253-  intro. replace C with (fun x => C x). apply H2.
+2254-  rewrite STEP; unfold topred; auto with coqlib.
+2255-  apply extensionality; auto.
+2256-(* callred *)
+2257-  unfold do_step; rewrite NOTVAL.
+2258-  exploit callred_topred; eauto. instantiate (1 := w). instantiate (1 := e).
+2259-  intros (rule & STEP). exists rule.
+2260-  change (TR rule E0 (Callstate fd vargs (Kcall f e C ty k) m)) with (expr_final_state f k e (C, Callred rule fd vargs ty m)).
+2261-  apply in_map.
+2262-  generalize (step_expr_context e w _ _ _ H1 a m). unfold reducts_incl.
+2263-  intro. replace C with (fun x => C x). apply H2.
+2264-  rewrite STEP; unfold topred; auto with coqlib.
+2265-  apply extensionality; auto.
+2266-(* stuck *)
+2267-  exploit not_imm_safe_stuck_red. eauto. red; intros; elim H1. eapply imm_safe_t_imm_safe. eauto.
+2268-  instantiate (1 := w). intros [C' IN].
+2269-  simpl do_step. rewrite NOTVAL.
+2270-  exists "step_stuck".
+2271-  change (TR "step_stuck" E0 Stuckstate) with (expr_final_state f k e (C', Stuckred)).
+2272-  apply in_map. auto.
+2273-
+2274-  (* Statement step *)
+2275-  inv H; simpl; econstructor...
+2276-  rewrite H0...
+2277-  rewrite H0...
+2278-  rewrite H0...
+2279-  destruct H0; subst s0...
+2280-  destruct H0; subst s0...
+2281-  rewrite H0...
+2282-  rewrite H0...
+2283-  rewrite pred_dec_false...
+2284-  rewrite H0...
+2285-  rewrite H0...
+2286-  destruct H0; subst x...
+2287-  rewrite H0...
+2288-  rewrite H0; rewrite H1...
+2289-  rewrite H1. red in H0. destruct k; try contradiction...
+2290-  rewrite H0...
+2291-  destruct H0; subst x...
+2292-  rewrite H0...
+2293-
+2294-  (* Call step *)
+2295-  rewrite pred_dec_true; auto. rewrite (do_alloc_variables_complete _ _ _ _ _ H1).
+2296-  rewrite (sem_bind_parameters_complete _ _ _ _ _ _ H2)...
+2297-  exploit do_ef_external_complete; eauto. intro EQ; rewrite EQ. auto with coqlib.
+2298-Qed.
+2299-
+2300-End EXEC.
+2301-
+2302-Local Open Scope option_monad_scope.
+2303-
+2304-Definition do_initial_state (p: program): option (genv * state) :=
+2305-  let ge := globalenv p in
+2306-  do m0 <- Genv.init_mem p;
+2307-  do b <- Genv.find_symbol ge p.(prog_main);
+2308-  do f <- Genv.find_funct_ptr ge b;
+2309-  check (type_eq (type_of_fundef f) (Tfunction nil type_int32s cc_default));
+2310-  Some (ge, Callstate f nil Kstop m0).
+2311-
+2312-Definition at_final_state (S: state): option int :=
+2313-  match S with
+2314-  | Returnstate (Vint r) Kstop m => Some r
+2315-  | _ => None
+2316-  end.

@@ -1,0 +1,26 @@
+Mem.nextblock_free
+     : forall (m1 : mem) (bf : Values.block) (lo hi : BinNums.Z) (m2 : mem),
+       Mem.free m1 bf lo hi = Some m2 -> Mem.nextblock m2 = Mem.nextblock m1
+Mem.valid_block_alloc_inv
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall b' : Values.block,
+       Mem.valid_block m2 b' -> b' = b \/ Mem.valid_block m1 b'
+Mem.valid_block_alloc
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall b' : Values.block,
+       Mem.valid_block m1 b' -> Mem.valid_block m2 b'
+Mem.valid_new_block
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) -> Mem.valid_block m2 b
+Mem.loadbytes_range_perm
+     : forall (m : mem) (b : Values.block) (ofs len : BinNums.Z)
+         (bytes : list memval),
+       Mem.loadbytes m b ofs len = Some bytes ->
+       Mem.range_perm m b ofs (BinInt.Z.add ofs len) Cur Readable
+Mem.loadbytes_length
+     : forall (m : mem) (b : Values.block) (ofs n : BinNums.Z)
+         (bytes : list memval),
+       Mem.loadbytes m b ofs n = Some bytes ->
+       length bytes = BinInt.Z.to_nat n

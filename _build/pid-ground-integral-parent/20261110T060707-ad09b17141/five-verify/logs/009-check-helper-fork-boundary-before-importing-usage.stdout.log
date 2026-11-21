@@ -1,0 +1,61 @@
+META 1 2026-11-10T06:10:48.376Z 2026-11-10T06:10:48.370Z 01a1c414-9fa9-76a0-9908-a0a99ac60417 {'subagent': {'thread_spawn': {'parent_thread_id': '01a1c411-e34f-7432-8c9d-28a867a292c7', 'depth': 2, 'agent_path': '/root/pid_ground_integral_ultra/witness_plan', 'agent_nickname': 'Averroes', 'agent_role': None}}}
+META 2 2026-11-10T06:10:48.376Z 2026-11-10T06:07:49.079Z 01a1c411-e34f-7432-8c9d-28a867a292c7 {'subagent': {'thread_spawn': {'parent_thread_id': '01a1a068-b2f7-7500-a3c6-86e0924879f5', 'depth': 1, 'agent_path': '/root/pid_ground_integral_ultra', 'agent_nickname': 'Aquinas', 'agent_role': None}}}
+TURN 11 2026-11-10T06:10:48.378Z 01a1c411-e3dc-7922-9116-2e468a466a80 gpt-6.1-sol ultra
+TURN 53 2026-11-10T06:10:52.637Z 01a1c414-a0d4-7353-9bbc-9a87b794fc0e gpt-6.1-sol ultra
+TOKEN 59 2026-11-10T06:10:58.181Z {"total_token_usage": {"input_tokens": 69420, "cached_input_tokens": 68352, "cache_write_input_tokens": 0, "output_tokens": 98, "reasoning_output_tokens": 64, "total_tokens": 69518}, "last_token_usage": {"input_tokens": 69420, "cached_input_tokens": 68352, "cache_write_input_tokens": 0, "output_tokens": 98, "reasoning_output_tokens": 64, "total_tokens": 69518}, "last_usage_includes_reasoning": true, "model_context_window": 475000}
+TOKEN 66 2026-11-10T06:11:02.312Z {"total_token_usage": {"input_tokens": 138999, "cached_input_tokens": 137600, "cache_write_input_tokens": 0, "output_tokens": 202, "reasoning_output_tokens": 64, "total_tokens": 139201}, "last_token_usage": {"input_tokens": 69579, "cached_input_tokens": 69248, "cache_write_input_tokens": 0, "output_tokens": 104, "reasoning_output_tokens": 0, "total_tokens": 69683}, "last_usage_includes_reasoning": true, "model_context_window": 475000}
+TOKEN 73 2026-11-10T06:12:04.561Z {"total_token_usage": {"input_tokens": 208694, "cached_input_tokens": 207104, "cache_write_input_tokens": 0, "output_tokens": 232, "reasoning_output_tokens": 71, "total_tokens": 208926}, "last_token_usage": {"input_tokens": 69695, "cached_input_tokens": 69504, "cache_write_input_tokens": 0, "output_tokens": 30, "reasoning_output_tokens": 7, "total_tokens": 69725}, "last_usage_includes_reasoning": true, "model_context_window": 475000}
+TOKEN 80 2026-11-10T06:12:31.656Z {"total_token_usage": {"input_tokens": 278444, "cached_input_tokens": 276608, "cache_write_input_tokens": 0, "output_tokens": 305, "reasoning_output_tokens": 121, "total_tokens": 278749}, "last_token_usage": {"input_tokens": 69750, "cached_input_tokens": 69504, "cache_write_input_tokens": 0, "output_tokens": 73, "reasoning_output_tokens": 50, "total_tokens": 69823}, "last_usage_includes_reasoning": true, "model_context_window": 475000}
+TOKEN 91 2026-11-10T06:13:06.077Z {"total_token_usage": {"input_tokens": 348725, "cached_input_tokens": 346240, "cache_write_input_tokens": 0, "output_tokens": 1699, "reasoning_output_tokens": 1141, "total_tokens": 350424}, "last_token_usage": {"input_tokens": 70281, "cached_input_tokens": 69632, "cache_write_input_tokens": 0, "output_tokens": 1394, "reasoning_output_tokens": 1020, "total_tokens": 71675}, "last_usage_includes_reasoning": true, "model_context_window": 475000}
+TOKEN 98 2026-11-10T06:13:20.868Z {"total_token_usage": {"input_tokens": 420412, "cached_input_tokens": 417792, "cache_write_input_tokens": 0, "output_tokens": 2316, "reasoning_output_tokens": 1514, "total_tokens": 422728}, "last_token_usage": {"input_tokens": 71687, "cached_input_tokens": 71552, "cache_write_input_tokens": 0, "output_tokens": 617, "reasoning_output_tokens": 373, "total_tokens": 72304}, "last_usage_includes_reasoning": true, "model_context_window": 475000}
+TOKEN 104 2026-11-10T06:13:28.375Z {"total_token_usage": {"input_tokens": 492728, "cached_input_tokens": 489856, "cache_write_input_tokens": 0, "output_tokens": 2571, "reasoning_output_tokens": 1610, "total_tokens": 495299}, "last_token_usage": {"input_tokens": 72316, "cached_input_tokens": 72064, "cache_write_input_tokens": 0, "output_tokens": 255, "reasoning_output_tokens": 96, "total_tokens": 72571}, "last_usage_includes_reasoning": true, "model_context_window": 475000}
+CODE def load(path):
+    path=Path(path).resolve()
+    identity=None
+    events=[]
+    previous={k:0 for k in KEYS}
+    notes=[]
+    for line_number,line in enumerate(path.read_text(encoding='utf-8').splitlines(),1):
+        try:
+            record=json.loads(line)
+        except json.JSONDecodeError:
+            # A live JSONL writer may not have flushed the last line yet.
+            notes.append(f'Unparsed line {line_number}; live-tail completeness not guaranteed')
+            continue
+        payload=record.get('payload',{})
+        # Forked logs include an inherited parent header after their own header.
+        # The first header owns the file; later historical headers cannot
+        # change the actor associated with this log's usage counters.
+        if record.get('type')=='session_meta' and identity is None:
+            identity={'thread_id':payload.get('id'),'source':payload.get('source'),'started_at':payload.get('timestamp')}
+        if record.get('type')!='event_msg' or payload.get('type')!='token_count':
+            continue
+        totals=(payload.get('info') or {}).get('total_token_usage')
+        if not totals:
+            continue
+        if identity is None or not identity.get('thread_id'):
+            raise ValueError('Token event without identified session')
+        current={k:totals.get(k) for k in KEYS}
+        if any(type(current[k]) is not int for k in KEYS):
+            notes.append(f'Incomplete counters at line {line_number}')
+            continue
+        delta={k:current[k]-previous[k] for k in KEYS}
+        if any(v<0 for v in delta.values()):
+            raise ValueError(f'Counter reset/decrease at line {line_number}; do not guess attribution')
+        previous=current
+        if not any(delta.values()):
+            continue
+        if delta['cached_input_tokens']>delta['input_tokens'] or delta['reasoning_output_tokens']>delta['output_tokens']:
+            raise ValueError('Subset counters are inconsistent')
+        event_key=hashlib.sha256(json.dumps(current,sort_keys=True).encode()).hexdigest()[:24]
+        events.append({'event_id':f"{identity['thread_id']}:{event_key}",'timestamp':record.get('timestamp'),
+                       'source_line':line_number,**delta})
+    if identity is None:
+        raise ValueError('Session metadata missing')
+    return identity,events,previous,notes
+CODE def snapshot(path):
+    identity,events,totals,notes=load(path)
+    return {'thread_id':identity['thread_id'],'session_file':str(Path(path).resolve()),
+            'last_event_id':events[-1]['event_id'] if events else None,
+            'last_event_timestamp':events[-1]['timestamp'] if events else None,
+            'observed_event_count':len(events),'counters':totals,'notes':notes}

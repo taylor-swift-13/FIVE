@@ -1,0 +1,166 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/NormalReturn.v", line 67, characters 1-86:
+Error:
+In environment
+m : mem
+gh, ret : block
+flight : bool
+bp, bi, bt, bu, bh, bfun : block
+kp, kd, ki, kv, ka, ax, ay, ix, iy : int
+h : float32
+heading : int
+SP : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._guidance_pid = Some bp
+SI :
+  Genv.find_symbol CoreInputs.E.ge
+    CoreInputs.S._guidance_pid_trim_att_integrator =
+  Some bi
+ST : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._traj_max_bank = Some bt
+SU : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._total_max_bank = Some bu
+SH : Genv.find_symbol CoreInputs.E.ge CoreInputs.S._guidance_h = Some bh
+SF :
+  Genv.find_symbol CoreInputs.E.ge CoreInputs.S._stab_sp_from_ltp_i =
+  Some bfun
+FF :
+  Genv.find_funct CoreInputs.E.ge (Vptr bfun Ptrofs.zero) =
+  Some (Internal CoreInputs.S.f_stab_sp_from_ltp_i)
+APP : Mem.load Mint8unsigned m bp 44 = Some (Vint Int.zero)
+KP : Mem.load Mint32 m bp 0 = Some (Vint kp)
+KD : Mem.load Mint32 m bp 4 = Some (Vint kd)
+KI : Mem.load Mint32 m bp 8 = Some (Vint ki)
+KV : Mem.load Mint32 m bp 12 = Some (Vint kv)
+KA : Mem.load Mint32 m bp 16 = Some (Vint ka)
+AX : Mem.load Mint32 m gh 60 = Some (Vint ax)
+AY : Mem.load Mint32 m gh 64 = Some (Vint ay)
+IX : Mem.load Mint32 m bi 0 = Some (Vint ix)
+IY : Mem.load Mint32 m bi 4 = Some (Vint iy)
+LT : Mem.load Mint32 m bt 0 = Some (Vint (Int.repr 1429))
+LU : Mem.load Mint32 m bu 0 = Some (Vint (Int.repr 3216))
+HEAD : Mem.load Mfloat32 m bh 28 = Some (Vsingle h)
+CAST :
+  forall mm : mem,
+  sem_cast (Vsingle (Float32.mul h (Float32.of_int (Int.repr 4096)))) tfloat
+    tint mm =
+  Some (Vint heading)
+HB : -12288 <= Int.signed heading <= 12288
+WP : Mem.range_perm m bp 0 48 Cur Writable
+WI : Mem.range_perm m bi 0 8 Cur Writable
+GOOD : InputGood m gh ret
+e : env
+front : mem
+be, bs, sb : block
+rx, ry, px, py, sx, sy, vx, vy : int
+br, bf, bg, temp : block
+SE :
+  Genv.find_symbol EntryIntegration.E.ge
+    EntryIntegration.S._guidance_pid_pos_err =
+  Some be
+SS :
+  Genv.find_symbol EntryIntegration.E.ge
+    EntryIntegration.S._guidance_pid_speed_err =
+  Some bs
+STATE :
+  Genv.find_symbol EntryIntegration.E.ge EntryIntegration.S._state = Some sb
+RX :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._pos; EntryIntegration.S._x] =
+  Some (Vint rx)
+RY :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._pos; EntryIntegration.S._y] =
+  Some (Vint ry)
+PX : Mem.load Mint32 m sb 100 = Some (Vint px)
+PY : Mem.load Mint32 m sb 104 = Some (Vint py)
+SX :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._speed;
+     EntryIntegration.S._x] =
+  Some (Vint sx)
+SY :
+  load_path Mint32 m gh gh_type
+    [EntryIntegration.S._ref; EntryIntegration.S._speed;
+     EntryIntegration.S._y] =
+  Some (Vint sy)
+VX : Mem.load Mint32 m sb 296 = Some (Vint vx)
+VY : Mem.load Mint32 m sb 300 = Some (Vint vy)
+PATH :
+  star Csem.step EntryIntegration.E.ge
+    (EntryIntegration.E.entry (call_args gh ret flight) m) E0
+    (State EntryIntegration.S.f_guidance_pid_h_run_pos
+       FrontSemantics.after_front Kstop e front)
+PEX :
+  Mem.load Mint32 front be 0 =
+  Some (Vint (clamp_bits (Int.sub rx px) (Int.repr 4096)))
+PEY :
+  Mem.load Mint32 front be 4 =
+  Some (Vint (clamp_bits (Int.sub ry py) (Int.repr 4096)))
+SEX :
+  Mem.load Mint32 front bs 0 =
+  Some (Vint (clamp_bits (Int.sub sx vx) (Int.repr 8388608)))
+SEY :
+  Mem.load Mint32 front bs 4 =
+  Some (Vint (clamp_bits (Int.sub sy vy) (Int.repr 8388608)))
+LR : e ! EntryIntegration.S.__res = Some (br, tptr sp_type)
+LF : e ! EntryIntegration.S._in_flight = Some (bf, tbool)
+LG : e ! EntryIntegration.S._gh = Some (bg, tptr gh_type)
+LC : e ! EntryIntegration.S.__res__1 = Some (temp, sp_type)
+RES : Mem.load Mint64 front br 0 = Some (Vptr ret Ptrofs.zero)
+GH : Mem.load Mint64 front bg 0 = Some (Vptr gh Ptrofs.zero)
+FLIGHT :
+  Mem.load Mbool front bf 0 =
+  Some (Vint (if flight then Int.one else Int.zero))
+SEP : env_separated e
+FRESH :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) -> ~ Mem.valid_block m b
+FREE :
+  forall (id : positive) (b : block) (ty : type),
+  e ! id = Some (b, ty) ->
+  Mem.range_perm front b 0 (sizeof EntryIntegration.E.ge ty) Cur Freeable
+FRAME :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (v : val),
+  Mem.load ch m b ofs = Some v ->
+  b <> be -> b <> bs -> Mem.load ch front b ofs = Some v
+PERM :
+  forall (b : block) (ofs : Z) (k : perm_kind) (p : permission),
+  Mem.perm m b ofs k p -> Mem.perm front b ofs k p
+UNSH :
+  forall id : ident, ~ In id (map fst entry_declarations) -> e ! id = None
+IP : Genv.invert_symbol E.ge bp = Some S._guidance_pid
+IE : Genv.invert_symbol E.ge be = Some S._guidance_pid_pos_err
+IS : Genv.invert_symbol E.ge bs = Some S._guidance_pid_speed_err
+II : Genv.invert_symbol E.ge bi = Some S._guidance_pid_trim_att_integrator
+IT : Genv.invert_symbol E.ge bt = Some S._traj_max_bank
+IU : Genv.invert_symbol E.ge bu = Some S._total_max_bank
+IH : Genv.invert_symbol E.ge bh = Some S._guidance_h
+GP : gh <> bp
+GE : gh <> be
+GS : gh <> bs
+GI : gh <> bi
+GT : gh <> bt
+GU : gh <> bu
+Unable to unify "NoDup (?x :: ?l)" with "NoDup []".
+

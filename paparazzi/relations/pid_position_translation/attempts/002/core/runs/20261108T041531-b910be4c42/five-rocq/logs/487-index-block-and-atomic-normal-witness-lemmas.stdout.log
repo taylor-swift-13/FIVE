@@ -1,0 +1,101 @@
+
+FILE paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v
+7 Fixpoint stmt_eval (ge:genv) (e:env) (ret:type) (s:statement) (m:mem): option (normal_outcome * mem) :=
+31 Fixpoint cont_eval (ge:genv) (e:env) (ret:type) (k:cont) (out:normal_outcome) (m:mem): option (val*mem) :=
+43 Lemma cont_eval_return:
+49 Definition state_eval (ge:genv) (S:Csem.state): option (val*mem) :=
+82 Fixpoint normal_stmt (s:statement): bool :=
+90 Fixpoint normal_cont (k:cont): bool :=
+92 Definition normal_state (S:Csem.state): bool :=
+103 Lemma normal_cont_call:
+106 Lemma normal_cont_is_call:
+111 Lemma normal_estep_forward: forall ge f a k e m t next result,
+145 Lemma normal_sstep_preserved:
+159 Lemma normal_sstep_denotation:
+189 Lemma normal_estep_backward: forall ge f a k e m t next,
+217 Theorem normal_step_backward: forall ge S t next,
+227 Theorem all_order_normal_correspondence: forall ge S t v mf,
+241 Definition call_names(s:Csem.state):Prop :=
+245 Lemma normal_no_callred: forall ge f a k e m from C sub fd args ty,
+258 Lemma normal_step_names: forall ge S t next,
+266 Lemma normal_step_forward: forall ge S t next result,
+275 Definition execution_invariant(ge:genv)(s:Csem.state):Prop :=
+277 Definition normal_return(s:Csem.state):Prop :=exists v m,s=Returnstate v Kstop m.
+278 Lemma invariant_preserved: forall ge s t next,
+285 Lemma immediate_has_step: forall ge f a k e m,
+294 Theorem invariant_progress : forall ge s,
+359 Theorem reachable_invariant: forall ge initial t reached,
+370 Theorem normal_witness_certifies_all_orders: forall ge initial tw v mf,
+
+FILE paparazzi/relations/guidance_mode/support/allorder/AtomicDenotation.v
+6 Definition commit (ge:genv) (m:mem) (ty:type) (loc:block*ptrofs*bitfield) (v:val) (vty:type) : option(val*mem) :=
+12 Definition atomic_expr (a:expr):bool :=
+16 Definition atomic_eval (ge:genv) (e:env) (m:mem) (a:expr):option(val*mem) :=
+35 Lemma atomic_simple: forall a,simple a=true -> atomic_expr a=true.
+37 Lemma atomic_eval_simple: forall ge e m a,simple a=true ->
+40 Lemma atomic_context_hole: forall from to C,context from to C -> forall a,
+43 Lemma atomic_context_replace: forall from to C,context from to C -> forall a b,
+50 Lemma atomic_effect_root: forall C,context RV RV C -> forall a,
+58 Lemma atomic_context_congr: forall ge e m from C,
+74 Lemma atomic_assign_head: forall ge e m l r ty t a' mf,
+86 Lemma atomic_assignop_head: forall ge e m op l r tyres ty t a' mf,
+99 Lemma atomic_lred_context: forall ge e m a a' mf C,
+111 Lemma atomic_rred_context: forall ge e m a a' t mf C,
+132 Lemma atomic_estep: forall ge f a k e m t next,
+
+FILE paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v
+5 Fixpoint block_stmt(s:statement):bool :=
+11 Fixpoint block_cont(k:cont):bool :=
+13 Definition block_state(s:Csem.state):bool :=
+19 Fixpoint block_eval(ge:genv)(e:env)(s:statement)(m:mem):option mem :=
+29 Fixpoint block_tail(ge:genv)(e:env)(k:cont)(m:mem):option mem :=
+34 Definition block_denotation(ge:genv)(s:Csem.state):option mem :=
+45 Definition block_done(s:Csem.state):Prop :=
+47 Lemma block_stmt_normal:forall s,block_stmt s=true -> CallfreeExecution.normal_stmt s=true.
+49 Lemma block_cont_normal:forall k,block_cont k=true -> CallfreeExecution.normal_cont k=true.
+51 Lemma block_state_normal:forall s,block_state s=true -> CallfreeExecution.normal_state s=true.
+58 Lemma block_estep:forall ge f a k e m t next,
+80 Lemma block_sstep:forall ge s t next,
+99 Lemma block_expression_not_stuck:forall ge f a k e m mf,
+111 Lemma block_estep_defined:forall ge f a k e m mf t next,
+124 Definition block_invariant(ge:genv)(mf:mem)(s:Csem.state):Prop :=
+126 Lemma block_successors:forall ge mf s t next,
+134 Lemma block_progress_raw:forall ge mf s,
+166 Lemma nostep_path_eq:forall ge s t next,
+169 Lemma stuck_nostep:forall ge,nostep Csem.step ge Stuckstate.
+171 Lemma return_stop_nostep:forall ge v m,nostep Csem.step ge(Returnstate v Kstop m).
+173 Lemma block_done_path_eq:forall ge f e m t f' e' mf,
+183 Theorem block_normal_correspondence:forall ge initial t f e mf,
+208 Lemma block_plug_sstep:forall ge base s t next,
+218 Lemma block_plug_sstep_inverse:forall ge base s t next,
+237 Lemma block_plug_step:forall ge base s t next,
+245 Lemma block_plug_step_inverse:forall ge base s t next,
+256 Definition block_owner(f:function)(e:env)(s:Csem.state):Prop :=
+258 Lemma block_owner_preserved:forall ge f e s t next mf0,
+270 Definition block_context_invariant(ge:genv)(base:cont)(f:function)(e:env)(mf:mem)(s:Csem.state):Prop :=
+272 Lemma block_context_entry:forall ge base f e st m t mf,
+282 Theorem block_context_progress:forall ge base f e mf s,
+299 Theorem block_context_all_successors:forall ge base f e mf s t next,
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/safety/AtomicPhase.v
+4 Theorem atomic_expression_certificate:forall ge caller e k m mf a v,
+From Stdlib Require Import Bool List.
+From compcert Require Import Coqlib Maps Values Memory Events Ctypes Csyntax Csem.
+From FiveGuidanceAllOrder Require Import AtomicDenotation BlockExecution ContinuationLift PhaseComposition.
+Theorem atomic_expression_certificate:forall ge caller e k m mf a v,
+ atomic_expr a=true ->atomic_eval ge e m a=Some(v,mf) ->
+ certificate ge(block_context_invariant ge k caller e mf)(State caller Sskip k e mf) /\
+ block_context_invariant ge k caller e mf(ExprState caller a(Kdo k)e m).
+Proof.
+ intros ge caller e k m mf a v SYNTAX EVAL;split.
+ - split.
+   + intros s INV;eapply block_context_progress;exact INV.
+   + intros s t next INV NF STEP;eapply block_context_all_successors;eauto.
+ - exists(ExprState caller a(Kdo Kstop)e m);split;[reflexivity|];split.
+   + split.
+     * cbn[block_state block_cont];rewrite SYNTAX;reflexivity.
+     * cbn[block_denotation];rewrite EVAL;reflexivity.
+   + split;reflexivity.
+Qed.
+Print Assumptions atomic_expression_certificate.
+

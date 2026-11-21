@@ -1,0 +1,82 @@
+Definition f_pprz_trig_int_init := {|
+  fn_return := tint;
+  fn_callconv := cc_default;
+  fn_params := nil;
+  fn_vars := ((_i, tshort) :: (_j, tshort) :: (_k, tshort) ::
+              (_cnt, tshort) :: (_temp, tshort) :: (_val, tshort) ::
+              (_val_prev, tshort) :: (_tab_12, tshort) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign (Evar _tab_12 tshort) (Eval (Vint (Int.repr 0)) tint) tshort))
+  (Ssequence
+    (Sdo (Eassign (Evar _cnt tshort) (Eval (Vint (Int.repr 0)) tint) tshort))
+    (Ssequence
+      (Sdo (Eassign (Evar _val tshort) (Eval (Vint (Int.repr 0)) tint)
+             tshort))
+      (Ssequence
+        (Sdo (Eassign (Evar _val_prev tshort) (Eval (Vint (Int.repr 0)) tint)
+               tshort))
+        (Ssequence
+          (Sfor
+            (Sdo (Eassign (Evar _i tshort) (Eval (Vint (Int.repr 0)) tint)
+                   tshort))
+            (Ebinop Olt (Evalof (Evar _i tshort) tshort)
+              (Eval (Vint (Int.repr 3379)) tint) tint)
+            Sskip
+            (Ssequence
+              (Sdo (Eassign (Evar _temp tshort)
+                     (Ecall
+                       (Evalof
+                         (Evar _get_nibble (Tfunction (tushort :: nil) tuchar
+                                             cc_default))
+                         (Tfunction (tushort :: nil) tuchar cc_default))
+                       (Econs (Epostincr Incr (Evar _i tshort) tshort) Enil)
+                       tuchar) tshort))
+              (Sifthenelse (Ebinop Olt (Evalof (Evar _temp tshort) tshort)
+                             (Eval (Vint (Int.repr 15)) tint) tint)
+                (Sfor
+                  (Sdo (Eassign (Evar _j tshort)
+                         (Eval (Vint (Int.repr 0)) tint) tshort))
+                  (Ebinop Olt (Evalof (Evar _j tshort) tshort)
+                    (Ebinop Oadd
+                      (Ebinop Odiv (Evalof (Evar _temp tshort) tshort)
+                        (Eval (Vint (Int.repr 5)) tint) tint)
+                      (Eval (Vint (Int.repr 1)) tint) tint) tint)
+                  (Sdo (Epostincr Incr (Evar _j tshort) tshort))
+                  (Ssequence
+                    (Sdo (Ecall
+                           (Evalof
+                             (Evar _table_encode_12 (Tfunction
+                                                      (tshort :: tshort ::
+                                                       tshort ::
+                                                       (tptr tshort) :: nil)
+                                                      tvoid cc_default))
+                             (Tfunction
+                               (tshort :: tshort :: tshort ::
+                                (tptr tshort) :: nil) tvoid cc_default))
+                           (Econs (Evalof (Evar _val tshort) tshort)
+                             (Econs (Evalof (Evar _val_prev tshort) tshort)
+                               (Econs (Evalof (Evar _cnt tshort) tshort)
+                                 (Econs
+                                   (Eaddrof (Evar _tab_12 tshort)
+                                     (tptr tshort)) Enil)))) tvoid))
+                    (Ssequence
+                      (Sdo (Eassign (Evar _val_prev tshort)
+                             (Evalof (Evar _val tshort) tshort) tshort))
+                      (Ssequence
+                        (Sdo (Epostincr Incr (Evar _cnt tshort) tshort))
+                        (Ssequence
+                          (Sdo (Eassignop Oadd (Evar _val tshort)
+                                 (Ebinop Omod
+                                   (Evalof (Evar _temp tshort) tshort)
+                                   (Eval (Vint (Int.repr 5)) tint) tint)
+                                 tint tshort))
+                          (Sifthenelse (Ebinop Ogt
+                                         (Evalof (Evar _cnt tshort) tshort)
+                                         (Eval (Vint (Int.repr 6434)) tint)
+                                         tint)
+                            (Sreturn (Some (Eunop Oneg
+                                             (Eval (Vint (Int.repr 1)) tint)
+                                             tint)))
+                            Sskip))))))
+                (Ssequence

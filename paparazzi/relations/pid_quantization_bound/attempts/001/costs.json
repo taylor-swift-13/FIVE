@@ -1,0 +1,126 @@
+{
+  "schema": "five-stage-costs/1",
+  "records": [
+    {
+      "stage": "five-rocq",
+      "run": "evidence/telemetry/20261119T040922-b502ef0c85/five-rocq",
+      "status": "recorded",
+      "evidence": [
+        "evidence/telemetry/20261119T040922-b502ef0c85/five-rocq/run.json",
+        "evidence/telemetry/20261119T040922-b502ef0c85/five-rocq/metrics.json",
+        "evidence/runtime-config.json"
+      ],
+      "scope": "New relation authoring, attempts, repairs, cold source closure and kernels; linked helper event IDs counted once; inherited historical verification costs excluded.",
+      "time": {
+        "wall_seconds": 1596.4728701114655,
+        "tool_cpu_seconds": 1084.6900000000003
+      },
+      "token": {
+        "input": 16568606,
+        "output": 65960,
+        "total": 16634566,
+        "cached_input": 16436352,
+        "reasoning_output": 29594
+      },
+      "memory": {
+        "tool_peak_rss_bytes": null
+      },
+      "limitations": [
+        "Parallel helper runs have no observed joint RSS peak; this value is null. Per-command and per-helper sampled peaks and GNU individual-process maxima are retained.",
+        "Wall time is the direct main session interval and is not the sum of overlapping child intervals. CPU and tokens already include linked helpers; child receipts are subsets.",
+        "Tool CPU/RSS concern recorded proof commands. Filesystem inspection and orchestration overhead are not a separately measured tool workload; model-serving and desktop memory are unavailable."
+      ],
+      "actor": "lead proof author and final checker; linked helper costs included once",
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "runtime_evidence": "evidence/runtime-config.json"
+      }
+    },
+    {
+      "stage": "five-verify",
+      "actor": "post-proof packaging gap before the fresh verification meter",
+      "run": "evidence/post-proof-gap-usage.json",
+      "status": "recorded",
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "runtime_evidence": "evidence/runtime-config.json"
+      },
+      "time": {
+        "wall_seconds": null,
+        "tool_cpu_seconds": null
+      },
+      "token": {
+        "input": null,
+        "output": null,
+        "total": 793525,
+        "cached_input": null,
+        "reasoning_output": null
+      },
+      "memory": {
+        "tool_peak_rss_bytes": null
+      },
+      "evidence": [
+        "evidence/post-proof-gap-usage.json",
+        "evidence/runtime-config.json"
+      ],
+      "scope": "Exact Codex session-event boundary difference from closed Rocq.after to packaging.before; no inferred time/CPU/RSS allocation."
+    },
+    {
+      "stage": "five-verify",
+      "actor": "post-proof packaging and metadata corrections",
+      "run": "evidence/telemetry/20261119T043744-a1696d0143/five-verify",
+      "status": "recorded",
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "runtime_evidence": "evidence/runtime-config.json"
+      },
+      "evidence": [
+        "evidence/telemetry/20261119T043744-a1696d0143/five-verify/run.json",
+        "evidence/telemetry/20261119T043744-a1696d0143/five-verify/metrics.json",
+        "evidence/runtime-config.json",
+        "evidence/packaging-cost-audit.json"
+      ],
+      "time": {
+        "wall_seconds": 286.32957792282104,
+        "tool_cpu_seconds": 0.13
+      },
+      "token": {
+        "input": 1360042,
+        "output": 9160,
+        "total": 1369202,
+        "cached_input": 1354496,
+        "reasoning_output": 5752
+      },
+      "memory": {
+        "tool_peak_rss_bytes": 13824000
+      },
+      "scope": "Genuine post-proof --session boundary, distinct from proof and explicitly recorded inter-stage gap; no proof reruns. File/orchestration operations not run as measured tool commands have no separately observed CPU/RSS allocation.",
+      "raw_cost_audit": {
+        "status": "incomplete",
+        "evidence": "evidence/telemetry/20261119T043744-a1696d0143/five-verify/run.json"
+      }
+    }
+  ],
+  "linked_helper_runs": [
+    "evidence/telemetry/20261119T041734-3b4aaeb961/five-rocq",
+    "evidence/telemetry/20261119T041650-7960672274/five-rocq"
+  ],
+  "aggregation": "Proof record already includes linked helper event unions/CPU. Post-proof gap and packaging records are disjoint event-boundary intervals. Do not sum nested helper metrics again; do not add overlapping wall intervals.",
+  "raw_cost_audit": {
+    "status": "incomplete",
+    "evidence": "evidence/telemetry/20261119T040922-b502ef0c85/five-rocq/run.json",
+    "issue_counts": {
+      "Parent command overlaps measured child; CPU/RSS may be counted twice": 116,
+      "Combined peak unavailable for concurrent children": 1,
+      "Child intervals overlap; sequential peak aggregation is invalid": 1,
+      "Missing/mismatched peak_process_tree_rss_sampled_bytes": 1,
+      "Measurements are marked partial": 1
+    }
+  }
+}

@@ -1,0 +1,100 @@
+post_phase_certificate :
+forall (ge : Csem.genv) (caller : Csyntax.function) 
+  (e : Csem.env) (k : Csem.cont) (m mf : Memory.Mem.mem)
+  (ghid refid vectid nedid axis iref icomponent ierr igh : AST.ident)
+  (berr bparam bgh bcache : Values.block) (dref dcomponent daxis : BinNums.Z)
+  (cacheofs : Integers.Ptrofs.int)
+  (reference measured difference : Integers.Int.int),
+Maps.PTree.get igh e = Some (bparam, Ctypesdefs.tptr (A.ghty ghid)) ->
+Maps.PTree.get ierr e = None ->
+Globalenvs.Genv.find_symbol (Csem.genv_genv ge) ierr = Some berr ->
+forall ghco refco vecco nedco : Ctypes.composite,
+Maps.PTree.get ghid (Csem.genv_cenv ge) = Some ghco ->
+Maps.PTree.get refid (Csem.genv_cenv ge) = Some refco ->
+Maps.PTree.get vectid (Csem.genv_cenv ge) = Some vecco ->
+Maps.PTree.get nedid (Csem.genv_cenv ge) = Some nedco ->
+Ctypes.field_offset (Csem.genv_cenv ge) iref (Ctypes.co_members ghco) =
+Errors.OK (dref, Ctypes.Full) ->
+Ctypes.field_offset (Csem.genv_cenv ge) icomponent (Ctypes.co_members refco) =
+Errors.OK (dcomponent, Ctypes.Full) ->
+Ctypes.field_offset (Csem.genv_cenv ge) axis (Ctypes.co_members vecco) =
+Errors.OK (daxis, Ctypes.Full) ->
+Ctypes.field_offset (Csem.genv_cenv ge) axis (Ctypes.co_members nedco) =
+Errors.OK (daxis, Ctypes.Full) ->
+Cexec.do_deref_loc ge PureDenotation.quiet_world
+  (Ctypesdefs.tptr (A.ghty ghid)) m bparam Integers.Ptrofs.zero Ctypes.Full =
+Some
+  (PureDenotation.quiet_world, Events.E0,
+   Values.Vptr bgh Integers.Ptrofs.zero) ->
+Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tint m bgh
+  (A.scalar_offset dref dcomponent daxis) Ctypes.Full =
+Some (PureDenotation.quiet_world, Events.E0, Values.Vint reference) ->
+Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tint m bcache
+  (Integers.Ptrofs.add cacheofs (Integers.Ptrofs.repr daxis)) Ctypes.Full =
+Some (PureDenotation.quiet_world, Events.E0, Values.Vint measured) ->
+Cop.sem_binary_operation (Csem.genv_cenv ge) Cop.Osub 
+  (Values.Vint reference) Ctypesdefs.tint (Values.Vint measured)
+  Ctypesdefs.tint m =
+Some (Values.Vint difference) ->
+Cexec.do_assign_loc ge PureDenotation.quiet_world Ctypesdefs.tint m berr
+  (A.axis_offset daxis) Ctypes.Full (Values.Vint difference) =
+Some (PureDenotation.quiet_world, Events.E0, mf, Values.Vint difference) ->
+forall (ls : A.lhs_stage) (rs : A.ref_stage),
+PhaseComposition.certificate ge
+  (BlockExecution.block_context_invariant ge k caller e mf)
+  (Csem.State caller Csyntax.Sskip k e mf) /\
+BlockExecution.block_context_invariant ge k caller e mf
+  (Csem.ExprState caller
+     (post_expr ghid refid vectid nedid axis iref icomponent ierr igh berr
+        bparam bgh bcache dref dcomponent daxis cacheofs reference ls rs)
+     (Csem.Kdo k) e m)
+
+post_phase_certificate is not universe polymorphic
+Arguments post_phase_certificate ge caller e k m mf 
+  ghid refid vectid nedid axis iref icomponent ierr 
+  igh berr bparam bgh bcache (dref dcomponent daxis)%_Z_scope 
+  cacheofs reference measured difference param_local 
+  error_global error_symbol ghco refco vecco nedco 
+  gh_lookup ref_lookup vec_lookup ned_lookup gh_field 
+  ref_field axis_field ned_field param_deref scalar_deref 
+  cache_deref sub_value store_result ls rs
+post_phase_certificate is opaque
+Expands to: Constant
+            PidPositionSafety.GetterAssignmentPost.post_phase_certificate
+Declared in
+library PidPositionSafety.GetterAssignmentPost, line 107, characters 8-30
+readonly_assignment_certificate :
+forall (ge : Csem.genv) (L R F : Type) (pre : L -> R -> F -> Csem.state)
+  (call : L -> R -> Csem.state) (frame : L -> R -> Csem.cont)
+  (post : L -> R -> Csem.state) (initial target : Csem.state)
+  (result : Values.val) (m : Memory.Mem.mem) (l0 : L) 
+  (r0 : R) (f0 : F),
+(forall (l : L) (r : R) (f : F),
+ exists (t : Events.trace) (next : Csem.state),
+   Csem.step ge (pre l r f) t next /\ pre_or_call L R F pre call next) ->
+(forall (l : L) (r : R) (f : F) (t : Events.trace) (next : Csem.state),
+ Csem.step ge (pre l r f) t next -> pre_or_call L R F pre call next) ->
+PhaseComposition.unique_transition ge initial (pre l0 r0 f0) ->
+(forall (l : L) (r : R),
+ exists P : Csem.state -> Prop,
+   PhaseComposition.certificate ge P (Csem.Returnstate result (frame l r) m) /\
+   P (call l r)) ->
+(forall (l : L) (r : R),
+ PhaseComposition.unique_transition ge
+   (Csem.Returnstate result (frame l r) m) (post l r)) ->
+(forall (l : L) (r : R),
+ exists Q : Csem.state -> Prop,
+   PhaseComposition.certificate ge Q target /\ Q (post l r)) ->
+PhaseComposition.certificate ge
+  (invariant ge L R F pre call frame post initial target result m) target
+
+readonly_assignment_certificate is not universe polymorphic
+Arguments readonly_assignment_certificate ge (L R F)%_type_scope
+  (pre call frame post)%_function_scope initial target 
+  result m l0 r0 f0 (pre_progress pre_all_successors)%_function_scope
+  initial_unique (callees returns postphases)%_function_scope
+readonly_assignment_certificate is opaque
+Expands to: Constant
+            PidPositionSafety.ReadonlyPhases.readonly_assignment_certificate
+Declared in
+library PidPositionSafety.ReadonlyPhases, line 44, characters 8-39

@@ -1,0 +1,65 @@
+def check_spec_recheck(root,path,request_sha,manifest_sha,original_c,execution_bindings=None):
+    root=Path(root);p=root/path;s=json.loads(p.read_text())
+    if s.get('schema')!='five-cbmc-rocq-recheck/1' or s.get('request_sha256')!=request_sha or s.get('backend_manifest_sha256')!=manifest_sha:
+        raise RuntimeError('Missing/stale CBMC-to-Rocq recheck ledger')
+    if s.get('verification_method')!='traditional-bounded-model-checking':
+        raise RuntimeError('CBMC must use traditional symbolic execution/BMC, not contract replacement')
+    run=json.loads((root/s['cbmc_run']/'run.json').read_text())
+    cmds=[c for c in run.get('commands',[]) if c['id']==s.get('cbmc_command_id')]
+    if len(cmds)!=1 or Path(cmds[0]['argv'][0]).name!='cbmc':raise RuntimeError('Missing original CBMC invocation')
+    argv=cmds[0]['argv']
+    if cmds[0].get('exit_code') not in [0,10] or cmds[0].get('status') not in ['passed','failed']:
+        raise RuntimeError('CBMC invocation did not complete with a verification result')
+    if any(a.split('=')[0] in CONTRACT_REPLACEMENT_FLAGS for a in argv):
+        raise RuntimeError('Contract-replacement CBMC mode is outside the requested BMC workflow')
+    bindings=s.get('cbmc_input_sha256',{})
+    snapshots={Path(x['source']).resolve():x['sha256'] for x in run.get('inputs',[])}
+    if original_c not in bindings:raise RuntimeError('CBMC ledger does not bind the original C implementation')
+    for n,h in bindings.items():
+        if sha(root/n)!=h:raise RuntimeError('Stale CBMC harness/source: '+n)
+        if snapshots.get((root/n).resolve())!=h:raise RuntimeError('CBMC input differs from actual run snapshot: '+n)
+    if not any(a.endswith('.c') for a in argv[1:]):raise RuntimeError('CBMC must inspect raw C, not a pre-replaced goto model')
+    for arg in argv[1:]:
+        if arg.endswith('.c'):
+            actual=(Path(cmds[0]['cwd'])/arg).resolve()
+            if not any((root/n).resolve()==actual for n in bindings):raise RuntimeError('Unbound CBMC C input')
+    cb=root/s['cbmc_json'];raw=json.loads(cb.read_text())
+    if cb.resolve()!=(root/s['cbmc_run']/cmds[0]['stdout']).resolve():
+        raise RuntimeError('CBMC JSON is not the recorded invocation output')
+    properties=[r for block in raw for r in block.get('result',[])]
+    statuses={r['property']:r['status'] for r in properties}
+    if len(statuses)!=len(properties):raise RuntimeError('Duplicate CBMC property IDs')
+    if not statuses:raise RuntimeError('No actual CBMC properties')
+    entries=s.get('properties',[]);mapped={x.get('property_id'):x for x in entries}
+    if len(mapped)!=len(entries) or set(mapped)!=set(statuses):raise RuntimeError('Rocq recheck omits/duplicates actual CBMC properties')
+    result={str(p):sha(p),str(cb):sha(cb),**bindings}
+    for ident,status in statuses.items():
+        row=mapped[ident]
+        if status not in ['SUCCESS','FAILURE']:raise RuntimeError('Unknown/incomplete CBMC property: '+ident)
+        expected='proved' if status=='SUCCESS' else 'refuted'
+        if row.get('status')!=expected or not row.get('scope') or not row.get('theorem') or not row.get('evidence'):
+            raise RuntimeError('Missing exact-scope Rocq reproof/refutation: '+ident)
+        if status=='FAILURE':
+            if not row.get('counterexample_replay'):
+                raise RuntimeError('Real CBMC failure requires bit/byte/prefix counterexample replay')
+            replay_path=root/row['counterexample_replay'];replay=json.loads(replay_path.read_text())
+            trace=next(r for r in properties if r['property']==ident).get('trace')
+            if not trace or replay.get('status')!='reproduced' or replay.get('property_id')!=ident or replay.get('request_sha256')!=request_sha or replay.get('backend_manifest_sha256')!=manifest_sha or replay.get('cbmc_json_sha256')!=sha(cb):
+                raise RuntimeError('Counterexample replay is missing, stale or unbound to real trace')
+            if not {'input_state','fault_operation','memory_prefix','bit_observations'}.issubset(replay):
+                raise RuntimeError('Counterexample replay omits input/operation/bytes/bits')
+            result[str(replay_path)]=sha(replay_path)
+        for ref in row['evidence']:
+            evidence=json.loads((root/ref).read_text())
+            if row['theorem'] not in evidence.get('theorems',[]):raise RuntimeError('Claimed recheck theorem not kernel-bound')
+            for name,h in (execution_bindings or {}).items():
+                if evidence.get('dependency_sha256',{}).get(name)!=h:raise RuntimeError('Recheck theorem is not bound to the actual execution model')
+            result.update(kernel_record(root,ref))
+    failed=sum(v=='FAILURE' for v in statuses.values())
+    if cmds[0]['exit_code']!=(10 if failed else 0):raise RuntimeError('CBMC result and exit status disagree')
+    return {'bindings':result,'proved':len(statuses)-failed,'refuted':failed}
+
+
+RAW_STDOUT_PREFIX '6.11.0 (cbmc-6.11.0)\n[\n  {\n    "program": "CBMC 6.11.0 (cbmc-6.11.0)"\n  },\n  {\n    "messageText": "CBMC version 6.11.0 (cbmc-6.11.0) 64-bit x86_64 linux",\n    "messageType": "STATUS-MESSAGE"\n  },\n  {\n    "messageText": "Type-checking harness",\n    "messageType'
+RELATION_COST_KEYS ['schema', 'records', 'shared_work', 'aggregation', 'shared_evidence', 'verification_tail']
+RELATION_COST_RUNS [('_build/pid-df-worker/20261121T014138-51757861f2/five-rocq', 'five-rocq'), ('_build/pid-df-worker/20261121T014239-1dca5ac2ba/five-rocq', 'five-rocq')]

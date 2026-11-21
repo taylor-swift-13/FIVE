@@ -1,0 +1,12 @@
+137:  assert(NCORE:e!S._guidance_pid_h_run=None)by(apply UNSH;unfold entry_declarations;cbn;intuition discriminate).
+138:  destruct(original_entry_return_tail e front coreout br bf bg temp funb gh ret flight _ _ heading
+139:  LR LF LG LC NCORE SFUN FFUN TR RES RESC FLIGHT GH CALL ACTIVE KEEP WTEMP WRET)
+140:  as(bodym&bytes&TAIL&ACTRET&TAILKEEP&BYTES&COPY).
+141:  assert(FREEBODY:forall id b ty,e!id=Some(b,ty)->Mem.range_perm bodym b 0(sizeof E.ge ty)Cur Freeable).
+142:  { intros id b ty LOOK;eapply access_preserved_byte_range;[exact TAILKEEP|apply FREE;exact LOOK]. }
+143:  destruct(free_environment E.ge e bodym SEP FREEBODY)as[mf[FREEFINAL[FREEFRAME FREEACCESS]]].
+144:  assert(OUT:forall b,Mem.valid_block m b ->forall id ty,e!id=Some(b,ty)->False)
+145:  by(intros b VB id ty LOOK;exact(FRESH id b ty LOOK VB)).
+146:  assert(FINALRET:active_fields mf ret _ _ heading).
+147:  { unfold active_fields in *;repeat match goal with H:_/\_ |- _=>destruct H end.
+148:    repeat split;rewrite FREEFRAME by(apply OUT;exact VRET);assumption. }

@@ -1,0 +1,15 @@
+26:Lemma double_integer_cgt:forall a b,
+27: Float.cmp Cgt(Float.of_int a)(Float.of_int b)=true <->Int.signed b<Int.signed a.
+28:Proof.
+29: intros a b;destruct(double_signed_integer_exact a)as[RA FA];destruct(double_signed_integer_exact b)as[RB FB].
+30: unfold Float.cmp,Float.compare;rewrite(Binary.Bcompare_correct _ _ _ _ FA FB),RA,RB,Raux.Rcompare_IZR.
+31: destruct(Z.compare(Int.signed a)(Int.signed b))eqn:C;cbn[cmp_of_comparison].
+32: - apply Z.compare_eq_iff in C;split;[discriminate|lia].
+33: - apply Z.compare_lt_iff in C;split;[discriminate|lia].
+34: - apply Z.compare_gt_iff in C;split;auto.
+35:Qed.
+36:Lemma original_front_clamp_bound:forall n bound,
+37: 0<=bound<=2147483647 ->
+38: int_bound(clamp_bits n(Int.repr bound))bound.
+39:Proof.
+40: intros n bound B;unfold clamp_bits,int_bound.

@@ -1,0 +1,84 @@
+/home/yangfp/five/paparazzi/relations/pid_alternating_bias/attempts/001/Proof.v
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import AST Integers Values Memory Globalenvs Ctypes.
+3: From PidPositionRunPos Require Import Source Execution.
+4: From PidPositionTranslationSupport Require Import MemoryLayout.
+5: From PidPositionTranslationProblem Require Import Spec.
+6: From PidPositionTranslationAttempt002 Require Import CoreInputs NormalReturn.
+7: From PidMeasurementProblem Require Import Spec.
+8: From PidAlternatingProblem Require Import Spec.
+9: From PidAlternatingAttempt001 Require Import Semantic DriftArithmetic.
+10: Import ListNotations.
+11: Open Scope Z_scope.
+12: Module P:=PidPositionRunPos.Source.
+13: Lemma input_integral:forall m gh ret r kp ki ix,
+14:  AlternatingInput m gh ret r kp ki ix ->integral_load m ix.
+15: Proof. intros;unfold AlternatingInput in H;tauto. Qed.
+16: Lemma environment_integral:forall gh m mf i,
+17:  EnvironmentStep gh m mf ->integral_load m i ->integral_load mf i.
+18: Proof.
+19:  intros gh m mf i[_ KEEP]LOAD;unfold integral_load in *.
+20:  rewrite(KEEP P._x ltac:(cbn;auto));exact LOAD.
+21: Qed.
+22: Lemma integral_unique:forall m i j,integral_load m i ->integral_load m j ->i=j.
+23: Proof. unfold integral_load;intros;congruence. Qed.
+24: Lemma pairs_exact:forall A kp ki n gh ret m mf,
+25:  Parameters A kp ki ->integral_load m Int.zero ->
+26:  AlternatingPairs gh ret A kp ki n m mf ->
+27:  ObservedIntegral mf(drift_even(kp*A)ki n).
+28: Proof.
+29:  intros A kp ki n gh ret m mf PARAM ZERO RUN.
+30:  destruct PARAM as(AR&KP&KI).
+31:  induction RUN as[m|n m a qa ma qb mb ix iy RUN IH E1 I1 C1 E2 I2 C2].
+32:  - exists Int.zero;rewrite drift_even_zero;split;[exact ZERO|exact Int.signed_zero].
+33:  - destruct IH as[ia[LA SA]].
+34:    assert(IX:ix=ia)by(eapply integral_unique;[exact(input_integral _ _ _ _ _ _ _ I1)|eapply environment_integral;eassumption]).
+35:    destruct(original_call_integral_exact qa ma gh ret A kp ki ix AR KP KI I1 C1)as[j1[L1 S1]].
+36:    assert(IY:iy=j1)by(eapply integral_unique;[exact(input_integral _ _ _ _ _ _ _ I2)|eapply environment_integral;eassumption]).
+37:    destruct(original_call_integral_exact qb mb gh ret (-A)kp ki iy ltac:(lia) KP KI I2 C2)as[j2[L2 S2]].
+38:    exists j2;split;[exact L2|].
+39:    rewrite IY,S1,IX,SA in S2.
+40:    change(Int.signed j2=alternating_step kp ki (-A)
+41:      (alternating_step kp ki A(drift_even(kp*A)ki n)))in S2.
+42:    rewrite S2;exact(pair_drift_step kp ki A n AR KP KI).
+43: Qed.
+44: Theorem proved_drift:DriftGoal.
+45: Proof.
+46:  intros A kp ki n gh ret m mf PARAM ZERO RUN.
+47:  pose proof(pairs_exact A kp ki n gh ret m mf PARAM ZERO RUN)as RESULT.
+48:  rewrite drift_divisible_split in RESULT;exact RESULT.
+49: Qed.
+50: Lemma pairs_append:forall gh ret A kp ki k a b,
+51:  AlternatingPairs gh ret A kp ki k a b ->forall n m,
+52:  AlternatingPairs gh ret A kp ki n m a ->
+53:  AlternatingPairs gh ret A kp ki (n+k)m b.
+54: Proof.
+55:  intros gh ret A kp ki k a b RUN;induction RUN;intros j start PREFIX.
+56:  - rewrite Nat.add_0_r;exact PREFIX.
+57:  - rewrite Nat.add_succ_r;eapply pairs_step;try eassumption.
+58:    apply IHRUN;exact PREFIX.
+59: Qed.
+60: Lemma normal_call_exists:forall m gh ret,InputGood m gh ret ->
+61:  exists mf,NormalCall gh ret true m mf.
+62: Proof.
+63:  intros m gh ret GOOD.
+64:  destruct(inputgood_core_initial_data m gh ret GOOD)as[D _].
+65:  destruct(original_entry_normal_result m gh ret true D GOOD)as(mf&REST).
+66:  exists mf;tauto.
+67: Qed.
+68: Theorem proved_ready_execution:ReadyExecutionGoal.
+69: Proof.
+70:  intros A kp ki n;induction n as[|n IH];intros gh ret m READY.
+71:  - exists m;constructor.
+72:  - destruct READY as[qa[ix[E1[I1 NEXT]]]].
+73:    destruct(normal_call_exists qa gh ret(input_good _ _ _ _ _ _ _ I1))as[ma C1].
+74:    destruct(NEXT ma C1)as[qb[iy[E2[I2 NEXT2]]]].
+75:    destruct(normal_call_exists qb gh ret(input_good _ _ _ _ _ _ _ I2))as[mb C2].
+76:    destruct(IH gh ret mb(NEXT2 mb C2))as[mf SUFFIX].
+77:    exists mf;replace(Datatypes.S n)with(1+n)%nat by lia.
+78:    eapply pairs_append;[exact SUFFIX|].
+79:    eapply pairs_step with(a:=m);try eassumption;constructor.
+80: Qed.
+81: Print Assumptions proved_drift.
+82: Print Assumptions proved_ready_execution.
+

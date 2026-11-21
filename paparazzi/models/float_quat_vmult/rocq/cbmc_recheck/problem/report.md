@@ -1,0 +1,5 @@
+固定原 Paparazzi float_quat_vmult，CompCert3.17原Csyntax/Csem/Cexec，x86-64 Linux小端、binary32 RNE。明确前条件为3个不同block的零offset指针、4个已初始化binary32 quaternion字段和3个已初始化输入vector字段、输出0/4/8三个float32位置可写。允许所有float32含NaN/Inf/signedzero；有限有界CBMC域为本域子集。原0.5 double减法与最后integer2相乘表达式保留，未重写原C或Source.v。
+
+原96个pointer-dereference IDs全部覆盖。每个ID映射q/input/output字段的有效性及实际原AST子表达式位置；RuntimeDefined量化所有原Csem reachable contexts，并证明实际float读写redex的Mem.loadv/Mem.storev存在。ExactObservation建立真实正常Csem返回存在，所有正常返回的完整12输出bytes、output外caller frame和旧valid_access保持。当前结论仅本函数96项，不把共享301项或18memcpy adapter条件实例化算入本问题。
+
+请求目标：AllOriginal96, RuntimeDefined, ExactObservation；当前均proved。

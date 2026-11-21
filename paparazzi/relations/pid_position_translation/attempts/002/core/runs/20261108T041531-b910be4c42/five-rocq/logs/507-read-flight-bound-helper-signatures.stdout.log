@@ -1,0 +1,50 @@
+7 Lemma signed_mul_exact:forall a b,
+ signed32(Int.signed a*Int.signed b) ->
+ Int.signed(Int.mul a b)=Int.signed a*Int.signed b.
+Proof. intros;rewrite Int.mul_signed,Int.signed_repr;[reflexivity|exact H]. Qed.
+Lemma signed_add_exact:forall a b,
+11 Lemma signed_add_exact:forall a b,
+ signed32(Int.signed a+Int.signed b) ->
+ Int.signed(Int.add a b)=Int.signed a+Int.signed b.
+Proof. intros;rewrite Int.add_signed,Int.signed_repr;[reflexivity|exact H]. Qed.
+Lemma signed_shift_exact:forall x sh d,
+15 Lemma signed_shift_exact:forall x sh d,
+ 0<d ->two_p(Int.unsigned sh)=d ->
+ Int.signed(Int.shr x sh)=Int.signed x/d.
+Proof.
+ intros x sh d POS POWER;rewrite Int.shr_div_two_p,POWER,Int.signed_repr;[reflexivity|].
+25 Lemma shift_bound:forall x sh d bound out,
+ int_bound x bound ->0<d ->two_p(Int.unsigned sh)=d ->
+ -out<=(-bound)/d ->bound/d<=out ->
+ int_bound(Int.shr x sh)out.
+Proof.
+35 Lemma clamp_bound:forall v maximum,
+ 0<=maximum<=2147483647 ->
+ int_bound(clip_bits v(Int.repr maximum))maximum.
+Proof.
+ intros v maximum RANGE;unfold clip_bits,int_bound.
+51 Lemma gain_product_bound:forall gain x bound,
+ 0<=Int.signed gain<=100 ->int_bound x bound ->0<=bound ->
+ 100*bound<=2147483647 ->
+ int_bound(Int.mul gain x)(100*bound) /\signed32(Int.signed gain*Int.signed x).
+Proof.
+61 Lemma bounded_sum:forall a b ba bb,
+ int_bound a ba ->int_bound b bb ->0<=ba ->0<=bb ->ba+bb<=2147483647 ->
+ int_bound(Int.add a b)(ba+bb) /\signed32(Int.signed a+Int.signed b).
+Proof.
+ intros a b ba bb A B PA PB CAP;unfold int_bound,signed32 in *.
+69 Lemma trajectory_high_resolution:
+ Int.shl(Int.repr 1429)(Int.repr 16)=Int.repr 93650944.
+Proof. reflexivity. Qed.
+
+Record axis_bounds(kp kd ki kv ka pe se rs ra initial_i:int):Prop:={
+92 Theorem original_axis_intermediate_bounds:forall kp kd ki kv ka pe se rs ra initial_i,
+ axis_bounds kp kd ki kv ka pe se rs ra initial_i ->
+ int_bound(pd_stage kp kd pe se)12800 /\
+ int_bound(velocity_stage kp kd kv pe se rs)12808 /\
+ int_bound(feedforward_stage kp kd kv ka pe se rs ra)16715 /\
+151 Theorem original_axis_arithmetic_safe:forall kp kd ki kv ka pe se rs ra initial_i,
+ axis_bounds kp kd ki kv ka pe se rs ra initial_i ->
+ axis_arithmetic_safe kp kd ki kv ka pe se rs ra initial_i.
+Proof.
+ intros kp kd ki kv ka pe se rs ra initial_i D;destruct D as[KP KD KI KV KA PE SE RS RA II].

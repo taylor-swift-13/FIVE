@@ -1,0 +1,4 @@
+Require Import StateSpeedSetEcefITerminationProblem.Spec.
+Require Import StateSpeedSetEcefITerminationAttempt001.Proof.
+Definition goal_0 : StateSpeedSetEcefITerminationProblem.Spec.AllSuccessorsTerminate := StateSpeedSetEcefITerminationAttempt001.Proof.proved_termination.
+Print Assumptions goal_0.

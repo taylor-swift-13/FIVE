@@ -1,0 +1,94 @@
+.agents/skills/five-rocq/SKILL.md
+.agents/skills/five-rocq/references/run-contract.md
+---
+name: five-rocq
+description: Construct explicit preconditions and specifications and prove requested theorems entirely in Rocq, including CompCert safety, termination, semantic correspondence and mapped CBMC properties. Accepts one or many Rocq models without requiring C or CBMC.
+---
+
+# 纯 Rocq 规约与证明
+
+本阶段负责**前条件构造、功能规约和实际定理证明**。接收一个或多个 Rocq 实现、模型、定义、待证目标或需求；不强制来自某个 C 函数，也不要求 C 或 CBMC。CompCert 模型和初步属性映射由 [five-align](../five-align/SKILL.md) 提供，完整工作流的调度与证据汇总由 [five-verify](../five-verify/SKILL.md) 负责。
+
+## 共同准备与案例交接
+
+准备是独立的 [five-prepare](../five-prepare/SKILL.md) 阶段；完整 C 工作流由 five-verify 调度。各阶段在同一个案例文件夹中交接，不限定外层路径。**开始前必须读取并遵守 [共享案例目录与阶段交接契约](../five-verify/references/case-contract.md)**，包括本阶段必需输入与 hash 核验、规定输出、阶段状态、每案例完整目录和 `report/costs.json`。单独运行某阶段时检查其必要输入；缺失则先完成或明确要求准备，不得假定来源或静默换输入。纯 Rocq 输入的 C 阶段标为不适用。
+
+本阶段读取一个或多个 Rocq 模型、用户目标与适用的 `align/model/proof/` 和属性映射，写入 `rocq/<problem>/problem/`、`rocq/<problem>/attempts/<编号>/`、证明证据与 `rocq/report/`；纯 Rocq 情形无需 C/CBMC，详见共享契约。
+
+## 前条件与证明
+
+- 读取输入定义和依赖，明确目标量词、前条件、观察方式及语义范围。可证明无错误、终止性、功能关系、跨函数组合、跨周期不变量、语义对应或用户指定的其他定理。
+- 对 CompCert 模型接收脚本生成的 `Precondition.v`、`Obligations.v`、`Proofs.v`。用户仅要求生成时保持 pending，不开始填写或证明；用户进入证明阶段后，由大模型在独立前条件文件列明调用类型、内存、数值及环境要求，说明其范围和可满足性，再在证明文件完成相应实例。
+- 不把结论自身或空输入域作为前条件来完成任务，不悄悄加强用户已经给定的前条件。性质不成立时报告反例及可以成立的条件，不修改执行语义掩盖错误。
+- 无错误针对原始 Csem 所有可达状态；终止性针对所有可能后继。不要用有限展开、一个执行样例或“存在一条返回路径”代替。长期运行循环的整体终止命题可能不成立，应说明并按实际请求区分单周期终止与主循环安全。
+- 将规约与实现分开，用递归定义、归纳不变量、辅助引理和适当自动化证明。只有涉及浮点时才要求相应 Flocq 支持；区分位相等、IEEE 比较、数值相等和误差界。实际内存观察按字节与 frame 陈述。
+- Cexec/Csem 全执行对应、外部适配器/环境覆盖、抽象功能模型与执行层的连接，凡需新增形式证明都在本阶段完成。引用原始 CompCert 定理或已检查的依赖，保留前端与外部环境可信边界。生成 Csyntax 本身不能代替这些证明。
+
+## 映射后的 CBMC 属性
+
+有 `spec-map.json` 时，按真实属性 ID、原输入条件、位置、内存区域、调用/展开范围及观察逐项独立重验，必要时先补足命题/状态对应。CBMC 成功不是 Rocq 的公理；纯功能模型上的相似断言需要执行层衔接证明。
+
+重验/反驳结果写 `spec-recheck.json`，保留映射输入与真实 proof run 的绑定。若存在实际反例，重建输入位模式、内存状态、出错操作和已发生的写入前缀，并证明所声称的反例性质。未知字节保持未知；直接求值并非必需，可用执行关系证明复现。不能用 synthetic 变体冒充原 CBMC 反例。无法重验或两套语义存在尚未解决的差异时记 pending/gap，不强行标为 proved/refuted。证据格式见 [证明证据与验收](../five-verify/references/proof-evidence.md)。
+
+## 检查与交付
+
+编译修改模块及受影响依赖，对交付定理运行 `Print Assumptions` 并记录实际继承假设，执行独立 `rocq check`。不使用 Admitted、admit 或为目标新增未证明 Axiom。声明通过检查不等于存在证明；证明实际覆盖的条件、外部假设和未完成项独立列出。
+
+输出前条件、精确规约/命题、证明源码、依赖与假设、编译/内核证据、实际反例以及 pending 义务。证明止于所声明的 Rocq/CompCert 语义；映射回 C 所需的形式衔接也由本阶段证明，five-verify 检查这些证据能否支撑最终结论。
+
+当前项目可先 `source scripts/env.sh`，通用构建入口 `python3 scripts/prove-rocq.py --namespace NAME file1.v file2.v ...` 只构建/检查现有源码，不自动构造证明。已有项目优先使用自身构建配置。
+
+遵循 [最小产物契约](references/run-contract.md)。工作前建立带 `--session` 的 five-rocq 记录，统计实际 token、时间、内存，结束采集事件差额。纯 Rocq 输入无需 C/CBMC 产物，未证明义务单列。
+
+结束必须通过 `python3 scripts/audit-costs.py --run RUN_DIR` 的成本核验。计入规约/前条件构造、证明尝试、修复、失败与超时，不能只统计最后一次编译。模型 token 与工具 CPU/RSS 分别记录；缺失指标记 null 并说明原因，不以估计或 0 替代。
+
+未来产物的权威格式是 [examples 索引](../../../examples/README.md)、[sum3](../../../examples/models/sum3/README.md)、[sum2](../../../examples/models/sum2/README.md) 及 [relations](../../../examples/relations/)；开始产物工作前读取相关示例并遵守 [共享契约](../five-verify/references/case-contract.md)。采用 `prepare/ → cbmc/ → align/ → rocq/` 顺序交接及具名问题的 `problem/`、保留历史的 `attempts/<编号>/`，具体文件、当前尝试、证据与成本规范统一由共享契约维护。仅按用户请求的阶段和目标验收，不将模型生成当证明，也不因只请求生成而强制完成证明。
+
+OLD METADATA
+provenance.json
+costs.json
+report.md
+FILE paparazzi/relations/pid_position_translation/attempts/001/provenance.json
+{
+  "inputs": {
+    "paparazzi/models/guidance_pid_h_run_pos/prepare/source/guidance_pid_h_run_pos.c": "8ca491f87de8559d9f4a48eca3fc7a70e63ac8edd7326e18483f25f2b5868c04",
+    "paparazzi/models/guidance_pid_h_run_pos/prepare/source/bindings.json": "337ef0371113e72a4a2445e287fee2b68d5b95f9cf1041bcf8d5832b0c9a3ad6",
+    "paparazzi/models/guidance_pid_h_run_pos/align/model/Source.v": "f33d6cd38506ff1e080cda6d2261f873a6f269ccb8be1b924ca56c2fa8c4e26f",
+    "paparazzi/models/guidance_pid_h_run_pos/align/model/Execution.v": "92b467146447e6b549f6224440049979e58911b55b9418defd3b28c10cf8fea1",
+    "paparazzi/models/guidance_pid_h_run_pos/align/model/compcert-manifest.json": "919938b14bdbae49e4d8354110e7c20446fc3625bc450eb85ea0ae038a4329b3",
+    "paparazzi/relations/guidance_mode/support/semantics/SemanticsSupport.v": "244711d59388ac34cfbbdf15eeb2eebf7c81e335ee283edac1560ea4119826ea",
+    "paparazzi/relations/guidance_mode/support/entry/BigstepSupport.v": "0c35523a351f2669a7f64b992da1ab442afd7fc21c8789561a1da918226d5fa5",
+    "paparazzi/relations/pid_position_translation/problem/Spec.v": "19ab086cf8d218c40c69f84f2aa3f985258358f36fe69c10253b411e5f4491fe",
+    "paparazzi/relations/pid_position_translation/attempts/001/Proof.v": "346e3c368a01c674fd0dad4bef20d5c6b6775bd35495e9735626700ccf283b96",
+    "paparazzi/relations/pid_position_translation/attempts/001/evidence/GetterBinding.v": "3bc62ba5102116fe60536b5ab12f757587519fd68e94ef7a0db9d4624aeef536",
+    "paparazzi/relations/pid_position_translation/attempts/001/evidence/EstablishedAssumptions.v": "dea75f6dada91b67d72b1ca67f9863e6047e847e663c571c58bb5df146a7ffdd",
+    "paparazzi/relations/pid_position_translation/support/TranslationArithmetic.v": "dea68fbaf8bfd71f30ba34302b1ccf43eaac8eacf3010861267aa88f3e3d4115",
+    "paparazzi/relations/pid_position_translation/support/QuietWalk.v": "801c30fc6f686e101290ce7180821f9ba2eca8b7e447a7e55d48ca108bcc8709",
+    "paparazzi/relations/pid_position_translation/support/MemoryLayout.v": "42af223d3254753dcf7d54808dade8f83618502283fb53411e1a3255ca377ad3",
+    "paparazzi/relations/pid_position_translation/support/WitnessSetup.v": "c9b818bd716aa7eed6bf38de4518452546946488207b43293b41980fbc07e113",
+    "paparazzi/relations/pid_position_translation/support/RawWitness.v": "081bad73026187ee295590294304e6125122956123e80542a4bbe1e8e406a80b",
+    "paparazzi/relations/pid_position_translation/support/GetterSemantics.v": "0200601c2d5344540316c415b5a9e2da2a7b4ed83b538c9e79290d622289990b",
+    "paparazzi/relations/pid_position_translation/attempts/001/check.py": "35eec1add15439cad7c90f20b05a3b5a00c5de14f4014bf3f0e0025e482bb3a0",
+    "paparazzi/models/guidance_pid_h_run_pos/rocq/no_error/problem/Spec.v": "5d6b59c44486f9d02ef80ac553e32d7649cfe49bcac083961c8759a36a5635da",
+    "paparazzi/models/guidance_pid_h_run_pos/rocq/termination/problem/Spec.v": "6bc1324b2780b07cf805fe8c07fb72977494f8f48fd2ce1ab96a2a7202fd3d63"
+  },
+  "main_goals_status": "pending",
+  "model_namespace": "PidPositionRunPos",
+  "runtime": "evidence/runtime-config.json"
+}
+
+FILE paparazzi/relations/pid_position_translation/attempts/001/report.md
+# Attempt 001 — main proof pending
+
+实际作者 gpt-6.1-sol，medium，见 evidence/runtime-config.json。CompCert 3.17，原 Csyntax/Csem/Cexec，x86-64 Linux standard ABI，小端；binary32 RNE 与 NaN policy 由 align manifest 绑定。原外调 stateCalcPositionNed_i/stateCalcSpeedNed_i/atan2f 未替换，完整环境覆盖待证。
+
+已独立 kernel 检查：四个共同平移算术引理、QuietWalk 的真正 Cexec 步到原 Csem 路径桥、GetterSemantics 中两份原 Source getter 符号正常返回定理。getter 前提包括 state symbol/composite lookup、字段 offset、实际可读缓存字、缓存 bit1；speed 保留 Mem.loadv 的 pointer-wrap guard。结论是返回原 state 字段指针且内存完全相同。GetterBinding.v 用完整预期类型绑定它们；没有假设外部回调完成性。
+
+主入口的正常返回存在、全部正常对关系、全可达无错误、全后继 Acc 终止、输入/实际执行非空性、frame、精确控制过渡、124项独立 Rocq 属性重验以及完整环境对应均 pending。类型检查不是证明；条件 quiet-walk 路径不是实际正常返回。
+
+失败全部保留：Genv.init_mem/调用对象初始化的 vm_compute 与 lazy；备用 raw Mem.alloc/store 初始化；均在函数执行前达到显式 3,000,000 KiB 虚拟内存上限。它们是本次方法/资源瓶颈，不是不可执行定理或程序反例。字段路径 guard 检查、导入/类型、getter 初版和所有 CBMC 求解失败日志也保留。
+
+四个算术引理 Closed under global context。实际 Csem 桥/getter 继承 CompCert/库的 classical、functional extensionality 和外部语义接口等假设；准确清单见原始 assumptions 输出。没有新增目标公理或 admitted proof。
+
+各子问题没有独立模型用量边界，费用共享同一真实 five-rocq session，不能事后分摊。check.py --auxiliary 仅验收已建立事实；默认报告主目标 pending。
+

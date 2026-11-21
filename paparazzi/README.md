@@ -14,6 +14,7 @@ The [ground integral-history relation](relations/pid_ground_integral_independenc
 
 | Relation | Outcome | Canonical explanation |
 | --- | --- | --- |
+| Ordinary sine table versus LOW12 flash storage | Proved for normalized Q12 angle codes[-12867,12867] after genuine initialization; bit-identical Q14 results | [Problem](relations/trig_plain_compressed_12/problem/report.md), [proof and costs](relations/trig_plain_compressed_12/attempts/001/report.md) |
 | Low-pass initialized readback | Proved | [Problem](relations/lowpass_readback/problem/report.md) |
 | Low-pass reset and coefficient-update recovery | Proved | [Problem](relations/lowpass_recovery/problem/report.md) |
 | Low-pass update/readback consistency | Proved | [Problem](relations/lowpass_update_readback/problem/report.md) |
@@ -24,8 +25,7 @@ The [ground integral-history relation](relations/pid_ground_integral_independenc
 
 Each relation keeps its canonical question under `problem/` and actual proof
 attempts under `attempts/`. A proved negation theorem is evidence that the
-candidate relation is **refuted**, not that symmetry holds. Current inventory:
-eleven Paparazzi relations, nine established positive relations and two refutations.
+candidate relation is **refuted**, not that symmetry holds. The linked reports state the current status and scope of each relation.
 
 ## Symbolic PID integral drift
 
@@ -62,12 +62,12 @@ conditions and actual Csem execution sequences.
 ## Implementation-to-reference candidates (not yet verified)
 
 These candidates compare an explicit reference model with an optimized or
-deployed implementation. Their reference models and relations have not yet
-been constructed or proved in FIVE.
+deployed implementation. The remaining configurations and observations below require separate
+reference models and proofs. The LOW12 normalized-sine instance above is complete.
 
 | Reference and implementation | Proposed relation |
 | --- | --- |
-| Full sine lookup table versus flash-compressed lookup | Bit-identical decoded values after successful initialization, then identical sine/cosine observations on their defined angle domains |
+| Other compressed sine backends and cosine | Extend the established LOW12 normalized-sine result to their separately pinned configurations and angle domains |
 | Direct positional PID reference versus incremental PID_df | Align trapezoidal integration and backward-difference differentiation; establish exact-arithmetic equivalence, then quantify binary32 deviation |
 | Existing first-order filter division versus proposed precomputed coefficients | Compare output bits or establish a finite-horizon error bound from matching input histories |
 | Sine lookup backend versus floating backend | Check common output encoding before numerical error bounds; the floating branch uses ANGLE_BFP_OF_REAL while the lookup uses the trigonometric scale |
@@ -83,3 +83,11 @@ The coefficient rewrite is a proposed optimization to construct. The PID
 reference must use the same discretization as PID_df; update_pid_f is not
 assumed equivalent. The sine-backend scale concern is a source-level
 hypothesis, not a verified bug.
+
+## Incremental floating PID versus positional reference
+
+The [original update_pid_df model](models/update_pid_df/README.md) has completed safety, all-successor termination, execution correspondence and all81 original CBMC rechecks. The [symbolic relation](relations/pid_df_positional_roundoff/problem/report.md) proves exact-arithmetic equivalence with matching trapezoidal integration and backward differentiation. For every natural n, finite unit-bounded stored coefficients and samples, and zero histories, the actual binary32 result differs from the positional real reference by at most 2^-20*n*(n+1)+n*Delta. [Proof and explanation](relations/pid_df_positional_roundoff/attempts/001/report.md) separate update roundoff from coefficient precomputation. [Workflow costs](relations/pid_df_positional_roundoff/evidence/workflow-costs.json) retain actual time/token/memory scopes and missing observations.
+
+## State speed cache protocol
+
+[Cache-hit safety and exact memory preservation](models/stateGetSpeedEcef_f/rocq/cache_hit/attempts/001/report.md) are proved for the original getter. The [cross-model protocol](relations/state_speed_ecef_cache_protocol/attempts/001/report.md) proves bit-identical observations and no memory changes over arbitrary repeated cache hits, plus accepted-write invalidation and the next actual miss. Existing freshness and history-independence counterexamples persist for every number of repeated hits: cache consistency can retain the wrong old NED-derived result. The original getter remains refuted. [Workflow costs](relations/state_speed_ecef_cache_protocol/evidence/workflow-costs.json) reference reused historical stages and measure only this new proof and acceptance work.

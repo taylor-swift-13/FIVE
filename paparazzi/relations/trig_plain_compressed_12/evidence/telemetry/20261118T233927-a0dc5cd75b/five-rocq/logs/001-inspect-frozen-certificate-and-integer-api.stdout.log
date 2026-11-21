@@ -1,0 +1,122 @@
+
+Theorem sign_ext_above:
+  forall n x, n >= zwordsize -> sign_ext n x = x.
+Proof.
+  intros. apply same_bits_eq; intros.
+  unfold sign_ext; rewrite testbit_repr; auto.
+  rewrite Zsign_ext_spec. rewrite zlt_true. auto. lia. lia.
+Qed.
+
+Theorem sign_ext_below:
+  destruct (zlt i n'); lia.
+  apply sign_ext_above; auto.
+Qed.
+
+Theorem sign_zero_ext_widen:
+  forall x n n', 0 <= n < n' ->
+  sign_ext n' (zero_ext n x) = zero_ext n x.
+Proof.
+  intros. destruct (zlt n' zwordsize).
+  bit_solve.
+  destruct (zlt i n'); lia.
+  apply sign_ext_above; auto.
+Qed.
+
+Theorem zero_ext_narrow:
+  forall x n n', 0 <= n <= n' ->
+  zero_ext n (zero_ext n' x) = zero_ext n x.
+Proof.
+  bit_solve. destruct (zlt i n).
+  apply zlt_true. lia.
+  destruct (zlt i n); lia.
+  rewrite (sign_ext_above n'). auto. lia.
+Qed.
+
+Theorem zero_sign_ext_narrow:
+  forall x n n', 0 < n <= n' ->
+  zero_ext n (sign_ext n' x) = zero_ext n x.
+Proof.
+  intros. destruct (zlt n' zwordsize).
+  bit_solve.
+  lia. lia.
+  rewrite sign_ext_above; auto.
+Qed.
+
+Theorem zero_ext_idem:
+  forall n x, 0 <= n -> zero_ext n (zero_ext n x) = zero_ext n x.
+Proof.
+  intros. apply zero_ext_widen. lia.
+Qed.
+
+
+Theorem sign_ext_idem:
+  forall n x, 0 < n -> sign_ext n (sign_ext n x) = sign_ext n x.
+Proof.
+  intros. apply sign_ext_widen. lia.
+Qed.
+ 
+Theorem sign_ext_zero_ext:
+  forall n x, 0 < n -> sign_ext n (zero_ext n x) = sign_ext n x.
+Proof.
+
+Lemma sign_ext_range:
+  forall n x, 0 < n < zwordsize -> -two_p (n-1) <= signed (sign_ext n x) < two_p (n-1).
+Proof.
+  intros. rewrite sign_ext_shr_shl by lia.
+  set (X := shl x (repr (zwordsize - n))).
+  assert (two_p (n - 1) > 0) by (apply two_p_gt_ZERO; lia).
+  assert (unsigned (repr (zwordsize - n)) = zwordsize - n).
+    apply unsigned_repr.
+    split. lia. generalize wordsize_max_unsigned; lia.
+ Mem.range_perm m b 0 2 Cur Writable.
+Lemma nonnegative_short_cast_certificate : forallb(fun n=>Int.eq(Int.sign_ext 16(Int.repr(Z.of_nat n)))(Int.repr(Z.of_nat n)))(seq 0 16384)=true.
+Proof. vm_compute;reflexivity. Qed.
+Lemma nonnegative_short_cast : forall z,0<=z<=16383 ->Int.sign_ext 16(Int.repr z)=Int.repr z.
+Proof.
+ intros z Z. pose proof nonnegative_short_cast_certificate as H.
+ apply forallb_forall with(x:=Z.to_nat z)in H.
+ - rewrite Z2Nat.id in H by lia. apply Int.same_if_eq;exact H.
+ - apply in_seq;split;[lia|]. cbn [Nat.add]. change(Z.to_nat z<Z.to_nat 16384)%nat.
+   apply(proj1(Z2Nat.inj_lt z 16384 ltac:(lia)ltac:(lia)));lia.
+Qed.
+Lemma short_store_exists : forall e m id old z,
+ short_cell e m id old ->0<=z<=16383 ->
+Proof. vm_compute;reflexivity. Qed.
+Lemma nonnegative_short_cast : forall z,0<=z<=16383 ->Int.sign_ext 16(Int.repr z)=Int.repr z.
+Proof.
+ intros z Z. pose proof nonnegative_short_cast_certificate as H.
+ apply forallb_forall with(x:=Z.to_nat z)in H.
+ - rewrite Z2Nat.id in H by lia. apply Int.same_if_eq;exact H.
+ - apply in_seq;split;[lia|]. cbn [Nat.add]. change(Z.to_nat z<Z.to_nat 16384)%nat.
+   apply(proj1(Z2Nat.inj_lt z 16384 ltac:(lia)ltac:(lia)));lia.
+Qed.
+Lemma short_store_exists : forall e m id old z,
+ short_cell e m id old ->0<=z<=16383 ->
+ exists b m',e!id=Some(b,Tint I16 Signed noattr) /\
+ Mem.store Mint16signed m b 0(Vint(Int.repr z))=Some m' /\short_cell e m' id z.
+Proof.
+ intros z Z. pose proof nonnegative_short_cast_certificate as H.
+ apply forallb_forall with(x:=Z.to_nat z)in H.
+ - rewrite Z2Nat.id in H by lia. apply Int.same_if_eq;exact H.
+ - apply in_seq;split;[lia|]. cbn [Nat.add]. change(Z.to_nat z<Z.to_nat 16384)%nat.
+   apply(proj1(Z2Nat.inj_lt z 16384 ltac:(lia)ltac:(lia)));lia.
+Qed.
+Lemma short_store_exists : forall e m id old z,
+ short_cell e m id old ->0<=z<=16383 ->
+ exists b m',e!id=Some(b,Tint I16 Signed noattr) /\
+ Mem.store Mint16signed m b 0(Vint(Int.repr z))=Some m' /\short_cell e m' id z.
+Proof.
+ intros e m id old z[b[B[L R]]]Z.
+   + pose proof(@Mem.load_store_same Mint16signed m b 0(Vint(Int.repr z))m' S)as E.
+     cbn [Val.load_result]in E. rewrite nonnegative_short_cast in E by exact Z;exact E.
+   + intros ofs I. eapply Mem.perm_store_1;[exact S|]. apply R;exact I.
+Qed.
+Lemma short_cell_store_other : forall e m m' id z chunk bw ofs v,
+ short_cell e m id z ->Mem.store chunk m bw ofs v=Some m' ->
+ (forall b,e!id=Some(b,Tint I16 Signed noattr)->b<>bw) ->short_cell e m' id z.
+Proof.
+ intros e m m' id z ch bw ofs v[b[B[L R]]]S NE.
+ exists b;split;[exact B|]. split.
+ - erewrite Mem.load_store_other;[exact L|exact S|]. left;apply NE;exact B.
+ - intros i I. eapply Mem.perm_store_1;[exact S|]. apply R;exact I.
+Qed.

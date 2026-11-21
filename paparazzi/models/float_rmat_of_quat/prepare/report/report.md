@@ -1,0 +1,1 @@
+Prepared exact pinned original entry and complete required type/macro slices. Original mixed double/single expressions are unchanged. No callee, external adapter or transcendental binding. Complete upstream snapshots and GPL licence retained outside compiler input. All machine states remain in execution model; finite bounds belong solely to relation proof request.

@@ -1,0 +1,295 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionSafety Require Import PidTermination.
+Import ListNotations.
+Open Scope Z_scope.
+Module S := PidPositionRunPos.Source.
+Module E := PidPositionRunPos.Execution.
+Local Transparent PidTermination.ge PidTermination.ast_prog.
+
+Lemma actual_error_global_type : forall id b gv,
+ In id[S._guidance_pid_pos_err;S._guidance_pid_speed_err] ->
+ Genv.find_symbol E.ge id=Some b ->
+ Genv.find_var_info E.ge b=Some gv ->
+ gvar_info gv=vec_type.
+Proof.
+ intros id b gv IDS SYM VAR;destruct IDS as[<-|[<-|[]]].
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._guidance_pid_pos_err=Some b)in SYM.
+   rewrite PidTermination.ge_base in SYM;vm_compute in SYM;injection SYM as EQ;subst b.
+   match type of VAR with Genv.find_var_info _ ?bb= _=>change(Genv.find_var_info(genv_genv PidTermination.ge)bb=Some gv)in VAR end.
+   rewrite PidTermination.ge_base in VAR;vm_compute in VAR;inversion VAR;reflexivity.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._guidance_pid_speed_err=Some b)in SYM.
+   rewrite PidTermination.ge_base in SYM;vm_compute in SYM;injection SYM as EQ;subst b.
+   match type of VAR with Genv.find_var_info _ ?bb= _=>change(Genv.find_var_info(genv_genv PidTermination.ge)bb=Some gv)in VAR end.
+   rewrite PidTermination.ge_base in VAR;vm_compute in VAR;inversion VAR;reflexivity.
+Qed.
+
+Lemma inputgood_error_global_writable : forall m gh ret id b,
+ InputGood m gh ret ->
+ In id[S._guidance_pid_pos_err;S._guidance_pid_speed_err] ->
+ Genv.find_symbol E.ge id=Some b ->
+ Mem.range_perm m b 0 8 Cur Writable.
+Proof.
+ intros m gh ret id b[GOOD _]IDS SYM.
+ assert(WR:writable_controller_globals m)by(unfold InputGoodLegacy in GOOD;tauto).
+ destruct(WR id ltac:(destruct IDS as[<-|[<-|[]]];cbn;tauto))as[bb[gv[SYM0[VAR RANGE]]]].
+ rewrite SYM in SYM0;injection SYM0 as EQ;subst bb.
+ rewrite(actual_error_global_type id b gv IDS SYM VAR)in RANGE.
+ exact RANGE.
+Qed.
+Lemma inputgood_cached_flags : forall m gh ret sb,
+ InputGood m gh ret ->Genv.find_symbol E.ge S._state=Some sb ->
+ exists flags sflags,
+ Mem.load Mint16unsigned m sb 2=Some(Vint flags) /\
+ Mem.load Mint16unsigned m sb 280=Some(Vint sflags) /\
+ Int.and flags(Int.repr 2)=Int.repr 2 /\Int.and sflags(Int.repr 2)=Int.repr 2.
+Proof.
+ intros m gh ret sb[GOOD _]STATE.
+ assert(CACHE:caches_valid m)by(unfold InputGoodLegacy in GOOD;tauto).
+ destruct CACHE as[flags[sflags[POS[SPD[VALID SVALID]]]]].
+ unfold load_global in POS,SPD;rewrite STATE in POS,SPD.
+ exists flags,sflags;repeat split;assumption.
+Qed.
+Lemma inputgood_position_values : forall m gh ret sb,
+ InputGood m gh ret ->Genv.find_symbol E.ge S._state=Some sb ->
+ exists rx ry px py,
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\
+ Mem.load Mint32 m sb 104=Some(Vint py).
+Proof.
+ intros m gh ret sb[_[INIT _]]STATE.
+ destruct(INIT S._x ltac:(cbn;auto))as[rx[px[RX PX]]].
+ destruct(INIT S._y ltac:(cbn;auto))as[ry[py[RY PY]]].
+ unfold load_global in PX,PY;rewrite STATE in PX,PY.
+ exists rx,ry,px,py;repeat split;assumption.
+Qed.
+Lemma inputgood_speed_values : forall m gh ret sb,
+ InputGood m gh ret ->Genv.find_symbol E.ge S._state=Some sb ->
+ exists sx sy vx vy,
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\
+ Mem.load Mint32 m sb 300=Some(Vint vy).
+Proof.
+ intros m gh ret sb[GOOD _]STATE.
+ assert(AX:forall axis,In axis[S._x;S._y] ->
+ bounded_global m S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+ bounded_path m gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+ bounded_path m gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+ bounded_global m S._state state_type[S._ned_speed_i;axis](-10000)10000)
+ by(unfold InputGoodLegacy in GOOD;tauto).
+ destruct(AX S._x ltac:(cbn;auto))as[_[[sx[SX _]][_[vx[VX _]]]]].
+ destruct(AX S._y ltac:(cbn;auto))as[_[[sy[SY _]][_[vy[VY _]]]]].
+ unfold load_global in VX,VY;rewrite STATE in VX,VY.
+ exists sx,sy,vx,vy;repeat split;assumption.
+Qed.
+Print Assumptions inputgood_error_global_writable.
+Print Assumptions inputgood_position_values.
+
+Lemma actual_state_symbol : exists sb,Genv.find_symbol E.ge S._state=Some sb.
+Proof.
+ exists(PidTermination.symbol_block S._state).
+ change(Genv.find_symbol(genv_genv PidTermination.ge)S._state=Some(PidTermination.symbol_block S._state)).
+ rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Qed.
+
+Lemma actual_global_variable_binding : forall id gv,
+ PTree.get id(AST.prog_defmap PidTermination.ast_prog)=Some(Gvar gv) ->
+ exists b,Genv.find_symbol E.ge id=Some b /\Genv.find_var_info E.ge b=Some gv.
+Proof.
+ intros id gv LOOK.
+ destruct(proj1(Genv.find_def_symbol PidTermination.ast_prog id(Gvar gv))LOOK)as[b[SYM DEF]].
+ exists b;split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)id=Some b).
+   rewrite PidTermination.ge_base;exact SYM.
+ - change(Genv.find_var_info(genv_genv PidTermination.ge)b=Some gv).
+   rewrite PidTermination.ge_base;apply Genv.find_var_info_iff;exact DEF.
+Qed.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics.
+From PidPositionSafety Require Import PidTermination.
+From PidPositionTranslationAttempt002 Require Import EntryPrefix SpeedEntryPrefix.
+Import ListNotations.
+Open Scope Z_scope.
+Module S := PidPositionRunPos.Source.
+Module E := PidPositionRunPos.Execution.
+Local Transparent E.ge.
+Lemma prefix_ge_ce : genv_cenv E.ge=ce.
+Proof. unfold E.ge,Csem.globalenv,ce. cbv beta iota zeta delta [genv_cenv]. reflexivity. Qed.
+Local Opaque E.ge.
+Ltac p_cenv :=
+ lazymatch goal with |- PTree.get ?id _ = Some ?co =>
+ unify co (FactorySemantics.co_for id);rewrite prefix_ge_ce;
+ apply FactorySemantics.co_for_lookup;vm_compute;reflexivity end.
+Ltac p_field := rewrite prefix_ge_ce;vm_compute;reflexivity.
+Ltac p_rv :=
+ lazymatch goal with
+ | |- eval_simple_rvalue _ _ _ (Eval _ _) _ => constructor
+ | |- eval_simple_rvalue _ _ _ (Evalof ?l ?ty) _ =>
+   let mode := eval hnf in (access_mode ty) in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[p_lv|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [p_lv|reflexivity|reflexivity|reflexivity|
+       lazymatch goal with |- Mem.loadv ?c ?mm (Vptr ?bb ?oo)=Some ?vv =>
+       let ox := eval vm_compute in (Ptrofs.unsigned oo) in
+       change(Mem.load c mm bb ox=Some vv);eassumption end]
+   end
+ | |- eval_simple_rvalue _ _ _ (Eaddrof _ _) _ => apply esr_addrof;p_lv
+ end
+with p_lv :=
+ lazymatch goal with
+ | |- eval_simple_lvalue _ _ _ (Evar _ _) _ _ _ =>
+   first[eapply esl_var_local;eassumption|eapply esl_var_global;eassumption]
+ | |- eval_simple_lvalue _ _ _ (Ederef _ _) _ _ _ => eapply esl_deref;p_rv
+ | |- eval_simple_lvalue _ _ _ (Efield ?r _ _) _ _ _ =>
+   let rt := eval cbv beta iota zeta delta [typeof] in(typeof r)in
+   lazymatch rt with
+   | Tstruct _ _=>eapply esl_field_struct;[p_rv|reflexivity|p_cenv|p_field]
+   | Tunion _ _=>eapply esl_field_union;[p_rv|reflexivity|idtac|p_cenv];p_field
+   end
+ end.
+
+Lemma speed_reference_x_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_speed_expr S._x)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 52=Some(Vint v))in FIELD.
+ unfold ref_speed_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma speed_reference_y_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_speed_expr S._y)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 56=Some(Vint v))in FIELD.
+ unfold ref_speed_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma speed_cached_measured_x_read : forall e m sb v,
+ Mem.load Mint32 m sb 296=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr)S._x)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma speed_cached_measured_y_read : forall e m sb v,
+ Mem.load Mint32 m sb 300=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr)S._y)(Vint v).
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import BigstepSupport StackCleanup FunctionAllocation.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics.
+From PidPositionSafety Require Import FactoryCall.
+From PidPositionTranslationAttempt002 Require Import EntryAllocation InputSemantics FrontSemantics ClampSemantics.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+
+Lemma entry_environment_unshadowed : forall e m ma id,
+ alloc_variables E.ge empty_env m entry_declarations e ma ->
+ ~In id(map fst entry_declarations) ->e!id=None.
+Proof.
+ intros e m ma id AL NOT;destruct(e!id)as[[b ty]|]eqn:LOOK;auto.
+ exfalso;apply NOT.
+ pose proof(allocated_environment_origin _ _ _ _ _ AL id b ty LOOK)as IN.
+ exact(in_map fst _ _ IN).
+Qed.
+Lemma inputgood_guidance_separate : forall m gh ret id b,
+ InputGood m gh ret ->Genv.find_symbol E.ge id=Some b ->
+ id<>S._guidance_h ->gh<>b.
+Proof.
+ intros m gh ret id b[GOOD _]SYM ID EQ;subst b.
+ assert(U:forall id,Genv.find_symbol E.ge id=Some gh->id=S._guidance_h)
+ by(unfold InputGoodLegacy in GOOD;tauto).
+ apply ID;apply U;exact SYM.
+Qed.
+
+Theorem inputgood_entry_reaches_core_call : forall m gh ret flight,
+ InputGood m gh ret ->
+ exists e mf pb vb sb rx ry px py sx sy vx vy br bf bg bs,
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb /\
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some vb /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ star Csem.step E.ge(E.entry(call_args gh ret flight)m)E0
+ (State S.f_guidance_pid_h_run_pos after_front Kstop e mf) /\
+ Mem.load Mint32 mf pb 0=Some(Vint(clamp_bits(Int.sub rx px)(Int.repr 4096))) /\
+ Mem.load Mint32 mf pb 4=Some(Vint(clamp_bits(Int.sub ry py)(Int.repr 4096))) /\
+ Mem.load Mint32 mf vb 0=Some(Vint(clamp_bits(Int.sub sx vx)(Int.repr 8388608))) /\
+ Mem.load Mint32 mf vb 4=Some(Vint(clamp_bits(Int.sub sy vy)(Int.repr 8388608))) /\
+ e!S.__res=Some(br,tptr sp_type) /\e!S._in_flight=Some(bf,tbool) /\
+ e!S._gh=Some(bg,tptr gh_type) /\e!S.__res__1=Some(bs,sp_type) /\
+ Mem.load Mint64 mf br 0=Some(Vptr ret Ptrofs.zero) /\
+ Mem.load Mint64 mf bg 0=Some(Vptr gh Ptrofs.zero) /\
+ Mem.load Mbool mf bf 0=Some(Vint(if flight then Int.one else Int.zero)) /\
+ env_separated e /\
+ (forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b) /\
+ (forall id b ty,e!id=Some(b,ty)->Mem.range_perm mf b 0(sizeof E.ge ty)Cur Freeable) /\
+ (forall ch b ofs v,Mem.load ch m b ofs=Some v ->b<>pb ->b<>vb ->Mem.load ch mf b ofs=Some v) /\
+ (forall b ofs k p,Mem.perm m b ofs k p ->Mem.perm mf b ofs k p) /\
+ (forall id,~In id(map fst entry_declarations)->e!id=None).
+Proof.
+ intros m gh ret flight GOOD.
+ destruct(original_entry_setup m gh ret flight)as[SETUP _].
+ destruct SETUP as[e ma mb br bf bg bs AL BIND LR LF LG LS SEP FRESH FREE RPTR GPTR FVAL OLDLOAD OLDPERM OLDBYTES].
+ assert(WR:writable_controller_globals m).
+ { destruct GOOD as[G _];unfold InputGoodLegacy in G;tauto. }
+ destruct(WR S._guidance_pid_pos_err ltac:(cbn;auto))as[pb[pgv[SP[PV PWRITE]]]].
+ destruct(WR S._guidance_pid_speed_err ltac:(cbn;auto))as[vb[vgv[SV[VV VWRITE]]]].
+ destruct actual_state_symbol as[sb STATE].
+ destruct(inputgood_cached_flags m gh ret sb GOOD STATE)as[flags[sflags[POSC[SPDC[VALID SVALID]]]]].
+ destruct(inputgood_position_values m gh ret sb GOOD STATE)as[rx[ry[px[py[RX[RY[PX PY]]]]]]].
+ destruct(inputgood_speed_values m gh ret sb GOOD STATE)as[sx[sy[vx[vy[SX[SY[VX VY]]]]]]].
+ assert(WP:Mem.range_perm m pb 0 8 Cur Writable)
+ by(exact(inputgood_error_global_writable m gh ret S._guidance_pid_pos_err pb GOOD ltac:(cbn;auto)SP)).
+ assert(WV:Mem.range_perm m vb 0 8 Cur Writable)
+ by(exact(inputgood_error_global_writable m gh ret S._guidance_pid_speed_err vb GOOD ltac:(cbn;auto)SV)).
+ assert(VPB:Mem.valid_block m pb)by(exact(range_block m pb 0 8 Writable ltac:(lia)WP)).
+ assert(VVB:Mem.valid_block m vb)by(exact(range_block m vb 0 8 Writable ltac:(lia)WV)).
+ assert(VSB:Mem.valid_block m sb)by(eapply loaded_block;exact POSC).
+ assert(VGH:Mem.valid_block m gh).
+Proof.
+  intros. econstructor. unfold load. rewrite pred_dec_true; eauto.
+Qed.
+
+Theorem load_valid_access:
+  forall m chunk b ofs v,
+  load chunk m b ofs = Some v ->
+  valid_access m chunk b ofs Readable.
+Proof.
+  intros until v. unfold load.
+  destruct (valid_access_dec m chunk b ofs Readable); intros.
+  auto.
+  congruence.
+Qed.
+
+Lemma load_result:
+  forall chunk m b ofs v,
+  load chunk m b ofs = Some v ->
+  v = decode_val chunk (getN (size_chunk_nat chunk) ofs (m.(mem_contents)#b)).

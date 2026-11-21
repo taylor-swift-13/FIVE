@@ -1,0 +1,48 @@
+PREVIOUS_STAGE [
+  {
+    "original": "paparazzi/models/guidance_pid_h_run_pos/rocq/handoff.json",
+    "snapshot": "_build/pid-position-translation-ultra-publication/20261108T090706-be8dbb32f9/five-verify/inputs/previous-rocq-stage/handoff.json",
+    "sha256": "57c7762be90396e6cad4af6fabc0996fbbbf65af5f510437bb3d8b63179ca731"
+  },
+  {
+    "original": "paparazzi/models/guidance_pid_h_run_pos/rocq/report/report.md",
+    "snapshot": "_build/pid-position-translation-ultra-publication/20261108T090706-be8dbb32f9/five-verify/inputs/previous-rocq-stage/report.md",
+    "sha256": "8c283f9dd62d243550ef7f9a9129e1da3a090c5258bb77bc062e226954c1c154"
+  },
+  {
+    "original": "paparazzi/models/guidance_pid_h_run_pos/rocq/report/costs.json",
+    "snapshot": "_build/pid-position-translation-ultra-publication/20261108T090706-be8dbb32f9/five-verify/inputs/previous-rocq-stage/costs.json",
+    "sha256": "3ffa53f9438e16c088b28dc0c1f52dda910546d17f651e3ac87a3b37e9a78fe9"
+  }
+]
+REPORT no_error # Original Csem no-error
+
+Proved: PidPositionRunPosNoErrorAttempt002.Proof.no_error has the exact model Spec.RequestedGoal type. The exact unchanged model RequestedGoal is proved by MainGoals.proved_no_error on the explicit canonical InputGood domain. Every reachable original Csem state is covered, including every permitted expression evaluation order and both flight inputs.
+
+Compilation and an independent Rocq kernel check passed in the shared actual GPT-6.1-Sol Ultra run. check.py delegates to the full attempt002 cold checker, which also recompiles this exact model binding. Historical attempt001 remains unchanged.
+
+Costs are shared with the original safety/termination/adapter proof run paparazzi/relations/pid_position_translation/attempts/002/safety/runs/20261108T041558-c0681fa42b/five-rocq. They are not divided into invented per-goal totals; see costs.json and the run metrics. The final cold-check provenance is published by the common checker.
+
+COST no_error {'keys': ['schema', 'status', 'shared_run', 'shared_runtime', 'per_goal_tokens', 'per_goal_cpu_seconds', 'reason', 'shared_run_status', 'shared_metrics', 'cost_audit_status', 'resource_limitations'], 'records': []}
+EVIDENCE no_error ['goal-validation.json']
+REPORT termination # Original Csem all-successor termination
+
+Proved: PidPositionRunPosTerminationAttempt002.Proof.termination has the exact model Spec.RequestedGoal type. The exact unchanged model RequestedGoal is proved by the checked all-successor Acc theorem. The underlying result holds for every raw argument list and memory, by an original target-aware syntax/call-graph rank; no execution fuel is assumed.
+
+Compilation and an independent Rocq kernel check passed in the shared actual GPT-6.1-Sol Ultra run. check.py delegates to the full attempt002 cold checker, which also recompiles this exact model binding. Historical attempt001 remains unchanged.
+
+Costs are shared with the original safety/termination/adapter proof run paparazzi/relations/pid_position_translation/attempts/002/safety/runs/20261108T041558-c0681fa42b/five-rocq. They are not divided into invented per-goal totals; see costs.json and the run metrics. The final cold-check provenance is published by the common checker.
+
+COST termination {'keys': ['schema', 'status', 'shared_run', 'shared_runtime', 'per_goal_tokens', 'per_goal_cpu_seconds', 'reason', 'shared_run_status', 'shared_metrics', 'cost_audit_status', 'resource_limitations'], 'records': []}
+EVIDENCE termination ['goal-validation.json']
+REPORT cbmc_recheck All 124 original CBMC property IDs have explicit Rocq goals and individual proved theorem bindings: 51 signed-overflow, 7 shift, 60 pointer and 6 assertion questions. Spec.v and Proof.v compiled; independent kernel command 288-frozen-inputs-canonical124-independent-kernel-001 passed after original-path Source.v, Execution.v and dependency snapshots were captured. Every per-ID receipt is in evidence/recheck-ledger.json and spec-recheck.json.
+
+Runtime arithmetic and pointer goals quantify actual original-entry-reachable Csem redexes and all operand orders. Pointer witnesses retain current readable spans; the original 24-byte gh.ref object extent is distinguished from current 4-byte scalar access. Harness goals use InputPair and actual normal-call results, fresh typed Source aggregate/scalar allocations with casts/stores/loads, and actual Csem evaluation of the original alpha-renamed assertion/addition expressions. Unobserved bytes are not synthesized. This is a local harness observation; the Source model has no nondeterministic harness main.
+
+No target-specific unproved axiom was added. Print Assumptions records inherited CompCert external_functions_sem/inline_assembly_sem and Stdlib classical real-decision, proof-irrelevance and extensionality assumptions. Shared actual Ultra author runs, including failures and timeouts, are referenced by costs.json; per-property costs are not invented. Parent cold reproduction and final gate publication are recorded separately.
+
+COST cbmc_recheck {'keys': ['schema', 'status', 'shared_runs', 'per_property_tokens', 'per_property_cpu_seconds', 'reason', 'full_tool_cpu_seconds', 'parallel_joint_tool_rss_bytes', 'model_server_memory_bytes', 'resource_limitations'], 'records': []}
+EVIDENCE cbmc_recheck ['kernel-124-original-model.json', 'previous-top-level-spec-recheck.json', 'recheck-ledger.json', 'property-map.json', 'expected-bindings.json']
+MAPS ['paparazzi/models/guidance_pid_h_run_pos/rocq/cbmc_recheck/attempts/002/evidence/property-map.json']
+SPEC_RECHECK_KEYS ['schema', 'request_sha256', 'backend_manifest_sha256', 'verification_method', 'cbmc_run', 'cbmc_command_id', 'cbmc_json', 'cbmc_input_sha256', 'properties']
+SPEC_RECHECK_SMALL {'schema': 'five-cbmc-rocq-recheck/1', 'request_sha256': 'cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9', 'backend_manifest_sha256': '919938b14bdbae49e4d8354110e7c20446fc3625bc450eb85ea0ae038a4329b3', 'verification_method': 'traditional-bounded-model-checking', 'cbmc_run': '_build/pid-position-translation-worker/20261107T173056-f50e401074/five-cbmc', 'cbmc_command_id': '016-all-properties-z3-bitvector-sliced', 'cbmc_json': '_build/pid-position-translation-worker/20261107T173056-f50e401074/five-cbmc/logs/016-all-properties-z3-bitvector-sliced.stdout.log'}

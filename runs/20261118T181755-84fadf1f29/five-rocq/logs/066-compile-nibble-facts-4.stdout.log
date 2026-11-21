@@ -1,0 +1,163 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bc : block
+  p, x : int
+  POS : e ! _pos = Some (bp, Tint I16 Unsigned noattr)
+  LOCAL : e ! _pprz_trig_int_compr = None
+  SYMBOL : Genv.find_symbol (globalenv prog) _pprz_trig_int_compr = Some bc
+  LP : Mem.load Mint16unsigned m bp 0 = Some (Vint p)
+  LB :
+    Mem.load Mint8unsigned m bc (Ptrofs.unsigned (nibble_offset p)) =
+    Some (Vint x)
+  ============================
+  (fix pure_rval (a : expr) : option val :=
+     match a with
+     | Eval v _ => Some v
+     | Evalof l ty =>
+         if type_eq ty (typeof l)
+         then
+          match pure_lval l with
+          | Some (b, ofs, bf) =>
+              match
+                do_deref_loc (globalenv prog) quiet_world ty m b ofs bf
+              with
+              | Some (_, _, v) => Some v
+              | None => None
+              end
+          | None => None
+          end
+         else None
+     | Eaddrof l _ =>
+         match pure_lval l with
+         | Some (b, ofs, Full) => Some (Vptr b ofs)
+         | Some (b, ofs, Bits _ _ _ _) => None
+         | None => None
+         end
+     | Eunop op a0 _ =>
+         match pure_rval a0 with
+         | Some v => sem_unary_operation op v (typeof a0) m
+         | None => None
+         end
+     | Ebinop op a0 b _ =>
+         match pure_rval a0 with
+         | Some v =>
+             match pure_rval b with
+             | Some w =>
+                 sem_binary_operation (globalenv prog) op v 
+                   (typeof a0) w (typeof b) m
+             | None => None
+             end
+         | None => None
+         end
+     | Ecast a0 ty =>
+         match pure_rval a0 with
+         | Some v => sem_cast v (typeof a0) ty m
+         | None => None
+         end
+     | Esizeof ty _ =>
+         Some (Vptrofs (Ptrofs.repr (sizeof (globalenv prog) ty)))
+     | Ealignof ty _ =>
+         Some (Vptrofs (Ptrofs.repr (alignof (globalenv prog) ty)))
+     | _ => None
+     end
+   with pure_lval (a : expr) : option (block * ptrofs * bitfield) :=
+     match a with
+     | Evar id ty =>
+         match e ! id with
+         | Some (b, ty') =>
+             if type_eq ty ty' then Some (b, Ptrofs.zero, Full) else None
+         | None =>
+             match Genv.find_symbol (globalenv prog) id with
+             | Some b => Some (b, Ptrofs.zero, Full)
+             | None => None
+             end
+         end
+     | Efield a0 id _ =>
+         match pure_rval a0 with
+         | Some (Vptr b ofs) =>
+             match typeof a0 with
+             | Tstruct sid _ =>
+                 match (globalenv prog) ! sid with
+                 | Some co =>
+                     match
+                       field_offset (globalenv prog) id (co_members co)
+                     with
+                     | Errors.OK (delta, bf) =>
+                         Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+                     | Errors.Error _ => None
+                     end
+                 | None => None
+                 end
+             | Tunion sid _ =>
+                 match (globalenv prog) ! sid with
+                 | Some co =>
+                     match
+                       union_field_offset (globalenv prog) id (co_members co)
+                     with
+                     | Errors.OK (delta, bf) =>
+                         Some (b, Ptrofs.add ofs (Ptrofs.repr delta), bf)
+                     | Errors.Error _ => None
+                     end
+                 | None => None
+                 end
+             | _ => None
+             end
+         | _ => None
+         end
+     | Ederef a0 _ =>
+         match pure_rval a0 with
+         | Some (Vptr b ofs) => Some (b, ofs, Full)
+         | _ => None
+         end
+     | Eloc b ofs bf _ => Some (b, ofs, bf)
+     | _ => None
+     end
+   for
+   pure_rval)
+    match
+      fn_body
+        {|
+          fn_return := Ctypesdefs.tuchar;
+          fn_callconv := cc_default;
+          fn_params := [(_pos, Ctypesdefs.tushort)];
+          fn_vars := [];
+          fn_body :=
+            Sreturn
+              (Some
+                 (Ebinop Oand
+                    (Ebinop Oshr
+                       (Evalof
+                          (Ederef
+                             (Ebinop Oadd
+                                (Evalof
+                                   (Evar _pprz_trig_int_compr
+                                      (Ctypesdefs.tarray Ctypesdefs.tuchar
+                                         1690))
+                                   (Ctypesdefs.tarray Ctypesdefs.tuchar 1690))
+                                (Ebinop Odiv
+                                   (Evalof (Evar _pos Ctypesdefs.tushort)
+                                      Ctypesdefs.tushort)
+                                   (Eval (Vint (Int.repr 2)) Ctypesdefs.tint)
+                                   Ctypesdefs.tint)
+                                (Ctypesdefs.tptr Ctypesdefs.tuchar))
+                             Ctypesdefs.tuchar)
+                          Ctypesdefs.tuchar)
+                       (Ebinop Omul
+                          (Eval (Vint (Int.repr 4)) Ctypesdefs.tint)
+                          (Ebinop Omod
+                             (Evalof (Evar _pos Ctypesdefs.tushort)
+                                Ctypesdefs.tushort)
+                             (Eval (Vint (Int.repr 2)) Ctypesdefs.tint)
+                             Ctypesdefs.tint)
+                          Ctypesdefs.tint)
+                       Ctypesdefs.tint)
+                    (Eval (Vint (Int.repr 15)) Ctypesdefs.tint)
+                    Ctypesdefs.tint))
+        |}
+    with
+    | Sreturn (Some a) => a
+    | _ => Eval Vundef Tvoid
+    end =
+  nibble_machine p x

@@ -1,0 +1,258 @@
+From Stdlib Require Import ZArith.
+From compcert Require Import Integers Floats.
+
+(* Pure binary32 calculation corresponding to the concrete CBMC inputs.
+   A theorem connecting this value to a Csem return is a separate obligation. *)
+Definition sum3_concrete_model : float32 :=
+  Float32.add
+    (Float32.add (Float32.of_bits (Int.repr 1266679808))
+                 (Float32.of_bits (Int.repr 1065353216)))
+    (Float32.of_bits (Int.repr 3414163456)).
+
+Theorem sum3_concrete_bits :
+  Float32.to_bits sum3_concrete_model = Int.zero.
+Proof. vm_compute. reflexivity. Qed.
+
+Print Assumptions sum3_concrete_bits.
+==> examples/models/sum3/rocq/support/Core.v <==
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Integers Floats Values Memory Events Globalenvs
+ Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+From FiveSum3Proof Require Import PureProgress.
+From FiveSum3Proof Require Import Invariant.
+From FiveSum3Proof Require Import Entry.
+Import ListNotations.
+
+(* A calling-interface precondition, not a numeric input restriction. *)
+Definition sum3_pre(args:list val):Prop :=
+ exists a b c:float32,args=[Vsingle a;Vsingle b;Vsingle c].
+Definition entry(args:list val)(m:mem):Csem.state :=
+ Callstate(Internal sum3_function)args Kstop m.
+
+Theorem sum3_all_reachable_no_error : forall args m,
+ sum3_pre args -> forall t reached,
+ star Csem.step sum3_ge(entry args m)t reached -> ~source_error reached.
+Proof.
+ intros args m [a[b[c EQ]]]t reached PATH;subst args.
+ apply invariant_excludes_error.
+ eapply reachable_invariant;[apply typed_entry_establishes_invariant|exact PATH].
+Qed.
+
+Theorem sum3_all_bits_no_error : forall(a b c:int)m t reached,
+ star Csem.step sum3_ge
+  (entry[Vsingle(Float32.of_bits a);Vsingle(Float32.of_bits b);Vsingle(Float32.of_bits c)]m)
+  t reached -> ~source_error reached.
+Proof.
+ intros;eapply sum3_all_reachable_no_error;[|eassumption].
+ unfold sum3_pre;eauto 7.
+Qed.
+
+Theorem sum3_progress_at_every_reachable_state : forall args m,
+ sum3_pre args -> forall t reached,
+ star Csem.step sum3_ge(entry args m)t reached ->
+ normal_return reached \/ exists u next,Csem.step sum3_ge reached u next.
+Proof.
+ intros args m [a[b[c EQ]]]t reached PATH;subst args.
+ apply invariant_progress;eapply reachable_invariant;
+ [apply typed_entry_establishes_invariant|exact PATH].
+Qed.
+
+==> examples/models/sum3/rocq/support/Entry.v <==
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory
+ Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+From FiveSum3Proof Require Import PureProgress.
+From FiveSum3Proof Require Import Invariant.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+Definition frame_env (ba bb bc:block):env :=
+ PTree.set Source._c (bc,tfloat)
+ (PTree.set Source._b (bb,tfloat)
+ (PTree.set Source._a (ba,tfloat) empty_env)).
+Lemma frame_lookup : forall ba bb bc,
+ PTree.get Source._a(frame_env ba bb bc)=Some(ba,tfloat) /\
+ PTree.get Source._b(frame_env ba bb bc)=Some(bb,tfloat) /\
+ PTree.get Source._c(frame_env ba bb bc)=Some(bc,tfloat).
+Proof. intros;repeat split;reflexivity. Qed.
+
+Lemma read_parameter : forall ge e m id bx f,
+ PTree.get id e=Some(bx,tfloat) ->
+ Mem.load Mfloat32 m bx 0=Some(Vsingle f) ->
+ pure_rval ge e m (Evalof(Evar id tfloat)tfloat)=Some(Vsingle f).
+Proof.
+ intros ge e m id bx f LOOK LOAD.
+ cbn [pure_rval pure_lval]. rewrite LOOK.
+ repeat rewrite dec_eq_true.
+ assert(D:Cexec.do_deref_loc ge quiet_world tfloat m bx Ptrofs.zero Full=
+  Some(quiet_world,E0,Vsingle f)).
+ { apply Cexec.do_deref_loc_complete.
+   - eapply deref_loc_value;[reflexivity|reflexivity|].
+     unfold Mem.loadv. rewrite Ptrofs.unsigned_zero.
+     rewrite zle_true.
+     + exact LOAD.
+     + change(4<=18446744073709551616)%Z;lia.
+   - constructor. }
+ rewrite D;reflexivity.
+Qed.
+
+Lemma frame_blocks : forall ba bb bc,
+ blocks_of_env sum3_ge(frame_env ba bb bc)=[(bc,0,4);(ba,0,4);(bb,0,4)].
+Proof. reflexivity. Qed.
+
+==> examples/models/sum3/rocq/support/Invariant.v <==
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+From FiveSum3Proof Require Import PureProgress.
+Import ListNotations.
+
+(** An annotation of execution states. Its denotation is derived from the
+    structural caller precondition; it is not assumed at the public entry. *)
+Definition execution_invariant (s:Csem.state) : Prop :=
+ source_state s /\ normal_state s=true /\ exists result,state_eval sum3_ge s=Some result.
+Definition normal_return(s:Csem.state) := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state) := ~normal_return s /\ nostep Csem.step sum3_ge s.
+
+Lemma not_stuck_excludes_stuck : forall ge f a k e m t,
+ Csem.not_stuck ge e a m -> ~Csem.estep ge (ExprState f a k e m) t Stuckstate.
+Proof.
+ intros ge f a k e m t NS BAD; inversion BAD; subst.
+ match goal with N:~imm_safe _ _ ?K ?sub _, CT:Csem.context ?K RV ?C |- _ =>
+ apply N; exact(NS K C sub CT eq_refl) end.
+Qed.
+
+Lemma normal_estep_forward : forall ge f a k e m t s' result,
+ source_state(ExprState f a k e m) -> normal_state(ExprState f a k e m)=true ->
+ state_eval ge (ExprState f a k e m)=Some result ->
+ Csem.estep ge (ExprState f a k e m) t s' -> state_eval ge s'=Some result.
+Proof.
+ intros ge f a k e m t s' result SOURCE NORMAL EVAL STEP.
+ simpl in SOURCE; destruct SOURCE as [HF[CORE CK]].
+ destruct k; simpl in NORMAL; try discriminate; core_unpack.
+ - assert(NS:Csem.not_stuck ge e a m).
+   { cbn [state_eval] in EVAL. destruct(flat_eval ge e m a) as [[v mx]|] eqn:EV;
+      try discriminate. eapply flat_not_stuck;eauto. }
+   inversion STEP; subst.
+   + match goal with LR:lred ge e ?A m ?A' ?M', CT:Csem.context LV RV ?C,
+      FL:flat_expr(?C ?A)=true |- _ =>
+      destruct(flat_lred_context ge e m A A' M' LV C CT eq_refl FL LR) as [HM[NF EQ]];
+      subst M'; cbn [state_eval] in *; rewrite EQ in EVAL; exact EVAL end.
+   + match goal with RR:rred ge ?A m t ?A' ?M', CT:Csem.context RV RV ?C,
+      FL:flat_expr(?C ?A)=true |- _ =>
+      destruct(flat_rred_context ge e m A A' t M' C CT FL CORE RR) as [NF EQ];
+      cbn [state_eval] in *; rewrite EQ in EVAL; exact EVAL end.
+   + exfalso. match goal with CR:callred ge ?A _ _ _ _, CT:Csem.context RV RV ?C |- _ =>
+
+==> examples/models/sum3/rocq/support/PureProgress.v <==
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+From FiveSum3Proof.support Require Import NormalCorrespondence.
+Import ListNotations.
+
+Ltac option_cases E :=
+ repeat match type of E with
+ | context [match ?x with _ => _ end] =>
+   let EQ := fresh "EQ" in destruct x eqn:EQ; try discriminate
+ end.
+
+Lemma pure_eval_big : forall a ge e m,
+ simple a=true ->
+ (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+ (forall b ofs bf, pure_lval ge e m a=Some(b,ofs,bf) -> eval_simple_lvalue ge e m a b ofs bf).
+Proof.
+ induction a; intros ge e m SIMPLE; simpl in SIMPLE; core_unpack; try discriminate;
+ repeat match goal with
+ | IH: forall ge e m, simple ?a=true -> _ /\ _ |- _ =>
+   let R:=fresh "RV" in let L:=fresh "LV" in
+   pose proof (IH ge e m ltac:(assumption)) as [R L]; clear IH
+ end;
+ split; intros; cbn [pure_rval pure_lval] in H; try discriminate.
+ - inversion H; subst; constructor.
+ - option_cases H; inversion H; subst; eauto using esl_var_local, esl_var_global.
+ - option_cases H; inversion H; subst; eauto using esl_field_struct, esl_field_union.
+ - option_cases H; inversion H; subst.
+   match goal with D: do_deref_loc _ _ _ _ _ _ _ = Some _ |- _ =>
+    destruct (do_deref_loc_sound _ _ _ _ _ _ _ _ _ _ D) as [DR PT]
+   end.
+   assert (SIL: t = E0) by (eapply deref_loc_silent; eauto; unfold nv; congruence).
+   subst t. econstructor; eauto; try (symmetry; assumption).
+   apply negb_true_iff; assumption.
+ - option_cases H; inversion H; subst; eauto using esl_deref.
+ - option_cases H; inversion H; subst; eauto using esr_addrof.
+ - option_cases H; eauto using esr_unop.
+ - option_cases H; eauto using esr_binop.
+ - option_cases H; eauto using esr_cast.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+Qed.
+
+==> examples/models/sum3/rocq/support/NormalCorrespondence.v <==
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveSum3 Require Import Source.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From FiveSum3Proof Require Import SourceInvariant.
+Import ListNotations.
+
+(** This denotation is used to establish uniqueness of normal executions.
+    Execution remains the complete error-preserving operational model. *)
+Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
+
+Section DENOTATION.
+Variable ge: genv.
+Variable e: env.
+Variable m: mem.
+
+Fixpoint pure_rval (a: expr): option val :=
+  match a with
+  | Eval v _ => Some v
+  | Evalof l ty =>
+      if type_eq ty (typeof l) then
+      match pure_lval l with
+      | Some (b,ofs,bf) =>
+          match Cexec.do_deref_loc ge quiet_world ty m b ofs bf with
+          | Some (_,_,v) => Some v | None => None end
+      | None => None end else None
+  | Eaddrof l _ =>
+      match pure_lval l with Some (b,ofs,Full) => Some (Vptr b ofs) | _ => None end
+  | Eunop op a _ =>
+      match pure_rval a with Some v => sem_unary_operation op v (typeof a) m | None => None end
+  | Ebinop op a b _ =>
+      match pure_rval a, pure_rval b with
+      | Some v, Some w => sem_binary_operation ge op v (typeof a) w (typeof b) m
+      | _,_ => None end
+  | Ecast a ty =>
+      match pure_rval a with Some v => sem_cast v (typeof a) ty m | None => None end
+  | Esizeof ty _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty)))
+  | Ealignof ty _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty)))
+  | _ => None
+  end
+with pure_lval (a: expr): option (block * ptrofs * bitfield) :=
+  match a with
+  | Eloc b ofs bf _ => Some (b,ofs,bf)
+  | Evar id ty =>
+      match PTree.get id e with
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"
+Proof.v
+costs.json
+report.md

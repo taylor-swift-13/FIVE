@@ -1,0 +1,354 @@
+
+FILE CoreFront.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp FlightSemantics CoreTail ControllerPrefix.
+Import ListNotations.
+Open Scope Z_scope.
+From PidPositionSafety Require Import ConditionalBlock CoreForce.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+Theorem original_controller_front_certificate:forall e m bp be bs gh bg bx bpy bi bt bu bf
+ (flight:bool)kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total,
+ e!S._pd_x=Some(bx,tint) ->e!S._pd_y=Some(bpy,tint) ->e!S._gh=Some(bg,tptr gh_type) ->e!S._in_flight=Some(bf,tbool) ->
+ e!S._guidance_pid=None ->e!S._guidance_pid_pos_err=None ->e!S._guidance_pid_speed_err=None ->
+ e!S._guidance_pid_trim_att_integrator=None ->e!S._traj_max_bank=None ->e!S._total_max_bank=None ->
+ Genv.find_symbol ge S._guidance_pid=Some bp ->
+ Genv.find_symbol ge S._guidance_pid_pos_err=Some be ->
+ Genv.find_symbol ge S._guidance_pid_speed_err=Some bs ->
+ Genv.find_symbol ge S._guidance_pid_trim_att_integrator=Some bi ->
+ Genv.find_symbol ge S._traj_max_bank=Some bt ->Genv.find_symbol ge S._total_max_bank=Some bu ->
+ NoDup[bx;bpy;bg;bf;bp;be;bs;gh;bi;bt;bu] ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint8unsigned m bf 0=Some(Vint(if flight then Int.one else Int.zero)) ->
+ Mem.load Mint8unsigned m bp 44=Some(Vint Int.zero) ->
+ Mem.load Mint32 m bp 0=Some(Vint kp) ->
+ Mem.load Mint32 m bp 4=Some(Vint kd) ->
+ Mem.load Mint32 m bp 8=Some(Vint ki) ->
+ Mem.load Mint32 m bp 12=Some(Vint kv) ->
+ Mem.load Mint32 m bp 16=Some(Vint ka) ->
+ Mem.load Mint32 m be 0=Some(Vint pex) ->
+ Mem.load Mint32 m be 4=Some(Vint pey) ->
+ Mem.load Mint32 m bs 0=Some(Vint sex) ->
+ Mem.load Mint32 m bs 4=Some(Vint sey) ->
+ Mem.load Mint32 m gh 52=Some(Vint rsx) ->
+ Mem.load Mint32 m gh 56=Some(Vint rsy) ->
+ Mem.load Mint32 m gh 60=Some(Vint rax) ->
+ Mem.load Mint32 m gh 64=Some(Vint ray) ->
+ Mem.load Mint32 m bi 0=Some(Vint ix) ->
+ Mem.load Mint32 m bi 4=Some(Vint iy) ->
+ Mem.load Mint32 m bt 0=Some(Vint traj) ->
+ Mem.load Mint32 m bu 0=Some(Vint total) ->
+ Mem.valid_access m Mint32 bx 0 Writable ->
+ Mem.valid_access m Mint32 bpy 0 Writable ->
+ Mem.valid_access m Mint32 bi 0 Writable ->
+ Mem.valid_access m Mint32 bi 4 Writable ->
+ Mem.valid_access m Mint32 bp 32 Writable ->
+ Mem.valid_access m Mint32 bp 36 Writable ->
+ exists mf,
+ (forall k,exists P,certificate ge P(State S.f_guidance_pid_h_run(drop_statements 8(fn_body S.f_guidance_pid_h_run))k e mf)/\
+ P(State S.f_guidance_pid_h_run(fn_body S.f_guidance_pid_h_run)k e m)) /\
+ Mem.load Mint32 mf bi 0=Some(Vint(next_integral flight ix ki(pd_bits kp kd pex sex)traj)) /\
+ Mem.load Mint32 mf bi 4=Some(Vint(next_integral flight iy ki(pd_bits kp kd pey sey)traj)) /\
+ Mem.load Mint32 mf bp 32=Some(Vint(controller_command flight kp kd ki kv ka pex sex rsx rax ix traj total)) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(controller_command flight kp kd ki kv ka pey sey rsy ray iy traj total)) /\
+ replay_stores m(controller_updates flight bx bpy bp bi kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total)=Some mf.
+Proof.
+ intros e m bp be bs gh bg bx bpy bi bt bu bf flight kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total
+ EX EY EG EF NP NE NS NI NT NU SP SE SS SI ST SU SEP GP LF APPROX
+ LKP LKD LKI LKV LKA LPEX LPEY LSEX LSEY LRSX LRSY LRAX LRAY LIX LIY LT LU AX AY AIX AIY ACX ACY.
+ assert(DIST:bx<>bpy /\ bx<>bg /\ bx<>bf /\ bx<>bp /\ bx<>be /\ bx<>bs /\ bx<>gh /\ bx<>bi /\ bx<>bt /\ bx<>bu /\ bpy<>bg /\ bpy<>bf /\ bpy<>bp /\ bpy<>be /\ bpy<>bs /\ bpy<>gh /\ bpy<>bi /\ bpy<>bt /\ bpy<>bu /\ bg<>bf /\ bg<>bp /\ bg<>be /\ bg<>bs /\ bg<>gh /\ bg<>bi /\ bg<>bt /\ bg<>bu /\ bf<>bp /\ bf<>be /\ bf<>bs /\ bf<>gh /\ bf<>bi /\ bf<>bt /\ bf<>bu /\ bp<>be /\ bp<>bs /\ bp<>gh /\ bp<>bi /\ bp<>bt /\ bp<>bu /\ be<>bs /\ be<>gh /\ be<>bi /\ be<>bt /\ be<>bu /\ bs<>gh /\ bs<>bi /\ bs<>bt /\ bs<>bu /\ gh<>bi /\ gh<>bt /\ gh<>bu /\ bi<>bt /\ bi<>bu /\ bt<>bu).
+ {repeat rewrite NoDup_cons_iff in SEP;simpl in SEP;intuition congruence. }
+ destruct DIST as(D0&D1&D2&D3&D4&D5&D6&D7&D8&D9&D10&D11&D12&D13&D14&D15&D16&D17&D18&D19&D20&D21&D22&D23&D24&D25&D26&D27&D28&D29&D30&D31&D32&D33&D34&D35&D36&D37&D38&D39&D40&D41&D42&D43&D44&D45&D46&D47&D48&D49&D50&D51&D52&D53&D54).
+ destruct(original_core_first_four e m bp be bs gh bg bx bpy kp kd kv ka pex pey sex sey rsx rsy rax ray
+ EX EY EG NP NE NS SP SE SS ltac:(repeat constructor;simpl;intuition congruence)
+ GP LKP LKD LKV LKA LPEX LPEY LSEX LSEY LRSX LRSY LRAX LRAY AX AY ACX ACY)
+ as[m4[E4[PDX[PDY[CMDX[CMDY[RW4 RUN4]]]]]]].
+ assert(LT4:Mem.load Mint32 m4 bt 0=Some(Vint traj))by(trace_frame;exact LT).
+ destruct(original_trajectory_clamp_normal e m4 bp bt
+ (feedforward_bits(pd_bits kp kd pex sex)kv rsx ka rax)
+ (feedforward_bits(pd_bits kp kd pey sey)kv rsy ka ray)traj NP SP NT ST ltac:(congruence)
+ CMDX CMDY LT4 ltac:(trace_access)ltac:(trace_access))
+ as[mt[ET[CTX[CTY[RWT RUNT]]]]].
+ assert(FLIGHT:Mem.load Mint8unsigned mt bf 0=Some(Vint(if flight then Int.one else Int.zero)))by(trace_frame;exact LF).
+ assert(PDXT:Mem.load Mint32 mt bx 0=Some(Vint(pd_bits kp kd pex sex)))by(trace_frame;exact PDX).
+ assert(PDYT:Mem.load Mint32 mt bpy 0=Some(Vint(pd_bits kp kd pey sey)))by(trace_frame;exact PDY).
+ assert(KIT:Mem.load Mint32 mt bp 8=Some(Vint ki))by(trace_frame;exact LKI).
+ assert(IXT:Mem.load Mint32 mt bi 0=Some(Vint ix))by(trace_frame;exact LIX).
+ assert(IYT:Mem.load Mint32 mt bi 4=Some(Vint iy))by(trace_frame;exact LIY).
+ assert(LTT:Mem.load Mint32 mt bt 0=Some(Vint traj))by(trace_frame;exact LT).
+ destruct(original_flight_integrator_normal e mt bx bpy bp bi bt bf flight(pd_bits kp kd pex sex)(pd_bits kp kd pey sey)ki ix iy
+ (after_feedforward kp kd kv ka pex sex rsx rax traj)(after_feedforward kp kd kv ka pey sey rsy ray traj)traj
+ EX EY EF NP SP NI SI NT ST ltac:(repeat constructor;simpl;intuition congruence)
+ FLIGHT PDXT PDYT KIT IXT IYT CTX CTY LTT ltac:(trace_access)ltac:(trace_access)ltac:(trace_access)ltac:(trace_access))
+ as[mi[EI[IXF[IYF[CXF[CYF[RWI RUNI]]]]]]].
+ assert(APPROXI:Mem.load Mint8unsigned mi bp 44=Some(Vint Int.zero))by(trace_frame;exact APPROX).
+ pose proof(original_force_false_skips e mi bp NP SP APPROXI)as EFALSE.
+ assert(LUI:Mem.load Mint32 mi bu 0=Some(Vint total))by(trace_frame;exact LU).
+ destruct(original_total_clamp_normal e mi bp bu
+ (next_command flight(after_feedforward kp kd kv ka pex sex rsx rax traj)(next_integral flight ix ki(pd_bits kp kd pex sex)traj))
+ (next_command flight(after_feedforward kp kd kv ka pey sey rsy ray traj)(next_integral flight iy ki(pd_bits kp kd pey sey)traj))
+ total NP SP NU SU ltac:(congruence)CXF CYF LUI ltac:(trace_access)ltac:(trace_access))
+ as[mf[EU[CUX[CUY[RWU RUNU]]]]].
+ exists mf;split.
+ - intros k.
+   set(tail0:=drop_statements 8(fn_body S.f_guidance_pid_h_run)).
+   set(tail1:=Ssequence total_clamp tail0).
+   set(tail2:=Ssequence force_statement tail1).
+   set(tail3:=Ssequence flight_statement tail2).
+   set(tail4:=Ssequence trajectory_clamp tail3).
+   assert(C0:certificate ge(fun s=>s=State S.f_guidance_pid_h_run tail0 k e mf)
+     (State S.f_guidance_pid_h_run tail0 k e mf))by apply singleton_certificate.
+   destruct(conditional_block_from_normal ge S.f_guidance_pid_h_run e total_clamp mi mf
+     ltac:(reflexivity)EU(Kseq tail0 k))as[P1[C1 I1]].
+   destruct(sequence_certificate ge S.f_guidance_pid_h_run e k mi mf total_clamp tail0
+     P1(fun s=>s=State S.f_guidance_pid_h_run tail0 k e mf)_
+     C1 I1 C0 eq_refl)as[Q1[DC1 J1]].
+   destruct(original_force_false_certificate e mi bp(Kseq tail1 k)NP SP APPROXI)as[P2[C2 I2]].
+   destruct(sequence_certificate ge S.f_guidance_pid_h_run e k mi mi force_statement tail1
+     P2 Q1 _ C2 I2 DC1 J1)as[Q2[DC2 J2]].
+   destruct(conditional_block_from_normal ge S.f_guidance_pid_h_run e flight_statement mt mi
+     ltac:(reflexivity)EI(Kseq tail2 k))as[P3[C3 I3]].
+   destruct(sequence_certificate ge S.f_guidance_pid_h_run e k mt mi flight_statement tail2
+     P3 Q2 _ C3 I3 DC2 J2)as[Q3[DC3 J3]].
+   destruct(conditional_block_from_normal ge S.f_guidance_pid_h_run e trajectory_clamp m4 mt
+     ltac:(reflexivity)ET(Kseq tail3 k))as[P4[C4 I4]].
+   destruct(sequence_certificate ge S.f_guidance_pid_h_run e k m4 mt trajectory_clamp tail3
+     P4 Q3 _ C4 I4 DC3 J3)as[Q4[DC4 J4]].
+   eapply conditional_prefix_certificate with(n:=4%nat)(mid:=m4)(Q:=Q4).
+   + reflexivity.
+   + exact E4.
+   + exact DC4.
+   + exact J4.
+ - repeat split.
+   + trace_frame;exact IXF.
+   + trace_frame;exact IYF.
+   + exact CUX.
+   + exact CUY.
+   + unfold controller_updates.
+     apply replay_stores_app;exists m4;split;[exact RUN4|].
+     apply replay_stores_app;exists mt;split;[exact RUNT|].
+     apply replay_stores_app;exists mi;auto.
+Qed.
+
+Print Assumptions original_controller_front_certificate.
+
+
+FILE ConditionalBlock.v
+From Stdlib Require Import List Bool Classical.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation AtomicDenotation BlockExecution PhaseComposition PureIfShell.
+From PidPositionSafety Require Import PureSound.
+From PidPositionTranslationCore Require Import ConditionalStrategy CoreTail CoreSemantics.
+Lemma singleton_certificate:forall ge target,certificate ge(fun s=>s=target)target.
+Proof. intros;split;[intros;auto|intros s t next EQ NE;contradiction]. Qed.
+Lemma join_certificate:forall ge P Q middle target,
+ certificate ge P middle ->certificate ge Q target ->Q middle ->
+ certificate ge(fun s=>P s\/Q s)target.
+Proof.
+ intros ge P Q middle target[PP PC][QP QC]QM;split.
+ - intros s[PS|QS].
+   + destruct(PP s PS)as[EQ|[t[next[STEP PN]]]].
+     * subst;destruct(QP middle QM)as[EQ|[t[next[STEP QN]]]];[auto|right;eauto].
+     * right;eauto.
+   + destruct(QP s QS)as[EQ|[t[next[STEP QN]]]];[auto|right;eauto].
+ - intros s t next[PS|QS]NF STEP.
+   + destruct(classic(s=middle))as[EQ|NE].
+     * subst;right;eapply QC;eauto.
+     * left;eapply PC;eauto.
+   + right;eapply QC;eauto.
+Qed.
+Lemma prepend_transition:forall ge initial middle P target,
+ unique_transition ge initial middle ->certificate ge P target ->P middle ->
+ exists Q,certificate ge Q target/\Q initial.
+Proof.
+ intros ge initial middle P target TRANS CERT PI;exists(fun s=>s=initial\/P s);split;[|auto].
+ eapply chain_certificate with(P:=fun s=>s=initial)(middle:=initial)(initial:=middle);
+ [apply singleton_certificate|exact CERT|exact TRANS|exact PI].
+Qed.
+Lemma sequence_transition:forall ge f st tail k e m,
+ unique_transition ge(State f(Ssequence st tail)k e m)(State f st(Kseq tail k)e m).
+Proof.
+ intros;split;[right;constructor|].
+ intros t next[ES|SS];[inversion ES|inversion SS;subst;auto].
+ all:repeat match goal with H:_\/_|-_=>destruct H end;discriminate.
+Qed.
+Lemma skip_sequence_transition:forall ge f tail k e m,
+ unique_transition ge(State f Sskip(Kseq tail k)e m)(State f tail k e m).
+Proof.
+ intros;split;[right;constructor|].
+ intros t next[ES|SS];[inversion ES|inversion SS;subst;cbn in *;try contradiction;auto].
+Qed.
+Lemma sequence_certificate:forall ge f e k m mid first second P Q target,
+ certificate ge P(State f Sskip(Kseq second k)e mid) ->
+ P(State f first(Kseq second k)e m) ->
+ certificate ge Q target ->Q(State f second k e mid) ->
+ exists R,certificate ge R target/\R(State f(Ssequence first second)k e m).
+Proof.
+ intros ge f e k m mid first second P Q target CP PI CQ QI.
+ pose proof(chain_certificate ge P Q _ _ target CP CQ(skip_sequence_transition ge f second k e mid)QI)as JOIN.
+ eapply prepend_transition;[apply sequence_transition|exact JOIN|left;exact PI].
+Qed.
+Lemma normal_statement_path:forall ge e m st mf,
+ exec_stmt ge e m st E0 mf Out_normal ->forall f,
+ star Csem.step ge(State f st Kstop e m)E0(State f Sskip Kstop e mf).
+Proof.
+ intros ge e m st mf EV f.
+ destruct(Cstrategy.exec_stmt_to_steps ge e m st E0 mf Out_normal EV f Kstop)as[reached[PATH END]].
+ inversion END;subst;apply strategy_star_csem;exact PATH.
+Qed.
+Lemma normal_block_certificate:forall ge f e k m st mf,
+ block_stmt st=true ->exec_stmt ge e m st E0 mf Out_normal ->
+ exists P,certificate ge P(State f Sskip k e mf)/\P(State f st k e m).
+Proof.
+ intros ge f e k m st mf SYN EXEC.
+ exists(block_context_invariant ge k f e mf);split.
+ - split;[apply block_context_progress|apply block_context_all_successors].
+ - eapply block_context_entry;[exact SYN|eapply normal_statement_path;exact EXEC].
+Qed.
+Fixpoint conditional_block(s:statement):bool:=match s with
+| Sskip=>true
+| Sdo a=>match a with Eassign l r ty=>source_simple l&&conditional_shape r&&
+ (if Ctypes.type_eq(typeof l)ty then true else false)&&nv ty|_=>atomic_expr a end
+| Ssequence a b=>conditional_block a&&conditional_block b
+| Sifthenelse c yes no=>source_simple c&&conditional_block yes&&conditional_block no
+| _=>false end.
+Theorem conditional_block_from_normal:forall ge f e st m mf,
+ conditional_block st=true ->exec_stmt ge e m st E0 mf Out_normal ->
+ forall k,exists P,certificate ge P(State f Sskip k e mf)/\P(State f st k e m).
+Proof.
+ intros ge f e st;induction st;intros m mf SH EXEC k;cbn[conditional_block]in SH;try discriminate.
+ - inversion EXEC;subst;exists(fun s=>s=State f Sskip k e mf);split;[apply singleton_certificate|reflexivity].
+ - destruct e0;try solve[eapply normal_block_certificate;[exact SH|exact EXEC]];core_unpack.
+   destruct(Ctypes.type_eq(typeof e0_1)ty)as[TY|NE];try discriminate.
+   eapply original_conditional_assignment_from_normal;eauto.
+ - apply andb_true_iff in SH as[S1 S2].
+   destruct(sequence_normal_inv ge e _ _ _ _ EXEC)as[mid[E1 E2]].
+   destruct(IHst1 m mid S1 E1(Kseq st2 k))as[P[CP IP]].
+   destruct(IHst2 mid mf S2 E2 k)as[Q[CQ IQ]].
+   eapply sequence_certificate;[exact CP|exact IP|exact CQ|exact IQ].
+ - core_unpack.
+   inversion EXEC;subst.
+   match goal with EX:eval_expression ge e m e0 ?tt ?mm ?vv|-_=>
+   inversion EX;subst end.
+   match goal with EV:eval_expr ge e m RV e0 ?tt ?mm ?af|-_=>
+   destruct(strategy_simple_identity ge e m RV e0 tt mm af EV ltac:(assumption))as[TT[MM AA]];
+   subst tt mm af end.
+   cbn in H4;subst t2.
+   assert(PV:pure_rval ge e m e0=Some v1).
+   { apply(proj1(simple_big_denotation ge e m));[assumption|apply source_simple_is_simple;assumption]. }
+   assert(BR:exists Q,certificate ge Q(State f Sskip k e mf)/\
+     Q(State f(if b then st1 else st2)k e m)).
+   { destruct b;[eapply IHst1|eapply IHst2];eauto. }
+   destruct BR as[Q[CQ IQ]].
+   pose proof(PureIfShell.if_certificate ge f e k m e0 st1 st2 v1 b
+     (source_simple_is_simple e0 CORE1)PV H8)as CI.
+   eexists;split.
+   + eapply join_certificate;[exact CI|exact CQ|exact IQ].
+   + left;apply PureIfShell.initial.
+Qed.
+Print Assumptions conditional_block_from_normal.
+
+Fixpoint conditional_prefix(n:nat)(s:statement):bool:=
+ match n with O=>true|S n=>match s with
+ | Ssequence a b=>conditional_block a&&conditional_prefix n b
+ | _=>conditional_block s end end.
+Theorem conditional_prefix_certificate:forall n ge f e s m mid,
+ conditional_prefix n s=true ->
+ exec_stmt ge e m(first_statements n s)E0 mid Out_normal ->
+ forall k Q target,certificate ge Q target ->Q(State f(drop_statements n s)k e mid) ->
+ exists P,certificate ge P target/\P(State f s k e m).
+Proof.
+ induction n;intros ge f e s m mid SH EX k Q target CQ IQ.
+ - cbn[first_statements]in EX;inversion EX;subst;exists Q;auto.
+ - destruct s;cbn[conditional_prefix first_statements drop_statements]in SH,EX,IQ.
+   all:try solve[
+    destruct(conditional_block_from_normal ge f e _ m mid SH EX k)as[P[CP IP]];
+    exists(fun s=>P s\/Q s);split;[eapply join_certificate;[exact CP|exact CQ|exact IQ]|left;exact IP]].
+   apply andb_true_iff in SH as[S1 S2].
+   destruct(sequence_normal_inv ge e _ _ _ _ EX)as[ma[A B]].
+   destruct(conditional_block_from_normal ge f e s1 m ma S1 A(Kseq s2 k))as[P[CP IP]].
+   destruct(IHn ge f e s2 ma mid S2 B k Q target CQ IQ)as[R[CR IR]].
+   eapply sequence_certificate;[exact CP|exact IP|exact CR|exact IR].
+Qed.
+
+
+FILE FunctionPhases.v
+From Stdlib Require Import List Bool Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+From PidPositionSafety Require Import ConditionalBlock.
+Definition phase_world:world:=World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Lemma allocation_deterministic:forall ge env m vars e1 ma1 e2 ma2,
+ alloc_variables ge env m vars e1 ma1 ->alloc_variables ge env m vars e2 ma2 ->e1=e2 /\ma1=ma2.
+Proof.
+ intros ge env m vars e1 ma1 e2 ma2 A1 A2.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A1)as D1.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma parameters_deterministic:forall ge e m params args mf1 mf2,
+ bind_parameters ge e m params args mf1 ->bind_parameters ge e m params args mf2 ->mf1=mf2.
+Proof.
+ intros ge e m params args mf1 mf2 B1 B2.
+ pose proof(Cexec.sem_bind_parameters_complete ge phase_world e m params args mf1 B1)as D1.
+ pose proof(Cexec.sem_bind_parameters_complete ge phase_world e m params args mf2 B2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma internal_dispatch_transition:forall ge f args m e ma mb k,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f)) ->
+ alloc_variables ge empty_env m(fn_params f++fn_vars f)e ma ->
+ bind_parameters ge e ma(fn_params f)args mb ->
+ unique_transition ge(Callstate(Internal f)args k m)(State f(fn_body f)k e mb).
+Proof.
+ intros ge f args m e ma mb k NAMES ALLOC BIND;split.
+ - right;eapply step_internal_function;[exact NAMES|exact ALLOC|exact BIND].
+ - intros t next[ES|SS];[inversion ES|].
+   inversion SS;subst;split;[reflexivity|].
+   match goal with
+   |A:alloc_variables ge empty_env m(fn_params f++fn_vars f)?ee ?mx
+    |-State _ _ _ ?ee _=_ =>
+     destruct(allocation_deterministic ge empty_env m _ e ma ee mx ALLOC A)as[EE MM];subst ee mx end.
+   match goal with
+   |B:bind_parameters ge e ma(fn_params f)args ?mx |-State _ _ _ _ ?mx=_=>
+    pose proof(parameters_deterministic ge e ma(fn_params f)args mb mx BIND B)as EQ;subst mx;reflexivity end.
+Qed.
+Lemma return_void_transition:forall ge f k e m mf,
+ is_call_cont k ->Mem.free_list m(blocks_of_env ge e)=Some mf ->
+ unique_transition ge(State f(Sreturn None)k e m)(Returnstate Vundef k mf).
+Proof.
+ intros ge f k e m mf CALL FREE.
+ assert(CC:call_cont k=k)by(destruct k;cbn in CALL|-*;try contradiction;reflexivity).
+ split.
+ - pose proof(Csem.step_return_0 ge f k e m mf FREE)as STEP;rewrite CC in STEP;right;exact STEP.
+ - intros t next[ES|SS];[inversion ES|inversion SS;subst].
+   all:cbn in CALL;try contradiction;repeat match goal with H:_\/_|-_=>destruct H end;try discriminate.
+   split;[reflexivity|].
+   match goal with F:Mem.free_list _ _=Some ?mx|-_=>rewrite FREE in F;injection F as EQ;subst mx end.
+   rewrite CC;reflexivity.
+Qed.
+Theorem allocated_void_call_certificate:forall ge f args m e ma mb bodym mf,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f)) ->
+ alloc_variables ge empty_env m(fn_params f++fn_vars f)e ma ->
+ bind_parameters ge e ma(fn_params f)args mb ->
+ Mem.free_list bodym(blocks_of_env ge e)=Some mf ->
+ (forall k,exists P,certificate ge P(State f(Sreturn None)k e bodym)/\
+   P(State f(fn_body f)k e mb)) ->
+ forall k,is_call_cont k ->exists Q,certificate ge Q(Returnstate Vundef k mf)/\
+ Q(Callstate(Internal f)args k m).
+Proof.
+ intros ge f args m e ma mb bodym mf NAMES AV BIND FREE BODY k BASE.
+ destruct(BODY k)as[P[CP IP]].
+ pose proof(return_void_transition ge f k e bodym mf BASE FREE)as CLEAN.
+ pose proof(singleton_bridge_certificate ge _ _ CLEAN)as CC.
+ pose proof(ConditionalBlock.join_certificate ge P _ _ _ CP CC ltac:(left;reflexivity))as JOIN.
+ eapply ConditionalBlock.prepend_transition.
+ - exact(internal_dispatch_transition ge f args m e ma mb k NAMES AV BIND).
+ - exact JOIN.
+ - left;exact IP.
+Qed.
+Print Assumptions allocated_void_call_certificate.
+

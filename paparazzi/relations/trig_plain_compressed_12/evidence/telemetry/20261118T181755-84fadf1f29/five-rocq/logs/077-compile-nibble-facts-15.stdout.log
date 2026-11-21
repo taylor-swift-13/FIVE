@@ -1,0 +1,34 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bc : block
+  p, x : int
+  POS : e ! _pos = Some (bp, Tint I16 Unsigned noattr)
+  LOCAL : e ! _pprz_trig_int_compr = None
+  SYMBOL : Genv.find_symbol (globalenv prog) _pprz_trig_int_compr = Some bc
+  LP : Mem.load Mint16unsigned m bp 0 = Some (Vint p)
+  LB :
+    Mem.load Mint8unsigned m bc (Ptrofs.unsigned (nibble_offset p)) =
+    Some (Vint x)
+  E20 : Int.eq (Int.repr 2) Int.zero = false
+  E2M : Int.eq (Int.repr 2) Int.mone = false
+  ============================
+  match
+    (if
+      Int.ltu (Int.mul (Int.repr 4) (Int.mods p (Int.repr 2))) Int.iwordsize
+     then
+      Some
+        (Vint (Int.shr x (Int.mul (Int.repr 4) (Int.mods p (Int.repr 2)))))
+     else None)
+  with
+  | Some v =>
+      match match v with
+            | Vint i => Some (Vint i)
+            | _ => None
+            end with
+      | Some (Vint n1) => Some (Vint (Int.and n1 (Int.repr 15)))
+      | _ => None
+      end
+  | None => None
+  end = nibble_machine p x

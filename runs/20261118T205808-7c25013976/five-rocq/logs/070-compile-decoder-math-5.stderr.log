@@ -1,0 +1,117 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/DecoderMath.v", line 49, characters 34-50:
+Error:
+In environment
+ge : genv
+e : PTree.tree (block * type)
+m : mem
+bv, bb : block
+a, hi : int
+A : 0 <= Int.signed a < 6434
+EV : e ! PprzTrigLow.Source._val = Some (bv, tshort)
+EB : e ! PprzTrigLow.Source._data_buf_12 = None
+SYM : Genv.find_symbol ge PprzTrigLow.Source._data_buf_12 = Some bb
+LV : Mem.load Mint16signed m bv 0 = Some (Vint a)
+LH :
+  Mem.load Mint8unsigned m bb (Ptrofs.unsigned (high_offset a)) =
+  Some (Vint hi)
+VAL : branch_rval ge e m read_val = Some (Vint a)
+BUF : branch_rval ge e m decoder_buffer = Some (Vptr bb Ptrofs.zero)
+IX :
+  branch_rval ge e m decoder_high_index =
+  Some (Vint (Int.add (Int.repr 6434) (Int.shr a (Int.repr 1))))
+HR : branch_rval ge e m decoder_high_read = Some (Vint hi)
+TC : branch_rval ge e m decoder_shift_choice = Some (Vint (machine_shift a))
+ADD : signed32 (6434 + Int.signed (Int.shr a (Int.repr 1)))
+HB : 0 <= Int.signed hi <= 255
+SB : 0 <= Int.signed (machine_shift a) < 32
+SH : signed32 (Int.signed hi * 2 ^ Int.signed (machine_shift a))
+SHR :
+  branch_rval ge e m
+    (Ebinop Oshr read_val (Eval (Vint (Int.repr 1)) tint) tint) =
+  Some (Vint (Int.shr a (Int.repr 1)))
+IM : math_guarded ge e m decoder_high_index
+HM : math_guarded ge e m decoder_high_read
+Unable to unify
+ "(fix math_guarded (ge : genv) (e : env) (m : mem) (a : expr) {struct a} :
+       Prop :=
+     match a with
+     | Eunop op a0 _ =>
+         math_guarded ge e m a0 /\
+         (forall v : val,
+          branch_rval ge e m a0 = Some v -> unary_math_guard op v)
+     | Ebinop op a0 b _ =>
+         math_guarded ge e m a0 /\
+         math_guarded ge e m b /\
+         (forall v w : val,
+          branch_rval ge e m a0 = Some v ->
+          branch_rval ge e m b = Some w -> binary_math_guard op v w)
+     | Econdition a0 b c _ =>
+         math_guarded ge e m a0 /\
+         math_guarded ge e m b /\ math_guarded ge e m c
+     | Eseqand a0 b _ | Eseqor a0 b _ | Eassign a0 b _ |
+       Eassignop _ a0 b _ _ | Ecomma a0 b _ =>
+         math_guarded ge e m a0 /\ math_guarded ge e m b
+     | Ecall a0 args _ =>
+         math_guarded ge e m a0 /\ math_guarded_list ge e m args
+     | Ebuiltin _ _ args _ => math_guarded_list ge e m args
+     | Efield a0 _ _ | Evalof a0 _ | Ederef a0 _ | 
+       Eaddrof a0 _ | Ecast a0 _ | Epostincr _ a0 _ | 
+       Eparen a0 _ _ => math_guarded ge e m a0
+     | _ => True
+     end
+   with math_guarded_list
+     (ge : genv) (e : env) (m : mem) (args : exprlist) {struct args} :
+       Prop :=
+     match args with
+     | Enil => True
+     | Econs a rest => math_guarded ge e m a /\ math_guarded_list ge e m rest
+     end
+   for
+   math_guarded) ?ge ?e ?m ?l /\
+  (fix math_guarded (ge : genv) (e : env) (m : mem) (a : expr) {struct a} :
+       Prop :=
+     match a with
+     | Eunop op a0 _ =>
+         math_guarded ge e m a0 /\
+         (forall v : val,
+          branch_rval ge e m a0 = Some v -> unary_math_guard op v)
+     | Ebinop op a0 b _ =>
+         math_guarded ge e m a0 /\
+         math_guarded ge e m b /\
+         (forall v w : val,
+          branch_rval ge e m a0 = Some v ->
+          branch_rval ge e m b = Some w -> binary_math_guard op v w)
+     | Econdition a0 b c _ =>
+         math_guarded ge e m a0 /\
+         math_guarded ge e m b /\ math_guarded ge e m c
+     | Eseqand a0 b _ | Eseqor a0 b _ | Eassign a0 b _ |
+       Eassignop _ a0 b _ _ | Ecomma a0 b _ =>
+         math_guarded ge e m a0 /\ math_guarded ge e m b
+     | Ecall a0 args _ =>
+         math_guarded ge e m a0 /\ math_guarded_list ge e m args
+     | Ebuiltin _ _ args _ => math_guarded_list ge e m args
+     | Efield a0 _ _ | Evalof a0 _ | Ederef a0 _ | 
+       Eaddrof a0 _ | Ecast a0 _ | Epostincr _ a0 _ | 
+       Eparen a0 _ _ => math_guarded ge e m a0
+     | _ => True
+     end
+   with math_guarded_list
+     (ge : genv) (e : env) (m : mem) (args : exprlist) {struct args} :
+       Prop :=
+     match args with
+     | Enil => True
+     | Econs a rest => math_guarded ge e m a /\ math_guarded_list ge e m rest
+     end
+   for
+   math_guarded) ?ge ?e ?m ?r /\
+  (forall v w : val,
+   branch_rval ?ge ?e ?m ?l = Some v ->
+   branch_rval ?ge ?e ?m ?r = Some w -> binary_math_guard ?op v w)"
+with
+ "math_guarded ge e m read_val /\
+  True /\
+  (forall v w : val,
+   branch_rval ge e m read_val = Some v ->
+   branch_rval ge e m (Eval (Vint (Int.repr 2)) tint) = Some w ->
+   binary_math_guard Omod v w)".
+

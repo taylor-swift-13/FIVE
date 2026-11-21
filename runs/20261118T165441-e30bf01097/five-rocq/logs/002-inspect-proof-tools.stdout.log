@@ -1,0 +1,322 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Memdata Globalenvs Ctypes Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory MemoryShape FlightSemantics ControllerPrefix.
+From PidPositionSafety Require Import FactoryCall.
+From PidPositionTranslationAttempt002 Require Import EntryIntegration WitnessMemory WitnessUpdates ByteAgreement CoreInputs FramedNormalReturn MainGoals InputSemantics.
+From PidMeasurementAttempt001 Require Import IntegerBounds MachineArithmetic SemanticBridge.
+From PidMeasurementProblem Require Import Spec.
+From PidAlternatingProblem Require Import Spec.
+From PidAlternatingAttempt001 Require Import Witness Semantic.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Opaque E.ge.
+Ltac expose_path :=
+ lazymatch goal with |-load_path ?ch ?mm ?bb ?ty ?path=Some ?v=>
+ let info:=eval vm_compute in(path_info ty path)in
+ lazymatch info with Some(_,?ofs)=>change(Mem.load ch mm bb ofs=Some v)end
+ end.
+
+Lemma prepare_input : forall m gh ret r r' kp ki ix,
+ -4096<=r'<=4096 ->AlternatingInput m gh ret r kp ki ix ->
+ Mem.range_perm m gh 0 84 Cur Writable ->PrivateBlocks gh ret ->
+ exists q,EnvironmentStep gh m q /\AlternatingInput q gh ret r' kp ki ix /\
+ Mem.range_perm q gh 0 84 Cur Writable.
+Proof.
+ intros m gh ret r r' kp ki ix RANGE INPUT WG PRIVATE.
+ pose proof INPUT as INPUT0.
+ destruct INPUT as(GOOD&RX&RY&PX&PY&AXES&KP&KD&KI&KV&KA&HEAD&IX&IY).
+ pose proof GOOD as GOOD0.
+ destruct GOOD as(LEG&INIT&SAFE).
+ destruct LEG as(GR&UNIQ&RET&GHREAD&RETWRITE&GLOBAL&CTRL&CACHE&APP&HS&GAINS&BOUNDS).
+ assert(ACCESS:Mem.valid_access m Mint32 gh 44 Writable).
+ { eapply scalar_access_inside with(n:=84);[exact WG|lia|cbn;lia|witness_align]. }
+ destruct(Mem.valid_access_store m Mint32 gh 44(Vint(Int.repr r'))ACCESS)as[q STORE].
+ assert(KEEP:forall ch b ofs v,Mem.load ch m b ofs=Some v ->
+ (b<>gh \/ofs+size_chunk ch<=44 \/48<=ofs) ->Mem.load ch q b ofs=Some v).
+ { intros ch b ofs v LOAD MISS;erewrite Mem.load_store_other;[exact LOAD|exact STORE|cbn;exact MISS]. }
+ assert(GKEEP:forall id ty path ch v,load_global ch m id ty path=Some v ->
+ load_global ch q id ty path=Some v).
+ { intros id ty path ch v LOAD;unfold load_global,load_path in LOAD|-*.
+   destruct(Genv.find_symbol E.ge id)as[b|]eqn:SY in LOAD|-*;try discriminate LOAD.
+   destruct(path_info ty path)as[[ft ofs]|]eqn:PATH in LOAD|-*;try discriminate LOAD.
+   apply KEEP;[exact LOAD|left].
+   intro EQ;subst b;specialize(UNIQ id SY);subst id.
+   destruct(actual_global_variable_binding S._guidance_h S.v_guidance_h ltac:(vm_compute;reflexivity))as[hb[SH VH]].
+   rewrite SY in SH;injection SH as<-;exact(proj1(PRIVATE gh _ VH)eq_refl). }
+ assert(RXF:load_path Mint32 q gh gh_type[S._ref;S._pos;S._x]=Some(Vint(Int.repr r'))).
+ { change(Mem.load Mint32 q gh 44=Some(Vint(Int.repr r')));exact(Mem.load_store_same _ _ _ _ _ _ STORE). }
+ assert(RYF:load_path Mint32 q gh gh_type[S._ref;S._pos;S._y]=Some(Vint Int.zero)).
+ { expose_path;apply KEEP;[exact RY|right;right;cbn;lia]. }
+ assert(AXESF:forall axis,In axis[S._x;S._y]->
+ load_path Mint32 q gh gh_type[S._ref;S._speed;axis]=Some(Vint Int.zero) /\
+ load_path Mint32 q gh gh_type[S._ref;S._accel;axis]=Some(Vint Int.zero) /\
+ load_global Mint32 q S._state state_type[S._ned_speed_i;axis]=Some(Vint Int.zero)).
+ { intros axis IN;destruct(AXES axis IN)as(SPEED&ACCEL&VEL).
+   split;[|split].
+   - destruct IN as[<-|[<-|[]]];(expose_path;apply KEEP;[exact SPEED|right;right;cbn;lia]).
+   - destruct IN as[<-|[<-|[]]];(expose_path;apply KEEP;[exact ACCEL|right;right;cbn;lia]).
+   - apply GKEEP;exact VEL. }
+ assert(SAFEF:position_subtractions_safe q gh).
+ { intros axis IN;destruct IN as[<-|[<-|[]]].
+   - exists(Int.repr r'),Int.zero;split;[exact RXF|];split;[apply GKEEP;exact PX|].
+     unfold signed32;rewrite Int.signed_repr by(change(-2147483648<=r'<=2147483647);lia);rewrite Int.signed_zero;lia.
+   - exists Int.zero,Int.zero;split;[exact RYF|];split;[apply GKEEP;exact PY|].
+     unfold signed32;rewrite Int.signed_zero;lia. }
+ assert(INITF:initialized_positions q gh).
+ { intros axis IN;destruct(SAFEF axis IN)as(a&b&L&M&N);eauto. }
+ assert(LEGF:InputGoodLegacy q gh ret).
+ { unfold InputGoodLegacy;refine (conj GR (conj UNIQ (conj RET (conj _ (conj _ (conj _ (conj _ (conj _ (conj _ (conj _ (conj _ (_)))))))))))).
+   - intros z R;eapply Mem.perm_store_1;[exact STORE|apply GHREAD;exact R].
+   - intros z R;eapply Mem.perm_store_1;[exact STORE|apply RETWRITE;exact R].
+   - eapply global_contract_after_store;[exact GLOBAL| |exact STORE].
+     intros b gv VAR RO;exact(proj1(PRIVATE b gv VAR)).
+   - intros id IN;destruct(CTRL id IN)as(b&gv&CSYM&VA&RP);exists b,gv;split;[exact CSYM|];split;[exact VA|].
+     intros z R;eapply Mem.perm_store_1;[exact STORE|apply RP;exact R].
+   - destruct CACHE as(ps&ss&PS&SS&BP&BS);exists ps,ss;split;[apply GKEEP;exact PS|];split;[apply GKEEP;exact SS|];split;assumption.
+   - apply GKEEP;exact APP.
+   - destruct HS as(h&LOAD&LO&HI);exists h;split;[apply GKEEP;exact LOAD|];split;assumption.
+   - intros gain IN;destruct(GAINS gain IN)as(v&LOAD&BOUND);exists v;split;[apply GKEEP;exact LOAD|exact BOUND].
+   - intros axis IN;destruct(BOUNDS axis IN)as(INT&SPD&ACC&VEL).
+     split.
+     + destruct INT as(v&LOAD&BOUND);exists v;split;[apply GKEEP;exact LOAD|exact BOUND].
+     + destruct(AXESF axis IN)as(SPEED&ACCEL&MEASURED);split.
+       * exists Int.zero;split;[exact SPEED|rewrite Int.signed_zero;lia].
+       * split.
+         -- exists Int.zero;split;[exact ACCEL|rewrite Int.signed_zero;lia].
+         -- exists Int.zero;split;[exact MEASURED|rewrite Int.signed_zero;lia]. }
+ exists q;split.
+ - split.
+   + eapply Mem.store_unchanged_on;[exact STORE|].
+     intros z R NOT;apply NOT;left;split;[reflexivity|cbn in R;lia].
+   + intros axis IN;unfold load_global,load_path.
+     destruct(Genv.find_symbol E.ge S._guidance_pid_trim_att_integrator)as[b|]eqn:SY;[|reflexivity].
+     destruct(path_info vec_type[axis])as[[ty ofs]|]eqn:PI;[|reflexivity].
+     erewrite Mem.load_store_other;[reflexivity|exact STORE|left].
+     destruct(actual_global_variable_binding S._guidance_pid_trim_att_integrator S.v_guidance_pid_trim_att_integrator ltac:(vm_compute;reflexivity))as[bi[SI VI]].
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import BigstepSupport StackCleanup FunctionAllocation.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreSemantics FlightSemantics ControllerPrefix CoreCall ReturnSemantics.
+From PidPositionSafety Require Import FactoryCall.
+From PidPositionTranslationAttempt002 Require Import ClampSemantics PrefixFields EntryAllocation EntryIntegration EntryReturn CoreInputs.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+Definition entry_axis_command m gh(D:core_initial_data m gh)(flight:bool)(r p s v acc i:int):int:=
+ controller_command flight(cid_kp _ _ D)(cid_kd _ _ D)(cid_ki _ _ D)(cid_kv _ _ D)(cid_ka _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608))s acc i(Int.repr 1429)(Int.repr 3216).
+Definition entry_axis_integral m gh(D:core_initial_data m gh)(flight:bool)(r p s v i:int):int:=
+ next_integral flight i(cid_ki _ _ D)
+ (pd_bits(cid_kp _ _ D)(cid_kd _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608)))(Int.repr 1429).
+
+Theorem original_entry_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_reaches_core_call m gh ret flight GOOD)
+ as(e&front&be&bs&sb&rx&ry&px&py&sx&sy&vx&vy&br&bf&bg&temp&
+ SE&SS&STATE&RX&RY&PX&PY&SX&SY&VX&VY&PATH&PEX&PEY&SEX&SEY&
+ LR&LF&LG&LC&RES&GH&FLIGHT&SEP&FRESH&FREE&FRAME&PERM&UNSH).
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid SP)as IP.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_pos_err SE)as IE.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_speed_err SS)as IS.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_trim_att_integrator SI)as II.
+ pose proof(Genv.find_invert_symbol E.ge S._traj_max_bank ST)as IT.
+ pose proof(Genv.find_invert_symbol E.ge S._total_max_bank SU)as IU.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_h SH)as IH.
+ cbv[S._guidance_pid S._guidance_pid_pos_err S._guidance_pid_speed_err S._guidance_pid_trim_att_integrator S._traj_max_bank S._total_max_bank S._guidance_h]in IP,IE,IS,II,IT,IU,IH.
+ assert(GP:gh<>bp)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid bp GOOD SP ltac:(discriminate))).
+ assert(GE:gh<>be)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_pos_err be GOOD SE ltac:(discriminate))).
+ assert(GS:gh<>bs)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_speed_err bs GOOD SS ltac:(discriminate))).
+ assert(GI:gh<>bi)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_trim_att_integrator bi GOOD SI ltac:(discriminate))).
+ assert(GT:gh<>bt)by(exact(inputgood_guidance_separate m gh ret S._traj_max_bank bt GOOD ST ltac:(discriminate))).
+ assert(GU:gh<>bu)by(exact(inputgood_guidance_separate m gh ret S._total_max_bank bu GOOD SU ltac:(discriminate))).
+ assert(ND:NoDup[bp;be;bs;gh;bi;bt;bu]).
+ { let rec distinct := lazymatch goal with
+   | |-NoDup []=>apply NoDup_nil
+   | |-NoDup(_::_)=>apply NoDup_cons;[cbn;intuition congruence|distinct]
+   end in distinct. }
+ assert(VP:Mem.valid_block m bp)by(eapply loaded_block;exact KP).
+ assert(VI:Mem.valid_block m bi)by(eapply loaded_block;exact IX).
+ assert(TP:temp<>bp)by(intro EQ;subst temp;exact(FRESH S.__res__1 bp sp_type LC VP)).
+ assert(TI:temp<>bi)by(intro EQ;subst temp;exact(FRESH S.__res__1 bi sp_type LC VI)).
+ assert(BRP:br<>bp)by(intro EQ;subst br;exact(FRESH S.__res bp(tptr sp_type)LR VP)).
+ assert(BRI:br<>bi)by(intro EQ;subst br;exact(FRESH S.__res bi(tptr sp_type)LR VI)).
+ assert(BRT:br<>temp)by(eapply environment_distinct;[exact SEP| |exact LR|exact LC];discriminate).
+ assert(WPF:Mem.range_perm front bp 0 48 Cur Writable)by(intros ofs R;apply PERM;apply WP;exact R).
+ assert(WIF:Mem.range_perm front bi 0 8 Cur Writable)by(intros ofs R;apply PERM;apply WI;exact R).
+ assert(WTEMP:Mem.range_perm front temp 0 36 Cur Writable).
+ { pose proof(FREE S.__res__1 temp sp_type LC)as W.
+   rewrite PrefixFields.prefix_ge_ce in W;change(Mem.range_perm front temp 0 36 Cur Freeable)in W.
+   intros ofs R;eapply Mem.perm_implies;[apply W;exact R|constructor]. }
+ assert(WRET0:Mem.range_perm m ret 0 36 Cur Writable).
+ { destruct GOOD as[LEG _];assert(W:Mem.range_perm m ret 0(sizeof ce sp_type)Cur Writable)by(unfold InputGoodLegacy in LEG;tauto);exact W. }
+ assert(WRET:Mem.range_perm front ret 0 36 Cur Writable)by(intros ofs R;apply PERM;apply WRET0;exact R).
+ assert(VRET:Mem.valid_block m ret)by(exact(range_block m ret 0 36 Writable ltac:(lia)WRET0)).
+ assert(TR:temp<>ret)by(intro EQ;subst temp;exact(FRESH S.__res__1 ret sp_type LC VRET)).
+ assert(RETGLOBAL:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct GOOD as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(PR:bp<>ret)by(intro EQ;subst bp;apply(RETGLOBAL S._guidance_pid);exact SP).
+ assert(IR:bi<>ret)by(intro EQ;subst bi;apply(RETGLOBAL S._guidance_pid_trim_att_integrator);exact SI).
+ assert(FRAMED:forall id b ch ofs v,Genv.find_symbol E.ge id=Some b ->
+ id<>S._guidance_pid_pos_err ->id<>S._guidance_pid_speed_err ->
+ Mem.load ch m b ofs=Some v ->Mem.load ch front b ofs=Some v).
+ { intros id b ch ofs v SYMBOL NE NS LOAD;apply FRAME;[exact LOAD| |].
+   - eapply Genv.global_addresses_distinct;[exact NE|exact SYMBOL|exact SE].
+   - eapply Genv.global_addresses_distinct;[exact NS|exact SYMBOL|exact SS]. }
+ assert(AIX:Mem.valid_access front Mint32 bi 0 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|0);try(exists 0;reflexivity);cbn;lia. }
+ assert(AIY:Mem.valid_access front Mint32 bi 4 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|4);try(exists 1;reflexivity);cbn;lia. }
+ assert(ACX:Mem.valid_access front Mint32 bp 32 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|32);try(exists 8;reflexivity);cbn;lia. }
+ assert(ACY:Mem.valid_access front Mint32 bp 36 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|36);try(exists 9;reflexivity);cbn;lia. }
+ assert(RVEC:Mem.range_perm front bp 32 40 Cur Readable).
+ { intros ofs R;eapply Mem.perm_implies;[apply WPF;lia|constructor]. }
+ destruct(CoreCall.original_h_run_funcall front bp be bs gh bi bt bu bh bfun temp flight
+ kp kd ki kv ka
+ (ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096))(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608))(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608))
+ sx sy ax ay ix iy(Int.repr 1429)(Int.repr 3216)h heading
+ SP SE SS SI ST SU SH SF FF ND TP TI ltac:(congruence)ltac:(congruence)
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact APP])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KP])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KD])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KI])
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import AST Integers Floats Values Memory Globalenvs.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreSemantics FlightSemantics ControllerPrefix.
+From PidPositionTranslationAttempt002 Require Import CoreInputs NormalReturn.
+From PidSignSymmetryProblem Require Import Spec.
+From PidSignSymmetryAttempt001 Require Import Witness.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+
+Lemma computed_original_result : forall m gh ret r cmd integral,
+ MirrorInput m gh ret r ->
+ ((r=64 /\cmd=1 /\integral=1)\/(r= -64 /\cmd= -2 /\integral= -1)) ->
+ exists mf,NormalCall gh ret true m mf /\ObservedX ret mf cmd integral.
+Proof.
+ intros m gh ret r cmd integral INPUT CASE.
+ destruct INPUT as(GOOD&RX0&RY0&PX0&PY0&AXES&KP0&KD0&KI0&KV0&KA0&HEAD).
+ destruct(AXES S._x ltac:(cbn;auto))as(SX0&AX0&VX0&IX0).
+ destruct(AXES S._y ltac:(cbn;auto))as(SY0&AY0&VY0&IY0).
+ destruct(inputgood_core_initial_data m gh ret GOOD)as[D _].
+ assert(KP:cid_kp _ _ D=Int.one).
+ { pose proof(cid_gain_p _ _ D)as L;unfold load_global in KP0;
+   rewrite(cid_pid_symbol _ _ D)in KP0;change(Mem.load Mint32 m(cid_pid _ _ D)0=Some(Vint Int.one))in KP0;congruence. }
+ assert(KD:cid_kd _ _ D=Int.zero).
+ { pose proof(cid_gain_d _ _ D)as L;unfold load_global in KD0;
+   rewrite(cid_pid_symbol _ _ D)in KD0;change(Mem.load Mint32 m(cid_pid _ _ D)4=Some(Vint Int.zero))in KD0;congruence. }
+ assert(KI:cid_ki _ _ D=Int.one).
+ { pose proof(cid_gain_i _ _ D)as L;unfold load_global in KI0;
+   rewrite(cid_pid_symbol _ _ D)in KI0;change(Mem.load Mint32 m(cid_pid _ _ D)8=Some(Vint Int.one))in KI0;congruence. }
+ assert(KV:cid_kv _ _ D=Int.zero).
+ { pose proof(cid_gain_v _ _ D)as L;unfold load_global in KV0;
+   rewrite(cid_pid_symbol _ _ D)in KV0;change(Mem.load Mint32 m(cid_pid _ _ D)12=Some(Vint Int.zero))in KV0;congruence. }
+ assert(KA:cid_ka _ _ D=Int.zero).
+ { pose proof(cid_gain_a _ _ D)as L;unfold load_global in KA0;
+   rewrite(cid_pid_symbol _ _ D)in KA0;change(Mem.load Mint32 m(cid_pid _ _ D)16=Some(Vint Int.zero))in KA0;congruence. }
+ assert(AX:cid_ax _ _ D=Int.zero)by(pose proof(cid_accel_x _ _ D);change(Mem.load Mint32 m gh 60=Some(Vint Int.zero))in AX0;congruence).
+ assert(IX:cid_ix _ _ D=Int.zero).
+ { pose proof(cid_integral_x _ _ D)as L;unfold load_global in IX0;
+   rewrite(cid_i_symbol _ _ D)in IX0;change(Mem.load Mint32 m(cid_i _ _ D)0=Some(Vint Int.zero))in IX0;congruence. }
+ destruct(original_entry_normal_result m gh ret true D GOOD)
+ as(mf&rx&ry&px&py&sx&sy&vx&vy&sb&CALL&SS&RX&RY&PX&PY&SX&SY&VX&VY&ACTIVE&IFX&IFY&CMDX&CMDY).
+ assert(RXE:rx=Int.repr r)by(congruence).
+ assert(SXE:sx=Int.zero)by(congruence).
+ assert(PXE:px=Int.zero).
+ { unfold load_global in PX0;rewrite SS in PX0;change(Mem.load Mint32 m sb 100=Some(Vint Int.zero))in PX0;congruence. }
+ assert(VXE:vx=Int.zero).
+ { unfold load_global in VX0;rewrite SS in VX0;change(Mem.load Mint32 m sb 296=Some(Vint Int.zero))in VX0;congruence. }
+ unfold entry_axis_command in ACTIVE,CMDX.
+ unfold entry_axis_integral in IFX.
+ rewrite KP,KD,KI,KV,KA,AX,IX,RXE,SXE,PXE,VXE in ACTIVE,CMDX.
+ rewrite KP,KD,KI,IX,RXE,SXE,PXE,VXE in IFX.
+ assert(CALC:
+ controller_command true Int.one Int.zero Int.one Int.zero Int.zero
+ (ClampSemantics.clamp_bits(Int.sub(Int.repr r)Int.zero)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub Int.zero Int.zero)(Int.repr 8388608))
+ Int.zero Int.zero Int.zero(Int.repr 1429)(Int.repr 3216)=Int.repr cmd).
+ { destruct CASE as[[R[C I]]|[R[C I]]];subst r cmd integral;apply Int.same_if_eq;vm_compute;reflexivity. }
+ assert(ICALC:
+ next_integral true Int.zero Int.one
+ (pd_bits Int.one Int.zero
+ (ClampSemantics.clamp_bits(Int.sub(Int.repr r)Int.zero)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub Int.zero Int.zero)(Int.repr 8388608)))
+ (Int.repr 1429)=Int.repr integral).
+ { destruct CASE as[[R[C I]]|[R[C I]]];subst r cmd integral;apply Int.same_if_eq;vm_compute;reflexivity. }
+ rewrite CALC in ACTIVE,CMDX;rewrite ICALC in IFX.
+ exists mf;split;[exact CALL|].
+ destruct ACTIVE as(TY&FMT&X&REST).
+ unfold ObservedX;split;[exact TY|];split;[exact FMT|];split;[exact X|];split.
+ - unfold load_global;rewrite(cid_pid_symbol _ _ D);exact CMDX.
+ - unfold load_global;rewrite(cid_i_symbol _ _ D);exact IFX.
+Qed.
+Print Assumptions computed_original_result.
+
+Lemma one_minus_two_not_opposite : forall ret af bf,
+ ObservedX ret af 1 1 ->ObservedX ret bf (-2) (-1) ->
+ ~OppositeReturnedX ret af bf.
+Proof.
+ intros ret af bf[_[_[A _]]][_[_[B _]]][x[y[LA[LB OPP]]]].
+ rewrite A in LA;injection LA as<-;rewrite B in LB;injection LB as<-.
+ vm_compute in OPP;lia.
+Qed.
+
+Theorem proved_actual_counterexample : ActualCounterexampleGoal.
+Proof.
+ destruct mirrored_inputs_exist as(gh&ret&a&b&PAIR).
+ destruct(computed_original_result a gh ret 64 1 1(proj1 PAIR)ltac:(auto))as[af[CA OA]].
+ destruct(computed_original_result b gh ret (-64)(-2)(-1)(proj1(proj2 PAIR))ltac:(auto))as[bf[CB OB]].
+ exists gh,ret,a,b,af,bf;repeat(first[assumption|split]).
+ eapply one_minus_two_not_opposite;eassumption.
+Qed.
+Theorem proved_strict_symmetry_refuted : StrictSymmetryRefutedGoal.
+Proof.
+ intros UNIVERSAL.
+ destruct proved_actual_counterexample as(gh&ret&a&b&af&bf&PAIR&CA&CB&OA&OB&FAIL).
+ apply FAIL;exact(UNIVERSAL gh ret a b 64 af bf PAIR CA CB).
+Qed.
+Print Assumptions proved_actual_counterexample.
+Print Assumptions proved_strict_symmetry_refuted.

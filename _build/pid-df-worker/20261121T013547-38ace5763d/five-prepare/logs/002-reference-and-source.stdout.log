@@ -1,0 +1,524 @@
+{
+  "entry": "update_first_order_low_pass",
+  "signature": "float update_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "upstream_commit": "abfee3dd56eeab12c528635504a429db3daf409a",
+  "prepared_source": {
+    "path": "update_first_order_low_pass.c",
+    "sha256": "19ab80bc756f2e4e73fe959b87e5fea29de39c184cf9349919bcdec1652ef010"
+  },
+  "external_calls": [],
+  "dependencies": [],
+  "compilation_options": [],
+  "limitations": [],
+  "source_correspondence": "Original struct and function body are exact upstream textual slices. Only static inline declaration qualifiers are removed to retain the selected standalone entry in CompCert; no wrapper, body rewrite or numerical input restriction. Selected-function extraction, not a whole-firmware linking equivalence theorem.",
+  "entry_linkage_normalization": "Removed static inline declaration qualifiers so standalone selected function is retained by CompCert; original signature, parameter qualifiers, body and exact expressions preserved. No wrapper or extra global.",
+  "original_signature": "static inline float update_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)",
+  "original_source": {
+    "path": "low_pass_filter.h.upstream",
+    "sha256": "f2a29f114f47202858d37b9a010c7147d63e95fcce157fcef0888a491830bbcc"
+  }
+}
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "update_first_order_low_pass",
+  "stage": "prepare",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case",
+  "outputs": [
+    {
+      "role": "source",
+      "path": "prepare/source/update_first_order_low_pass.c",
+      "sha256": "19ab80bc756f2e4e73fe959b87e5fea29de39c184cf9349919bcdec1652ef010"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "7244399b207622a66837d1d3c1afb87110e25c836e8ccc4f9be1dbe2f4d4ae45"
+    },
+    {
+      "role": "verification-request",
+      "path": "prepare/verification-request.json",
+      "sha256": "2885e027a6cce2fc020ab14cbd2f2848b2b077ecee35a15bddbc292081565576"
+    },
+    {
+      "role": "original-header",
+      "path": "prepare/source/low_pass_filter.h.upstream",
+      "sha256": "f2a29f114f47202858d37b9a010c7147d63e95fcce157fcef0888a491830bbcc"
+    },
+    {
+      "role": "license",
+      "path": "prepare/source/COPYING.upstream",
+      "sha256": "1ca3e8f71b7de618968e7ea9fe47822d9e704dc476aef8544033abedec355225"
+    }
+  ],
+  "limitations": [],
+  "next_stage": "cbmc"
+}
+#!/usr/bin/env python3
+"""Compile exact dependency snapshots, assumptions, and independent kernel check."""
+from pathlib import Path
+import argparse, hashlib, json, re, shutil, subprocess, sys, tempfile
+attempt=Path(__file__).resolve().parent
+root=attempt.parents[4]
+case=root/"paparazzi/models/update_first_order_low_pass"
+problem=attempt.parents[1]
+def digest(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def dump(p,o): p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+chr(10))
+mappings={k:root/v for k,v in {'FiveLowpassRoundoffSupport':'paparazzi/relations/lowpass_roundoff_bound/support','FiveLowpassGet': 'paparazzi/models/get_first_order_low_pass/align/model', 'FiveLowpassGetCase': 'paparazzi/models/get_first_order_low_pass/rocq/support', 'FiveLowpassReset': 'paparazzi/models/reset_first_order_low_pass/align/model', 'FiveLowpassResetCase': 'paparazzi/models/reset_first_order_low_pass/rocq/support', 'FiveGuidanceSemantics': 'paparazzi/relations/guidance_mode/support/semantics', 'FiveShared': 'shared', 'FiveLowpassSupport': 'paparazzi/relations/lowpass_recovery/support', 'FiveGuidanceAllOrder': 'paparazzi/relations/guidance_mode/support/allorder', 'FiveGuidanceAllocation': 'paparazzi/relations/guidance_mode/support/allocation', 'FiveGuidanceEntry': 'paparazzi/relations/guidance_mode/support/entry', 'FiveGuidanceCbmcAdapters': 'paparazzi/relations/guidance_mode/support/cbmc_adapters', 'FiveLowpassGetNoError': 'paparazzi/models/get_first_order_low_pass/rocq/no_error/problem', 'FiveLowpassGetTermination': 'paparazzi/models/get_first_order_low_pass/rocq/termination/problem', 'FiveLowpassGetFunctional': 'paparazzi/models/get_first_order_low_pass/rocq/functional/problem', 'FiveLowpassGetExecutionCorrespondence': 'paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/problem', 'FiveLowpassGetRecheck': 'paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/problem', 'FiveLowpassResetFunctional': 'paparazzi/models/reset_first_order_low_pass/rocq/functional/problem', 'FiveLowpassReadback': 'paparazzi/relations/lowpass_readback/problem', 'FiveLowpassUpdate': 'paparazzi/models/update_first_order_low_pass/align/model', 'FiveLowpassUpdateCase': 'paparazzi/models/update_first_order_low_pass/rocq/support', 'FiveLowpassRoundoff': 'paparazzi/relations/lowpass_roundoff_bound/problem', 'FiveLowpassUpdateNoError': 'paparazzi/models/update_first_order_low_pass/rocq/no_error/problem', 'FiveLowpassUpdateTermination': 'paparazzi/models/update_first_order_low_pass/rocq/termination/problem', 'FiveLowpassUpdateFunctional': 'paparazzi/models/update_first_order_low_pass/rocq/functional/problem', 'FiveLowpassUpdateExecutionCorrespondence': 'paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/problem', 'FiveLowpassUpdateRecheck': 'paparazzi/models/update_first_order_low_pass/rocq/cbmc_recheck/problem'}.items()}
+special={k:root/v for k,v in {'FiveLowpassGetNoError.Spec': 'paparazzi/models/get_first_order_low_pass/rocq/no_error/problem/Spec.v', 'FiveLowpassGetNoError.Proof': 'paparazzi/models/get_first_order_low_pass/rocq/no_error/attempts/001/Proof.v', 'FiveLowpassGetTermination.Spec': 'paparazzi/models/get_first_order_low_pass/rocq/termination/problem/Spec.v', 'FiveLowpassGetTermination.Proof': 'paparazzi/models/get_first_order_low_pass/rocq/termination/attempts/001/Proof.v', 'FiveLowpassGetFunctional.Spec': 'paparazzi/models/get_first_order_low_pass/rocq/functional/problem/Spec.v', 'FiveLowpassGetFunctional.Proof': 'paparazzi/models/get_first_order_low_pass/rocq/functional/attempts/001/Proof.v', 'FiveLowpassGetExecutionCorrespondence.Spec': 'paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/problem/Spec.v', 'FiveLowpassGetExecutionCorrespondence.Proof': 'paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/attempts/001/Proof.v', 'FiveLowpassGetExecutionCorrespondence.Closure': 'paparazzi/models/get_first_order_low_pass/rocq/execution_correspondence/problem/Closure.v', 'FiveLowpassGetRecheck.Spec': 'paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/problem/Spec.v', 'FiveLowpassGetRecheck.Proof': 'paparazzi/models/get_first_order_low_pass/rocq/cbmc_recheck/attempts/001/Proof.v', 'FiveLowpassResetFunctional.Spec': 'paparazzi/models/reset_first_order_low_pass/rocq/functional/problem/Spec.v', 'FiveLowpassResetFunctional.Proof': 'paparazzi/models/reset_first_order_low_pass/rocq/functional/attempts/001/Proof.v', 'FiveLowpassReadback.Spec': 'paparazzi/relations/lowpass_readback/problem/Spec.v', 'FiveLowpassReadback.Proof': 'paparazzi/relations/lowpass_readback/attempts/001/Proof.v', 'FiveLowpassUpdateNoError.Spec': 'paparazzi/models/update_first_order_low_pass/rocq/no_error/problem/Spec.v', 'FiveLowpassUpdateNoError.Proof': 'paparazzi/models/update_first_order_low_pass/rocq/no_error/attempts/001/Proof.v', 'FiveLowpassUpdateTermination.Spec': 'paparazzi/models/update_first_order_low_pass/rocq/termination/problem/Spec.v', 'FiveLowpassUpdateTermination.Proof': 'paparazzi/models/update_first_order_low_pass/rocq/termination/attempts/001/Proof.v', 'FiveLowpassUpdateFunctional.Spec': 'paparazzi/models/update_first_order_low_pass/rocq/functional/problem/Spec.v', 'FiveLowpassUpdateFunctional.Proof': 'paparazzi/models/update_first_order_low_pass/rocq/functional/attempts/001/Proof.v', 'FiveLowpassUpdateExecutionCorrespondence.Spec': 'paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/problem/Spec.v', 'FiveLowpassUpdateExecutionCorrespondence.Proof': 'paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/attempts/001/Proof.v', 'FiveLowpassUpdateExecutionCorrespondence.Closure': 'paparazzi/models/update_first_order_low_pass/rocq/execution_correspondence/problem/Closure.v', 'FiveLowpassUpdateRecheck.Spec': 'paparazzi/models/update_first_order_low_pass/rocq/cbmc_recheck/problem/Spec.v', 'FiveLowpassUpdateRecheck.Proof': 'paparazzi/models/update_first_order_low_pass/rocq/cbmc_recheck/attempts/001/Proof.v', 'FiveLowpassRoundoff.Spec': 'paparazzi/relations/lowpass_roundoff_bound/problem/Spec.v', 'FiveLowpassRoundoff.Proof': 'paparazzi/relations/lowpass_roundoff_bound/attempts/001/Proof.v'}.items()}
+def resolve(name):
+ if name in special:return special[name]
+ for ns,d in mappings.items():
+  if name.startswith(ns+"."):return d.joinpath(*name[len(ns)+1:].split(".")).with_suffix(".v")
+ return None
+def imports(p):
+ s=re.sub(r"\(\*.*?\*\)","",p.read_text(),flags=re.S)
+ rows=[]
+ for prefix,names in re.findall(r"From\s+([A-Za-z0-9_.]+)\s+Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.",s):
+  rows += [prefix+"."+x for x in names.split()]
+ s=re.sub(r"From\s+[A-Za-z0-9_.]+\s+Require\s+(?:Import\s+|Export\s+)?[A-Za-z0-9_.\s]+?\.","",s)
+ for names in re.findall(r"Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.(?=\s|$)",s):rows+=names.split()
+ return rows
+order=[];seen=set()
+def visit(name):
+ p=resolve(name)
+ if p is None:return
+ if name in seen:return
+ seen.add(name)
+ if not p.is_file():raise FileNotFoundError(str(p))
+ for n in imports(p):visit(n)
+ order.append((name,p))
+
+def audit_input_copies(run):
+ rows=run.read("inputs/manifest.json");paths={}
+ for row in rows:
+  path=(run.folder/row["path"]).resolve()
+  if not path.is_relative_to(run.folder):raise RuntimeError("Input copy escapes run")
+  if not path.is_file()or digest(path)!=row.get("sha256"):raise RuntimeError("Input copy SHA mismatch: "+str(path))
+  if str(path)in paths and paths[str(path)]!=row["sha256"]:raise RuntimeError("Input copy path reused with different SHA")
+  paths[str(path)]=row["sha256"]
+ return len(rows)
+def safe_capture(run,path,role,area="inputs"):
+ source=Path(path).resolve();target=run.folder/area/(re.sub(r"[^A-Za-z0-9_.-]+","-",role)+"--"+source.name)
+ audit_input_copies(run)
+ if target.exists()and digest(target)!=digest(source):raise RuntimeError("Blocked input overwrite with different SHA: "+str(target))
+ row=run.capture(source,role,area=area);audit_input_copies(run);return row
+
+def main():
+ parser=argparse.ArgumentParser();parser.add_argument("--record-run");parser.add_argument("--capture-preflight-run");args=parser.parse_args()
+ provenance=attempt/"provenance.json"
+ if provenance.exists():
+  for row in json.loads(provenance.read_text())["files"]:
+   if (root/row["path"]).suffix in (".v",".c") and digest(root/row["path"])!=row["sha256"]:raise RuntimeError("Changed proof input: "+row["path"])
+ visit("FiveLowpassRoundoff.Proof")
+
+ if args.capture_preflight_run:
+  sys.path.insert(0,str(root/"scripts"));from five_telemetry import Run
+  from example_proof_gate import certificate_source
+  run=Run(args.capture_preflight_run)
+  for name,p in order:safe_capture(run,p,"preflight-"+name,area="inputs")
+  goals=[{"requested_goal":g,"theorem":"FiveLowpassRoundoff.Proof."+t,"type":"FiveLowpassRoundoff.Spec."+g}for g,t in zip(['NumericInvariant', 'LocalRoundoff', 'ArbitraryHorizon', 'ExecutionExists', 'EveryExecution', 'Nonvacuity'],['numeric_invariant', 'local_roundoff', 'arbitrary_horizon', 'execution_exists', 'every_execution', 'nonvacuity'])]
+  cert=run.folder/"evidence/FiveLowpassRoundoff/GoalBinding.v";cert.parent.mkdir(parents=True,exist_ok=True);cert.write_text(certificate_source(["FiveLowpassRoundoff.Spec","FiveLowpassRoundoff.Proof"],goals))
+  safe_capture(run,cert,"preflight-FiveLowpassRoundoff.GoalBinding",area="inputs")
+  print(json.dumps({"preflight":"passed","module":"FiveLowpassRoundoff","manifest_rows":audit_input_copies(run)}));return
+
+ if args.record_run:
+  sys.path.insert(0,str(root/"scripts"))
+  from five_telemetry import Run
+  run=Run(args.record_run);build=root/"paparazzi/report/lowpass_roundoff_bound/evidence"/("checked-"+run.folder.parent.name)
+  build.mkdir(parents=True,exist_ok=True)
+  recorded(run,build)
+ else:
+  with tempfile.TemporaryDirectory(prefix="five-lowpass-update-readback-") as tmp:
+   build=Path(tmp);compile_all(build,None)
+
+def compile_all(build,run):
+ flags=[];nsmap={}
+ for ns in dict.fromkeys([*mappings,"FiveLowpassRoundoff"]):
+  d=build/ns;d.mkdir(parents=True,exist_ok=True);nsmap[ns]=d;flags += ["-Q",str(d),ns]
+ sources=[];bindings=[]
+ for name,p in order:
+  ns=next(n for n in nsmap if name.startswith(n+"."))
+  dest=nsmap[ns].joinpath(*name[len(ns)+1:].split(".")).with_suffix(".v");dest.parent.mkdir(parents=True,exist_ok=True)
+  if dest.exists() and digest(dest)!=digest(p):raise RuntimeError("Immutable shared snapshot differs: "+str(dest))
+  if not dest.exists():shutil.copyfile(p,dest)
+  sources.append(dest);bindings.append({"path":str(p.relative_to(root)),"sha256":digest(p),"snapshot":str(dest.relative_to(root)) if dest.is_relative_to(root) else None})
+ def command(argv,label):
+  if run:return run.command(argv,label,timeout=600,cwd=str(root))
+  subprocess.run(argv,cwd=root,check=True);return None
+ if run:
+  for i,p in enumerate(sources):safe_capture(run,p,build.name+"-"+"FiveLowpassRoundoff-dependency-"+str(i)+"-"+p.name,area="inputs")
+ for i,p in enumerate(sources):
+  argv=["/home/yangfp/.opam/five/bin/rocq","compile",*flags,str(p)]
+  earlier=run.read("commands.json") if run else []
+  if run and p.with_suffix(".vo").exists() and any(x.get("argv")==argv and x.get("status")=="passed" and x.get("exit_code")==0 for x in earlier):continue
+  command(argv,"FiveLowpassRoundoff-dependency-"+str(i))
+ kernel=None if run else command(["/home/yangfp/.opam/five/bin/rocq","check","-silent",*flags,"FiveLowpassRoundoff.Proof"],"lowpass_roundoff_bound-independent-kernel")
+ return flags,sources,bindings,kernel,command
+
+def recorded(run,build):
+ flags,sources,bindings,kernel,command=compile_all(build,run)
+ names=['NumericInvariant', 'LocalRoundoff', 'ArbitraryHorizon', 'ExecutionExists', 'EveryExecution', 'Nonvacuity']
+ lemmas=['numeric_invariant', 'local_roundoff', 'arbitrary_horizon', 'execution_exists', 'every_execution', 'nonvacuity']
+ goals=[{"requested_goal":g,"theorem":"FiveLowpassRoundoff.Proof."+t,"type":"FiveLowpassRoundoff.Spec."+g} for g,t in zip(names,lemmas)]
+ from example_proof_gate import certificate_source
+ cert=build/"FiveLowpassRoundoff/GoalBinding.v";cert.write_text(certificate_source(["FiveLowpassRoundoff.Spec","FiveLowpassRoundoff.Proof"],goals));safe_capture(run,cert,build.name+"-"+"FiveLowpassRoundoff-goal-binding-certificate",area="inputs")
+ comp=command(["/home/yangfp/.opam/five/bin/rocq","compile",*flags,str(cert)],"lowpass_roundoff_bound-goal-certificate")
+ check=command(["/home/yangfp/.opam/five/bin/rocq","check","-silent",*flags,"FiveLowpassRoundoff.Proof","FiveLowpassRoundoff.GoalBinding"],"lowpass_roundoff_bound-certificate-kernel")
+ kernel=check
+ evidence=attempt/"evidence";runpath=str(run.folder.relative_to(root));deps={str(p.relative_to(root)):digest(p) for p in sources}
+ receipt={"kind":"rocq-kernel-check","run":runpath,"command_id":kernel["id"],"theorems":[g["theorem"] for g in goals],"statement_artifacts":[str((build/"FiveLowpassRoundoff/Spec.v").relative_to(root)),str((build/"FiveLowpassRoundoff/Proof.v").relative_to(root))],"dependency_sha256":deps}
+ dump(evidence/"kernel-evidence.json",receipt)
+ original=case/"prepare/source/update_first_order_low_pass.c";safe_capture(run,original,build.name+"-"+"FiveLowpassRoundoff-raw-source",area="inputs")
+ dump(evidence/"gate-kernel-evidence.json",{**receipt,"dependency_sha256":{**deps,str(original.relative_to(root)):digest(original)}})
+ cr={**receipt,"command_id":check["id"],"theorems":["FiveLowpassRoundoff.GoalBinding.goal_"+str(i) for i in range(len(goals))],"statement_artifacts":[str(cert.relative_to(root))],"dependency_sha256":{**deps,str(cert.relative_to(root)):digest(cert)}}
+ dump(evidence/"certificate-kernel-evidence.json",cr)
+ indexed={row["path"]:row["sha256"] for row in bindings}
+ for e in ("update_first_order_low_pass",):
+  c=root/"paparazzi/models"/e
+  for rel in ("prepare/source/"+e+".c","prepare/source/bindings.json","align/request.json","align/model/compcert-manifest.json","align/model/preprocessed.i"):
+   p=c/rel;indexed[str(p.relative_to(root))]=digest(p)
+ indexed[str((attempt/"check.py").relative_to(root))]=digest(attempt/"check.py")
+ dump(attempt/"provenance.json",{"schema":"five-proof-attempt-provenance/1","files":[{"path":p,"sha256":h} for p,h in sorted(indexed.items())]})
+ bound={x["path"]:x for x in bindings}
+ for p,h in indexed.items():bound.setdefault(p,{"path":p,"sha256":h})
+ validation={"schema":"five-proof-validation/1","index":{"path":str((attempt/"provenance.json").relative_to(root)),"sha256":digest(attempt/"provenance.json")},"inputs":list(bound.values()),"kernel_evidence":str((evidence/"kernel-evidence.json").relative_to(root)),"goal_bindings":goals,"certificate":{"path":str(cert.relative_to(root)),"sha256":digest(cert),"module":"FiveLowpassRoundoff.GoalBinding","imports":["FiveLowpassRoundoff.Spec","FiveLowpassRoundoff.Proof"],"run":runpath,"compile_command_id":comp["id"],"kernel_command_id":check["id"],"kernel_evidence":str((evidence/"certificate-kernel-evidence.json").relative_to(root))}}
+ dump(evidence/"goal-validation.json",validation)
+ print("All exact goals compiled, assumptions emitted, independently kernel checked.")
+if __name__=="__main__":main()
+From Stdlib Require Import Reals ZArith Lia Lra Psatz.
+From Flocq.Core Require Import Core.
+From Flocq.Prop Require Import Relative.
+From Flocq.IEEE754 Require Import Binary.
+From compcert Require Import Floats.
+Open Scope R_scope.
+Local Instance prec24 : Prec_gt_0 24 := eq_refl.
+
+Definition r32 (x : float32) : R := B2R 24 128 x.
+Definition finite (x : float32) : Prop := is_finite 24 128 x = true.
+Definition RN (x : R) : R := round radix2 (FLT_exp (-149) 24) ZnearestE x.
+Definition u : R := bpow radix2 (-24).
+Definition eta : R := bpow radix2 (-150).
+
+Lemma RN_error : forall x, Rabs (RN x - x) <= u * Rabs x + eta.
+Proof.
+  intro x.
+  destruct (error_N_FLT radix2 (-149) 24 ltac:(lia) (fun z => negb (Z.even z)) x)
+    as [e [d [He [Hd [Hed Hr]]]]].
+  change (RN x = x * (1 + e) + d) in Hr.
+  assert (Hu : /2 * bpow radix2 (-24 + 1) = u).
+  { rewrite bpow_plus. change (/2 * (u * 2) = u). field. }
+  assert (Hdeta : /2 * bpow radix2 (-149) = eta).
+  { unfold eta. change (-149)%Z with ((-150)+1)%Z.
+    rewrite bpow_plus. change (/2 * (bpow radix2 (-150) * 2) = bpow radix2 (-150)). field. }
+  change (Rabs e <= /2 * bpow radix2 (-24 + 1)) in He.
+  rewrite Hu in He. rewrite Hdeta in Hd.
+  rewrite Hr. replace (x * (1 + e) + d - x) with (x * e + d) by ring.
+  eapply Rle_trans; [apply Rabs_triang|].
+  rewrite Rabs_mult. pose proof (Rabs_pos x); nra.
+Qed.
+
+Lemma RN_le : forall x y, x <= y -> RN x <= RN y.
+Proof. intros x y H. unfold RN. apply round_le; auto with typeclass_instances. Qed.
+
+Lemma RN_fix_generic : forall x,
+  generic_format radix2 (FLT_exp (-149) 24) x -> RN x = x.
+Proof. intros x H. unfold RN. apply round_generic; auto with typeclass_instances. Qed.
+
+Lemma RN_abs_bound_pow : forall x k, (-149 <= k)%Z ->
+  Rabs x <= bpow radix2 k -> Rabs (RN x) <= bpow radix2 k.
+Proof.
+  intros x k Hk Hx. unfold RN.
+  apply abs_round_le_generic; auto with typeclass_instances.
+  apply generic_format_bpow. unfold FLT_exp. lia.
+Qed.
+
+Lemma RN_abs_le_2 : forall x, Rabs x <= 2 -> Rabs (RN x) <= 2.
+Proof. intro x. change 2 with (bpow radix2 1). apply RN_abs_bound_pow. lia. Qed.
+
+Lemma RN_abs_le_8 : forall x, Rabs x <= 8 -> Rabs (RN x) <= 8.
+Proof. intro x. change 8 with (bpow radix2 3). apply RN_abs_bound_pow. lia. Qed.
+
+Lemma RN_safe : forall x, Rabs x <= 8 ->
+  Rlt_bool (Rabs (RN x)) (bpow radix2 128) = true.
+Proof.
+  intros x Hx. apply Rlt_bool_true.
+  eapply Rle_lt_trans; [apply RN_abs_le_8; exact Hx|].
+  change 8 with (bpow radix2 3). apply bpow_lt. lia.
+Qed.
+
+Lemma u_value : u = /16777216.
+Proof. reflexivity. Qed.
+Lemma eta_value : eta = /1427247692705959881058285969449495136382746624.
+Proof. reflexivity. Qed.
+
+Lemma add_finite_real : forall x y, finite x -> finite y ->
+  Rabs (r32 x + r32 y) <= 8 ->
+  finite (Float32.add x y) /\ r32 (Float32.add x y) = RN (r32 x + r32 y).
+Proof.
+  intros x y Fx Fy Hxy.
+  pose proof (Bplus_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Fx Fy) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; assumption.
+Qed.
+
+Lemma sub_finite_real : forall x y, finite x -> finite y ->
+  Rabs (r32 x - r32 y) <= 8 ->
+  finite (Float32.sub x y) /\ r32 (Float32.sub x y) = RN (r32 x - r32 y).
+Proof.
+  intros x y Fx Fy Hxy.
+  pose proof (Bminus_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Fx Fy) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; assumption.
+Qed.
+
+Lemma mul_finite_real : forall x y, finite x -> finite y ->
+  Rabs (r32 x * r32 y) <= 8 ->
+  finite (Float32.mul x y) /\ r32 (Float32.mul x y) = RN (r32 x * r32 y).
+Proof.
+  intros x y Fx Fy Hxy.
+  pose proof (Bmult_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; [|exact Hr].
+  unfold finite in Fx,Fy. rewrite Fx,Fy in Hf. exact Hf.
+Qed.
+
+Lemma div_finite_real : forall x y, finite x -> finite y -> r32 y <> 0 ->
+  Rabs (r32 x / r32 y) <= 8 ->
+  finite (Float32.div x y) /\ r32 (Float32.div x y) = RN (r32 x / r32 y).
+Proof.
+  intros x y Fx Fy Hy Hxy.
+  pose proof (Bdiv_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Hy) as H.
+  pose proof (RN_safe _ Hxy) as Hb.
+  unfold RN, r32 in Hb.
+  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+  rewrite Hb in H.
+  destruct H as [Hr [Hf Hs]]. split; [|exact Hr].
+  unfold finite in Fx. rewrite Fx in Hf. exact Hf.
+Qed.
+/** Set integral part, can be used to reset.
+ *  The new sum of errors is calculated from current gains and bounds.
+ *
+ * @param pid pointer to PID structure
+ * @param value integral part of the PID control, 0. will reset it
+ */
+static inline void set_integral_pid_f(struct PID_f *pid, float value)
+{
+  float integral = value;
+  if (integral < -pid->max_sum) {
+    integral = -pid->max_sum;
+  } else if (integral > pid->max_sum) {
+    integral = pid->max_sum;
+  }
+  if (fabsf(pid->g[2]) < 1e-6) {
+    pid->sum = 0.f; // integral gain is too low, prevent division by zero, just reset sum
+  } else {
+    pid->sum = integral / pid->g[2];
+  }
+}
+
+
+
+/** Distcrete time PID structure.
+ *  floating point, fixed frequency.
+ *
+ * u_k = u_k-1 + a * e_k  + b * e_k-1 + c * e_k-2
+ *
+ * with:
+ *  u = outputs
+ *  e = inputs
+ *  a = Kp + Ki Ts/2 + Kd/Ts
+ *  b = -Kp + Ki Ts/2 - 2 Kd/Ts
+ *  c = Kd/Ts
+ *  Kp = proportional gain
+ *  Kd = derivative gain
+ *  Ki = integral gain
+ *  Ts = sampling frequency
+ *
+ */
+struct PID_df {
+  float u[2]; ///< output
+  float e[3]; ///< input
+  float g[3]; ///< controller gains
+};
+
+/** Init PID struct.
+ *
+ * @param pid pointer to PID structure
+ * @param Kp proportional gain
+ * @param Kd derivative gain
+ * @param Ki integral gain
+ * @param Ts sampling time
+ */
+static inline void init_pid_df(struct PID_df *pid, float Kp, float Kd, float Ki, float Ts)
+{
+  *pid = (struct PID_df) {
+    { 0.f, 0.f },
+    { 0.f ,0.f , 0.f },
+    { Kp + Ki * Ts / 2.f + Kd / Ts,
+     -Kp + Ki * Ts / 2.f - 2.f * Kd / Ts,
+      Kd / Ts }
+  };
+}
+
+/** Update PID with a new value and return new command.
+ *
+ * @param pid pointer to PID structure
+ * @param value new input value of the PID
+ * @return new output command
+ */
+static inline float update_pid_df(struct PID_df *pid, float value)
+{
+  pid->e[2] = pid->e[1];
+  pid->e[1] = pid->e[0];
+  pid->e[0] = value;
+  pid->u[1] = pid->u[0];
+  pid->u[0] = pid->u[1] + pid->g[0] * pid->e[0] + pid->g[1] * pid->e[1] + pid->g[2] * pid->e[2];
+  return pid->u[0];
+}
+
+/** Get current value of the PID command.
+ *
+ * @param pid pointer to PID structure
+ * @return current value of PID command
+ */
+static inline float get_pid_df(struct PID_df *pid)
+{
+  return pid->u[0];
+}
+
+/** Reset PID struture, gains left unchanged.
+ *
+ * @param pid pointer to PID structure
+ */
+static inline void reset_pid_df(struct PID_df *pid)
+{
+  pid->u[0] = 0.f;
+  pid->u[1] = 0.f;
+  pid->e[0] = 0.f;
+  pid->e[1] = 0.f;
+  pid->e[2] = 0.f;
+}
+
+/** Set gains of the PID struct.
+ *
+ * @param pid pointer to PID structure
+ * @param Kp proportional gain
+ * @param Kd derivative gain
+ * @param Ki integral gain
+ * @param Ts sampling time
+ */
+static inline void set_gains_pid_df(struct PID_df *pid, float Kp, float Kd, float Ki, float Ts)
+{
+  pid->g[0] = Kp + Ki * Ts / 2.f + Kd / Ts;
+  pid->g[1] = -Kp + Ki * Ts / 2.f - 2.f * Kd / Ts;
+  pid->g[2] = Kd / Ts;
+}
+
+/** Distcrete time PI-D structure.
+ *  derivative term is directly provided as input
+ *  as it may be available directly from a sensor
+ *  or estimated separately.
+ *  floating point, fixed frequency.
+ *
+ * u_k = u_k-1 + a * e_k  + b * e_k-1 + Kd * d_k
+ *
+ * with:
+ *  u = outputs
+ *  e = inputs
+ *  d = derivative of input
+ *  a = Kp + Ki Ts/2
+ *  b = -Kp + Ki Ts/2
+ *  Kp = proportional gain
+ *  Kd = derivative gain
+ *  Ki = integral gain
+ *  Ts = sampling frequency
+ *
+ */
+struct PI_D_df {
+  float u[2]; ///< output
+#!/usr/bin/env python3
+"""Generate/audit original CompCert executable models; never approve from generation alone."""
+import argparse,json
+from compcert_backend import export,audit,tool_paths,target_of
+
+def main():
+ p=argparse.ArgumentParser(description=__doc__);s=p.add_subparsers(dest='action',required=True)
+ s.add_parser('target')
+ e=s.add_parser('export');e.add_argument('--source',required=True);e.add_argument('--function',required=True)
+ e.add_argument('--output',required=True);e.add_argument('--namespace',default='FiveCompCert')
+ e.add_argument('--include-dir',action='append',default=[]);e.add_argument('--define',action='append',default=[])
+ e.add_argument('--struct-passing',action='store_true');e.add_argument('--request');e.add_argument('--session');e.add_argument('--clightgen');e.add_argument('--compcert-lib')
+ a=s.add_parser('audit');a.add_argument('--manifest',required=True)
+ args=p.parse_args()
+ if args.action=='target':
+  print(json.dumps(target_of(tool_paths()[1]),indent=2));return
+ if args.action=='export':
+  m=export(args.source,args.function,args.output,args.namespace,args.include_dir,args.define,args.request,args.session,args.clightgen,args.compcert_lib,frontend_options=['-fstruct-passing'] if args.struct_passing else [])
+  goals=m['generated_obligations']
+  print(json.dumps({'status':'generated','backend':m['backend'],'coverage_status':m['coverage_status'],
+   'obligations':{'status':goals['status'],'precondition':goals['precondition_status'],
+                  'proofs':goals['proof_status']},'delivery_accepted':False},indent=2))
+ elif args.action=='audit':print(json.dumps(audit(args.manifest),indent=2))
+
+if __name__=='__main__':main()
+paparazzi/models
+paparazzi/models/init_first_order_low_pass
+paparazzi/models/get_first_order_low_pass
+paparazzi/models/gh_set_zeta
+paparazzi/models/float_rmat_of_quat
+paparazzi/models/stateGetSpeedEcef_f
+paparazzi/models/trig_compressed_12
+paparazzi/models/update_first_order_low_pass
+paparazzi/models/update_first_order_low_pass_tau
+paparazzi/models/stateSetSpeedNed_i
+paparazzi/models/gh_set_omega
+paparazzi/models/stateSetSpeedEcef_i
+paparazzi/models/trig_plain
+paparazzi/models/reset_first_order_low_pass
+paparazzi/models/float_quat_vmult
+paparazzi/models/gh_update_ref_from_speed_sp
+paparazzi/models/float_rmat_vmult
+paparazzi/models/gh_update_ref_from_accel_sp
+paparazzi/models/guidance_pid_h_run_pos

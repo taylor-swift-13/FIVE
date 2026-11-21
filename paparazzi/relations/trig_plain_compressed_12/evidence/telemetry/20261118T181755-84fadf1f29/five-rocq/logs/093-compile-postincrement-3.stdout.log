@@ -1,0 +1,117 @@
+1 focused goal (shelved: 2)
+  
+  ge : genv
+  Q : val -> mem -> Prop
+  f : function
+  id : positive
+  k : cont
+  e : PTree.tree (block * type)
+  m : mem
+  b : block
+  z : Z
+  mf : mem
+  RANGE : 0 <= z < 16383
+  ENV : e ! id = Some (b, short_type)
+  LOAD : Mem.load Mint16signed m b 0 = Some (Vint (Int.repr z))
+  STORE : Mem.store Mint16signed m b 0 (Vint (Int.repr (z + 1))) = Some mf
+  END : total ge Q (State f Sskip k e mf)
+  ADD :
+    sem_binary_operation ge Oadd (Vint (Int.repr z)) short_type
+      (Vint Int.one) type_int32s m =
+    Some (Vint (Int.repr (z + 1)))
+  CAST :
+    sem_cast (Vint (Int.repr (z + 1))) type_int32s short_type m =
+    Some (Vint (Int.repr (z + 1)))
+  ASSIGN :
+    do_assign_loc ge quiet short_type m b Ptrofs.zero Full
+      (Vint (Int.repr (z + 1))) =
+    Some (quiet, E0, mf, Vint (Int.repr (z + 1)))
+  ============================
+  match
+    is_val
+      (fst
+         (fun x : expr =>
+          Ecomma
+            (fst
+               (fun x0 : expr =>
+                Eassign (Eloc b Ptrofs.zero Full short_type)
+                  (fst
+                     (fun x1 : expr => x1,
+                      Rred "red_binop"
+                        (Eval (Vint (Int.repr (z + 1)))
+                           (incrdecr_type short_type))
+                        m E0)
+                     x0)
+                  short_type,
+                snd
+                  (fun x0 : expr => x0,
+                   Rred "red_binop"
+                     (Eval (Vint (Int.repr (z + 1)))
+                        (incrdecr_type short_type))
+                     m E0))
+               x)
+            (Eval (Vint (Int.repr z)) short_type) short_type,
+          snd
+            (fun x : expr =>
+             Eassign (Eloc b Ptrofs.zero Full short_type)
+               (fst
+                  (fun x0 : expr => x0,
+                   Rred "red_binop"
+                     (Eval (Vint (Int.repr (z + 1)))
+                        (incrdecr_type short_type))
+                     m E0)
+                  x)
+               short_type,
+             snd
+               (fun x : expr => x,
+                Rred "red_binop"
+                  (Eval (Vint (Int.repr (z + 1))) (incrdecr_type short_type))
+                  m E0)))
+         (Eval (Vint (Int.repr (z + 1))) (incrdecr_type short_type)))
+  with
+  | Some (_, _) => ret "step_do_2" (State f Sskip k e m)
+  | None =>
+      map (expr_final_state f (Kdo k) e)
+        (Cexec.step_expr ge none_callback none_callback e quiet RV
+           (fst
+              (fun x : expr =>
+               Ecomma
+                 (fst
+                    (fun x0 : expr =>
+                     Eassign (Eloc b Ptrofs.zero Full short_type)
+                       (fst
+                          (fun x1 : expr => x1,
+                           Rred "red_binop"
+                             (Eval (Vint (Int.repr (z + 1)))
+                                (incrdecr_type short_type))
+                             m E0)
+                          x0)
+                       short_type,
+                     snd
+                       (fun x0 : expr => x0,
+                        Rred "red_binop"
+                          (Eval (Vint (Int.repr (z + 1)))
+                             (incrdecr_type short_type))
+                          m E0))
+                    x)
+                 (Eval (Vint (Int.repr z)) short_type) short_type,
+               snd
+                 (fun x : expr =>
+                  Eassign (Eloc b Ptrofs.zero Full short_type)
+                    (fst
+                       (fun x0 : expr => x0,
+                        Rred "red_binop"
+                          (Eval (Vint (Int.repr (z + 1)))
+                             (incrdecr_type short_type))
+                          m E0)
+                       x)
+                    short_type,
+                  snd
+                    (fun x : expr => x,
+                     Rred "red_binop"
+                       (Eval (Vint (Int.repr (z + 1)))
+                          (incrdecr_type short_type))
+                       m E0)))
+              (Eval (Vint (Int.repr (z + 1))) (incrdecr_type short_type)))
+           m)
+  end = [TR ?rule E0 ?next]

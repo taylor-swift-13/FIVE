@@ -1,0 +1,50 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/core/FlightSemantics.v", line 55, characters 57-68:
+Error:
+In environment
+e : PTree.tree (block * type)
+m : mem
+bx, bpy, bp, bi, bm, bf : block
+flight : bool
+pdx, pdy, ki, ix, iy, cx, cy, maximum : int
+EX : e ! S._pd_x = Some (bx, tint)
+EY : e ! S._pd_y = Some (bpy, tint)
+EF : e ! S._in_flight = Some (bf, tbool)
+NP : e ! S._guidance_pid = None
+SP : Genv.find_symbol ge S._guidance_pid = Some bp
+NI : e ! S._guidance_pid_trim_att_integrator = None
+SI : Genv.find_symbol ge S._guidance_pid_trim_att_integrator = Some bi
+NM : e ! S._traj_max_bank = None
+SM : Genv.find_symbol ge S._traj_max_bank = Some bm
+SEP : NoDup [bx; bpy; bp; bi; bm; bf]
+LF :
+  Mem.load Mint8unsigned m bf 0 =
+  Some (Vint (if flight then Int.one else Int.zero))
+LPX : Mem.load Mint32 m bx 0 = Some (Vint pdx)
+LPY : Mem.load Mint32 m bpy 0 = Some (Vint pdy)
+LKI : Mem.load Mint32 m bp 8 = Some (Vint ki)
+LIX : Mem.load Mint32 m bi 0 = Some (Vint ix)
+LIY : Mem.load Mint32 m bi 4 = Some (Vint iy)
+LCX : Mem.load Mint32 m bp 32 = Some (Vint cx)
+LCY : Mem.load Mint32 m bp 36 = Some (Vint cy)
+LM : Mem.load Mint32 m bm 0 = Some (Vint maximum)
+AIX : Mem.valid_access m Mint32 bi 0 Writable
+AIY : Mem.valid_access m Mint32 bi 4 Writable
+ACX : Mem.valid_access m Mint32 bp 32 Writable
+ACY : Mem.valid_access m Mint32 bp 36 Writable
+D0 : bx <> bpy
+D1 : bx <> bp
+D2 : bx <> bi
+D3 : bx <> bm
+D4 : bx <> bf
+D5 : bpy <> bp
+D6 : bpy <> bi
+D7 : bpy <> bm
+D8 : bpy <> bf
+D9 : bp <> bi
+D10 : bp <> bm
+D11 : bp <> bf
+D12 : bi <> bm
+D13 : bi <> bf
+D14 : bm <> bf
+Unable to unify "By_value Mint8unsigned" with "access_mode tbool".
+

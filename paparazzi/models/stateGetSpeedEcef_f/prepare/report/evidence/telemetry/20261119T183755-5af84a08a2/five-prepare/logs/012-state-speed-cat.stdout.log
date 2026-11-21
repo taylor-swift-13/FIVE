@@ -1,0 +1,128 @@
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "sum3",
+  "stage": "five-prepare",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "paths_relative_to": "sum3 case root",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/sum3.c",
+      "sha256": "25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4"
+    },
+    {
+      "role": "stage_manifest",
+      "path": "prepare/report/manifest.json",
+      "sha256": "eba000cb3c1e1d76490fb102ccd215023c0bf1aa9134b86961cb9257a24c59eb"
+    },
+    {
+      "role": "stage_costs",
+      "path": "prepare/report/costs.json",
+      "sha256": "48f8889d935c373aead56b8305a82a65daaf2a0ea3e173fdfe350b41d0e17599"
+    }
+  ],
+  "next_stage": "five-cbmc",
+  "verification_request": {
+    "status": "specified",
+    "properties": [
+      "sum3 safety checks for arbitrary binary32 arguments",
+      "sum3 concrete result word equals 0x00000000"
+    ],
+    "input_assumptions": [
+      "Concrete result assertion uses 16777216.0f, 1.0f, -16777216.0f; safety call is unconstrained binary32."
+    ],
+    "bounds": [
+      "No loops or recursion in sum3; CBMC unwinding assertions enabled."
+    ]
+  },
+  "limitations": [
+    "The original translation unit is referenced by Git history; transfer to a different build requires appropriate correspondence.",
+    "Revision cost metrics cover a recorded session, excluding pre-session checks and final report packaging."
+  ],
+  "entry": "sum3",
+  "entry_signature": "float sum3(float a, float b, float c)"
+}
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "sum3",
+  "stage": "five-align",
+  "status": "generated",
+  "paths_relative_to": "sum3 case root",
+  "input_handoff": "cbmc/handoff.json",
+  "next_stage": "five-rocq",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/sum3.c",
+      "sha256": "25143236d5dea5a1721a5f9947573083d3831f51240a6f1b0d23098e09c8ff03"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "c7ea3a535f1984b4117a388e470c1e1db7e51ef196500028e320a91d126ba5a4"
+    },
+    {
+      "role": "cbmc_handoff",
+      "path": "cbmc/handoff.json",
+      "sha256": "52b1b3187888e2444d4decb124d6d8156b6e303763e1816c9929d65c631b54d0"
+    },
+    {
+      "role": "cbmc_results",
+      "path": "cbmc/report/evidence/logs/001-cbmc-check.stdout.log",
+      "sha256": "befe9ca3f441ea5ebac3859bfe8790ccda73091115d66636389ca4ca08058615"
+    },
+    {
+      "role": "model",
+      "path": "align/model/Source.v",
+      "sha256": "73e34704b1ea03671de34f619daa475cc70dff336f1720e64c431995008d373e"
+    },
+    {
+      "role": "execution",
+      "path": "align/model/Execution.v",
+      "sha256": "cac05564097b235e3c31d3bf9a826b8bfd1929b2d9dba7368737baa4a0f79ebe"
+    },
+    {
+      "role": "obligations",
+      "path": "align/model/proof/Obligations.v",
+      "sha256": "e2f1294af7aea0efa22eba759d46d1526a44ffbbe0e7b051ace62c2535ccf921"
+    },
+    {
+      "role": "precondition",
+      "path": "align/model/proof/Precondition.v",
+      "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933"
+    },
+    {
+      "role": "spec_map",
+      "path": "align/spec-map.json",
+      "sha256": "e3d8b68171ac248c5d99d1b6e47daa95774dd36b582ed6189d4b68bc2671df2b"
+    },
+    {
+      "role": "backend_manifest",
+      "path": "align/model/compcert-manifest.json",
+      "sha256": "c2b89dbaeda373e02257ee44576379a7a1eef3365b17f77e54f744af7e9e3b32"
+    },
+    {
+      "role": "costs",
+      "path": "align/report/costs.json",
+      "sha256": "f3c9f7c5eca9ded2ed2e18e39dffb39163505d1a1ca7112fa9354fa8f79e280f"
+    }
+  ],
+  "limitations": [
+    "Generated model plus explicit mapped full harness obligations; actual proofs and nonvacuity are in rocq.",
+    "Raw frontend history is preserved; exact frozen program equivalence to the current relocated-source replay is kernel checked."
+  ]
+}

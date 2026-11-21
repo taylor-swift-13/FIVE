@@ -1,0 +1,41 @@
+Theorem original_two_speed_assignments : forall e m bg gh pb sb rx ry px py flags,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ e!S._guidance_pid_speed_err=None ->
+ e!S._stateGetSpeedNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ bg<>pb -> gh<>pb ->sb<>pb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint rx) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint ry) ->
+ Mem.load Mint32 m sb 296=Some(Vint px) ->
+ Mem.load Mint32 m sb 300=Some(Vint py) ->
+ Mem.load Mint16unsigned m sb 280=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Mem.range_perm m pb 0 8 Cur Writable ->
+ exists mf,
+ Cstrategy.exec_stmt E.ge e m
+ (Ssequence(original_speed_assignment S._x)(original_speed_assignment S._y))E0 mf Out_normal /\
+ Mem.load Mint32 mf pb 0=Some(Vint(Int.sub rx px)) /\
+ Mem.load Mint32 mf pb 4=Some(Vint(Int.sub ry py)) /\
+ raw_writes(fun b=>b=pb)m mf.
+Proof.
+ intros e m bg gh pb sb rx ry px py flags ENV LOCAL GET SYM STATE DBG DGH DS PTR RX RY PX PY CACHE VALID WRITE.
+ assert(A0:Mem.valid_access m Mint32 pb 0 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WRITE;try change(4|0);try(exists 0;reflexivity);cbn;lia. }
+ destruct(Mem.valid_access_store m Mint32 pb 0(Vint(Int.sub rx px))A0)as[m1 ST0].
+ assert(A4:Mem.valid_access m1 Mint32 pb 4 Writable).
+ { eapply Mem.store_valid_access_1;[exact ST0|].
+   apply scalar_access_inside with(n:=8);try exact WRITE;try change(4|4);try(exists 1;reflexivity);cbn;lia. }
+ destruct(Mem.valid_access_store m1 Mint32 pb 4(Vint(Int.sub ry py))A4)as[mf ST4].
+ exists mf;split.
+ - eapply sequence_normal with(ma:=m1).
+   + eapply original_speed_assignment_exec with(ra:=rx)(pa:=px)(sb:=sb)(delta:=296).
+     * apply speed_error_x_lvalue;[exact LOCAL|exact SYM].
+     * eapply speed_reference_x_read;eassumption.
+     * eapply actual_cached_speed_call;eassumption.
+     * apply speed_cached_measured_x_read;exact PX.
+     * change(Mem.store Mint32 m pb 0(Vint(Int.sub rx px))=Some m1);exact ST0.
+   + eapply original_speed_assignment_exec with(ra:=ry)(pa:=py)(sb:=sb)(delta:=296).
+     * apply speed_error_y_lvalue;[exact LOCAL|exact SYM].
+     * eapply speed_reference_y_read;[exact ENV| |

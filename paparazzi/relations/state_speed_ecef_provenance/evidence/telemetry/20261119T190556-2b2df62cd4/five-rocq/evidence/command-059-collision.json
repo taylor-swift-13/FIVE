@@ -1,0 +1,23 @@
+{
+  "status": "measurement_gap",
+  "affected_command_id": "059-setter-compile-Layout",
+  "cause": "Owner erroneously launched a second Run.command writer before prior timeout was reaped. Both chose logstem059; newer logs and older timeout metadata collided.",
+  "older_command": {
+    "scope": "Layout before explicit projection reduction fix; blocked at ge_cenv reflexivity",
+    "timeout_seconds": 120,
+    "observed_exit": "SIGTERM timeout -15",
+    "tool_cpu_seconds": null,
+    "tool_peak_rss_bytes": null,
+    "reason": "Original GNU/sample files overwritten by colliding newer execution."
+  },
+  "newer_command": {
+    "scope": "Layout after explicit unfold ge,E.ge,Csem.globalenv,cenv; cbv genv_cenv projection fix",
+    "observed_exit": 1,
+    "last_error": "field_address pure_rval rewrite; no matching subterm",
+    "ledger_record": null,
+    "reason": "Old writer overwrote new ledger record; surviving logs may be attributed only by content, not canonical command identity."
+  },
+  "raw_retained_directory": "runs/20261119T190556-2b2df62cd4/five-rocq/evidence/command-059-collision",
+  "limits": "All original raw run files remain unchanged. Do not report this run tool CPU/RSS aggregation as complete; total unique model tokens and direct stage wall remain separately observable.",
+  "correction": "No new command started until both exec sessions were polled complete and absence of owned Layout workers observed. Future commands strictly sequential."
+}

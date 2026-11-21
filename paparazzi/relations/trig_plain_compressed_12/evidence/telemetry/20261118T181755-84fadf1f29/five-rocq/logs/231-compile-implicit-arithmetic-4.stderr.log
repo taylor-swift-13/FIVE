@@ -1,0 +1,36 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/ImplicitArithmetic.v", line 32, characters 27-28:
+Error: Cannot infer this placeholder of type "genv" in
+environment:
+initial : mem
+prefix : trace
+f : function
+C : expr -> expr
+k : cont
+e : env
+mp : mem
+b : block
+ofs : ptrofs
+INIT : initial_low initial
+PATH :
+  star Csem.step PprzTrigInit.Execution.ge
+    (PprzTrigInit.Execution.entry [] initial) prefix
+    (ExprState f (C (Epostincr Incr (Eloc b ofs Full tshort) tshort)) k e mp)
+CT : context RV RV C
+old : val
+w' : world
+TYPE : tshort = tshort
+PT :
+  possible_trace
+    (World (fun (_ : string) (_ : list eventval) => None)
+       (fun (_ : memory_chunk) (_ : ident) (_ : ptrofs) => None)
+       (fun (_ : memory_chunk) (_ : ident) (_ : ptrofs) (_ : eventval) =>
+        None))
+    E0 w'
+D : deref_loc PprzTrigInit.Execution.ge tshort mp b ofs Full E0 old
+next :=
+  Ecomma
+    (Eassign (Eloc b ofs Full tshort)
+       (Ebinop Oadd (Eval old tshort) (Eval (Vint Int.one) tint) tint) tshort)
+    (Eval old tshort) tshort
+  : expr
+

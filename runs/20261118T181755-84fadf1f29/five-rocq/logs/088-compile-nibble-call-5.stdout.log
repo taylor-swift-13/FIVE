@@ -1,0 +1,53 @@
+1 goal
+  
+  m : mem
+  bc : block
+  p : Z
+  RANGE : 0 <= p < 3379
+  SYMBOL :
+    Genv.find_symbol (globalenv Source.prog) _pprz_trig_int_compr = Some bc
+  BYTE :
+    Mem.load Mint8unsigned m bc (p / 2) =
+    Some (Vint (Int.repr (source_byte p)))
+  ma : Mem.mem'
+  bp : block
+  ALLOC : Mem.alloc m 0 2 = (ma, bp)
+  FRESH : ~ Mem.valid_block m bp
+  VA : Mem.valid_access ma Mint16unsigned bp 0 Freeable
+  VW : Mem.valid_access ma Mint16unsigned bp 0 Writable
+  mp : mem
+  STORE : Mem.store Mint16unsigned ma bp 0 (Vint (Int.repr p)) = Some mp
+  PARAM : Mem.load Mint16unsigned mp bp 0 = Some (Vint (Int.repr p))
+  PERMS : Mem.range_perm mp bp 0 2 Cur Freeable
+  mf : mem
+  FREE : Mem.free mp bp 0 2 = Some mf
+  OLD : Mem.valid_block m bc
+  DIFF : bc <> bp
+  BYTEP :
+    Mem.load Mint8unsigned mp bc (p / 2) =
+    Some (Vint (Int.repr (source_byte p)))
+  e := PTree.set _pos (bp, ushort) (PTree.empty (block * type))
+    : PTree.tree (block * type)
+  EPOS : e ! _pos = Some (bp, ushort)
+  ECOMPR : e ! _pprz_trig_int_compr = None
+  AV :
+    do_alloc_variables (globalenv Source.prog) empty_env m
+      (fn_params f_get_nibble ++ fn_vars f_get_nibble) =
+    (e, ma)
+  ============================
+  match
+    match
+      (if zle (Ptrofs.unsigned Ptrofs.zero + 2) Ptrofs.modulus
+       then
+        Mem.store Mint16unsigned ma bp (Ptrofs.unsigned Ptrofs.zero)
+          (Vint (Int.repr p))
+       else None)
+    with
+    | Some m' => Some (quiet, E0, m', Vint (Int.repr p))
+    | None => None
+    end
+  with
+  | Some (_, [], m1, _) =>
+      sem_bind_parameters (globalenv Source.prog) quiet e m1 [] []
+  | _ => None
+  end = Some mp

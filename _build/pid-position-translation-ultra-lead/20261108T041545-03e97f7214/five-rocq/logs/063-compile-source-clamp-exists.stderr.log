@@ -1,0 +1,32 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/ClampSemantics.v", line 147, characters 81-86:
+Error:
+In environment
+e : env
+m : mem
+l : expr
+err : int
+shift : Z
+bound : int
+eb : block
+eofs : ptrofs
+TY : typeof l = tint
+SIMPLE : source_simple l = true
+LV : eval_simple_lvalue Execution.ge e m l eb eofs Full
+LOAD : Mem.loadv Mint32 m (Vptr eb eofs) = Some (Vint err)
+ACCESS : Mem.valid_access m Mint32 eb (Ptrofs.unsigned eofs) Writable
+BOUND :
+  eval_simple_rvalue Execution.ge e m (source_bound shift)
+    (Vfloat (Float.of_int bound))
+NEG : Float.neg (Float.of_int bound) = Float.of_int (Int.neg bound)
+READ : eval_simple_rvalue Execution.ge e m (Evalof l tint) (Vint err)
+chosen : int
+EVAL :
+  eval_expression Execution.ge e m (source_clamp (Evalof l tint) shift) E0 m
+    (Vfloat (Float.of_int chosen))
+mf : mem
+STORE : Mem.store Mint32 m eb (Ptrofs.unsigned eofs) (Vint chosen) = Some mf
+The term "STORE" has type
+ "Mem.store Mint32 m eb (Ptrofs.unsigned eofs) (Vint chosen) = Some mf"
+while it is expected to have type
+ "Mem.storev Mint32 m (Vptr eb eofs) (Vint chosen) = Some mf".
+

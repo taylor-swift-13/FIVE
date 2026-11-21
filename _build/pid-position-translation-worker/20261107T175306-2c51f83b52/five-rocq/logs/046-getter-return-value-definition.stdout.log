@@ -1,0 +1,53 @@
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v:74:Definition outcome_result_value (out: outcome) (t: type) (v: val) (m: mem): Prop :=
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-75-  match out, t with
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-76-  | Out_normal, Tvoid => v = Vundef
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-77-  | Out_return None, Tvoid => v = Vundef
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-78-  | Out_return (Some (v',t')), ty => ty <> Tvoid /\ sem_cast v' t' t m = Some v
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-79-  | _, _ => False
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-80-  end.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-81-
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-82-(** [exec_stmt ge e m1 s t m2 out] describes the execution of
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-83-  the statement [s].  [out] is the outcome for this execution.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-84-  [m1] is the initial memory state, [m2] the final memory state.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-85-  [t] is the trace of input/output events performed during this
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-86-  evaluation. *)
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-87-
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-88-Inductive exec_stmt: env -> temp_env -> mem -> statement -> trace -> temp_env -> mem -> outcome -> Prop :=
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/ClightBigstep.v-89-  | exec_Sskip:   forall e le m,
+--
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v:1635:Definition outcome_result_value (out: outcome) (t: type) (v: val) (m: mem) : Prop :=
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v-1636-  match out, t with
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v-1637-  | Out_normal, Tvoid => v = Vundef
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v-1638-  | Out_return None, Tvoid => v = Vundef
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v-1639-  | Out_return (Some (v', ty')), ty => ty <> Tvoid /\ sem_cast v' ty' ty m = Some v
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v-1640-  | _, _ => False
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v-1641-  end.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v-1642-
+Qed.
+
+Lemma simple_estep:
+  forall ge f a k e m t S', simple a = true -> Csem.estep ge (ExprState f a k e m) t S' ->
+  S' = Stuckstate \/
+  exists a', S' = ExprState f a' k e m /\ typeof a' = typeof a /\ simple a' = true /\
+    pure_rval ge e m a = pure_rval ge e m a'.
+Proof.
+  intros ge f a k e m t S' SIMPLE STEP; inversion STEP; subst.
+  - match goal with LR: lred ge e ?A m ?A' ?M', HC: Csem.context LV RV ?C |- _ =>
+      destruct (pure_lred ge e A m A' M' LR) as [HM [HT [HS HE]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with RR: rred ge ?A m t ?A' ?M', HC: Csem.context RV RV ?C |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      destruct (pure_rred ge e A m t A' M' SA RR) as [HM [TT [HT [HS HE]]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with CR: callred ge ?A _ _ _ _, HC: Csem.context RV RV _ |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      inversion CR; subst; discriminate end.
+  - left; reflexivity.
+Qed.
+

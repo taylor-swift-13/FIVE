@@ -1,0 +1,52 @@
+API_SOURCE scripts/codex_usage.py def receipt(path,after=None,before=None):
+    identity,events,_,notes=load(path)
+    start,end=0,len(events)
+    for boundary,is_start in [(after,True),(before,False)]:
+        if boundary is None:
+            continue
+        if boundary['thread_id']!=identity['thread_id']:
+            raise ValueError('Boundary belongs to another thread')
+        marker=boundary['last_event_id']
+        if marker is None:
+            index=0
+        else:
+            found=[i+1 for i,event in enumerate(events) if event['event_id']==marker]
+            if len(found)!=1:
+                raise ValueError('Boundary event is missing or ambiguous')
+            index=found[0]
+        if is_start:
+            start=index
+        else:
+            end=index
+    if start>end:
+        raise ValueError('Reversed boundaries')
+    selected=events[start:end]
+    return {'source':{'kind':'codex-session-event','reference':str(Path(path).resolve()),'thread_id':identity['thread_id']},
+            'complete':not notes,'scope':'explicit event-boundary interval' if after is not None and before is not None else 'whole session as observed; not a per-skill total',
+            'boundaries':{'after_event_id':after['last_event_id'],'before_event_id':before['last_event_id']} if after is not None and before is not None else None,
+            'events':selected,'notes':notes,
+            'totals':{k:sum(event[k] for event in selected) for k in KEYS},
+            'total_tokens':sum(event['input_tokens']+event['output_tokens'] for event in selected)}
+API_SOURCE scripts/five_telemetry.py def import_tokens(self, receipt):
+        data = json.loads(Path(receipt).read_text())
+        if data.get('source',{}).get('kind') not in {'provider-usage','codex-session-event'} or not data.get('source',{}).get('reference'):
+            raise ValueError('Require an identified provider usage or Codex session-event source')
+        if data.get('complete') not in [True,False] or not isinstance(data.get('events'),list):
+            raise ValueError('Require usage event list and explicit complete=true/false')
+        if not data['events'] and not (data['complete'] and data.get('scope')=='explicit event-boundary interval' and data.get('boundaries') and data.get('total_tokens')==0):
+            raise ValueError('Zero usage requires a verified empty event-boundary interval, not missing data')
+        seen = set()
+        for event in data['events']:
+            if not event.get('event_id') or event['event_id'] in seen:
+                raise ValueError('Usage events must have unique event_id')
+            seen.add(event['event_id'])
+            for key in ['input_tokens','output_tokens']:
+                if type(event.get(key)) is not int or event[key] < 0:
+                    raise ValueError(f'Invalid {key}')
+            for key,limit in [('cached_input_tokens','input_tokens'),('reasoning_output_tokens','output_tokens')]:
+                value = event.get(key)
+                if value is not None and (type(value) is not int or not 0 <= value <= event[limit]):
+                    raise ValueError(f'Invalid {key}; it is a subset, not an extra total')
+        self.capture(receipt,'model-usage-receipt')
+        dump(self.folder/'tokens.json', {'status':'available' if data['complete'] else 'partial',**data})
+        self.refresh_metrics()

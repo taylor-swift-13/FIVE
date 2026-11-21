@@ -1,0 +1,30 @@
+4 goals
+  
+  ge : genv
+  f : function
+  first, tail : statement
+  e : env
+  m : mem
+  x : expr
+  s : statement
+  k0 : cont
+  SS :
+    sstep ge (State f (Ssequence first tail) (Kwhile2 x s k0) e m) E0
+      (State f (Swhile x s) k0 e m)
+  H6 : Ssequence first tail = Sskip \/ Ssequence first tail = Scontinue
+  ============================
+  E0 = E0 /\
+  State f (Swhile x s) k0 e m =
+  State f first (Kseq tail (Kwhile2 x s k0)) e m
+
+goal 2 is:
+ E0 = E0 /\
+ ExprState f x (Kdowhile2 x s k0) e m =
+ State f first (Kseq tail (Kdowhile1 x s k0)) e m
+goal 3 is:
+ E0 = E0 /\
+ State f a3 (Kfor4 a2 a3 s k0) e m =
+ State f first (Kseq tail (Kfor3 a2 a3 s k0)) e m
+goal 4 is:
+ E0 = E0 /\
+ State f Sskip k0 e m = State f first (Kseq tail (Kswitch2 k0)) e m

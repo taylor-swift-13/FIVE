@@ -1,0 +1,62 @@
+1 goal
+  
+  e : PTree.tree (block * type)
+  m : mem
+  bp, bq : block
+  qi : float32
+  LQ : e ! _q = Some (bp, qtype)
+  PQ : Mem.load Mptr m bp 0 = Some (Vptr bq Ptrofs.zero)
+  QI : Mem.load Mfloat32 m bq 0 = Some (Vsingle qi)
+  ============================
+  match
+    match
+      match (prog_comp_env prog) ! _FloatQuat with
+      | Some co =>
+          match field_offset (prog_comp_env prog) _qi (co_members co) with
+          | OK (delta, bf) =>
+              Some (bq, Ptrofs.add Ptrofs.zero (Ptrofs.repr delta), bf)
+          | Error _ => None
+          end
+      | None => None
+      end
+    with
+    | Some (b, ofs, bf) =>
+        match
+          match bf with
+          | Full =>
+              match
+                (if zle (Ptrofs.unsigned ofs + 4) Ptrofs.modulus
+                 then Mem.load Mfloat32 m b (Ptrofs.unsigned ofs)
+                 else None)
+              with
+              | Some v => Some (PureDenotation.quiet_world, E0, v)
+              | None => None
+              end
+          | Bits _ _ _ _ => None
+          end
+        with
+        | Some (_, _, v) => Some v
+        | None => None
+        end
+    | None => None
+    end
+  with
+  | Some w =>
+      match
+        match w with
+        | Vsingle f => Some (Vfloat (Float.of_single f))
+        | _ => None
+        end
+      with
+      | Some (Vfloat n2) =>
+          Some
+            (Vfloat
+               (Float.mul (Float.of_bits (Int64.repr 4609047870845172685)) n2))
+      | _ => None
+      end
+  | None => None
+  end =
+  Some
+    (Vfloat
+       (Float.mul (Float.of_bits (Int64.repr 4609047870845172685))
+          (Float.of_single qi)))

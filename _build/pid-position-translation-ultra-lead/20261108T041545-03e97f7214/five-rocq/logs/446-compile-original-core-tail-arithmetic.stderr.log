@@ -1,0 +1,148 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence/unused
+was previously bound to
+PidPositionTranslationAttempt002.core.evidence.unused; it is remapped to
+PidPositionTranslationCore.evidence.unused
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationAttempt002.core.cbmc; it is
+remapped to PidPositionTranslationCore.cbmc
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/__pycache__
+was previously bound to PidPositionTranslationAttempt002.core.__pycache__; it
+is remapped to PidPositionTranslationCore.__pycache__
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/evidence/exploratory
+was previously bound to
+PidPositionTranslationAttempt002.safety.evidence.exploratory; it is remapped
+to PidPositionSafety.evidence.exploratory
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/evidence
+was previously bound to PidPositionTranslationAttempt002.safety.evidence; it
+is remapped to PidPositionSafety.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationCore.cbmc; it is remapped to
+CoreCBMC [overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/CoreTailArithmetic.v", line 198, characters 33-34:
+Error: Cannot infer this placeholder of type "expr" in
+environment:
+e : PTree.tree (block * type)
+m : mem
+br, temp, bp, bh, bf, ret : block
+h : float32
+heading, x, y : int
+LR : e ! S.__res = Some (br, tptr spty)
+LC : e ! S.__res__1 = Some (temp, spty)
+NP : e ! S._guidance_pid = None
+SP : Genv.find_symbol ge S._guidance_pid = Some bp
+NH : e ! S._guidance_h = None
+SH : Genv.find_symbol ge S._guidance_h = Some bh
+NF : e ! S._stab_sp_from_ltp_i = None
+SF : Genv.find_symbol ge S._stab_sp_from_ltp_i = Some bf
+FF :
+  Genv.find_funct ge (Vptr bf Ptrofs.zero) =
+  Some (Internal S.f_stab_sp_from_ltp_i)
+DRT : br <> temp
+DTR : temp <> ret
+RES : Mem.load Mint64 m br 0 = Some (Vptr ret Ptrofs.zero)
+HEAD : Mem.load Mfloat32 m bh 28 = Some (Vsingle h)
+CAST :
+  sem_cast (Vsingle (Float32.mul h (Float32.of_int (Int.repr 4096)))) tfloat
+    tint m =
+  Some (Vint heading)
+LX : Mem.load Mint32 m bp 32 = Some (Vint x)
+LY : Mem.load Mint32 m bp 36 = Some (Vint y)
+RVS : Mem.range_perm m bp 32 40 Cur Readable
+WT : Mem.range_perm m temp 0 36 Cur Writable
+WR : Mem.range_perm m ret 0 36 Cur Writable
+mc : mem
+CALL :
+  eval_funcall FactoryCall.F.ge m
+    (Internal FactoryCall.S.f_stab_sp_from_ltp_i)
+    [Vptr temp Ptrofs.zero; Vptr bp (Ptrofs.repr 32); Vint heading] E0 mc
+    Vundef
+ACTIVE : active_fields mc temp x y heading
+KEEP : access_preserved m mc
+FRAME :
+  forall (ch : memory_chunk) (b : block) (ofs : Z),
+  Mem.valid_block m b ->
+  b <> temp -> Mem.load ch mc b ofs = Mem.load ch m b ofs
+BFRAME :
+  forall (b : block) (ofs n : Z),
+  Mem.valid_block m b ->
+  b <> temp -> 0 <= n -> Mem.loadbytes mc b ofs n = Mem.loadbytes m b ofs n
+VBR : Mem.valid_block m br
+RESC : Mem.load Mint64 mc br 0 = Some (Vptr ret Ptrofs.zero)
+READTEMP : Mem.range_perm mc temp 0 36 Cur Readable
+bytes : list memval
+BYTES : Mem.loadbytes mc temp 0 36 = Some bytes
+LEN : Z.of_nat (Datatypes.length bytes) = 36
+WRMC : Mem.range_perm mc ret 0 36 Cur Writable
+mf : mem
+COPY : Mem.storebytes mc ret 0 bytes = Some mf
+RF : eval_simple_rvalue ge e m factory_function_expr (Vptr bf Ptrofs.zero)
+ARGS :
+  eval_simple_list ge e m factory_args_expr [tptr spty; tptr vty; tint]
+    [Vptr temp Ptrofs.zero; Vptr bp (Ptrofs.repr 32); Vint heading]
+k : cont
+PATH :
+  star Csem.step ge
+    (Callstate (Internal S.f_stab_sp_from_ltp_i)
+       [Vptr temp Ptrofs.zero; Vptr bp (Ptrofs.repr 32); Vint heading] Kstop
+       m)
+    E0 (Returnstate Vundef Kstop mc)
+CAL :
+  forall base : cont,
+  is_call_cont base ->
+  exists P : Csem.state -> Prop,
+    certificate ge P (Returnstate Vundef base mc) /\
+    P
+      (Callstate (Internal S.f_stab_sp_from_ltp_i)
+         [Vptr temp Ptrofs.zero; Vptr bp (Ptrofs.repr 32); Vint heading] base
+         m) /\
+    (forall s : Csem.state, P s -> function_scope S.f_stab_sp_from_ltp_i s)
+D0 :
+  Cexec.do_deref_loc ge quiet_world (tptr spty) m br Ptrofs.zero Full =
+  Some (quiet_world, E0, Vptr ret Ptrofs.zero)
+D1 :
+  Cexec.do_deref_loc ge quiet_world (tptr spty) mc br Ptrofs.zero Full =
+  Some (quiet_world, E0, Vptr ret Ptrofs.zero)
+POST : eval_simple_rvalue ge e mc factory_result_expr (Vptr temp Ptrofs.zero)
+PV : pure_rval ge e mc factory_result_expr = Some (Vptr temp Ptrofs.zero)
+COPYA :
+  Cexec.do_assign_loc ge quiet_world spty mc ret Ptrofs.zero Full
+    (Vptr temp Ptrofs.zero) =
+  Some (quiet_world, E0, mf, Vptr temp Ptrofs.zero)
+FT : arithmetic_tree ge e m factory_function_expr
+

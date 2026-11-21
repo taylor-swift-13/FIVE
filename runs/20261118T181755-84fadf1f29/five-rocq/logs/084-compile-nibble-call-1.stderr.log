@@ -1,0 +1,29 @@
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/NibbleCall.v", line 45, characters 13-33:
+Error:
+In environment
+m : mem
+bc : block
+p : Z
+RANGE : 0 <= p < 3379
+SYMBOL :
+  Genv.find_symbol (globalenv Source.prog) _pprz_trig_int_compr = Some bc
+BYTE :
+  Mem.load Mint8unsigned m bc (p / 2) =
+  Some (Vint (Int.repr (source_byte p)))
+ma : Mem.mem'
+bp : block
+ALLOC : Mem.alloc m 0 2 = (ma, bp)
+FRESH : ~ Mem.valid_block m bp
+VA : Mem.valid_access ma Mint16unsigned bp 0 Freeable
+VW : Mem.valid_access ma Mint16unsigned bp 0 Writable
+mp : mem
+STORE : Mem.store Mint16unsigned ma bp 0 (Vint (Int.repr p)) = Some mp
+PARAM : Mem.load Mint16unsigned mp bp 0 = Some (Vint (Int.repr p))
+PERMS : Mem.range_perm mp bp 0 2 Cur Freeable
+mf : mem
+FREE : Mem.free mp bp 0 2 = Some mf
+OLD : Mem.valid_block m bc
+DIFF : bc <> bp
+Unable to unify "Mem.load ?chunk ?m2 ?b' ?ofs = Some ?v" with
+ "Mem.store ?chunk m bp ?ofs ?v = Some mp".
+

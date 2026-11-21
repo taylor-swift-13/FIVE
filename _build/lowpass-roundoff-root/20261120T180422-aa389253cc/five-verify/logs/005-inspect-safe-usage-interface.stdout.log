@@ -1,0 +1,90 @@
+def snapshot(path):
+    identity,events,totals,notes=load(path)
+    return {'thread_id':identity['thread_id'],'session_file':str(Path(path).resolve()),
+            'last_event_id':events[-1]['event_id'] if events else None,
+            'last_event_timestamp':events[-1]['timestamp'] if events else None,
+            'observed_event_count':len(events),'counters':totals,'notes':notes}
+
+
+def receipt(path,after=None,before=None):
+    identity,events,_,notes=load(path)
+    start,end=0,len(events)
+    for boundary,is_start in [(after,True),(before,False)]:
+        if boundary is None:
+            continue
+        if boundary['thread_id']!=identity['thread_id']:
+            raise ValueError('Boundary belongs to another thread')
+        marker=boundary['last_event_id']
+        if marker is None:
+            index=0
+        else:
+            found=[i+1 for i,event in enumerate(events) if event['event_id']==marker]
+            if len(found)!=1:
+                raise ValueError('Boundary event is missing or ambiguous')
+            index=found[0]
+        if is_start:
+            start=index
+        else:
+            end=index
+    if start>end:
+        raise ValueError('Reversed boundaries')
+    selected=events[start:end]
+    return {'source':{'kind':'codex-session-event','reference':str(Path(path).resolve()),'thread_id':identity['thread_id']},
+            'complete':not notes,'scope':'explicit event-boundary interval' if after is not None and before is not None else 'whole session as observed; not a per-skill total',
+            'boundaries':{'after_event_id':after['last_event_id'],'before_event_id':before['last_event_id']} if after is not None and before is not None else None,
+            'events':selected,'notes':notes,
+            'totals':{k:sum(event[k] for event in selected) for k in KEYS},
+            'total_tokens':sum(event['input_tokens']+event['output_tokens'] for event in selected)}
+
+
+def related_sessions(directory,root_thread):
+    selected=[]
+    metadata=[]
+    # Only inspect session identity/source headers for discovery. Never export
+    # conversation messages, tool content, or model reasoning.
+    for path in Path(directory).rglob('*.jsonl'):
+def receipt(path,after=None,before=None):
+    identity,events,_,notes=load(path)
+    start,end=0,len(events)
+    for boundary,is_start in [(after,True),(before,False)]:
+        if boundary is None:
+            continue
+        if boundary['thread_id']!=identity['thread_id']:
+            raise ValueError('Boundary belongs to another thread')
+        marker=boundary['last_event_id']
+        if marker is None:
+            index=0
+        else:
+            found=[i+1 for i,event in enumerate(events) if event['event_id']==marker]
+            if len(found)!=1:
+                raise ValueError('Boundary event is missing or ambiguous')
+            index=found[0]
+        if is_start:
+            start=index
+        else:
+            end=index
+    if start>end:
+        raise ValueError('Reversed boundaries')
+    selected=events[start:end]
+    return {'source':{'kind':'codex-session-event','reference':str(Path(path).resolve()),'thread_id':identity['thread_id']},
+            'complete':not notes,'scope':'explicit event-boundary interval' if after is not None and before is not None else 'whole session as observed; not a per-skill total',
+            'boundaries':{'after_event_id':after['last_event_id'],'before_event_id':before['last_event_id']} if after is not None and before is not None else None,
+            'events':selected,'notes':notes,
+            'totals':{k:sum(event[k] for event in selected) for k in KEYS},
+            'total_tokens':sum(event['input_tokens']+event['output_tokens'] for event in selected)}
+
+
+def related_sessions(directory,root_thread):
+    selected=[]
+    metadata=[]
+    # Only inspect session identity/source headers for discovery. Never export
+    # conversation messages, tool content, or model reasoning.
+    for path in Path(directory).rglob('*.jsonl'):
+        try:
+            with path.open(encoding='utf-8') as stream:
+                first=json.loads(stream.readline())
+            payload=first.get('payload',{})
+            source=payload.get('source')
+            spawn=source.get('subagent',{}).get('thread_spawn',{}) if isinstance(source,dict) else {}
+            metadata.append((path,payload.get('id'),spawn.get('parent_thread_id'),spawn.get('agent_path')))
+        except (OSError,json.JSONDecodeError,AttributeError):

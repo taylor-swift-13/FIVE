@@ -1,0 +1,21 @@
+
+from pathlib import Path
+import json,hashlib
+root=Path('/home/yangfp/five');c=root/'paparazzi/models/guidance_pid_h_run_pos';sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
+h=json.loads((c/'prepare/handoff.json').read_text());m=json.loads((c/'align/model/compcert-manifest.json').read_text());assert h['status']=='passed'
+for row in h['outputs']:assert sha(c/row['path'])==row['sha256']
+s=(c/'align/model/Source.v').read_text();start=s.index('Definition f_guidance_pid_h_run_pos');header=s[start:s.index('fn_body :=',start)];assert 'tvoid' in header and 'cc_structret:=true' in header.replace(' ','') and '__res' in header
+report=c/'align/report';report.mkdir(parents=True,exist_ok=True);ev=report/'evidence';ev.mkdir(exist_ok=True)
+abi=ev/'generated-abi.json';abi.write_text(json.dumps({'selected_C_entry':'guidance_pid_h_run_pos','namespace':'PidPositionRunPos','frontend_options':m['frontend_options'],'raw_definition_header':header,'calling_convention':'Hidden writable caller return-buffer pointer first, then boolean value and HorizontalGuidance pointer. Csyntax normal result is void; observe active StabilizationSetpoint fields in caller buffer.','external_environment_coverage':'pending','source_ast_sha256':sha(c/'align/model/Source.v')},indent=2)+chr(10))
+ledger=json.loads((c/'cbmc/properties.json').read_text());props=ledger['properties'];assert len(props)==124 and all(p['status']=='SUCCESS' for p in props)
+mp=c/'align/model/spec-map-pending.json';assert not mp.exists();mp.write_text(json.dumps({'schema':'five-cbmc-rocq-map/1','status':'mapping-gap','verification_method':'traditional-bounded-model-checking','request_sha256':sha(c/'align/request.json'),'backend_manifest_sha256':sha(c/'align/model/compcert-manifest.json'),'reason':'Actual124successfulCBMCproperties preserved; canonical original-Csem declarations/proofs not yet constructed. No claim of completed Rocq recheck.','properties':[{'property_id':p['id'],'cbmc_status':p['status'],'scope':p,'mapping_status':'mapping-gap','proof_status':'pending','rocq_goal':None} for p in props]},indent=2)+chr(10))
+outputs=[dict(x,role='prepared-'+x['role']) for x in h['outputs']]
+for role,p in [('prepare-handoff',c/'prepare/handoff.json'),('cbmc-handoff',c/'cbmc/handoff.json'),('model-manifest',c/'align/model/compcert-manifest.json'),('execution-request',c/'align/request.json'),('generated-abi',abi),('spec-map',mp)]:outputs.append({'role':role,'path':str(p.relative_to(c)),'sha256':sha(p)})
+for role,row in m['files'].items():
+ p=Path(row['path']);p=p if p.is_absolute() else root/p
+ if p.is_file() and p.is_relative_to(c):outputs.append({'role':'model-'+role,'path':str(p.relative_to(c)),'sha256':sha(p)})
+for f in ['Source.v','Execution.v','proof/Precondition.v','proof/Obligations.v','proof/Proofs.v','preprocessed.i']:assert (c/'align/model'/f).is_file(),f
+out={'schema':'five-stage-handoff/1','case_id':'guidance_pid_h_run_pos','stage':'align','status':'passed','generation_status':'generated-and-source-audited','coverage_status':'pending-open-external-environment','target':h['target'],'paths_relative_to':'case','outputs':outputs,'limitations':h['limitations']+['Generation passed only; unrestricted closed-environment execution correspondence and actual124CBMCproperties Rocq recheck remain pending.'],'next_stage':'rocq'}
+(c/'align/handoff.json').write_text(json.dumps(out,indent=2)+chr(10))
+(report/'report.md').write_text('Generated original CompCert Csyntax/Cexec OPEN-module model; source audit passed. Entry accepts arbitrary machine argument lists and memory. Struct return is lowered by the frontend to hidden caller buffer plus void return. Original external state conversions and atan2f remain explicit OPEN bindings; full environment coverage is pending. All runtime branches retained. Actual124CBMCsuccessful properties retained as mapping gaps awaiting original-Csem declarations/proofs. No theorem is claimed proved by generation. Initial stage gate and toolchain-environment failures retained.\n')
+print(json.dumps({'generation':'passed','coverage':'pending','namespace':'PidPositionRunPos','ABI':'return-buffer,bool,gh-pointer -> void','CBMC_pending_rechecks':124,'handoff_sha256':sha(c/'align/handoff.json')}))

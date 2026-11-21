@@ -1,0 +1,91 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/InitIteration.v", line 200, characters 95-96:
+Error: Cannot infer this placeholder of type "statement" in
+environment:
+Q : val -> mem -> Prop
+k : cont
+e : env
+base : mem
+input, buffer : block
+c : chunk
+j : Z
+m : mem
+IN : In c literal_chunks
+J : 0 <= j < repetitions c
+BBUF :
+  Genv.find_symbol PprzTrigInit.Execution.ge PprzTrigInit.Source._data_buf_12 =
+  Some buffer
+C : protocol_core e base input buffer m
+P : packed_prefix (count_before c + j) m buffer
+IC : short_cell e m PprzTrigInit.Source._i (pos c + consumed c)
+bt : block
+BT : e ! PprzTrigInit.Source._tab_12 = Some (bt, Tint I16 Signed noattr)
+LT : Mem.load Mint16signed m bt 0 = Some (Vint (Int.repr 0))
+WT : Mem.range_perm m bt 0 2 Cur Writable
+REST :
+  if multi c
+  then
+   short_cell e m PprzTrigInit.Source._temp (third c) /\
+   short_cell e m PprzTrigInit.Source._k (k_value c)
+  else short_cell e m PprzTrigInit.Source._temp (first c)
+JC : short_cell e m PprzTrigInit.Source._j j
+CC : short_cell e m PprzTrigInit.Source._cnt (count_before c + j)
+VC : short_cell e m PprzTrigInit.Source._val (value_before c + j * delta c)
+PR :
+  short_cell e m PprzTrigInit.Source._val_prev
+    (previous_at (count_before c + j))
+END :
+  forall mf : mem,
+  iteration_inv e base input buffer c j AfterEncode mf ->
+  total PprzTrigInit.Execution.ge Q
+    (State PprzTrigInit.Source.f_pprz_trig_int_init Sskip k e mf)
+INV0 : iteration_inv e base input buffer c j BeforeEncode m
+CB : 0 <= count_before c + j <= 6434
+VB : 0 <= value_before c + j * delta c <= 16383
+POS : 0 <= pos c
+PE : pos c + consumed c <= 3379
+CB0 : 0 <= count_before c
+REP : 0 < repetitions c <= 41
+CE : count_before c + repetitions c <= 6434
+V0 : 0 <= value_before c
+DEL : 0 <= delta c <= 7
+VE : value_before c + repetitions c * delta c <= 16383
+BOUNDSREST : 0 <= first c <= 15 /\ 0 <= second c <= 15 /\ 0 <= third c <= 15
+COUNT : 0 <= count_before c + j < 6434
+PREV : 0 <= previous_at (count_before c + j) <= 16383
+VT : short_cell e m PprzTrigInit.Source._val (table_at (count_before c + j))
+fb : block
+FSYM :
+  Genv.find_symbol PprzTrigInit.Execution.ge
+    PprzTrigInit.Source._table_encode_12 =
+  Some fb
+FUN :
+  Genv.find_funct PprzTrigInit.Execution.ge (Vptr fb Ptrofs.zero) =
+  Some (Internal PprzTrigInit.Source.f_table_encode_12)
+FN : e ! PprzTrigInit.Source._table_encode_12 = None
+mf : mem
+PN : packed_prefix (count_before c + j + 1) mf buffer
+FRAME : Mem.unchanged_on (protected m buffer) m mf
+EXEC :
+  total (globalenv PprzTrigInit.Source.prog) Q
+    (State PprzTrigInit.Source.f_pprz_trig_int_init
+       (Sdo
+          (CallFour.four_call PprzTrigInit.Source._table_encode_12
+             PprzTrigInit.Source._val PprzTrigInit.Source._val_prev
+             PprzTrigInit.Source._cnt PprzTrigInit.Source._tab_12 fb
+             match e ! PprzTrigInit.Source._val with
+             | Some (b, _) => b
+             | None => 1%positive
+             end
+             match e ! PprzTrigInit.Source._val_prev with
+             | Some (b, _) => b
+             | None => 1%positive
+             end
+             match e ! PprzTrigInit.Source._cnt with
+             | Some (b, _) => b
+             | None => 1%positive
+             end bt (table_at (count_before c + j))
+             (previous_at (count_before c + j)) (count_before c + j) 0 0 0 0
+             0))
+       k e m)
+POST : iteration_inv e base input buffer c j AfterEncode mf
+

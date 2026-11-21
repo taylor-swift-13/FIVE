@@ -1,0 +1,27 @@
+(match
+   match tint with
+   | Tint _ si _ => add_case_pi elem si
+   | Tlong _ _ => add_case_pl elem
+   | _ => add_default
+   end
+ with
+ | add_case_pi ty si =>
+     Some
+       (Vptr b
+          (Ptrofs.add Ptrofs.zero
+             (Ptrofs.mul (Ptrofs.repr (sizeof ge ty))
+                (ptrofs_of_int si index))))
+ | add_case_pl ty => sem_add_ptr_long ge ty (Vptr b Ptrofs.zero) (Vint index)
+ | add_case_ip _ _ => None
+ | add_case_lp ty => sem_add_ptr_long ge ty (Vint index) (Vptr b Ptrofs.zero)
+ | add_default =>
+     sem_binarith
+       (fun (_ : signedness) (n1 n2 : int) => Some (Vint (Int.add n1 n2)))
+       (fun (_ : signedness) (n1 n2 : int64) =>
+        Some (Vlong (Int64.add n1 n2)))
+       (fun n1 n2 : Floats.float => Some (Vfloat (Floats.Float.add n1 n2)))
+       (fun n1 n2 : Floats.float32 =>
+        Some (Vsingle (Floats.Float32.add n1 n2)))
+       (Vptr b Ptrofs.zero) (Tarray elem n noattr) 
+       (Vint index) index_type m
+ end = Some (Vptr b (Ptrofs.repr (size * Int.signed index))))

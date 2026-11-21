@@ -1,0 +1,212 @@
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cstrategy.v
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Csem.v
+(** Restricted form of the CompCert Cexec animator correctness proof.
+    Original Cexec.v copyright INRIA; distributed under the CompCert license. *)
+From Coq Require Import Bool List ZArith Classical String.
+From compcert Require Import Axioms Coqlib Decidableplus Errors Maps Integers Floats AST Values Memory Events Globalenvs Builtins Determinism Ctypes Cop Csyntax Csem Cexec.
+Import ListNotations.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+
+(** Syntactic closure only: no conditions on values, memory, permissions or definedness. *)
+Fixpoint no_builtin (a: expr): bool :=
+  match a with
+  | Ebuiltin _ _ _ _ => false
+  | Efield a _ _ | Evalof a _ | Ederef a _ | Eaddrof a _
+  | Eunop _ a _ | Ecast a _ | Epostincr _ a _ | Eparen a _ _ => no_builtin a
+  | Ebinop _ a b _ | Eseqand a b _ | Eseqor a b _
+  | Eassign a b _ | Eassignop _ a b _ _ | Ecomma a b _ => no_builtin a && no_builtin b
+  | Econdition a b c _ => no_builtin a && no_builtin b && no_builtin c
+  | Ecall a al _ => no_builtin a && no_builtin_list al
+  | _ => true
+  end
+with no_builtin_list (al: exprlist): bool :=
+  match al with Enil => true | Econs a al => no_builtin a && no_builtin_list al end.
+
+Section LOCAL_EXEC.
+Variable ge: genv.
+Variable do_external_function do_inline_assembly:
+  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+Variable e: env.
+Variable w: world.
+Local Notation step_expr := (Cexec.step_expr ge do_external_function do_inline_assembly e w).
+Local Notation step_exprlist := (Cexec.step_exprlist ge do_external_function do_inline_assembly e w).
+
+Local Hint Constructors context Csem.contextlist : core.
+Ltac unpack_nb := repeat match goal with H: _ && _ = true |- _ => apply andb_true_iff in H; let A := fresh "NB" in let B := fresh "NB" in destruct H as [A B] end.
+Ltac pure_myinv :=
+  match goal with
+  | [ H: False |- _ ] => destruct H
+  | [ H: _ /\ _ |- _ ] => destruct H; pure_myinv
+  | [ H: exists _, _ |- _ ] => destruct H; pure_myinv
+  | _ => idtac
+  end.
+Theorem pure_step_expr_sound:
+  forall a k m, no_builtin a = true -> reducts_ok ge e w k a m (step_expr k a m)
+with pure_step_exprlist_sound:
+  forall al m, no_builtin_list al = true -> list_reducts_ok ge e w al m (step_exprlist al m).
+Proof with (try (apply not_invert_ok; simpl; intro; pure_myinv; intuition congruence; fail)).
+  induction a; intros k m NB; simpl in NB; unpack_nb; try discriminate; simpl; destruct k; try (apply wrong_kind_ok; simpl; congruence).
+(* Eval *)
+  split; intros. tauto. simpl; congruence.
+(* Evar *)
+  destruct (e!x) as [[b ty']|] eqn:?.
+  destruct (type_eq ty ty')...
+  subst. apply topred_ok; auto. apply red_var_local; auto.
+  destruct (Genv.find_symbol ge x) as [b|] eqn:?...
+  apply topred_ok; auto. apply red_var_global; auto.
+(* Efield *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?.
+  rewrite (is_val_inv _ _ _ Heqo).
+  destruct v...
+  destruct ty'...
+  (* top struct *)
+  destruct (ge.(genv_cenv)!i0) as [co|] eqn:?...
+  destruct (field_offset ge f (co_members co)) as [[delta bf]|] eqn:?...
+  apply topred_ok; auto. eapply red_field_struct; eauto.
+  (* top union *)
+  destruct (ge.(genv_cenv)!i0) as [co|] eqn:?...
+  destruct (union_field_offset ge f (co_members co)) as [[delta bf]|] eqn:?...
+  apply topred_ok; auto. eapply red_field_union; eauto.
+  (* in depth *)
+  eapply incontext_ok; eauto.
+(* Evalof *)
+  destruct (is_loc a) as [[[[b ofs] bf] ty']  | ] eqn:?. rewrite (is_loc_inv _ _ _ _ _ Heqo).
+  (* top *)
+  destruct (type_eq ty ty')... subst ty'.
+  destruct (do_deref_loc ge w ty m b ofs bf) as [[[w' t] v] | ] eqn:?.
+  exploit do_deref_loc_sound; eauto. intros [A B].
+  apply topred_ok; auto. red. split. apply red_rvalof; auto. exists w'; auto.
+  apply not_invert_ok; simpl; intros; pure_myinv. exploit do_deref_loc_complete; eauto. congruence.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* Ederef *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct v... apply topred_ok; auto. apply red_deref; auto.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* Eaddrof *)
+  destruct (is_loc a) as [[[[b ofs] bf ] ty'] | ] eqn:?. rewrite (is_loc_inv _ _ _ _ _ Heqo).
+  (* top *)
+  destruct bf... 
+  apply topred_ok; auto. split. apply red_addrof; auto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* unop *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct (sem_unary_operation op v ty' m) as [v'|] eqn:?...
+  apply topred_ok; auto. split. apply red_unop; auto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* binop *)
+  destruct (is_val a1) as [[v1 ty1] | ] eqn:?.
+  destruct (is_val a2) as [[v2 ty2] | ] eqn:?.
+  rewrite (is_val_inv _ _ _ Heqo). rewrite (is_val_inv _ _ _ Heqo0).
+  (* top *)
+  destruct (sem_binary_operation ge op v1 ty1 v2 ty2 m) as [v|] eqn:?...
+  apply topred_ok; auto. split. apply red_binop; auto. exists w; constructor.
+  (* depth *)
+  eapply incontext2_ok; eauto.
+  eapply incontext2_ok; eauto.
+(* cast *)
+  destruct (is_val a) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct (sem_cast v ty' ty m) as [v'|] eqn:?...
+  apply topred_ok; auto. split. apply red_cast; auto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* seqand *)
+  destruct (is_val a1) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct (bool_val v ty' m) as [v'|] eqn:?... destruct v'.
+  apply topred_ok; auto. split. eapply red_seqand_true; eauto. exists w; constructor.
+  apply topred_ok; auto. split. eapply red_seqand_false; eauto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* seqor *)
+  destruct (is_val a1) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct (bool_val v ty' m) as [v'|] eqn:?... destruct v'.
+  apply topred_ok; auto. split. eapply red_seqor_true; eauto. exists w; constructor.
+  apply topred_ok; auto. split. eapply red_seqor_false; eauto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* condition *)
+  destruct (is_val a1) as [[v ty'] | ] eqn:?. rewrite (is_val_inv _ _ _ Heqo).
+  (* top *)
+  destruct (bool_val v ty' m) as [v'|] eqn:?...
+  apply topred_ok; auto. split. eapply red_condition; eauto. exists w; constructor.
+  (* depth *)
+  eapply incontext_ok; eauto.
+(* sizeof *)
+  apply topred_ok; auto. split. apply red_sizeof. exists w; constructor.
+(* alignof *)
+  apply topred_ok; auto. split. apply red_alignof. exists w; constructor.
+(* assign *)
+  destruct (is_loc a1) as [[[[b ofs] bf] ty1] | ] eqn:?.
+  destruct (is_val a2) as [[v2 ty2] | ] eqn:?.
+  rewrite (is_loc_inv _ _ _ _ _ Heqo). rewrite (is_val_inv _ _ _ Heqo0).
+  (* top *)
+  destruct (type_eq ty1 ty)... subst ty1.
+  destruct (sem_cast v2 ty2 ty m) as [v|] eqn:?...
+  destruct (do_assign_loc ge w ty m b ofs bf v) as [[[[w' t] m'] v']|] eqn:?.
+  exploit do_assign_loc_sound; eauto. intros [P Q].
+  apply topred_ok; auto. split. eapply red_assign; eauto. exists w'; auto.
+  apply not_invert_ok; simpl; intros; pure_myinv. exploit do_assign_loc_complete; eauto. congruence.
+  (* depth *)
+  eapply incontext2_ok; eauto.
+  eapply incontext2_ok; eauto.
+(* assignop *)
+  destruct (is_loc a1) as [[[[b ofs] bf] ty1] | ] eqn:?.
+  destruct (is_val a2) as [[v2 ty2] | ] eqn:?.
+  rewrite (is_loc_inv _ _ _ _ _ Heqo). rewrite (is_val_inv _ _ _ Heqo0).
+  (* top *)
+  destruct (type_eq ty1 ty)... subst ty1.
+  destruct (do_deref_loc ge w ty m b ofs bf) as [[[w' t] v] | ] eqn:?.
+  exploit do_deref_loc_sound; eauto. intros [A B].
+  apply topred_ok; auto. red. split. apply red_assignop; auto. exists w'; auto.
+  apply not_invert_ok; simpl; intros; pure_myinv. exploit do_deref_loc_complete; eauto. congruence.
+  (* depth *)
+  eapply incontext2_ok; eauto.
+  eapply incontext2_ok; eauto.
+(* postincr *)
+  destruct (is_loc a) as [[[[b ofs] bf] ty'] | ] eqn:?. rewrite (is_loc_inv _ _ _ _ _ Heqo).
+  (* top *)
+  destruct (type_eq ty' ty)... subst ty'.
+  destruct (do_deref_loc ge w ty m b ofs bf) as [[[w' t] v] | ] eqn:?.
+  exploit do_deref_loc_sound; eauto. intros [A B].
+  apply topred_ok; auto. red. split. apply red_postincr; auto. exists w'; auto.
+  apply not_invert_ok; simpl; intros; pure_myinv. exploit do_deref_loc_complete; eauto. congruence.
+  (* depth *)
+From compcert Require Import Values Memory Events Csem Smallstep.
+
+(** Property definitions over the ORIGINAL CompCert C semantics.
+    These are propositions to prove, not proofs or an executable replacement. *)
+Definition normal_return (s : Csem.state) : Prop :=
+  exists v m, s = Returnstate v Kstop m.
+
+Definition source_error (ge : Csem.genv) (s : Csem.state) : Prop :=
+  ~ normal_return s /\ nostep Csem.step ge s.
+
+Definition no_error (ge : Csem.genv) (initial : Csem.state) : Prop :=
+  forall t s,
+    star Csem.step ge initial t s -> ~ source_error ge s.
+
+(** Acc recurses on predecessors of its relation.  Hence the intentional
+    argument order: a C successor is a predecessor of [successor].
+    Every possible Csem step is covered, including every observable trace.
+    There is no fuel bound and no selected evaluation strategy. *)
+Definition successor (ge : Csem.genv) (next current : Csem.state) : Prop :=
+  exists t, Csem.step ge current t next.
+
+Definition terminates (ge : Csem.genv) (initial : Csem.state) : Prop :=
+  Acc (successor ge) initial.
+
+(** Termination alone allows a finite execution ending in an error.
+    Safety alone allows divergence.  The conjunction is the requested pair:
+    all maximal executions are finite and end in a normal function return.
+    No equivalence or program-specific theorem is claimed here. *)
+Definition safe_termination (ge : Csem.genv) (initial : Csem.state) : Prop :=
+  no_error ge initial /\ terminates ge initial.

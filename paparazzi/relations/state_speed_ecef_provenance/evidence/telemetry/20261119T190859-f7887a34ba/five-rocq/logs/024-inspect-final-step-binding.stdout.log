@@ -1,0 +1,21 @@
+334:  s=State f(Sifthenelse(guard_expr a b c)yes no)k e m \/
+335:  s=State f no k e m \/
+336:  exists r,guard_phase ge e m b c r /\s=ExprState f r(Kifthenelse yes no k)e m.
+337: 
+338: Lemma guard_false_step_closed : forall ge f e m k yes no a b c,
+339:  simple a=true ->typeof a=tint ->pure_rval ge e m a=Some(Vint Int.zero) ->
+340:  simple b=true ->typeof b=tint ->pure_rval ge e m b=Some(Vint Int.one) ->
+341:  forall s t next,guard_false_invariant ge f e m k yes no a b c s ->
+342:  s<>State f no k e m ->Csem.step ge s t next ->
+343:  guard_false_invariant ge f e m k yes no a b c next.
+344: Proof.
+345:  intros ge f e m k yes no a b c SA TA VA SB TB VB s t next INV NF STEP.
+346:  destruct INV as[EQ|[EQ|[r[PH EQ]]]].
+347:  - subst s;destruct STEP as[ES|SS];[inversion ES|].
+348:    inversion SS;subst;right;right;exists(guard_expr a b c);split;[apply guard_phase_a;assumption|reflexivity].
+349:  - subst s;contradiction.
+350:  - subst s;destruct STEP as[ES|SS].
+351:    + destruct(guard_phase_estep ge f e m(Kifthenelse yes no k)b c r t next SB TB VB PH ES)
+352:        as[r'[EQ GP]].
+353:      right;right;exists r';split;assumption.
+354:    + inversion SS;subst;inversion PH;subst.

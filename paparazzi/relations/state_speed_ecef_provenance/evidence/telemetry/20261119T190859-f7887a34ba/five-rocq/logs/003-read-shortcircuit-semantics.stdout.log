@@ -1,0 +1,91 @@
+262:       rred (Eseqand (Eval v1 ty1) r2 ty) m
+263:         E0 (Eparen r2 type_bool ty) m
+264:   | red_seqand_false: forall v1 ty1 r2 ty m,
+265:       bool_val v1 ty1 m = Some false ->
+266:       rred (Eseqand (Eval v1 ty1) r2 ty) m
+267:         E0 (Eval (Vint Int.zero) ty) m
+268:   | red_seqor_true: forall v1 ty1 r2 ty m,
+269:       bool_val v1 ty1 m = Some true ->
+270:       rred (Eseqor (Eval v1 ty1) r2 ty) m
+271:         E0 (Eval (Vint Int.one) ty) m
+272:   | red_seqor_false: forall v1 ty1 r2 ty m,
+273:       bool_val v1 ty1 m = Some false ->
+274:       rred (Eseqor (Eval v1 ty1) r2 ty) m
+275:         E0 (Eparen r2 type_bool ty) m
+276:   | red_condition: forall v1 ty1 r1 r2 ty b m,
+277:       bool_val v1 ty1 m = Some b ->
+278:       rred (Econdition (Eval v1 ty1) r1 r2 ty) m
+279:         E0 (Eparen (if b then r1 else r2) ty ty) m
+280:   | red_sizeof: forall ty1 ty m,
+281:       rred (Esizeof ty1 ty) m
+282:         E0 (Eval (Vptrofs (Ptrofs.repr (sizeof ge ty1))) ty) m
+283:   | red_alignof: forall ty1 ty m,
+284:       rred (Ealignof ty1 ty) m
+366:   | ctx_binop_right: forall k C op e1 ty,
+367:       context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+368:   | ctx_cast: forall k C ty,
+369:       context k RV C -> context k RV (fun x => Ecast (C x) ty)
+370:   | ctx_seqand: forall k C r2 ty,
+371:       context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+372:   | ctx_seqor: forall k C r2 ty,
+373:       context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+374:   | ctx_condition: forall k C r2 r3 ty,
+375:       context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+376:   | ctx_assign_left: forall k C e2 ty,
+377:       context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+378:   | ctx_assign_right: forall k C e1 ty,
+379:       context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+380:   | ctx_assignop_left: forall k C op e2 tyres ty,
+381:       context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+382:   | ctx_assignop_right: forall k C op e1 tyres ty,
+383:       context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+384:   | ctx_postincr: forall k C id ty,
+682:       sstep (State f Scontinue (Kseq s k) e m)
+683:          E0 (State f Scontinue k e m)
+684:   | step_break_seq: forall f s k e m,
+685:       sstep (State f Sbreak (Kseq s k) e m)
+686:          E0 (State f Sbreak k e m)
+687: 
+688:   | step_ifthenelse_1: forall f a s1 s2 k e m,
+689:       sstep (State f (Sifthenelse a s1 s2) k e m)
+690:          E0 (ExprState f a (Kifthenelse s1 s2 k) e m)
+691:   | step_ifthenelse_2:  forall f v ty s1 s2 k e m b,
+692:       bool_val v ty m = Some b ->
+693:       sstep (ExprState f (Eval v ty) (Kifthenelse s1 s2 k) e m)
+694:          E0 (State f (if b then s1 else s2) k e m)
+695: 
+696:   | step_while: forall f x s k e m,
+697:       sstep (State f (Swhile x s) k e m)
+698:         E0 (ExprState f x (Kwhile1 x s k) e m)
+699:   | step_while_false: forall f v ty x s k e m,
+700:       bool_val v ty m = Some false ->
+701:       sstep (ExprState f (Eval v ty) (Kwhile1 x s k) e m)
+702:         E0 (State f Sskip k e m)
+703:   | step_while_true: forall f v ty x s k e m ,
+Lemma simple_estep:
+  forall ge f a k e m t S', simple a = true -> Csem.estep ge (ExprState f a k e m) t S' ->
+  S' = Stuckstate \/
+  exists a', S' = ExprState f a' k e m /\ typeof a' = typeof a /\ simple a' = true /\
+    pure_rval ge e m a = pure_rval ge e m a'.
+Proof.
+  intros ge f a k e m t S' SIMPLE STEP; inversion STEP; subst.
+  - match goal with LR: lred ge e ?A m ?A' ?M', HC: Csem.context LV RV ?C |- _ =>
+      destruct (pure_lred ge e A m A' M' LR) as [HM [HT [HS HE]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with RR: rred ge ?A m t ?A' ?M', HC: Csem.context RV RV ?C |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      destruct (pure_rred ge e A m t A' M' SA RR) as [HM [TT [HT [HS HE]]]]; subst M';
+      right; exists (C A'); repeat split; auto;
+      [exact (context_type_eq _ _ _ HC A' A HT)
+      |exact (simple_context_replace _ _ _ HC A A' (eq_sym HT) SIMPLE HS)
+      |exact (pure_context_congr ge e m _ _ _ HC A A' (eq_sym HT) HE)] end.
+  - match goal with CR: callred ge ?A _ _ _ _, HC: Csem.context RV RV _ |- _ =>
+      let SA := fresh "SA" in assert (SA: simple A = true) by (exact (simple_context_hole _ _ _ HC A SIMPLE));
+      inversion CR; subst; discriminate end.
+  - left; reflexivity.
+Qed.
+
+

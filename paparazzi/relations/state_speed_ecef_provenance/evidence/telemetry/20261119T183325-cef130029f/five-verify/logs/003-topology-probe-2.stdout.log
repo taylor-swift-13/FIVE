@@ -1,0 +1,86 @@
+      SPEEDS_FLOAT_OF_BFP(state.ned_speed_f, state.ned_speed_i);
+      SetBit(state.speed_status, SPEED_NED_F);
+      VECT3_ENU_OF_NED(state.enu_speed_f, state.ned_speed_f);
+    } else if (bit_is_set(state.speed_status, SPEED_ECEF_F)) {
+      enu_of_ecef_vect_f(&state.enu_speed_f, &state.ned_origin_f, &state.ecef_speed_f);
+    } else if (bit_is_set(state.speed_status, SPEED_ECEF_I)) {
+      /* transform ecef_I -> ecef_f -> enu_f , set status bits */
+      SPEEDS_FLOAT_OF_BFP(state.ecef_speed_f, state.ecef_speed_i);
+      SetBit(state.speed_status, SPEED_ECEF_F);
+      enu_of_ecef_vect_f(&state.enu_speed_f, &state.ned_origin_f, &state.ecef_speed_f);
+    } else { /* could not get this representation,  set errno */
+      errno = 1;
+    }
+  } else if (state.utm_initialized_f) {
+    if (bit_is_set(state.speed_status, SPEED_NED_F)) {
+      VECT3_ENU_OF_NED(state.enu_speed_f, state.ned_speed_f);
+    } else if (bit_is_set(state.speed_status, SPEED_ENU_I)) {
+      SPEEDS_FLOAT_OF_BFP(state.enu_speed_f, state.enu_speed_i);
+    } else if (bit_is_set(state.speed_status, SPEED_NED_I)) {
+      SPEEDS_FLOAT_OF_BFP(state.ned_speed_f, state.ned_speed_i);
+      SetBit(state.speed_status, SPEED_NED_F);
+      VECT3_ENU_OF_NED(state.enu_speed_f, state.ned_speed_f);
+    } else { /* could not get this representation,  set errno */
+      errno = 2;
+    }
+  } else { /* ned coordinate system not initialized,  set errno */
+    errno = 3;
+  }
+  if (errno) {
+    //struct EnuCoor_f _enu_zero = {0};
+    //return _enu_zero;
+    return;
+  }
+  /* set bit to indicate this representation is computed */
+  SetBit(state.speed_status, SPEED_ENU_F);
+}
+
+void stateCalcSpeedEcef_f(void)
+{
+  if (bit_is_set(state.speed_status, SPEED_ECEF_F)) {
+    return;
+  }
+
+  if (bit_is_set(state.speed_status, SPEED_ECEF_I)) {
+    SPEEDS_FLOAT_OF_BFP(state.ecef_speed_f, state.ned_speed_i);
+  } else if (bit_is_set(state.speed_status, SPEED_NED_F)) {
+    ecef_of_ned_vect_f(&state.ecef_speed_f, &state.ned_origin_f, &state.ned_speed_f);
+  } else if (bit_is_set(state.speed_status, SPEED_NED_I)) {
+    /* transform ned_f -> ned_i -> ecef_i , set status bits */
+    SPEEDS_FLOAT_OF_BFP(state.ned_speed_f, state.ned_speed_i);
+    SetBit(state.speed_status, SPEED_NED_F);
+    ecef_of_ned_vect_f(&state.ecef_speed_f, &state.ned_origin_f, &state.ned_speed_f);
+  } else {
+    /* could not get this representation,  set errno */
+    //struct EcefCoor_f _ecef_zero = {0.0f};
+    //return _ecef_zero;
+    return;
+  }
+  /* set bit to indicate this representation is computed */
+  SetBit(state.speed_status, SPEED_ECEF_F);
+}
+
+void stateCalcHorizontalSpeedNorm_f(void)
+{
+  if (bit_is_set(state.speed_status, SPEED_HNORM_F)) {
+    return;
+  }
+
+  if (bit_is_set(state.speed_status, SPEED_HNORM_I)) {
+    state.h_speed_norm_f = SPEED_FLOAT_OF_BFP(state.h_speed_norm_i);
+  } else if (bit_is_set(state.speed_status, SPEED_NED_F)) {
+    state.h_speed_norm_f = FLOAT_VECT2_NORM(state.ned_speed_f);
+  } else if (bit_is_set(state.speed_status, SPEED_ENU_F)) {
+    state.h_speed_norm_f = FLOAT_VECT2_NORM(state.enu_speed_f);
+  } else if (bit_is_set(state.speed_status, SPEED_NED_I)) {
+    SPEEDS_FLOAT_OF_BFP(state.ned_speed_f, state.ned_speed_i);
+    SetBit(state.speed_status, SPEED_NED_F);
+    state.h_speed_norm_f = FLOAT_VECT2_NORM(state.ned_speed_f);
+  } else if (bit_is_set(state.speed_status, SPEED_ENU_I)) {
+    SPEEDS_FLOAT_OF_BFP(state.enu_speed_f, state.enu_speed_i);
+    SetBit(state.speed_status, SPEED_ENU_F);
+    state.h_speed_norm_f = FLOAT_VECT2_NORM(state.enu_speed_f);
+  } else {
+    return;
+  }
+  /* set bit to indicate this representation is computed */

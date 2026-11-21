@@ -1,0 +1,25 @@
+PREVIOUS_GENERIC_ROUNDING
+Local Instance prec24 : Prec_gt_0 24 := eq_refl.
+Definition r32 (x : float32) : R := B2R 24 128 x.
+Definition finite (x : float32) : Prop := is_finite 24 128 x = true.
+Definition RN (x : R) : R := round radix2 (FLT_exp (-149) 24) ZnearestE x.
+Definition u : R := bpow radix2 (-24).
+Definition eta : R := bpow radix2 (-150).
+Lemma RN_error : forall x, Rabs (RN x - x) <= u * Rabs x + eta.
+Lemma RN_le : forall x y, x <= y -> RN x <= RN y.
+Lemma RN_fix_generic : forall x,
+Lemma RN_abs_bound_pow : forall x k, (-149 <= k)%Z ->
+Lemma RN_abs_le_2 : forall x, Rabs x <= 2 -> Rabs (RN x) <= 2.
+Lemma RN_abs_le_8 : forall x, Rabs x <= 8 -> Rabs (RN x) <= 8.
+Lemma RN_safe : forall x, Rabs x <= 8 ->
+Lemma u_value : u = /16777216.
+Lemma eta_value : eta = /1427247692705959881058285969449495136382746624.
+Lemma add_finite_real : forall x y, finite x -> finite y ->
+Lemma sub_finite_real : forall x y, finite x -> finite y ->
+Lemma mul_finite_real : forall x y, finite x -> finite y ->
+Lemma div_finite_real : forall x y, finite x -> finite y -> r32 y <> 0 ->
+EXISTING_BASE_TARGET
+schema five-compcert-backend/1
+target {'semantics': 'CompCert Csem/Cexec', 'version': '3.17', 'arch': 'x86', 'model': '64', 'abi': 'standard', 'bitsize': 64, 'system': 'linux', 'endianness': 'little', 'float32': 'IEEE754 binary32', 'rounding': 'round-to-nearest-ties-to-even', 'nan_policy': 'CompCert Floats and target Archi definitions; hashes bind exact policy', 'trust_boundary': 'CompCert C semantics; no automatic GCC binary or hardware equivalence'}
+source {'path': 'paparazzi/models/update_first_order_low_pass/prepare/source/update_first_order_low_pass.c', 'sha256': '19ab80bc756f2e4e73fe959b87e5fea29de39c184cf9349919bcdec1652ef010'}
+NEW_STAGE_STATUS

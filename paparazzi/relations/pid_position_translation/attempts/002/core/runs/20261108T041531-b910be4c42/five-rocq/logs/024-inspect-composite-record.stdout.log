@@ -1,0 +1,444 @@
+Record composite : Type := {
+  co_su: struct_or_union;
+  co_members: members;
+  co_attr: attr;
+  co_sizeof: Z;
+  co_alignof: Z;
+  co_rank: nat;
+  co_sizeof_pos: co_sizeof >= 0;
+  co_alignof_two_p: exists n, co_alignof = two_power_nat n;
+  co_sizeof_alignof: (co_alignof | co_sizeof)
+}.
+
+Definition composite_env : Type := PTree.t composite.
+
+(** Access modes for members of structs or unions: either a plain field
+    or a bitfield *)
+
+Inductive bitfield : Type :=
+  | Full
+  | Bits (sz: intsize) (sg: signedness) (pos: Z) (width: Z).
+
+(** * Operations over types *)
+
+(** ** Conversions *)
+
+Definition type_int32s := Tint I32 Signed noattr.
+Definition type_bool := Tint IBool Signed noattr.
+
+(** The usual unary conversion.  Promotes small integer types to [signed int32]
+  and degrades array types and function types to pointer types.
+  Attributes are erased. *)
+
+Definition typeconv (ty: type) : type :=
+  match ty with
+  | Tint (I8 | I16 | IBool) _ _ => Tint I32 Signed noattr
+  | Tarray t sz a       => Tpointer t noattr
+  | Tfunction _ _ _     => Tpointer ty noattr
+  | _                   => remove_attributes ty
+  end.
+
+(** Default conversion for arguments to an unprototyped or variadic function.
+  Like [typeconv] but also converts single floats to double floats. *)
+
+Definition default_argument_conversion (ty: type) : type :=
+  match ty with
+  | Tint (I8 | I16 | IBool) _ _ => Tint I32 Signed noattr
+  | Tfloat _ _          => Tfloat F64 noattr
+  | Tarray t sz a       => Tpointer t noattr
+  | Tfunction _ _ _     => Tpointer ty noattr
+  | _                   => remove_attributes ty
+  end.
+
+(** ** Complete types *)
+
+(** A type is complete if it fully describes an object.
+  All struct and union names appearing in the type must be defined,
+  unless they occur under a pointer or function type.  [void] and
+  function types are incomplete types. *)
+
+Fixpoint complete_type (env: composite_env) (t: type) : bool :=
+  match t with
+  | Tvoid => false
+  | Tint _ _ _ => true
+  | Tlong _ _ => true
+  | Tfloat _ _ => true
+  | Tpointer _ _ => true
+  | Tarray t' _ _ => complete_type env t'
+  | Tfunction _ _ _ => false
+  | Tstruct id _ | Tunion id _ =>
+      match env!id with Some co => true | 
+Definition composites : list composite_definition :=
+(Composite _Int32Vect2 Struct
+   (Member_plain _x tint :: Member_plain _y tint :: nil)
+   noattr ::
+ Composite _GuidancePID Struct
+   (Member_plain _kp tint :: Member_plain _kd tint ::
+    Member_plain _ki tint :: Member_plain _kv tint ::
+    Member_plain _ka tint :: Member_plain _v_kp tint ::
+    Member_plain _v_kd tint :: Member_plain _v_ki tint ::
+    Member_plain _cmd_earth (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _cmd_thrust tint ::
+    Member_plain _approx_force_by_thrust tbool ::
+    Member_plain _adapt_throttle_enabled tbool :: nil)
+   noattr ::
+ Composite _HorizontalGuidanceSetpoint Struct
+   (Member_plain _pos (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _speed (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _accel (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _heading tfloat :: Member_plain _heading_rate tfloat ::
+    Member_plain _h_mask tint :: Member_plain _yaw_mask tint :: nil)
+   noattr ::
+ Composite _HorizontalGuidanceReference Struct
+   (Member_plain _pos (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _speed (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _accel (Tstruct _Int32Vect2 noattr) :: nil)
+   noattr ::
+ Composite _HorizontalGuidanceRCInput Struct
+   (Member_plain _vect (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _heading tfloat :: Member_plain _last_ts tfloat :: nil)
+   noattr ::
+ Composite _HorizontalGuidance Struct
+   (Member_plain _mode tuchar :: Member_plain _use_ref tbool ::
+    Member_plain _sp (Tstruct _HorizontalGuidanceSetpoint noattr) ::
+    Member_plain _ref (Tstruct _HorizontalGuidanceReference noattr) ::
+    Member_plain _rc_sp (Tstruct _HorizontalGuidanceRCInput noattr) :: nil)
+   noattr ::
+ Composite _EcefCoor_i Struct
+   (Member_plain _x tint :: Member_plain _y tint :: Member_plain _z tint ::
+    nil)
+   noattr ::
+ Composite _LlaCoor_i Struct
+   (Member_plain _lat tint :: Member_plain _lon tint ::
+    Member_plain _alt tint :: nil)
+   noattr ::
+ Composite _Int32RMat Struct (Member_plain _m (tarray tint 9) :: nil) noattr ::
+ Composite _LtpDef_i Struct
+   (Member_plain _ecef (Tstruct _EcefCoor_i noattr) ::
+    Member_plain _lla (Tstruct _LlaCoor_i noattr) ::
+    Member_plain _ltp_of_ecef (Tstruct _Int32RMat noattr) ::
+    Member_plain _hmsl tint :: nil)
+   noattr ::
+ Composite _NedCoor_i Struct
+   (Member_plain _x tint :: Member_plain _y tint :: Member_plain _z tint ::
+    nil)
+   noattr ::
+ Composite _EnuCoor_i Struct
+   (Member_plain _x tint :: Member_plain _y tint :: Member_plain _z tint ::
+    nil)
+   noattr ::
+ Composite _UtmCoor_f Struct
+   (Member_plain _north tfloat :: Member_plain _east tfloat ::
+    Member_plain _alt tfloat :: Member_plain _zone tuchar :: nil)
+   noattr ::
+ Composite _LlaCoor_f Struct
+   (Member_plain _lat tfloat :: Member_plain _lon tfloat ::
+    Member_plain _alt tfloat :: nil)
+   noattr ::
+ Composite _EcefCoor_f Struct
+   (Member_plain _x tfloat :: Member_plain _y tfloat ::
+    Member_plain _z tfloat :: nil)
+   noattr ::
+ Composite _FloatRMat Struct
+   (Member_plain _m (tarray tfloat 9) :: nil)
+   noattr ::
+ Composite _LtpDef_f Struct
+   (Member_plain _ecef (Tstruct _EcefCoor_f noattr) ::
+    Member_plain _lla (Tstruct _LlaCoor_f noattr) ::
+    Member_plain _ltp_of_ecef (Tstruct _FloatRMat noattr) ::
+    Member_plain _hmsl tfloat :: nil)
+   noattr ::
+ Composite _NedCoor_f Struct
+   (Member_plain _x tfloat :: Member_plain _y tfloat ::
+    Member_plain _z tfloat :: nil)
+   noattr ::
+ Composite _EnuCoor_f Struct
+   (Member_plain _x tfloat :: Member_plain _y tfloat ::
+    Member_plain _z tfloat :: nil)
+   noattr ::
+ Composite _Int32Vect3 Struct
+   (Member_plain _x tint :: Member_plain _y tint :: Member_plain _z tint ::
+    nil)
+   noattr ::
+ Composite _Int32Quat Struct
+   (Member_plain _qi tint :: Member_plain _qx tint ::
+    Member_plain _qy tint :: Member_plain _qz tint :: nil)
+   noattr ::
+ Composite _Int32Eulers Struct
+   (Member_plain _phi tint :: Member_plain _theta tint ::
+    Member_plain _psi tint :: nil)
+   noattr ::
+ Composite _FloatQuat Struct
+   (Member_plain _qi tfloat :: Member_plain _qx tfloat ::
+    Member_plain _qy tfloat :: Member_plain _qz tfloat :: nil)
+   noattr ::
+ Composite _FloatEulers Struct
+   (Member_plain _phi tfloat :: Member_plain _theta tfloat ::
+    Member_plain _psi tfloat :: nil)
+   noattr ::
+ Composite _OrientationReps Struct
+   (Member_plain _status tuchar ::
+    Member_plain _quat_i (Tstruct _Int32Quat noattr) ::
+    Member_plain _eulers_i (Tstruct _Int32Eulers noattr) ::
+    Member_plain _rmat_i (Tstruct _Int32RMat noattr) ::
+    Member_plain _quat_f (Tstruct _FloatQuat noattr) ::
+    Member_plain _eulers_f (Tstruct _FloatEulers noattr) ::
+    Member_plain _eulers_zxy_f (Tstruct _FloatEulers noattr) ::
+    Member_plain _rmat_f (Tstruct _FloatRMat noattr) :: nil)
+   noattr ::
+ Composite _Int32Rates Struct
+   (Member_plain _p tint :: Member_plain _q tint :: Member_plain _r tint ::
+    nil)
+   noattr ::
+ Composite _FloatRates Struct
+   (Member_plain _p tfloat :: Member_plain _q tfloat ::
+    Member_plain _r tfloat :: nil)
+   noattr ::
+ Composite _FloatVect3 Struct
+   (Member_plain _x tfloat :: Member_plain _y tfloat ::
+    Member_plain _z tfloat :: nil)
+   noattr ::
+ Composite _FloatVect2 Struct
+   (Member_plain _x tfloat :: Member_plain _y tfloat :: nil)
+   noattr ::
+ Composite __1084 Union
+   (Member_plain _vect3 (Tstruct _Int32Vect3 noattr) ::
+    Member_plain _vect2 (Tstruct _Int32Vect2 noattr) :: nil)
+   noattr ::
+ Composite __1085 Union
+   (Member_plain _vect3 (Tstruct _FloatVect3 noattr) ::
+    Member_plain _vect2 (Tstruct _FloatVect2 noattr) :: nil)
+   noattr ::
+ Composite _State Struct
+   (Member_plain _origin_input_filter tushort ::
+    Member_plain _pos_status tushort ::
+    Member_plain _pos_input_filter tushort ::
+    Member_plain _ecef_pos_i (Tstruct _EcefCoor_i noattr) ::
+    Member_plain _lla_pos_i (Tstruct _LlaCoor_i noattr) ::
+    Member_plain _ned_origin_i (Tstruct _LtpDef_i noattr) ::
+    Member_plain _ned_initialized_i tbool ::
+    Member_plain _ned_pos_i (Tstruct _NedCoor_i noattr) ::
+    Member_plain _enu_pos_i (Tstruct _EnuCoor_i noattr) ::
+    Member_plain _utm_pos_f (Tstruct _UtmCoor_f noattr) ::
+    Member_plain _alt_agl_f tfloat ::
+    Member_plain _lla_pos_f (Tstruct _LlaCoor_f noattr) ::
+    Member_plain _ecef_pos_f (Tstruct _EcefCoor_f noattr) ::
+    Member_plain _ned_origin_f (Tstruct _LtpDef_f noattr) ::
+    Member_plain _ned_initialized_f tbool ::
+    Member_plain _utm_origin_f (Tstruct _UtmCoor_f noattr) ::
+    Member_plain _utm_initialized_f tbool ::
+    Member_plain _ned_pos_f (Tstruct _NedCoor_f noattr) ::
+    Member_plain _enu_pos_f (Tstruct _EnuCoor_f noattr) ::
+    Member_plain _speed_status tushort ::
+    Member_plain _speed_input_filter tushort ::
+    Member_plain _ecef_speed_i (Tstruct _EcefCoor_i noattr) ::
+    Member_plain _ned_speed_i (Tstruct _NedCoor_i noattr) ::
+    Member_plain _enu_speed_i (Tstruct _EnuCoor_i noattr) ::
+    Member_plain _h_speed_norm_i tuint :: Member_plain _h_speed_dir_i tint ::
+    Member_plain _ecef_speed_f (Tstruct _EcefCoor_f noattr) ::
+    Member_plain _ned_speed_f (Tstruct _NedCoor_f noattr) ::
+    Member_plain _enu_speed_f (Tstruct _EnuCoor_f noattr) ::
+    Member_plain _h_speed_norm_f tfloat ::
+    Member_plain _h_speed_dir_f tfloat ::
+    Member_plain _accel_status tuchar ::
+    Member_plain _accel_input_filter tushort ::
+    Member_plain _body_accel_i (Tstruct _Int32Vect3 noattr) ::
+    Member_plain _ned_accel_i (Tstruct _NedCoor_i noattr) ::
+    Member_plain _ecef_accel_i (Tstruct _EcefCoor_i noattr) ::
+    Member_plain _ned_accel_f (Tstruct _NedCoor_f noattr) ::
+    Member_plain _ecef_accel_f (Tstruct _EcefCoor_f noattr) ::
+    Member_plain _ned_to_body_orientation (Tstruct _OrientationReps noattr) ::
+    Member_plain _attitude_input_filter tushort ::
+    Member_plain _rate_status tuchar ::
+    Member_plain _rates_input_filter tushort ::
+    Member_plain _body_rates_i (Tstruct _Int32Rates noattr) ::
+    Member_plain _body_rates_f (Tstruct _FloatRates noattr) ::
+    Member_plain _wind_air_status tuchar ::
+    Member_plain _wind_air_input_filter tushort ::
+    Member_plain _windspeed_i (Tunion __1084 noattr) ::
+    Member_plain _airspeed_i tint ::
+    Member_plain _windspeed_f (Tunion __1085 noattr) ::
+    Member_plain _airspeed_f tfloat ::
+    Member_plain _angle_of_attack_f tfloat ::
+    Member_plain _sideslip_f tfloat :: nil)
+   noattr ::
+ Composite _AttitudeRCInput Struct
+   (Member_plain _rc_quat (Tstruct _FloatQuat noattr) ::
+    Member_plain _rc_eulers (Tstruct _FloatEulers noattr) ::
+    Member_plain _care_free_heading tfloat ::
+    Member_plain _transition_theta_offset tfloat ::
+    Member_plain _last_ts tfloat :: nil)
+   noattr ::
+ Composite __1098 Struct
+   (Member_plain _vect (Tstruct _Int32Vect2 noattr) ::
+    Member_plain _heading tint :: nil)
+   noattr ::
+ Composite __1099 Struct
+   (Member_plain _vect (Tstruct _FloatVect2 noattr) ::
+    Member_plain _heading tfloat :: nil)
+   noattr ::
+ Composite __1097 Union
+   (Member_plain _quat_i (Tstruct _Int32Quat noattr) ::
+    Member_plain _quat_f (Tstruct _FloatQuat noattr) ::
+    Member_plain _eulers_i (Tstruct _Int32Eulers noattr) ::
+    Member_plain _eulers_f (Tstruct _FloatEulers noattr) ::
+    Member_plain _ltp_i (Tstruct __1098 noattr) ::
+    Member_plain _ltp_f (Tstruct __1099 noattr) :: nil)
+   noattr ::
+ Composite __1100 Union
+   (Member_plain _rates_i (Tstruct _Int32Rates noattr) ::
+    Member_plain _rates_f (Tstruct _FloatRates noattr) :: nil)
+   noattr ::
+ Composite _StabilizationSetpoint Struct
+   (Member_plain _type tint :: Member_plain _format tint ::
+    Member_plain _sp (Tunion __1097 noattr) ::
+    Member_plain _r_sp (Tunion __1100 noattr) :: nil)
+   noattr ::
+ Composite _Stabilization Struct
+   (Member_plain _mode tuchar :: Member_plain _att_submode tuchar ::
+    Member_plain _rc_in (Tstruct _AttitudeRCInput noattr) ::
+    Member_plain _rc_sp (Tstruct _StabilizationSetpoint noattr) ::
+    Member_plain _sp (Tstruct _StabilizationSetpoint noattr) ::
+    Member_plain _cmd (tarray tint 4) ::
+    Member_plain _transition_ratio tfloat :: nil)
+   noattr ::
+ Composite __1109 Union
+   (Member_plain _thrust_i (tarray tint 3) ::
+    Member_plain _thrust_f (tarray tfloat 3) ::
+    Member_plain _th_incr_i (tarray tint 3) ::
+    Member_plain _th_incr_f (tarray tfloat 3) :: nil)
+   noattr ::
+ Composite _ThrustSetpoint Struct
+   (Member_plain _type tint :: Member_plain _format tint ::
+    Member_plain _sp (Tunion __1109 noattr) :: nil)
+   noattr ::
+ Composite _VerticalGuidance Struct
+   (Member_plain _mode tuchar :: Member_plain _z_sp tint ::
+    Member_plain _zd_sp tint :: Member_plain _zdd_sp tint ::
+    Member_plain _z_ref tint :: Member_plain _zd_ref tint ::
+    Member_plain _zdd_ref tint :: Member_plain _rc_delta_t tint ::
+    Member_plain _rc_zd_sp tint :: Member_plain _th_sp tint ::
+    Member_plain _thrust (Tstruct _ThrustSetpoint noattr) ::
+    Member_plain _nominal_throttle tfloat ::
+    Member_plain _thrust_coeff tint :: nil)
+   noattr :: nil).
+
+Definition global_definitions : list (ident * globdef fundef type) :=
+((___compcert_va_int32,
+   Gfun(External (EF_runtime "__compcert_va_int32"
+                   (mksignature (AST.Xptr :: nil) AST.Xint cc_default))
+     ((tptr tvoid) :: nil) tuint cc_default)) ::
+ (___compcert_va_int64,
+   Gfun(External (EF_runtime "__compcert_va_int64"
+                   (mksignature (AST.Xptr :: nil) AST.Xlong cc_default))
+     ((tptr tvoid) :: nil) tulong cc_default)) ::
+ (___compcert_va_float64,
+   Gfun(External (EF_runtime "__compcert_va_float64"
+                   (mksignature (AST.Xptr :: nil) AST.Xfloat cc_default))
+     ((tptr tvoid) :: nil) tdouble cc_default)) ::
+ (___compcert_va_composite,
+   Gfun(External (EF_runtime "__compcert_va_composite"
+                   (mksignature (AST.Xptr :: AST.Xlong :: nil) AST.Xptr
+                     cc_default)) ((tptr tvoid) :: tulong :: nil)
+     (tptr tvoid) cc_default)) ::
+ (___compcert_i64_dtos,
+   Gfun(External (EF_runtime "__compcert_i64_dtos"
+                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+     (tdouble :: nil) tlong cc_default)) ::
+ (___compcert_i64_dtou,
+   Gfun(External (EF_runtime "__compcert_i64_dtou"
+                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+     (tdouble :: nil) tulong cc_default)) ::
+ (___compcert_i64_stod,
+   Gfun(External (EF_runtime "__compcert_i64_stod"
+                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+     (tlong :: nil) tdouble cc_default)) ::
+ (___compcert_i64_utod,
+   Gfun(External (EF_runtime "__compcert_i64_utod"
+                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+     (tulong :: nil) tdouble cc_default)) ::
+ (___compcert_i64_stof,
+   Gfun(External (EF_runtime "__compcert_i64_stof"
+                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+     (tlong :: nil) tfloat cc_default)) ::
+ (___compcert_i64_utof,
+   Gfun(External (EF_runtime "__compcert_i64_utof"
+                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+     (tulong :: nil) tfloat cc_default)) ::
+ (___compcert_i64_sdiv,
+   Gfun(External (EF_runtime "__compcert_i64_sdiv"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_udiv,
+   Gfun(External (EF_runtime "__compcert_i64_udiv"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___compcert_i64_smod,
+   Gfun(External (EF_runtime "__compcert_i64_smod"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_umod,
+   Gfun(External (EF_runtime "__compcert_i64_umod"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___compcert_i64_shl,
+   Gfun(External (EF_runtime "__compcert_i64_shl"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+ (___compcert_i64_shr,
+   Gfun(External (EF_runtime "__compcert_i64_shr"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tulong :: tint :: nil) tulong cc_default)) ::
+ (___compcert_i64_sar,
+   Gfun(External (EF_runtime "__compcert_i64_sar"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+ (___compcert_i64_smulh,
+   Gfun(External (EF_runtime "__compcert_i64_smulh"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_umulh,
+   Gfun(External (EF_runtime "__compcert_i64_umulh"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___builtin_ais_annot,
+   Gfun(External (EF_builtin "__builtin_ais_annot"
+                   (mksignature (AST.Xptr :: nil) AST.Xvoid
+                     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
+     ((tptr tschar) :: nil) tvoid
+     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
+ (___builtin_bswap64,
+   Gfun(External (EF_builtin "__builtin_bswap64"
+                   (mksignature (AST.Xlong :: nil) AST.Xlong cc_default))
+     (tulong :: nil) tulong cc_default)) ::
+ (___builtin_bswap,
+   Gfun(External (EF_builtin "__builtin_bswap"
+                   (mksignature (AST.Xint :: nil) AST.Xint cc_default))
+     (tuint :: nil) tuint cc_default)) ::
+ (___builtin_bswap32,
+   Gfun(External (EF_builtin "__builtin_bswap32"
+                   (mksignature (AST.Xint :: nil) AST.Xint cc_default))
+     (tuint :: nil) tuint cc_default)) ::
+ (___builtin_bswap16,
+   Gfun(External (EF_builtin "__builtin_bswap16"
+                   (mksignature (AST.Xint16unsigned :: nil)
+                     AST.Xint16unsigned cc_default)) (tushort :: nil) tushort
+     cc_default)) ::
+ (___builtin_clz,
+   Gfun(External (EF_builtin "__builtin_clz"
+                   (mksignature (AST.Xint :: nil) AST.Xint cc_default))
+     (tuint :: nil) tint cc_default)) ::
+ (___builtin_clzl,
+   Gfun(External (EF_builtin "__builtin_clzl"
+                   (mksignature (AST.Xlong :: nil) AST.Xint cc_default))
+     (tulong :: nil) tint cc_default)) ::
+ (___builtin_clzll,
+   Gfun(External (EF_builtin "__builtin_clzll"
+                   (mksignature (AST.Xlong :: nil) AST.Xint cc_default))
+     (tulong :: nil) tint cc_default)) ::
+ (___builtin_ctz,
+   Gfun(External (EF_builtin "__builtin_ctz"
+                   (mksignatur

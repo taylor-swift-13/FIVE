@@ -1,0 +1,216 @@
+From Stdlib Require Import List ZArith Bool.
+From compcert Require Import AST Integers Floats Values Memory Events Globalenvs Ctypes Csyntax Csem Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic WitnessSetup.
+Import ListNotations.
+Open Scope Z_scope.
+Module Source := PidPositionRunPos.Source.
+Module Execution := PidPositionRunPos.Execution.
+Definition ref_pos (axis:ident) := [Source._ref;Source._pos;axis].
+Definition measured_pos (axis:ident) := [Source._ned_pos_i;axis].
+Definition bounded_path m b ty path lo hi : Prop :=
+ exists v, load_path Mint32 m b ty path=Some(Vint v) /\ lo<=Int.signed v<=hi.
+Definition bounded_global m id ty path lo hi : Prop :=
+ exists v, load_global Mint32 m id ty path=Some(Vint v) /\ lo<=Int.signed v<=hi.
+Definition field_byte (base:block) ty path (b:block) (ofs:Z) : Prop :=
+ b=base /\ exists ft start, path_info ty path=Some(ft,start) /\ start<=ofs<start+4.
+Definition translated_byte (gh:block) (b:block) (ofs:Z) : Prop :=
+ (exists axis, In axis [Source._x;Source._y] /\ field_byte gh gh_type (ref_pos axis) b ofs)
+ \/ (exists sb axis, Genv.find_symbol Execution.ge Source._state=Some sb /\ In axis [Source._x;Source._y] /\ field_byte sb state_type (measured_pos axis) b ofs).
+Definition same_except_positions_and_return (gh ret:block) (a b:mem) : Prop :=
+ Mem.nextblock a=Mem.nextblock b
+ /\ (forall blk ofs k p, Mem.perm a blk ofs k p <-> Mem.perm b blk ofs k p)
+ /\ (forall blk ofs, ~translated_byte gh blk ofs -> blk<>ret -> Mem.loadbytes a blk ofs 1=Mem.loadbytes b blk ofs 1).
+Definition global_bytes_initialized (m:mem) : Prop :=
+ exists init, Genv.init_mem Source.prog=Some init /\ forall b gv, Genv.find_var_info Execution.ge b=Some gv ->
+ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Readable /\ (gvar_readonly gv=true -> forall ofs, 0<=ofs<sizeof ce (gvar_info gv) -> Mem.loadbytes m b ofs 1=Mem.loadbytes init b ofs 1).
+Definition writable_controller_globals (m:mem) : Prop :=
+ forall id, In id [Source._guidance_pid;Source._guidance_pid_pos_err;Source._guidance_pid_speed_err;Source._guidance_pid_trim_att_integrator] ->
+ exists b gv, Genv.find_symbol Execution.ge id=Some b /\ Genv.find_var_info Execution.ge b=Some gv /\ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Writable.
+Definition caches_valid (m:mem) : Prop :=
+ exists ps ss, load_global Mint16unsigned m Source._state state_type [Source._pos_status]=Some(Vint ps)
+ /\ load_global Mint16unsigned m Source._state state_type [Source._speed_status]=Some(Vint ss)
+ /\ Int.and ps (Int.repr 2)=Int.repr 2 /\ Int.and ss (Int.repr 2)=Int.repr 2.
+Definition heading_safe (m:mem) : Prop :=
+ exists h, load_global Mfloat32 m Source._guidance_h gh_type [Source._sp;Source._heading]=Some(Vsingle h)
+ /\ Float32.cmp Cle (Float32.of_int(Int.repr(-3))) h=true
+ /\ Float32.cmp Cle h (Float32.of_int(Int.repr 3))=true.
+Definition InputGoodLegacy (m:mem) (gh ret:block) : Prop :=
+ gh<>ret
+ /\ (forall id, Genv.find_symbol Execution.ge id=Some gh -> id=Source._guidance_h) /\ (forall id, Genv.find_symbol Execution.ge id<>Some ret)
+ /\ Mem.range_perm m gh 0 (sizeof ce gh_type) Cur Readable
+ /\ Mem.range_perm m ret 0 (sizeof ce sp_type) Cur Writable
+ /\ global_bytes_initialized m /\ writable_controller_globals m /\ caches_valid m
+ /\ load_global Mint8unsigned m Source._guidance_pid pid_type [Source._approx_force_by_thrust]=Some(Vint Int.zero)
+ /\ heading_safe m
+ /\ (forall gain, In gain [Source._kp;Source._kd;Source._ki;Source._kv;Source._ka] -> bounded_global m Source._guidance_pid pid_type [gain] 0 100)
+ /\ (forall axis, In axis [Source._x;Source._y] ->
+ bounded_global m Source._guidance_pid_trim_att_integrator vec_type [axis] (-100000000) 100000000
+ /\ bounded_path m gh gh_type [Source._ref;Source._speed;axis] (-10000) 10000
+ /\ bounded_path m gh gh_type [Source._ref;Source._accel;axis] (-10000) 10000
+ /\ bounded_global m Source._state state_type [Source._ned_speed_i;axis] (-10000) 10000).
+(** Attempt 002 correction: readability does not imply an initialized integer.
+    These are input facts; neither contains an execution or output premise. *)
+Definition initialized_positions (m:mem) (gh:block) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ exists r p,
+ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
+ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p).
+Definition position_subtractions_safe (m:mem) (gh:block) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ exists r p,
+ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
+ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p)
+ /\ signed32 (Int.signed r-Int.signed p).
+Definition InputGood (m:mem) (gh ret:block) : Prop :=
+ InputGoodLegacy m gh ret /\ initialized_positions m gh /\ position_subtractions_safe m gh.
+Definition AxisTranslation (gh:block) (a b:mem) (axis:ident) (delta:Z) : Prop :=
+ exists ra pa rb pb,
+ load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint pa)
+ /\ load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint rb)
+ /\ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint pb)
+ /\ physical_translation (Int.signed ra) (Int.signed pa) delta
+ /\ Int.signed rb=Int.signed ra+delta /\ Int.signed pb=Int.signed pa+delta.
+Definition InputPair (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputGood a gh ret /\ InputGood b gh ret
+ /\ same_except_positions_and_return gh ret a b
+ /\ AxisTranslation gh a b Source._x dx /\ AxisTranslation gh a b Source._y dy.
+Definition call_args (gh ret:block) (flight:bool) : list val :=
+ [Vptr ret Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero].
+Definition NormalCall (gh ret:block) (flight:bool) (m mf:mem) : Prop :=
+ exists t v, star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t (Returnstate v Kstop mf).
+Definition same_loaded_int32 (a b:option val) : Prop :=
+ exists v, a=Some(Vint v) /\ b=Some(Vint v).
+Definition ActiveReturnEqual (ret:block) (a b:mem) : Prop :=
+ load_path Mint32 a ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 b ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 a ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ load_path Mint32 b ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ forall path, In path [[Source._sp;Source._ltp_i;Source._vect;Source._x];[Source._sp;Source._ltp_i;Source._vect;Source._y];[Source._sp;Source._ltp_i;Source._heading]] ->
+ same_loaded_int32 (load_path Mint32 a ret sp_type path) (load_path Mint32 b ret sp_type path).
+Definition ControllerEqual (a b:mem) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ same_loaded_int32 (load_global Mint32 a Source._guidance_pid pid_type [Source._cmd_earth;axis]) (load_global Mint32 b Source._guidance_pid pid_type [Source._cmd_earth;axis])
+ /\ same_loaded_int32 (load_global Mint32 a Source._guidance_pid_trim_att_integrator vec_type [axis]) (load_global Mint32 b Source._guidance_pid_trim_att_integrator vec_type [axis]).
+Definition FinalRelation (gh ret:block) (a b:mem) : Prop := ControllerEqual a b /\ ActiveReturnEqual ret a b.
+Definition PositionTranslationGoal : Prop :=
+ forall gh ret a b dx dy flight, InputPair gh ret a b dx dy ->
+ (exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf)
+ /\ (forall af bf, NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> FinalRelation gh ret af bf).
+Definition NoErrorGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret -> forall t s,
+ star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t s -> ~Execution.source_error s.
+Definition AllSuccessorTerminationGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret ->
+ Acc (fun dst src=>exists t,Csem.step Execution.ge src t dst) (Execution.entry(call_args gh ret flight)m).
+Definition NonzeroInput (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputPair gh ret a b dx dy /\ dx<>0
+ /\ exists ra pa, load_path Mint32 a gh gh_type (ref_pos Source._x)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos Source._x)=Some(Vint pa)
+ /\ Int.signed ra-Int.signed pa<>0.
+Definition InputNonvacuityGoal : Prop := exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy.
+Definition NonzeroNonvacuityGoal : Prop :=
+ exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy
+ /\ forall flight, exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf /\ FinalRelation gh ret af bf.
+Definition RelationalFrameGoal : Prop :=
+ forall gh ret a b dx dy flight af bf, InputPair gh ret a b dx dy ->
+ NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> same_except_positions_and_return gh ret af bf.
+From Stdlib Require Import List.
+From compcert Require Import AST Values Memory Events Csem Smallstep.
+From PidPositionRunPos Require Import Execution.
+From PidPositionTranslationProblem Require Import Spec.
+From FiveGuidanceAllOrder Require Import PhaseComposition BlockExecution.
+From PidPositionSafety Require Import PidTermination.
+From PidPositionTranslationAttempt002 Require Import EntryAllOrder ComputedRelation NonemptyInput.
+
+Theorem original_entry_all_normal_memories_unique :
+ forall m gh ret flight af bf,InputGood m gh ret ->
+ NormalCall gh ret flight m af ->NormalCall gh ret flight m bf ->af=bf.
+Proof.
+ intros m gh ret flight af bf GOOD[ta[va PA]][tb[vb PB]].
+ destruct(original_entry_all_orders m gh ret flight GOOD)as[mf[P[CERT INIT]]].
+ destruct(certificate_normal_unique Execution.ge P Vundef mf _ CERT INIT ta va af PA)as[_ A].
+ destruct(certificate_normal_unique Execution.ge P Vundef mf _ CERT INIT tb vb bf PB)as[_ B].
+ congruence.
+Qed.
+
+Theorem proved_position_translation : PositionTranslationGoal.
+Proof.
+ intros gh ret a b dx dy flight PAIR.
+ destruct(constructed_original_position_translation gh ret a b dx dy flight PAIR)
+ as[af[bf[CA[CB REL]]]].
+ split;[exists af,bf;auto|].
+ intros af' bf' CA' CB'.
+ assert(A:af'=af)by(eapply original_entry_all_normal_memories_unique;[exact(proj1 PAIR)|exact CA'|exact CA]).
+ assert(B:bf'=bf)by(eapply original_entry_all_normal_memories_unique;[exact(proj1(proj2 PAIR))|exact CB'|exact CB]).
+ subst af' bf';exact REL.
+Qed.
+
+Theorem proved_no_error : NoErrorGoal.
+Proof.
+ intros gh ret m flight GOOD t reached PATH.
+ destruct(original_entry_all_orders m gh ret flight GOOD)as[mf[P[CERT INIT]]].
+ pose proof(return_stop_nostep Execution.ge Vundef mf)as STOP.
+ destruct(certificate_no_error Execution.ge P _ _ CERT INIT STOP t reached PATH)
+ as[EQ|[tr[next STEP]]].
+ - subst reached;intros[NONNORMAL NS];apply NONNORMAL;exists Vundef,mf;reflexivity.
+ - intros[NONNORMAL NS];eapply NS;exact STEP.
+Qed.
+
+Theorem proved_all_successor_termination : AllSuccessorTerminationGoal.
+Proof.
+ intros gh ret m flight GOOD.
+ exact(PidTermination.all_successor_termination(call_args gh ret flight)m).
+Qed.
+Theorem proved_input_nonvacuity : InputNonvacuityGoal.
+Proof. exact canonical_input_nonvacuity. Qed.
+Theorem proved_nonzero_nonvacuity : NonzeroNonvacuityGoal.
+Proof. exact canonical_nonzero_execution_nonvacuity. Qed.
+Print Assumptions proved_position_translation.
+Print Assumptions proved_no_error.
+Print Assumptions proved_all_successor_termination.
+Print Assumptions proved_input_nonvacuity.
+Print Assumptions proved_nonzero_nonvacuity.
+#include <assert.h>
+#include <guidance_pid_h_run_pos.c>
+extern int32_t nondet_i32(void);
+extern _Bool nondet_bool(void);
+extern float nondet_float(void);
+static int32_t bounded(int32_t lo, int32_t hi) {
+ int32_t x=nondet_i32(); __CPROVER_assume(lo<=x && x<=hi); return x;
+}
+int main(void) {
+ struct HorizontalGuidance a={0},b;
+ int32_t dx=bounded(-1000000,1000000),dy=bounded(-1000000,1000000);
+ a.ref.pos.x=bounded(-1000000,1000000);a.ref.pos.y=bounded(-1000000,1000000);
+ state.ned_pos_i.x=bounded(-1000000,1000000);state.ned_pos_i.y=bounded(-1000000,1000000);
+ state.pos_status=1u<<POS_NED_I;state.speed_status=1u<<SPEED_NED_I;
+ a.ref.speed.x=bounded(-10000,10000);a.ref.speed.y=bounded(-10000,10000);
+ a.ref.accel.x=bounded(-10000,10000);a.ref.accel.y=bounded(-10000,10000);
+ state.ned_speed_i.x=bounded(-10000,10000);state.ned_speed_i.y=bounded(-10000,10000);
+ guidance_pid.kp=bounded(0,100);guidance_pid.kd=bounded(0,100);guidance_pid.ki=bounded(0,100);
+ guidance_pid.kv=bounded(0,100);guidance_pid.ka=bounded(0,100);guidance_pid.approx_force_by_thrust=false;
+ guidance_pid_trim_att_integrator.x=bounded(-100000000,100000000);guidance_pid_trim_att_integrator.y=bounded(-100000000,100000000);
+ guidance_h.sp.heading=nondet_float();__CPROVER_assume(guidance_h.sp.heading>=-3.0f && guidance_h.sp.heading<=3.0f);
+ struct GuidancePID initial_pid=guidance_pid;
+ struct Int32Vect2 initial_i=guidance_pid_trim_att_integrator;
+ struct State initial_state=state;
+ _Bool flight=nondet_bool();
+ b=a;b.ref.pos.x=a.ref.pos.x+dx;b.ref.pos.y=a.ref.pos.y+dy;
+ struct StabilizationSetpoint ra=guidance_pid_h_run_pos(flight,&a);
+ struct GuidancePID final_a=guidance_pid;
+ struct Int32Vect2 integral_a=guidance_pid_trim_att_integrator,err_a=guidance_pid_pos_err;
+ guidance_pid=initial_pid;guidance_pid_trim_att_integrator=initial_i;state=initial_state;
+ state.ned_pos_i.x=initial_state.ned_pos_i.x+dx;state.ned_pos_i.y=initial_state.ned_pos_i.y+dy;
+ struct StabilizationSetpoint rb=guidance_pid_h_run_pos(flight,&b);
+ assert(guidance_pid_pos_err.x==err_a.x && guidance_pid_pos_err.y==err_a.y);
+ assert(guidance_pid.cmd_earth.x==final_a.cmd_earth.x && guidance_pid.cmd_earth.y==final_a.cmd_earth.y);
+ assert(guidance_pid_trim_att_integrator.x==integral_a.x && guidance_pid_trim_att_integrator.y==integral_a.y);
+ assert(ra.type==rb.type && ra.format==rb.format);
+ assert(ra.sp.ltp_i.vect.x==rb.sp.ltp_i.vect.x && ra.sp.ltp_i.vect.y==rb.sp.ltp_i.vect.y && ra.sp.ltp_i.heading==rb.sp.ltp_i.heading);
+ assert(a.ref.pos.x+dx==b.ref.pos.x && a.ref.pos.y+dy==b.ref.pos.y);
+
+}
+From PidPositionTranslationProblem Require Import Spec.
+Definition RequestedGoal : Prop := Spec.NoErrorGoal.

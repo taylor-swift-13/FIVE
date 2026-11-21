@@ -1,0 +1,37 @@
+1 focused goal (shelved: 2)
+  
+  ge : genv
+  e : env
+  m : mem
+  bb : block
+  oo : ptrofs
+  ff : bitfield
+  tt : type
+  LCH :
+    forall (b : block) (ofs : ptrofs) (bf : bitfield),
+    branch_lval ge e m (Eloc bb oo ff tt) = Some (b, ofs, bf) ->
+    imm_safe ge e LV (Eloc bb oo ff tt) m
+  RCH :
+    forall v : val,
+    branch_rval ge e m (Eloc bb oo ff tt) = Some v ->
+    imm_safe ge e RV (Eloc bb oo ff tt) m
+  CORE0 : branch_simple (Eloc bb oo ff tt) = true
+  CORE : nv (typeof (Eloc bb oo ff tt)) = true
+  v : val
+  OPT :
+    type_eq (typeof (Eloc bb oo ff tt)) (typeof (Eloc bb oo ff tt)) =
+    left eq_refl
+  b : bitfield
+  b0 : block
+  i : ptrofs
+  OPT0 : Some (bb, oo, ff) = Some (b0, i, b)
+  w : world
+  t : trace
+  H : Some v = Some v
+  LI : literal LV (Eloc bb oo ff tt) = true
+  OPT3 :
+    do_deref_loc ge branch_world (typeof (Eloc bb oo ff tt)) m b0 i b =
+    Some (w, t, v)
+  DR : deref_loc ge (typeof (Eloc bb oo ff tt)) m b0 i b t v
+  ============================
+  deref_loc ge (typeof (Eloc bb oo ff tt)) m bb oo ff ?t ?v

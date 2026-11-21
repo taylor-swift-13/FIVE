@@ -1,0 +1,229 @@
+SOURCE _build/paparazzi/upstream/sw/airborne/state.c
+SOURCE _build/paparazzi/upstream/sw/airborne/state.h
+.enu_speed_f;
+}
+
+/// Get ground speed in ECEF coordinates (float).
+static inline struct EcefCoor_f *stateGetSpeedEcef_f(void)
+{
+  if (!bit_is_set(state.speed_status, SPEED_ECEF_F)) {
+    stateCalcSpeedEcef_f();
+  }
+  return &state.ecef_speed_f;
+}
+
+/// Get norm of horizontal ground speed (float).
+static inline float stateGetHorizontalSpeedNorm_f(void)
+{
+  if (!bit_is_set(state.speed_status, SPEED_HNORM_F)) {
+    stateCalcHorizontalSpeedNorm_f();
+  }
+  return state.h_speed_norm_f;
+}
+
+/// Get dir of horizontal ground speed (float).
+static inline float stateGetHorizontalSpeedDir_f(void)
+{
+  if (!bit_is_set(state.speed_status, SPEED_HDIR_F)) {
+    stateCalcHorizontalSpeedDir_f();
+  }
+  return state.h_speed_dir_f;
+}
+
+/// Get acceleration in Body coordinates (int).
+static inline struct Int32Vect3 *stateGetAccelBody_i(void)
+{
+  return &state.body_accel_i;
+}
+/** @}*/
+
+static inline struct FloatVect3 *stateGetAccelBody_f(void)
+{
+  static struct FloatVect3 body_accel_f;
+  body_accel_f.x = FLOAT_OF_BFP(state.body_accel_i.x, INT32_ACCEL_FRAC);
+  body_accel_f.y = FLOAT_OF_BFP(state.body_accel_i.y, INT32_ACCEL_FRAC);
+  body_accel_f.z = FLOAT_OF_BFP(state.body_accel_i.z, INT32_ACCEL_FRAC);
+  return &body_accel_f;
+}
+
+
+/******************************************************************************
+ *                                                                            *
+ * Set and Get functions for the ACCELERATION representations                 *
+ *                                                                            *
+ *****************************************************************************/
+/** @addtogroup state_acceleration
+ *  @{ */
+
+/************* declaration of transformation functions ************/
+extern void stateCalcAccelNed_i(void);
+extern void stateCalcAccelEcef_i(void);
+extern void stateCalcAccelNed_f(void);
+extern void stateCalcAccelEcef_f(void);
+
+/*********************** validity test functions ******************/
+
+/// Test if accelerations are valid.
+static inline bool stateIsAccelValid(void)
+{
+  return (state.accel_status);
+}
+
+/************************ Set functions ****************************/
+
+/// Set acceleration in NED coordinates (int).
+s
+_status = (1 << SPEED_ENU_I);
+}
+
+/// Set ground speed in ECEF coordinates (int).
+static inline void stateSetSpeedEcef_i(uint16_t id, struct EcefCoor_i *ecef_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ecef_speed_i, *ecef_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ECEF_I);
+}
+
+/// Set multiple speed coordinates (int).
+static inline void stateSetSpeed_i(
+  uint16_t id,
+  struct EcefCoor_i *ecef_speed,
+  struct NedCoor_i *ned_speed,
+  struct EnuCoor_i *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  /* clear all status bit */
+  state.speed_status = 0;
+  if (ecef_speed != NULL) {
+    VECT3_COPY(state.ecef_speed_i, *ecef_speed);
+    state.speed_status |= (1 << SPEED_ECEF_I);
+  }
+  if (ned_speed != NULL) {
+    VECT3_COPY(state.ned_speed_i, *ned_speed);
+    state.speed_status |= (1 << SPEED_NED_I);
+  }
+  if (enu_speed != NULL) {
+    VECT3_COPY(state.enu_speed_i, *enu_speed);
+    state.speed_status |= (1 << SPEED_ENU_I);
+  }
+}
+
+/// Set ground speed in local NED coordinates (float).
+static inline void stateSetSpeedNed_f(uint16_t id, struct NedCoor_f *ned_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ned_speed_f, *ned_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_NED_F);
+}
+
+/// Set ground speed in local ENU coordinates (float).
+static inline void stateSetSpeedEnu_f(uint16_t id, struct EnuCoor_f *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.enu_speed_f, *enu_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ENU_F);
+}
+
+/// Set ground speed in ECEF coordinates (float).
+static inline void stateSetSpeedEcef_f(uint16_t id, struct EcefCoor_f *ecef_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ecef_speed_f, *ecef_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ECEF_F);
+}
+
+/// Set multiple spe
+*************************/
+
+/// Set ground speed in local NED coordinates (int).
+static inline void stateSetSpeedNed_i(uint16_t id, struct NedCoor_i *ned_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ned_speed_i, *ned_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_NED_I);
+}
+
+/// Set ground speed in local ENU coordinates (int).
+static inline void stateSetSpeedEnu_i(uint16_t id, struct EnuCoor_i *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.enu_speed_i, *enu_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ENU_I);
+}
+
+/// Set ground speed in ECEF coordinates (int).
+static inline void stateSetSpeedEcef_i(uint16_t id, struct EcefCoor_i *ecef_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ecef_speed_i, *ecef_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_ECEF_I);
+}
+
+/// Set multiple speed coordinates (int).
+static inline void stateSetSpeed_i(
+  uint16_t id,
+  struct EcefCoor_i *ecef_speed,
+  struct NedCoor_i *ned_speed,
+  struct EnuCoor_i *enu_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  /* clear all status bit */
+  state.speed_status = 0;
+  if (ecef_speed != NULL) {
+    VECT3_COPY(state.ecef_speed_i, *ecef_speed);
+    state.speed_status |= (1 << SPEED_ECEF_I);
+  }
+  if (ned_speed != NULL) {
+    VECT3_COPY(state.ned_speed_i, *ned_speed);
+    state.speed_status |= (1 << SPEED_NED_I);
+  }
+  if (enu_speed != NULL) {
+    VECT3_COPY(state.enu_speed_i, *enu_speed);
+    state.speed_status |= (1 << SPEED_ENU_I);
+  }
+}
+
+/// Set ground speed in local NED coordinates (float).
+static inline void stateSetSpeedNed_f(uint16_t id, struct NedCoor_f *ned_speed)
+{
+  STATE_CHECK_INPUT_AND_RETURN(state.speed_input_filter, id);
+
+  VECT3_COPY(state.ned_speed_f, *ned_speed);
+  /* clear bits for all speed representations and only set the new one */
+  state.speed_status = (1 << SPEED_NED_F);
+}
+
+/// Set ground speed in local 
+CASE stateSetSpeedEcef_i
+paparazzi/models/stateSetSpeedEcef_i/rocq/cbmc_recheck/problem/status.json proved
+paparazzi/models/stateSetSpeedEcef_i/rocq/execution_correspondence/problem/status.json proved
+paparazzi/models/stateSetSpeedEcef_i/rocq/no_error/problem/status.json proved
+paparazzi/models/stateSetSpeedEcef_i/rocq/termination/problem/status.json proved
+CASE stateSetSpeedNed_i
+paparazzi/models/stateSetSpeedNed_i/rocq/cbmc_recheck/problem/status.json proved
+paparazzi/models/stateSetSpeedNed_i/rocq/execution_correspondence/problem/status.json proved
+paparazzi/models/stateSetSpeedNed_i/rocq/no_error/problem/status.json proved
+paparazzi/models/stateSetSpeedNed_i/rocq/termination/problem/status.json proved
+CASE stateGetSpeedEcef_f
+paparazzi/models/stateGetSpeedEcef_f/rocq/cbmc_recheck/problem/status.json proved
+paparazzi/models/stateGetSpeedEcef_f/rocq/functional/problem/status.json proved
+paparazzi/models/stateGetSpeedEcef_f/rocq/execution_correspondence/problem/status.json proved
+paparazzi/models/stateGetSpeedEcef_f/rocq/no_error/problem/status.json proved
+paparazzi/models/stateGetSpeedEcef_f/rocq/termination/problem/status.json proved
+EXISTING_SUPPORT ['ObserverHistory.v', 'Protocol.v', 'Refutations.v', 'ObserverCopy.v', 'SourceComparison.v', 'InitialMemory.v', 'CBMCGuardSpec.v', 'MemoryBridge.v', 'CBMCGuardProof.v', 'HarnessObservation.v', 'CBMCObserverProof.v', 'MemoryLayout.v']

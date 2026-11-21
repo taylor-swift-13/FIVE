@@ -1,0 +1,619 @@
+
+FILE paparazzi/models/stateGetSpeedEcef_f/rocq/support/GetterSource.v
+
+From Stdlib Require Import List Bool Lia.
+From compcert Require Import Coqlib Integers AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.
+From StateSpeedGetEcefF Require Import Source Execution.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+From StateSpeedMemory Require Import MemoryBridge.
+From StateSpeedGetterSupport Require Import NamedClosure.
+Import ListNotations.
+Definition ge:=Execution.ge.
+Definition allowed(fd:Csyntax.fundef):Prop :=
+ fd=Internal Source.f_ecef_of_enu_vect_f \/ fd=Internal Source.f_ecef_of_ned_vect_f \/
+ fd=Internal Source.f_stateCalcSpeedEcef_f \/ fd=Internal Source.f_stateGetSpeedEcef_f.
+Definition calc_type:=Tfunction[]tvoid cc_default.
+Definition ned_type:=Tfunction[tptr(Tstruct Source._EcefCoor_f noattr);tptr(Tstruct Source._LtpDef_f noattr);tptr(Tstruct Source._NedCoor_f noattr)]tvoid cc_default.
+Definition enu_type:=Tfunction[tptr(Tstruct Source._EcefCoor_f noattr);tptr(Tstruct Source._LtpDef_f noattr);tptr(Tstruct Source._EnuCoor_f noattr)]tvoid cc_default.
+Definition signature_weight(ty:type):nat :=
+ if type_eq ty calc_type then 100000 else if type_eq ty ned_type then 10000 else 1000.
+Definition budget(ty:type)(fd:Csyntax.fundef):Prop :=
+ (MemoryBridge.activation_rank signature_weight fd+2<signature_weight ty)%nat.
+Local Notation CS:=(NamedClosure.core_stmt ge allowed budget).
+Definition named_function(id:ident)(fd:Csyntax.fundef):Prop :=
+ exists b,Genv.find_symbol ge id=Some b /\ Genv.find_funct ge(Vptr b Ptrofs.zero)=Some fd.
+Lemma calc_lookup:named_function Source._stateCalcSpeedEcef_f(Internal Source.f_stateCalcSpeedEcef_f).
+Proof. eexists;split;lazy;reflexivity. Qed.
+Lemma ned_lookup:named_function Source._ecef_of_ned_vect_f(Internal Source.f_ecef_of_ned_vect_f).
+Proof. eexists;split;lazy;reflexivity. Qed.
+Lemma enu_lookup:named_function Source._ecef_of_enu_vect_f(Internal Source.f_ecef_of_enu_vect_f).
+Proof. eexists;split;lazy;reflexivity. Qed.
+Lemma calc_budget:budget calc_type(Internal Source.f_stateCalcSpeedEcef_f).
+Proof. unfold budget;apply Nat.ltb_lt;vm_compute;reflexivity. Qed.
+Lemma ned_budget:budget ned_type(Internal Source.f_ecef_of_ned_vect_f).
+Proof. unfold budget;apply Nat.ltb_lt;vm_compute;reflexivity. Qed.
+Lemma enu_budget:budget enu_type(Internal Source.f_ecef_of_enu_vect_f).
+Proof. unfold budget;apply Nat.ltb_lt;vm_compute;reflexivity. Qed.
+Lemma named_safe:forall id fd params ret cc,
+ named_function id fd->allowed fd->budget(Tfunction params ret cc)fd->
+ NamedClosure.safe_variable ge allowed budget id(Tfunction params ret cc).
+Proof.
+ intros id fd params ret cc[b[SYM FIND]]ALLOW BUD;right;exists b;split;auto.
+ cbn[NamedClosure.safe_location];split;auto.
+ cbn[NamedClosure.safe_value classify_fun];intros other LOOK.
+ rewrite FIND in LOOK;inversion LOOK;subst;auto.
+Qed.
+Lemma calc_safe:NamedClosure.safe_variable ge allowed budget Source._stateCalcSpeedEcef_f calc_type.
+Proof. eapply named_safe;[exact calc_lookup|unfold allowed;auto|exact calc_budget]. Qed.
+Lemma ned_safe:NamedClosure.safe_variable ge allowed budget Source._ecef_of_ned_vect_f ned_type.
+Proof. eapply named_safe;[exact ned_lookup|unfold allowed;auto|exact ned_budget]. Qed.
+Lemma enu_safe:NamedClosure.safe_variable ge allowed budget Source._ecef_of_enu_vect_f enu_type.
+Proof. eapply named_safe;[exact enu_lookup|unfold allowed;auto|exact enu_budget]. Qed.
+Ltac build_core :=
+ repeat match goal with |- _ /\ _=>split end;
+ first[reflexivity|exact I|exact calc_safe|exact ned_safe|exact enu_safe|
+ solve[apply NamedClosure.data_value;exact I]|
+ solve[apply NamedClosure.data_location;exact I]|
+ solve[apply NamedClosure.data_variable;exact I]].
+Lemma enu_core:CS(fn_body Source.f_ecef_of_enu_vect_f).
+Proof. cbn[fn_body Source.f_ecef_of_enu_vect_f NamedClosure.core_stmt NamedClosure.core_expr NamedClosure.core_exprlist NamedClosure.nv];build_core. Qed.
+Lemma ned_core:CS(fn_body Source.f_ecef_of_ned_vect_f).
+Proof. cbn[fn_body Source.f_ecef_of_ned_vect_f NamedClosure.core_stmt NamedClosure.core_expr NamedClosure.core_exprlist NamedClosure.nv];build_core. Qed.
+Lemma calc_core:CS(fn_body Source.f_stateCalcSpeedEcef_f).
+Proof. cbn[fn_body Source.f_stateCalcSpeedEcef_f NamedClosure.core_stmt NamedClosure.core_expr NamedClosure.core_exprlist NamedClosure.nv];build_core. Qed.
+Lemma getter_core:CS(fn_body Source.f_stateGetSpeedEcef_f).
+Proof. cbn[fn_body Source.f_stateGetSpeedEcef_f NamedClosure.core_stmt NamedClosure.core_expr NamedClosure.core_exprlist NamedClosure.nv];build_core. Qed.
+Lemma internal_body:forall f,allowed(Internal f)->CS(fn_body f).
+Proof.
+ intros f[EQ|[EQ|[EQ|EQ]]];inversion EQ;subst;auto using enu_core,ned_core,calc_core,getter_core.
+Qed.
+Lemma internal_variables:forall f,allowed(Internal f)->
+ Forall(fun idty=>NamedClosure.data_type(snd idty))(fn_params f++fn_vars f).
+Proof.
+ intros f[EQ|[EQ|[EQ|EQ]]];inversion EQ;subst;
+ repeat constructor;exact I.
+Qed.
+Lemma external_supported:forall ef args ret cc,allowed(External ef args ret cc)->executable_builtin ef=true.
+Proof. intros ef args ret cc[EQ|[EQ|[EQ|EQ]]];discriminate. Qed.
+Definition source_state:=NamedClosure.source_state ge allowed budget.
+Theorem entry_source:forall args m,source_state(Execution.entry args m).
+Proof. intros;split;[|constructor];unfold allowed;auto. Qed.
+Theorem source_step_invariant:forall s t next,source_state s->Csem.step ge s t next->t=E0 /\source_state next.
+Proof. exact(NamedClosure.source_step_invariant ge allowed budget internal_body internal_variables external_supported). Qed.
+Theorem one_step_correspondence:forall cb asm w s t next,source_state s->
+ ((exists rule,In(TR rule t next)(Cexec.do_step ge cb asm w s))<->Csem.step ge s t next).
+Proof. exact(NamedClosure.source_do_step_exact ge allowed budget internal_body internal_variables external_supported). Qed.
+Theorem source_reachable:forall args m t reached,star Csem.step ge(Execution.entry args m)t reached->source_state reached.
+Proof. intros args m t reached PATH;pose proof(entry_source args m)as INIT;induction PATH;auto;apply IHPATH;exact(proj2(source_step_invariant _ _ _ INIT H)). Qed.
+Definition closed_step:=Execution.model_step Execution.no_external Execution.no_external Execution.quiet_world.
+Theorem whole_execution_correspondence:forall args m t final,
+ star closed_step tt(Execution.entry args m)t final<->star Csem.step ge(Execution.entry args m)t final.
+Proof.
+ intros args m t final;split;intro PATH;pose proof(entry_source args m)as INIT;
+ revert INIT;induction PATH;intros INV;[constructor| |constructor|].
+ - pose proof(proj1(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV)H)as STEP.
+   eapply star_step;[exact STEP|apply IHPATH;exact(proj2(source_step_invariant _ _ _ INV STEP))|assumption].
+ - eapply star_step.
+   + apply(proj2(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact H.
+   + apply IHPATH;exact(proj2(source_step_invariant _ _ _ INV H)).
+   + assumption.
+Qed.
+Theorem invalid_operation_correspondence:forall args m t reached,
+ star Csem.step ge(Execution.entry args m)t reached->
+ (Execution.source_error reached<->~Execution.normal_return reached /\nostep closed_step tt reached).
+Proof.
+ intros args m t reached PATH;pose proof(source_reachable _ _ _ _ PATH)as INV.
+ unfold Execution.source_error;split;intros[N STOP];split;auto;intros tr nxt STEP;apply(STOP tr nxt).
+ - apply(proj1(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact STEP.
+ - apply(proj2(one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world _ _ _ INV));exact STEP.
+Qed.
+Print Assumptions entry_source.
+Print Assumptions one_step_correspondence.
+Print Assumptions whole_execution_correspondence.
+Print Assumptions invalid_operation_correspondence.
+
+
+Lemma core_statement_finite:forall stmt,CS stmt->MemoryBridge.finite_statement stmt=true.
+Proof.
+ induction stmt;cbn[NamedClosure.core_stmt MemoryBridge.finite_statement];intros CO;try contradiction;
+ repeat match goal with H:_ /\ _|-_=>destruct H end;try reflexivity;
+ apply andb_true_iff;split;auto.
+Qed.
+Lemma core_continuation_finite:forall k,
+ NamedClosure.core_cont ge allowed budget k->MemoryBridge.finite_continuation k.
+Proof. induction 1;constructor;auto using core_statement_finite. Qed.
+Lemma source_finite:forall s,source_state s->MemoryBridge.finite_state s.
+Proof.
+ destruct s;cbn[source_state NamedClosure.source_state MemoryBridge.finite_state];intros CO;
+ repeat match goal with H:_ /\ _|-_=>destruct H end;
+ auto using core_continuation_finite;
+ split;auto using core_statement_finite,core_continuation_finite.
+Qed.
+Lemma source_budget:forall s,source_state s->
+ MemoryBridge.calls_within_budget signature_weight ge s.
+Proof.
+ destruct s as[f stmt k e m|f original k e m|fd args k m|v k m|];
+ cbn[MemoryBridge.calls_within_budget];intros INV;try exact I.
+ cbn[source_state NamedClosure.source_state]in INV;destruct INV as[CORE[CONT ENV]].
+ intros C a fd args ty HC EQ RED;subst original.
+ pose proof(NamedClosure.core_context_hole ge allowed budget _ _ _ HC a CORE)as CO.
+ destruct(NamedClosure.core_callred ge allowed budget _ _ _ _ _ CO RED)as[ALLOW[BUD[NV TY]]].
+ inversion RED;subst;simpl in BUD;unfold budget in BUD;
+ cbn[MemoryBridge.expression_rank typeof];lia.
+Qed.
+Theorem source_all_successors_accessible:forall s,source_state s->Acc(successor ge)s.
+Proof.
+ apply(MemoryBridge.all_successors_accessible signature_weight ge source_state source_finite source_budget).
+ intros s t next INV STEP;exact(proj2(source_step_invariant _ _ _ INV STEP)).
+Qed.
+Theorem all_successors_termination:forall args m,Acc(successor ge)(Execution.entry args m).
+Proof. intros;eapply source_all_successors_accessible;apply entry_source. Qed.
+Theorem all_successor_termination:forall args m,Acc(successor ge)(Execution.entry args m).
+Proof. exact all_successors_termination. Qed.
+Theorem reachable_all_successors_termination:forall args m t reached,
+ star Csem.step ge(Execution.entry args m)t reached->Acc(successor ge)reached.
+Proof. intros;eapply source_all_successors_accessible;eapply source_reachable;eauto. Qed.
+Print Assumptions all_successors_termination.
+Print Assumptions reachable_all_successors_termination.
+
+Print Assumptions calc_lookup.
+Print Assumptions ned_lookup.
+Print Assumptions enu_lookup.
+Print Assumptions all_successor_termination.
+
+
+FILE paparazzi/models/stateGetSpeedEcef_f/rocq/support/Body.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Events Globalenvs Maps Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation AtomicDenotation CallfreeExecution.
+From StateSpeedSetterSupport Require Import MemoryFacts Certificates.
+From StateSpeedGetterSupport Require Import Setup Layout.
+Import ListNotations.
+Open Scope Z_scope.
+Local Opaque ge E.ge.
+Lemma commit_float:forall m b ofs v mf,
+ 0<=ofs<=Ptrofs.max_unsigned->ofs+4<=Ptrofs.modulus->Mem.store Mfloat32 m b ofs(Vsingle v)=Some mf->
+ commit ge m tfloat(b,Ptrofs.repr ofs,Full)(Vsingle v)tfloat=Some(Vsingle v,mf).
+Proof.
+ intros m b ofs v mf RANGE END STORE.
+ change((match Cexec.do_assign_loc ge quiet_world tfloat m b(Ptrofs.repr ofs)Full(Vsingle v)with Some(_,_,mm,vf)=>Some(vf,mm)|None=>None end)=Some(Vsingle v,mf)).
+ unfold Cexec.do_assign_loc;cbn[tfloat access_mode type_is_volatile];unfold Mem.storev.
+ rewrite Ptrofs.unsigned_repr by exact RANGE;rewrite zle_true by exact END;rewrite STORE;reflexivity.
+Qed.
+Lemma assignment_evaluates:forall e m mf sb axis delta i,
+ e!S._state=None->Genv.find_symbol ge S._state=Some sb->
+ layout S._NedCoor_i axis=Some(delta,Full)->layout S._EcefCoor_f axis=Some(delta,Full)->0<=delta<=8->
+ Mem.load Mint32 m sb(296+delta)=Some(Vint i)->Mem.store Mfloat32 m sb(328+delta)(Vsingle(decode i))=Some mf->
+ atomic_eval ge e m(match assignment axis with Sdo a=>a|_=>Eval Vundef tvoid end)=Some(Vsingle(decode i),mf).
+Proof.
+ intros e m mf sb axis delta i NONE SYM NI FF RANGE LOAD STORE.
+ cbn[assignment atomic_eval typeof];rewrite dec_eq_true.
+ rewrite(float_axis_address e m sb axis delta NONE SYM FF).
+ rewrite(conversion_value e m sb axis delta i NONE SYM NI RANGE LOAD).
+ apply commit_float;[change(0<=328+delta<=18446744073709551615);lia|change(328+delta+4<=18446744073709551616);lia|exact STORE].
+Qed.
+Lemma marker_evaluates:forall e m mf sb,
+ e!S._state=None->Genv.find_symbol ge S._state=Some sb->Mem.load Mint16unsigned m sb 280=Some(Vint Int.one)->
+ Mem.store Mint16unsigned m sb 280(Vint(Int.repr 33))=Some mf->
+ atomic_eval ge e m(match marker with Sdo a=>a|_=>Eval Vundef tvoid end)=Some(Vint(Int.repr 33),mf).
+Proof.
+ intros e m mf sb NONE SYM LOAD STORE.
+ cbn[marker atomic_eval typeof];rewrite dec_eq_true;unfold status_lvalue.
+ rewrite(state_field_address e m sb S._speed_status tushort 280 NONE SYM status_layout).
+ cbn[pure_rval typeof].
+ rewrite(scalar_deref ge m tushort Mint16unsigned sb 280(Vint Int.one)eq_refl eq_refl ltac:(change(0<=280<=18446744073709551615);lia)ltac:(change(280+2<=18446744073709551616);lia)LOAD).
+ change((match Cexec.do_assign_loc ge quiet_world tushort m sb(Ptrofs.repr 280)Full(Vint(Int.repr 33))with Some(_,_,mm,vf)=>Some(vf,mm)|None=>None end)=Some(Vint(Int.repr 33),mf)).
+ unfold Cexec.do_assign_loc;cbn[tushort access_mode type_is_volatile];unfold Mem.storev.
+ rewrite Ptrofs.unsigned_repr by(change(0<=280<=18446744073709551615);lia).
+ rewrite zle_true by(change(280+2<=18446744073709551616);lia);rewrite STORE;reflexivity.
+Qed.
+Theorem body_evaluates:forall e m m1 m2 m3 mf sb x y z,
+ e!S._state=None->Genv.find_symbol ge S._state=Some sb->
+ Mem.load Mint16unsigned m sb 280=Some(Vint Int.one)->
+ Mem.load Mint32 m sb 296=Some(Vint x)->Mem.load Mint32 m sb 300=Some(Vint y)->Mem.load Mint32 m sb 304=Some(Vint z)->
+ Mem.store Mfloat32 m sb 328(Vsingle(decode x))=Some m1->Mem.store Mfloat32 m1 sb 332(Vsingle(decode y))=Some m2->
+ Mem.store Mfloat32 m2 sb 336(Vsingle(decode z))=Some m3->Mem.store Mint16unsigned m3 sb 280(Vint(Int.repr 33))=Some mf->
+ stmt_eval ge e tvoid(Ssequence conversion_block marker)m=Some(Nnormal,mf).
+Proof.
+ intros e m m1 m2 m3 mf sb x y z NONE SYM STATUS A B C X Y ZS ST.
+ destruct ned_axes as[NX[NY NZ]];destruct float_axes as[FX[FY FZ]].
+ assert(B1:Mem.load Mint32 m1 sb 300=Some(Vint y)).
+ { erewrite Mem.load_store_other;[exact B|exact X|right;left;cbn;lia]. }
+ assert(C2:Mem.load Mint32 m2 sb 304=Some(Vint z)).
+ { erewrite Mem.load_store_other;[|exact Y|right;left;cbn;lia].
+   erewrite Mem.load_store_other;[exact C|exact X|right;left;cbn;lia]. }
+ assert(S3:Mem.load Mint16unsigned m3 sb 280=Some(Vint Int.one)).
+ { erewrite Mem.load_store_other;[|exact ZS|right;left;cbn;lia].
+   erewrite Mem.load_store_other;[|exact Y|right;left;cbn;lia].
+   erewrite Mem.load_store_other;[exact STATUS|exact X|right;left;cbn;lia]. }
+ pose proof(assignment_evaluates e m m1 sb S._x 0 x NONE SYM NX FX ltac:(lia)A X)as AX.
+ pose proof(assignment_evaluates e m1 m2 sb S._y 4 y NONE SYM NY FY ltac:(lia)B1 Y)as AY.
+ pose proof(assignment_evaluates e m2 m3 sb S._z 8 z NONE SYM NZ FZ ltac:(lia)C2 ZS)as AZ.
+ pose proof(marker_evaluates e m3 mf sb NONE SYM S3 ST)as MARK.
+ eapply sequence_evaluates with(ma:=m3).
+ - unfold conversion_block;eapply sequence_evaluates with(ma:=m1);[eapply atomic_statement_evaluates;exact AX|].
+   eapply sequence_evaluates with(ma:=m2);eapply atomic_statement_evaluates;[exact AY|exact AZ].
+ - eapply atomic_statement_evaluates;exact MARK.
+Qed.
+Print Assumptions body_evaluates.
+
+
+FILE paparazzi/models/stateGetSpeedEcef_f/rocq/support/Certificates.v
+From Stdlib Require Import List Classical.
+From compcert Require Import Coqlib Values Memory Events Ctypes Csyntax Csem Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation CallfreeExecution PhaseComposition.
+Import ListNotations.
+Lemma empty_function_unique:forall ge f k m,
+ fn_params f=[]->fn_vars f=[]->
+ unique_transition ge(Callstate(Internal f)[]k m)(State f(fn_body f)k empty_env m).
+Proof.
+ intros ge f k m PARAMS VARS;split.
+ - right;eapply step_internal_function;rewrite ?PARAMS,?VARS;cbn;constructor.
+ - intros t next[ES|SS];[inversion ES|inversion SS;subst].
+   match goal with A:alloc_variables _ _ _ _ _ _|-_=>rewrite PARAMS,VARS in A;cbn in A;inversion A;subst end.
+   match goal with B:bind_parameters _ _ _ _ _ _|-_=>rewrite PARAMS in B;inversion B;subst end;auto.
+Qed.
+Lemma join_certificate:forall ge P Q middle target,
+ certificate ge P middle->certificate ge Q target->Q middle->certificate ge(fun s=>P s \/Q s)target.
+Proof.
+ intros ge P Q middle target[PP PC][QP QC]QM;split.
+ - intros s[PS|QS].
+   + destruct(PP s PS)as[EQ|[t[next[STEP PN]]]].
+     * subst s;destruct(QP middle QM)as[EQ|[t[next[STEP QN]]]];[auto|right;eauto].
+     * right;eauto.
+   + destruct(QP s QS)as[EQ|[t[next[STEP QN]]]];[auto|right;eauto].
+ - intros s t next[PS|QS]NF STEP.
+   + destruct(classic(s=middle))as[EQ|NE];[subst s;right;eapply QC;eauto|left;eapply PC;eauto].
+   + right;eapply QC;eauto.
+Qed.
+Print Assumptions empty_function_unique.
+
+Lemma return_evaluates:forall ge f e m a v vc mf,
+ pure_rval ge e m a=Some v->Cop.sem_cast v(typeof a)(fn_return f)m=Some vc->
+ Mem.free_list m(blocks_of_env ge e)=Some mf->
+ state_eval ge(State f(Sreturn(Some a))Kstop e m)=Some(vc,mf).
+Proof.
+ intros ge f e m a v vc mf VAL CAST FREE.
+ cbn[state_eval stmt_eval];rewrite VAL,CAST;cbn[cont_eval];rewrite FREE;reflexivity.
+Qed.
+
+
+FILE paparazzi/models/stateGetSpeedEcef_f/rocq/support/Original.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Memdata Events Globalenvs Maps Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation AtomicDenotation CallfreeExecution PhaseComposition PureIfShell FactorShell.
+From StateSpeedSetterSupport Require Import MemoryFacts Certificates.
+From StateSpeedGetterSupport Require Import Setup Layout Body Calculation StoreEffects ZeroCallShell Certificates.
+Require StateSpeedGetterSupport.GetterSource.
+Import ListNotations.
+Open Scope Z_scope.
+Module SC:=StateSpeedSetterSupport.Certificates.
+Module GC:=StateSpeedGetterSupport.Certificates.
+Module GS:=StateSpeedGetterSupport.GetterSource.
+Module SE:=StateSpeedGetterSupport.StoreEffects.
+Local Opaque ge E.ge.
+Lemma returned_pointer_value:forall m sb,
+ Genv.find_symbol ge S._state=Some sb->
+ pure_rval ge empty_env m(Eaddrof(Efield state_address S._ecef_speed_f(Tstruct S._EcefCoor_f noattr))(tptr(Tstruct S._EcefCoor_f noattr)))=Some(Vptr sb(Ptrofs.repr 328)).
+Proof.
+ intros m sb SYM.
+ change((match pure_lval ge empty_env m(Efield state_address S._ecef_speed_f(Tstruct S._EcefCoor_f noattr))with Some(b,ofs,Full)=>Some(Vptr b ofs)|_=>None end)=Some(Vptr sb(Ptrofs.repr 328))).
+ rewrite(state_field_address empty_env m sb S._ecef_speed_f(Tstruct S._EcefCoor_f noattr)328 eq_refl SYM float_layout);reflexivity.
+Qed.
+Lemma return_state_defined:forall m sb,
+ Genv.find_symbol ge S._state=Some sb->
+ normal_state(State S.f_stateGetSpeedEcef_f getter_return Kstop empty_env m)=true /\call_names(State S.f_stateGetSpeedEcef_f getter_return Kstop empty_env m) /\state_eval ge(State S.f_stateGetSpeedEcef_f getter_return Kstop empty_env m)=Some(Vptr sb(Ptrofs.repr 328),m).
+Proof.
+ intros m sb SYM;split;[reflexivity|];split;[exact I|].
+ eapply GC.return_evaluates;[apply returned_pointer_value;exact SYM|reflexivity|reflexivity].
+Qed.
+Theorem original_certificate:forall m m1 m2 m3 mf sb x y z,
+ Genv.find_symbol ge S._state=Some sb->Mem.load Mint16unsigned m sb 280=Some(Vint Int.one)->
+ Mem.load Mint32 m sb 296=Some(Vint x)->Mem.load Mint32 m sb 300=Some(Vint y)->Mem.load Mint32 m sb 304=Some(Vint z)->
+ Mem.store Mfloat32 m sb 328(Vsingle(decode x))=Some m1->Mem.store Mfloat32 m1 sb 332(Vsingle(decode y))=Some m2->
+ Mem.store Mfloat32 m2 sb 336(Vsingle(decode z))=Some m3->Mem.store Mint16unsigned m3 sb 280(Vint(Int.repr 33))=Some mf->
+ exists P,certificate ge P(Returnstate(Vptr sb(Ptrofs.repr 328))Kstop mf) /\P(E.entry[]m).
+Proof.
+ intros m m1 m2 m3 mf sb x y z SYM STATUS X Y ZS STX STY STZ STS.
+ destruct GS.calc_lookup as[bf[FS FF]].
+ change(Genv.find_symbol ge S._stateCalcSpeedEcef_f=Some bf)in FS.
+ change(Genv.find_funct ge(Vptr bf Ptrofs.zero)=Some(Internal S.f_stateCalcSpeedEcef_f))in FF.
+ set(k:=Kseq getter_return Kstop).
+ set(base:=Kcall S.f_stateGetSpeedEcef_f empty_env(fun q=>q)tvoid(Kdo k)).
+ destruct(original_calculation_certificate m m1 m2 m3 mf sb x y z base I SYM STATUS X Y ZS STX STY STZ STS)as[CP[CC CI]].
+ set(CALLINV:=ZeroCallShell.invariant empty_env S.f_stateGetSpeedEcef_f k S._stateCalcSpeedEcef_f bf m Vundef mf CP).
+ assert(CALLCERT:certificate ge CALLINV(State S.f_stateGetSpeedEcef_f Sskip k empty_env mf)).
+ { apply ZeroCallShell.call_certificate with(callee:=Internal S.f_stateCalcSpeedEcef_f);[reflexivity|exact FS|exact FF|reflexivity|exact CC|exact CI]. }
+ assert(CALLI:CALLINV(State S.f_stateGetSpeedEcef_f getter_call k empty_env m)).
+ { left;rewrite getter_call_shape;reflexivity. }
+ set(TAILINV:=fun s=>normal_state s=true /\call_names s /\state_eval ge s=Some(Vptr sb(Ptrofs.repr 328),mf)).
+ pose proof(SC.evaluator_certificate ge(Vptr sb(Ptrofs.repr 328))mf)as TAILCERT.
+ assert(TAILI:TAILINV(State S.f_stateGetSpeedEcef_f getter_return Kstop empty_env mf)).
+ { exact(return_state_defined mf sb SYM). }
+ pose proof(chain_certificate ge CALLINV TAILINV _ _ _ CALLCERT TAILCERT(SC.skip_seq_unique ge S.f_stateGetSpeedEcef_f getter_return Kstop empty_env mf)TAILI)as CTC.
+ set(IFINV:=PureIfShell.invariant ge S.f_stateGetSpeedEcef_f empty_env k m getter_condition getter_call Sskip(Vint Int.one)true).
+ assert(IFCERT:certificate ge IFINV(State S.f_stateGetSpeedEcef_f getter_call k empty_env m)).
+ { apply PureIfShell.if_certificate;[reflexivity|apply getter_condition_value with(sb:=sb);[reflexivity|exact SYM|exact STATUS]|reflexivity]. }
+ pose proof(GC.join_certificate ge IFINV(fun s=>CALLINV s \/TAILINV s)_ _ IFCERT CTC(or_introl CALLI))as ICC.
+ assert(IFI:IFINV(State S.f_stateGetSpeedEcef_f getter_first k empty_env m))by(left;reflexivity).
+ set(BODYINV:=fun s=>s=State S.f_stateGetSpeedEcef_f(fn_body S.f_stateGetSpeedEcef_f)Kstop empty_env m \/IFINV s \/CALLINV s \/TAILINV s).
+ assert(BC:certificate ge BODYINV(Returnstate(Vptr sb(Ptrofs.repr 328))Kstop mf)).
+ { unfold BODYINV;eapply SC.prepend_certificate;[exact ICC|left;exact IFI|].
+   change(unique_transition ge(State S.f_stateGetSpeedEcef_f(Ssequence getter_first getter_return)Kstop empty_env m)(State S.f_stateGetSpeedEcef_f getter_first(Kseq getter_return Kstop)empty_env m));apply SC.sequence_unique. }
+ exists(fun s=>s=E.entry[]m \/BODYINV s);split.
+ - eapply SC.prepend_certificate;[exact BC|left;reflexivity|apply GC.empty_function_unique;reflexivity].
+ - left;reflexivity.
+Qed.
+Print Assumptions original_certificate.
+Lemma source_path_silent:forall args m t reached,
+ star Csem.step ge(E.entry args m)t reached->t=E0.
+Proof.
+ intros args m t reached PATH;pose proof(GS.entry_source args m)as INIT.
+ revert INIT;induction PATH;intros INV;[reflexivity|].
+ destruct(GS.source_step_invariant _ _ _ INV H)as[TT NEXT].
+ rewrite H0,TT,(IHPATH NEXT);reflexivity.
+Qed.
+Lemma four_stores_result:forall m m1 m2 m3 mf sb x y z,
+ Mem.store Mfloat32 m sb 328(Vsingle(decode x))=Some m1->Mem.store Mfloat32 m1 sb 332(Vsingle(decode y))=Some m2->
+ Mem.store Mfloat32 m2 sb 336(Vsingle(decode z))=Some m3->Mem.store Mint16unsigned m3 sb 280(Vint(Int.repr 33))=Some mf->
+ GetterResult m mf sb x y z.
+Proof.
+ intros m m1 m2 m3 mf sb x y z X Y ZS ST.
+ assert(WORDS:Mem.load Mfloat32 mf sb 328=Some(Vsingle(decode x)) /\Mem.load Mfloat32 mf sb 332=Some(Vsingle(decode y)) /\Mem.load Mfloat32 mf sb 336=Some(Vsingle(decode z)) /\Mem.load Mint16unsigned mf sb 280=Some(Val.load_result Mint16unsigned(Vint(Int.repr 33)))).
+ { eapply SE.four_store_words;eauto;lia. }
+ destruct WORDS as[RX[RY[RZ RS]]];constructor;try assumption.
+ - change(Mem.loadbytes mf sb 328 12=Some(SE.vector_bytes(decode x)(decode y)(decode z)));eapply SE.four_store_bytes;eauto;lia.
+ - intros;eapply SE.four_store_permissions;eauto.
+ - intros b ofs n N MISS;eapply SE.four_store_frame;eauto;lia.
+Qed.
+Theorem original_normal_result:forall m sb x y z,
+ InputGood m sb x y z->exists mf,NormalCall m mf sb /\GetterResult m mf sb x y z /\ (forall t v mf2,star Csem.step ge(E.entry[]m)t(Returnstate v Kstop mf2)->v=Vptr sb(Ptrofs.repr 328) /\mf2=mf).
+Proof.
+ intros m sb x y z[SYM[WR[STATUS[X[Y ZS]]]]].
+ destruct(SE.four_stores_exist 328(Int.repr 33)m sb(decode x)(decode y)(decode z)ltac:(lia)ltac:(lia)ltac:(exists 82;reflexivity)WR)as[mf[m1[m2[m3[STX[STY[STZ STS]]]]]]].
+ destruct(original_certificate m m1 m2 m3 mf sb x y z SYM STATUS X Y ZS STX STY STZ STS)as[P[CERT PI]].
+ destruct(SC.certificate_has_return ge P _ _ CERT PI(GS.all_successor_termination[]m))as[t PATH].
+ pose proof(source_path_silent[]m t _ PATH)as TT;subst t.
+ exists mf;split;[exact PATH|];split;[eapply four_stores_result;eauto|].
+ intros t v mf2 PATH2;eapply certificate_normal_unique;eauto.
+Qed.
+Theorem original_no_error:forall m sb x y z,
+ InputGood m sb x y z->no_error ge(E.entry[]m).
+Proof.
+ intros m sb x y z[SYM[WR[STATUS[X[Y ZS]]]]].
+ destruct(SE.four_stores_exist 328(Int.repr 33)m sb(decode x)(decode y)(decode z)ltac:(lia)ltac:(lia)ltac:(exists 82;reflexivity)WR)as[mf[m1[m2[m3[STX[STY[STZ STS]]]]]]].
+ destruct(original_certificate m m1 m2 m3 mf sb x y z SYM STATUS X Y ZS STX STY STZ STS)as[P[CERT PI]].
+ assert(STOP:nostep Csem.step ge(Returnstate(Vptr sb(Ptrofs.repr 328))Kstop mf)).
+ { intros tr next[ES|SS];inversion ES||inversion SS. }
+ intros t reached PATH[NR NS].
+ destruct(certificate_no_error ge P _ _ CERT PI STOP t reached PATH)as[EQ|[tr[next STEP]]].
+ - subst reached;apply NR;exists(Vptr sb(Ptrofs.repr 328)),mf;reflexivity.
+ - exact(NS tr next STEP).
+Qed.
+Print Assumptions original_normal_result.
+Print Assumptions original_no_error.
+
+
+FILE paparazzi/models/stateGetSpeedEcef_f/rocq/support/ZeroCallShell.v
+From Stdlib Require Import Bool List ZArith Classical.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation FactorShell StandaloneCallShell PhaseComposition.
+Import ListNotations.
+Section CALL.
+Variable ge:genv.
+Variable e:env.
+Variable caller:function.
+Variable callee:Csyntax.fundef.
+Variable k:cont.
+Variable ifunction:ident.
+Variable bfunction:block.
+Variable m:mem.
+Definition call_type:=Tfunction[]tvoid cc_default.
+Hypothesis function_global:e!ifunction=None.
+Hypothesis function_symbol:Genv.find_symbol ge ifunction=Some bfunction.
+Hypothesis callee_find:Genv.find_funct ge(Vptr bfunction Ptrofs.zero)=Some callee.
+Hypothesis callee_signature:type_of_fundef callee=call_type.
+Definition call_expr(rs:read_stage):expr:=
+ Ecall(read_res ifunction call_type bfunction(Vptr bfunction Ptrofs.zero)rs)Enil tvoid.
+Definition pre_state(rs:read_stage):Csem.state:=ExprState caller(call_expr rs)(Kdo k)e m.
+Definition call_frame:cont:=Kcall caller e(fun x=>x)tvoid(Kdo k).
+Definition pre_or_call(s:Csem.state):Prop:=
+ (exists rs,s=pre_state rs) \/s=Callstate callee[]call_frame m.
+Lemma pre_animator_step:forall rs rule t next,
+ In(TR rule t next)(Cexec.do_step ge null_external null_external quiet_world(pre_state rs))->
+ t=E0 /\pre_or_call next.
+Proof.
+ intros rs rule t next;destruct rs;
+ cbn[pre_state call_expr read_res Cexec.do_step Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc Cexec.is_val_list Cexec.incontext Cexec.topred Cexec.stuck];
+ rewrite ?function_global,?function_symbol;rewrite ?dec_eq_true;
+ cbn[Cexec.do_deref_loc access_mode type_is_volatile].
+ all:cbn[call_type classify_fun sem_cast_arguments sem_cast];rewrite ?callee_find,?callee_signature;
+ cbv[call_type tvoid access_mode type_is_volatile sem_cast classify_cast];rewrite ?dec_eq_true;
+ cbn[Cexec.incontext2 Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd].
+ all:intros IN;cbn in IN;repeat destruct IN as[EQ|IN];try contradiction;inversion EQ;subst;
+ split;[reflexivity|unfold pre_or_call;first[left;first[solve[exists Rloc;reflexivity]|solve[exists Rval;reflexivity]]|right;reflexivity]].
+Qed.
+Lemma pre_callback_free:forall rs,callback_free_state(pre_state rs).
+Proof. intros;destruct rs;reflexivity. Qed.
+Lemma pre_core:forall rs,SourceClosure.core_expr ge(fun _=>True)(fun _ _=>True)(call_expr rs).
+Proof.
+ intros;destruct rs;cbn[call_expr read_res call_type SourceClosure.core_expr SourceClosure.core_exprlist SourceClosure.nv];repeat split;try reflexivity;
+ unfold SourceClosure.valid_call;intros;split;exact I.
+Qed.
+Lemma pre_silent:forall rs,silent_state ge(pre_state rs).
+Proof.
+ intros rs t next STEP;pose proof(pre_core rs)as CORE.
+ destruct STEP as[ES|SS];[|inversion SS].
+ inversion ES;subst;auto.
+ match goal with EQ:?C ?A=call_expr _|-_=>rewrite<-EQ in CORE end.
+ match goal with HC:Csem.context RV RV ?C,RR:rred ge ?a m t ?a2 ?m2|-_=>
+ pose proof(SourceClosure.core_context_hole ge(fun _=>True)(fun _ _=>True)_ _ _ HC a CORE)as CA;
+ exact(proj1(SourceClosure.core_rred ge(fun _=>True)(fun _ _=>True)a m t a2 m2 CA RR))end.
+Qed.
+Lemma pre_all_successors:forall rs t next,Csem.step ge(pre_state rs)t next->t=E0 /\pre_or_call next.
+Proof.
+ intros rs t next STEP;pose proof(pre_silent rs t next STEP)as TT;subst t.
+ destruct(pure_do_step_complete ge null_external null_external quiet_world(pre_state rs)E0 next quiet_world(pre_callback_free rs)(possible_trace_nil quiet_world)STEP)as[rule IN].
+ eapply pre_animator_step;exact IN.
+Qed.
+Lemma pre_animator_nonempty:forall rs,exists rule t next,In(TR rule t next)(Cexec.do_step ge null_external null_external quiet_world(pre_state rs)).
+Proof.
+ intros rs;destruct rs;
+ cbn[pre_state call_expr read_res Cexec.do_step Cexec.is_val Cexec.step_expr Cexec.step_exprlist Cexec.is_loc Cexec.is_val_list Cexec.incontext Cexec.topred Cexec.stuck];
+ rewrite ?function_global,?function_symbol;rewrite ?dec_eq_true;
+ cbn[Cexec.do_deref_loc access_mode type_is_volatile].
+ all:cbn[call_type classify_fun sem_cast_arguments sem_cast];rewrite ?callee_find,?callee_signature;
+ cbv[call_type tvoid access_mode type_is_volatile sem_cast classify_cast];rewrite ?dec_eq_true;
+ cbn[Cexec.incontext2 Cexec.incontext Cexec.topred Cexec.expr_final_state map app fst snd].
+ all:repeat eexists;apply in_eq.
+Qed.
+Lemma pre_progress:forall rs,exists t next,Csem.step ge(pre_state rs)t next /\pre_or_call next.
+Proof.
+ intros rs;destruct(pre_animator_nonempty rs)as[rule[t[next IN]]].
+ pose proof(proj2(pre_animator_step rs rule t next IN))as CLASS.
+ exists t,next;split;[|exact CLASS].
+ eapply supported_nonstuck_transition;[apply pre_callback_free|exact IN|].
+ intro EQ;destruct CLASS as[[rs2 EQ2]|EQ2];rewrite EQ in EQ2;discriminate.
+Qed.
+Variable result:val.
+Variable final_mem:mem.
+Variable callee_invariant:Csem.state->Prop.
+Hypothesis callee_certificate:certificate ge callee_invariant(Returnstate result call_frame final_mem).
+Hypothesis callee_entry:callee_invariant(Callstate callee[]call_frame m).
+Definition post_state:=ExprState caller(Eval result tvoid)(Kdo k)e final_mem.
+Definition target:=State caller Sskip k e final_mem.
+Definition invariant(s:Csem.state):Prop:=
+ s=State caller(Sdo(call_expr Rvar))k e m \/
+ (exists rs,s=pre_state rs) \/callee_invariant s \/s=post_state \/s=target.
+Lemma post_unique:unique_transition ge post_state target.
+Proof.
+ split;[right;apply step_do_2|].
+ intros t next[ES|SS];[exfalso;eapply StandaloneCallShell.value_estep_none;exact ES|inversion SS;subst;auto].
+Qed.
+Theorem call_certificate:certificate ge invariant target.
+Proof.
+ split.
+ - intros s[START|[PRE|[CALLEE|[POST|DONE]]]].
+   + subst s;right;exists E0,(pre_state Rvar);split;[right;apply step_do_1|right;left;exists Rvar;reflexivity].
+   + destruct PRE as[rs EQ];subst s;destruct(pre_progress rs)as[t[next[STEP CLASS]]].
+     right;exists t,next;split;[exact STEP|].
+     destruct CLASS as[PRE|CALL];[right;left;exact PRE|subst next;right;right;left;exact callee_entry].
+   + destruct(proj1 callee_certificate s CALLEE)as[RET|[t[next[STEP CN]]]].
+     * subst s;right;exists E0,post_state;split;[right;apply step_returnstate|right;right;right;left;reflexivity].
+     * right;exists t,next;split;[exact STEP|right;right;left;exact CN].
+   + subst s;right;exists E0,target;split;[exact(proj1 post_unique)|right;right;right;right;reflexivity].
+   + auto.
+ - intros s t next[START|[PRE|[CALLEE|[POST|DONE]]]]NF STEP.
+   + subst s;destruct(FactorShell.do_step_unique _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next;right;left;exists Rvar;reflexivity.
+   + destruct PRE as[rs EQ];subst s;destruct(pre_all_successors rs t next STEP)as[TT[PRE|CALL]].
+     * right;left;exact PRE.
+     * subst next;right;right;left;exact callee_entry.
+   + destruct(classic(s=Returnstate result call_frame final_mem))as[RET|NR].
+     * subst s;destruct(FactorShell.return_call_step_unique _ _ _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next;right;right;right;left;reflexivity.
+     * right;right;left;eapply(proj2 callee_certificate);eauto.
+   + subst s;destruct(proj2 post_unique t next STEP)as[TT EQ];subst next;right;right;right;right;reflexivity.
+   + contradiction.
+Qed.
+Lemma initial_certificate:invariant(State caller(Sdo(call_expr Rvar))k e m).
+Proof. left;reflexivity. Qed.
+End CALL.
+Print Assumptions call_certificate.
+
+
+FILE paparazzi/models/stateSetSpeedEcef_i/rocq/support/Setup.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Events Globalenvs Maps Ctypes Cop Csyntax Csyntaxdefs Csem Smallstep.
+From StateSpeedSetEcefI Require Import Source Execution.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=StateSpeedSetEcefI.Source.
+Module E:=StateSpeedSetEcefI.Execution.
+Definition ge:=E.ge.
+Definition stype:=Tstruct S._State noattr.
+Definition vtype:=Tstruct S._EcefCoor_i noattr.
+Definition f:=S.f_stateSetSpeedEcef_i.
+Definition destination_offset:Z:=284.
+Definition selected_status:Z:=1.
+Definition Args(id:int)(src:block):list val:=[Vint id;Vptr src Ptrofs.zero].
+Definition VecRead(m:mem)(b:block)(x y z:int):Prop:=
+ Mem.load Mint32 m b 0=Some(Vint x) /\Mem.load Mint32 m b 4=Some(Vint y) /\Mem.load Mint32 m b 8=Some(Vint z).
+Record InputGood(m:mem)(sb src:block)(id x y z:int):Prop:={
+ state_symbol:Genv.find_symbol ge S._state=Some sb;
+ state_writable:Mem.range_perm m sb 0 656 Cur Writable;
+ accepted_filter:Mem.load Mint16unsigned m sb 282=Some(Vint(Int.repr 65535));
+ input_separate:src<>sb;
+ input_words:VecRead m src x y z
+}.
+Definition writes(sb b:block)(ofs:Z):Prop:=b=sb /\
+ (280<=ofs<282 \/destination_offset<=ofs<destination_offset+12).
+Definition typed_bytes(x y z:int):list memval:=encode_val Mint32(Vint x)++encode_val Mint32(Vint y)++encode_val Mint32(Vint z).
+Record SetterResult(m mf:mem)(sb src:block)(x y z:int):Prop:={
+ result_x:Mem.load Mint32 mf sb destination_offset=Some(Vint x);
+ result_y:Mem.load Mint32 mf sb(destination_offset+4)=Some(Vint y);
+ result_z:Mem.load Mint32 mf sb(destination_offset+8)=Some(Vint z);
+ result_status:Mem.load Mint16unsigned mf sb 280=Some(Vint(Int.repr selected_status));
+ result_bytes:Mem.loadbytes mf sb destination_offset 12=Some(typed_bytes x y z);
+ result_input:VecRead mf src x y z;
+ result_permissions:forall b ofs k p,Mem.valid_block m b ->(Mem.perm m b ofs k p<->Mem.perm mf b ofs k p);
+ result_frame:forall b ofs n,Mem.valid_block m b ->0<=n ->
+ (forall i,ofs<=i<ofs+n ->~writes sb b i) ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n
+}.
+Definition NormalCall(id:int)(src:block)(m mf:mem):Prop:=
+ star Csem.step ge(E.entry(Args id src)m)E0(Returnstate Vundef Kstop mf).
+
+Definition state_address:expr:=Evalof(Evar S._state stype)stype.
+Definition filter_read:expr:=Evalof(Efield state_address S._speed_input_filter tushort)tushort.
+Definition id_read:expr:=Evalof(Evar S._id tushort)tushort.
+Definition first_test:expr:=Ebinop Oeq filter_read(Eval(Vint(Int.repr 0))tint)tint.
+Definition second_test:expr:=Ebinop Oeq filter_read(Eval(Vint(Int.repr 65535))tint)tint.
+Definition third_test:expr:=Ebinop Oeq filter_read id_read tint.
+Definition condition:expr:=Eseqor first_test(Eunop Onotbool(Eseqor second_test third_test tint)tint)tint.
+Definition guard:statement:=Sifthenelse condition(Sreturn None)Sskip.
+Definition dst_base:expr:=Evalof(Efield state_address S._ecef_speed_i vtype)vtype.
+Definition input_base:expr:=Evalof(Ederef(Evalof(Evar S._ecef_speed(tptr vtype))(tptr vtype))vtype)vtype.
+Definition copy_one(axis:ident):statement:=Sdo(Eassign(Efield dst_base axis tint)(Evalof(Efield input_base axis tint)tint)tint).
+Definition status_write:statement:=Sdo(Eassign(Efield state_address S._speed_status tushort)
+ (Ebinop Oshl(Eval(Vint(Int.repr 1))tint)(Eval(Vint(Int.repr 0))tint)tint)tushort).
+Definition copy_body:statement:=Ssequence(Ssequence(copy_one S._x)(Ssequence(copy_one S._y)(copy_one S._z)))status_write.
+Lemma source_body:fn_body f=Ssequence guard copy_body.
+Proof. reflexivity. Qed.
+Lemma source_params:fn_params f=[(S._id,tushort);(S._ecef_speed,tptr vtype)] /\fn_vars f=[] /\fn_return f=tvoid.
+Proof. repeat split;reflexivity. Qed.
+
+
+FILE paparazzi/relations/state_speed_ecef_provenance/attempts/001/Proof.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers.
+From StateSpeedMemory Require Import MemoryLayout Protocol SourceComparison Refutations.
+From StateSpeedRelationProblem Require Import Spec.
+Theorem proved_actual_protocol:Spec.ActualProtocolGoal.
+Proof. split;[exact MemoryLayout.actual_state_interface_layout|exact SourceComparison.actual_protocol]. Qed.
+Theorem proved_read_after_write_refutation:Spec.ReadAfterWriteRefutationGoal.
+Proof.
+ destruct Refutations.paired_counterexample as[w[A B]];exists w;rewrite A,B;unfold expected_bits;split;discriminate.
+Qed.
+Theorem proved_history_independence_refutation:Spec.HistoryIndependenceRefutationGoal.
+Proof.
+ destruct Refutations.paired_counterexample as[w[A B]];exists w;rewrite A,B;discriminate.
+Qed.
+Print Assumptions proved_actual_protocol.
+Print Assumptions proved_read_after_write_refutation.
+Print Assumptions proved_history_independence_refutation.
+
+
+FILE paparazzi/relations/state_speed_ecef_provenance/problem/Spec.v
+From Stdlib Require Import ZArith.
+From compcert Require Import Integers Memory Memdata.
+From StateSpeedMemory Require Import MemoryLayout Protocol.
+Open Scope Z_scope.
+Definition ActualProtocolGoal:Prop:=
+ (MemoryLayout.state_layout MemoryLayout.ce_N /\MemoryLayout.state_layout MemoryLayout.ce_E /\MemoryLayout.state_layout MemoryLayout.ce) /\ forall m sb ns es nx ny nz ex ey ez,ProtocolInput m sb ns es nx ny nz ex ey ez->
+ exists mn me mf,ProtocolRun m mn me mf sb ns es nx ny nz ex ey ez /\observe_bits mf sb=Some(bits_of nx ny nz).
+Definition ReadAfterWriteRefutationGoal:Prop:=exists w:WitnessPair,
+ observe_bits(witness_mfa w)(witness_sb w)<>Some expected_bits /\observe_bits(witness_mfb w)(witness_sb w)<>Some expected_bits.
+Definition HistoryIndependenceRefutationGoal:Prop:=exists w:WitnessPair,
+ observe_bits(witness_mfa w)(witness_sb w)<>observe_bits(witness_mfb w)(witness_sb w).
+

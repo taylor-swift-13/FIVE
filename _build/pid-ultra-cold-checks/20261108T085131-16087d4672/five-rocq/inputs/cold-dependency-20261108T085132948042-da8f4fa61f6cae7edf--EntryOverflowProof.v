@@ -1,0 +1,12 @@
+From PidPositionSafety Require Import EntryOverflowGoal EntryOverflowTransport.
+From PidPositionTranslationAttempt002 Require Import EntryObserved.
+Theorem original_entry_subtraction_events:EntrySubtractionEventGoal.
+Proof.
+ apply entry_subtraction_events_from_certificate.
+ exact EntryObserved.bound_original_entry_observed_certificate.
+Qed.
+Definition original_entry_overflow_1:EntryOverflow1Goal:=original_entry_subtraction_events.
+Definition original_entry_overflow_2:EntryOverflow2Goal:=original_entry_subtraction_events.
+Definition original_entry_overflow_3:EntryOverflow3Goal:=original_entry_subtraction_events.
+Definition original_entry_overflow_4:EntryOverflow4Goal:=original_entry_subtraction_events.
+Print Assumptions original_entry_subtraction_events.

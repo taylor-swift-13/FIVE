@@ -1,0 +1,4 @@
+Require Import StateSpeedSetNedITerminationProblem.Spec.
+Require Import StateSpeedSetNedITerminationAttempt001.Proof.
+Definition goal_0 : StateSpeedSetNedITerminationProblem.Spec.AllSuccessorsTerminate := StateSpeedSetNedITerminationAttempt001.Proof.proved_termination.
+Print Assumptions goal_0.

@@ -1,0 +1,57 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/LowEntry.v", line 13, characters 0-127:
+Warning: To avoid stack overflow, large numbers in nat are interpreted as
+applications of Init.Nat.of_num_uint. [abstract-large-number,numbers,default]
+File "./paparazzi/relations/trig_plain_compressed_12/support/LowEntry.v", line 122, characters 3-56:
+Error:
+In environment
+ge : genv
+Q : val -> mem -> Prop
+kont : cont
+m : mem
+bb : block
+a : int
+B : 0 <= Int.signed a < 6434
+SYM : Genv.find_symbol ge _data_buf_12 = Some bb
+BYTES : buffer_loads m bb
+END :
+  forall final : mem,
+  Mem.unchanged_on (old_blocks m) m final ->
+  total ge Q (Returnstate (Vint (machine_lookup a)) (call_cont kont) final)
+BVALID : Mem.valid_block m bb
+m1 : Mem.mem'
+bv : block
+AV : Mem.alloc m 0 2 = (m1, bv)
+m2 : Mem.mem'
+bk : block
+AK : Mem.alloc m1 0 2 = (m2, bk)
+FV : ~ Mem.valid_block m bv
+FK1 : ~ Mem.valid_block m1 bk
+FK : ~ Mem.valid_block m bk
+NE : bv <> bk
+NBV : bb <> bv
+NBK : bb <> bk
+ENVV : (decoder_env bv bk) ! _val = Some (bv, tshort)
+ENVK : (decoder_env bv bk) ! _k = Some (bk, tshort)
+ENVB : (decoder_env bv bk) ! _data_buf_12 = None
+VAV : Mem.valid_access m2 Mint16signed bv 0 Freeable
+VAW : Mem.valid_access m2 Mint16signed bv 0 Writable
+m3 : mem
+STORE : Mem.store Mint16signed m2 bv 0 (Vint a) = Some m3
+PRE : Mem.unchanged_on (old_blocks m) m m3
+LV : Mem.load Mint16signed m3 bv 0 = Some (Vint a)
+VAK : Mem.valid_access m3 Mint16signed bk 0 Writable
+PV : Mem.range_perm m3 bv 0 2 Cur Freeable
+PK : Mem.range_perm m3 bk 0 2 Cur Freeable
+HIGH : Ptrofs.unsigned (high_offset a) = machine_high_address a
+HBOUND : 0 <= machine_high_address a < 9651
+LOW : Ptrofs.unsigned (low_offset a) = Int.signed a
+LOADLO :
+  Mem.load Mint8unsigned m3 bb (Ptrofs.unsigned (low_offset a)) =
+  Some (Vint (Int.repr (nth (Z.to_nat (Int.signed a)) expected_bytes 0)))
+LOADHI :
+  Mem.load Mint8unsigned m3 bb (Ptrofs.unsigned (high_offset a)) =
+  Some
+    (Vint
+       (Int.repr (nth (Z.to_nat (machine_high_address a)) expected_bytes 0)))
+Unable to unify "list_norepet (?hd :: ?tl)" with "list_norepet []".
+

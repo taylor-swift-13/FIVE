@@ -1,0 +1,103 @@
+Definition block_invariant(ge:genv)(mf:mem)(s:Csem.state):Prop :=
+ block_state s=true /\ block_denotation ge s=Some mf.
+Lemma block_successors:forall ge mf s t next,
+ block_invariant ge mf s -> ~block_done s ->
+ Csem.step ge s t next -> block_invariant ge mf next.
+Proof.
+ intros ge mf s t next[BL DEN]ND[ES|SS].
+ - destruct s;inversion ES;subst;eapply block_estep_defined;eauto.
+ - destruct(block_sstep ge s t next BL ND SS)as [BN EQ];split;auto;congruence.
+Qed.
+Lemma block_progress_raw:forall ge mf s,
+ block_invariant ge mf s ->
+ block_done s \/ exists t next,Csem.step ge s t next.
+Proof.
+ intros ge mf s[BL DEN].
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];
+ cbn[block_state] in BL;try discriminate.
+ - core_unpack;destruct st;cbn[block_stmt] in *;core_unpack;try discriminate.
+   + destruct k;cbn[block_cont] in *;core_unpack;try discriminate.
+     * left;unfold block_done;eauto.
+     * right;eexists;eexists;right;eapply step_skip_seq.
+   + right;eexists;eexists;right;eapply step_do_1.
+   + right;eexists;eexists;right;eapply step_seq.
+   + right;eexists;eexists;right;eapply step_ifthenelse_1.
+ - destruct k;cbn[block_state] in BL;try discriminate;core_unpack.
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as[v[ty EQ]];subst a.
+       right;eexists;eexists;right;eapply step_do_2.
+     * right;eapply CallfreeExecution.immediate_has_step;eauto.
+       pose proof(block_expression_not_stuck ge f a(Kdo k)e m mf ltac:(simpl;core_build;eauto)DEN)as NS;
+       exact(NS RV(fun x=>x)a(ctx_top RV)eq_refl).
+   + destruct(literal RV a)eqn:LIT.
+     * destruct(literal_r_inv _ LIT)as[v[ty EQ]];subst a.
+       cbn[block_denotation pure_rval typeof] in DEN.
+       destruct(bool_val v ty m)eqn:BV;try discriminate.
+       right;eexists;eexists;right;eapply step_ifthenelse_2;exact BV.
+     * right;eapply CallfreeExecution.immediate_has_step;eauto.
+       pose proof(block_expression_not_stuck ge f a(Kifthenelse s s0 k)e m mf ltac:(simpl;core_build;eauto)DEN)as NS;
+       exact(NS RV(fun x=>x)a(ctx_top RV)eq_refl).
+Qed.
+Print Assumptions block_successors.
+
+Definition block_context_invariant(ge:genv)(base:cont)(f:function)(e:env)(mf:mem)(s:Csem.state):Prop :=
+ exists raw,s=plug_state base raw /\ block_invariant ge mf raw /\ block_owner f e raw.
+Lemma block_context_entry:forall ge base f e st m t mf,
+ block_stmt st=true ->
+ star Csem.step ge(State f st Kstop e m)t(State f Sskip Kstop e mf) ->
+ block_context_invariant ge base f e mf(State f st base e m).
+Proof.
+ intros ge base f e st m t mf BS PATH.
+ exists(State f st Kstop e m);split;[reflexivity|];split.
+ - split;[simpl;core_build;auto|eapply block_normal_correspondence;[simpl;core_build;auto|exact PATH]].
+ - split;reflexivity.
+Qed.
+Theorem block_context_progress:forall ge base f e mf s,
+ block_context_invariant ge base f e mf s ->
+ s=State f Sskip base e mf \/
+ exists t next,Csem.step ge s t next /\ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s[raw[EQ[INV OWN]]];subst s.
+ destruct(classic(block_done raw))as[DONE|ND].
+ - destruct DONE as[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;left;reflexivity.
+ - destruct(block_progress_raw ge mf raw INV)as[DONE|[t[next STEP]]];[contradiction|].
+   right;exists t,(plug_state base next);split.
+   + apply block_plug_step;auto;exact(proj1 INV).
+   + exists next;split;auto;split.
+     * eapply block_successors;eauto.
+     * eapply block_owner_preserved;[exact(proj1 INV)|exact(proj2 INV)|exact ND|exact OWN|eassumption].
+Qed.
+Theorem block_context_all_successors:forall ge base f e mf s t next,
+ block_context_invariant ge base f e mf s ->
+ s<>State f Sskip base e mf -> Csem.step ge s t next ->
+ block_context_invariant ge base f e mf next.
+Proof.
+ intros ge base f e mf s t next[raw[EQ[INV OWN]]]NF STEP;subst s.
+ assert(ND:~block_done raw).
+ { intros[ff[ee[mm EQ]]];subst raw;destruct INV as[BL DEN].
+   cbn[block_denotation block_eval block_tail]in DEN;inversion DEN;subst.
+   cbn[block_owner]in OWN;destruct OWN;subst;apply NF;reflexivity. }
+ destruct(block_plug_step_inverse ge base raw
+Definition invariant(s:Csem.state):Prop:=(exists st,s=post_state st)\/block_context_invariant ge k caller e mf s.
+Theorem post_certificate:certificate ge invariant target.
+Proof.
+ pose proof(proj1(normalized_certificate L.H0))as AC.
+ split.
+ - intros s[PRE|POST].
+   + destruct PRE as[st EQ];subst.
+     destruct(post_progress st)as[t[next[STEP CL]]];right;exists t,next;split;[exact STEP|].
+     destruct CL as[P|[st' EQ]];[left;exact P|right;subst;exact(proj2(normalized_certificate st'))].
+   + destruct(proj1 AC s POST)as[EQ|[t[next[STEP IN]]]];[left;exact EQ|right;exists t,next;split;[exact STEP|right;exact IN]].
+ - intros s t next[PRE|POST]NF STEP.
+   + destruct PRE as[st EQ];subst.
+     destruct(proj2(post_all_successors st t next STEP))as[P|[st' EQ]];
+     [left;exact P|right;subst;exact(proj2(normalized_certificate st'))].
+   + right;eapply(proj2 AC);eauto.
+Qed.
+Theorem post_initial:forall st,invariant(post_state st).
+Proof. intros;left;exists st;reflexivity. Qed.
+End POST.
+Print Assumptions post_certificate.
+

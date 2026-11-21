@@ -1,0 +1,264 @@
+FILE safety/SubtractionObservation.v
+From Stdlib Require Import List Bool ZArith.
+From compcert Require Import Coqlib Maps AST Integers Values Memory Events Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+From PidPositionSafety Require Import GetterAssignmentShell TaggedCallee.
+From CoreCBMC Require Import NumericBounds ArithmeticTree ArithmeticAtomic.
+Fixpoint no_ready_binary(a:expr):bool:=match a with
+| Eval _ _|Evar _ _|Eloc _ _ _ _|Esizeof _ _|Ealignof _ _=>true
+| Evalof a _|Ederef a _|Eaddrof a _|Efield a _ _|Eunop _ a _|Ecast a _|Epostincr _ a _|Eparen a _ _=>no_ready_binary a
+| Ebinop _ a b _=>negb(literal RV a&&literal RV b)&&no_ready_binary a&&no_ready_binary b
+| Eassign a b _|Eassignop _ a b _ _|Eseqand a b _|Eseqor a b _|Ecomma a b _=>no_ready_binary a&&no_ready_binary b
+| Econdition c a b _=>no_ready_binary c&&no_ready_binary a&&no_ready_binary b
+| Ecall a al _=>no_ready_binary a&&no_ready_binary_list al
+| Ebuiltin _ _ al _=>no_ready_binary_list al
+end
+with no_ready_binary_list(al:exprlist):bool:=match al with
+| Enil=>true|Econs a al=>no_ready_binary a&&no_ready_binary_list al end.
+Lemma no_ready_context_mut:
+ (forall from to C,context from to C ->forall a,
+ no_ready_binary(C a)=true ->no_ready_binary a=true) /\
+ (forall from C,contextlist from C ->forall a,
+ no_ready_binary_list(C a)=true ->no_ready_binary a=true).
+Proof.
+ apply SourceClosure.context_contextlist_ind;cbn[no_ready_binary no_ready_binary_list];intros;core_unpack;eauto.
+Qed.
+Lemma no_ready_context:forall from to C,context from to C ->forall a,
+ no_ready_binary(C a)=true ->no_ready_binary a=true.
+Proof. exact(proj1 no_ready_context_mut). Qed.
+Theorem getter_pre_no_ready:
+ forall ghid refid vectid nedid axis iref icomponent ierr igh igetter
+ berr bparam bgh bgetter dref dcomponent daxis reference ls rs fs,
+ no_ready_binary(GetterAssignmentShell.pre_expr ghid refid vectid nedid axis iref icomponent ierr igh igetter
+ berr bparam bgh bgetter dref dcomponent daxis reference ls rs fs)=true.
+Proof. intros;destruct ls,rs,fs;reflexivity. Qed.
+Definition subtraction_observation(ge:genv)(caller:function)(s:Csem.state):Prop:=
+ match s with
+ | ExprState f a k e m=>f=caller ->forall C x y,
+ context RV RV C ->a=C(Ebinop Osub(Eval(Vint x)tint)(Eval(Vint y)tint)tint) ->
+ NumericBounds.signed32(Int.signed x-Int.signed y)
+ | _=>True end.
+Lemma no_ready_subtraction_observation:forall ge caller f a k e m,
+ no_ready_binary a=true ->subtraction_observation ge caller(ExprState f a k e m).
+Proof.
+ intros ge caller f a k e m NR FF C x y CT EQ;subst a.
+ pose proof(no_ready_context RV RV C CT _ NR)as BAD;discriminate BAD.
+Qed.
+Lemma arithmetic_subtraction_observation:forall ge caller f a k e m,
+ arithmetic_tree ge e m a ->subtraction_observation ge caller(ExprState f a k e m).
+Proof.
+ intros ge caller f a k e m TREE FF C x y CT EQ;subst a.
+ pose proof(arithmetic_observed_binary ge e m RV C Osub(Vint x)tint(Vint y)tint tint CT eq_refl TREE)as SAFE.
+ cbn[binary_safe]in SAFE;rewrite dec_eq_true in SAFE;exact SAFE.
+Qed.
+Lemma scope_subtraction_observation:forall ge caller leaf s,
+ leaf<>caller ->function_scope leaf s ->subtraction_observation ge caller s.
+Proof.
+ intros ge caller leaf s DIFF SC;destruct s;cbn[function_scope subtraction_observation]in*;try exact I.
+ intros EQ;congruence.
+Qed.
+Lemma atomic_subtraction_observation:forall ge caller e k mf result s,
+ arithmetic_atomic_invariant ge caller e k mf result s ->subtraction_observation ge caller s.
+Proof.
+ intros ge caller e k mf result s INV;destruct s;try exact I.
+ apply arithmetic_subtraction_observation;eapply arithmetic_atomic_observation;exact INV.
+Qed.
+Print Assumptions getter_pre_no_ready.
+Print Assumptions atomic_subtraction_observation.
+
+FILE safety/ObservedPhases.v
+MISSING
+FILE safety/ObservedReadonly.v
+Lemma enter_callee:forall l r,active_callee(call l r).
+
+Lemma enter_post:forall l r,active_post(post l r).
+
+Lemma classify_pre:forall s,pre_or_call s ->
+ (exists l r f,s=pre l r f)\/active_callee s.
+
+Theorem readonly_assignment_certificate:certificate ge invariant target.
+
+Theorem initial_member:invariant initial.
+
+Theorem observations:forall s,invariant s ->observe s.
+
+FILE safety/GetterArithmeticInstances.v
+Lemma raw_deref_complete:forall ge ty ch m b ofs v,
+ type_is_volatile ty=false ->access_mode ty=By_value ch ->
+ Mem.loadv ch m(Vptr b ofs)=Some v ->
+ Cexec.do_deref_loc ge PureDenotation.quiet_world ty m b ofs Full=
+ Some(PureDenotation.quiet_world,E0,v).
+
+Lemma raw_int_store_complete:forall ge m b ofs v mf,
+ Mem.storev Mint32 m(Vptr b ofs)(Vint v)=Some mf ->
+ Cexec.do_assign_loc ge PureDenotation.quiet_world tint m b ofs Full(Vint v)=
+ Some(PureDenotation.quiet_world,E0,mf,Vint v).
+
+Theorem original_position_x_store_arithmetic_certificate:forall e m mf bg gh pb sb reference measured flags k,
+ e!S._gh=Some(bg,tptr gh_type) ->e!S._guidance_pid_pos_err=None ->e!S._stateGetPositionNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint32 m gh 44=Some(Vint reference) ->
+ Mem.load Mint32 m sb 100=Some(Vint measured) ->
+ Mem.load Mint16unsigned m sb 2=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ NumericBounds.signed32(Int.signed reference-Int.signed measured) ->
+ Mem.store Mint32 m pb 0(Vint(Int.sub reference measured))=Some mf ->
+ exists P,certificate E.ge P(State S.f_guidance_pid_h_run_pos Sskip k e mf) /\
+ P(State S.f_guidance_pid_h_run_pos(original_position_assignment S._x)k e m)/\
+ (forall s,P s->subtraction_observation E.ge S.f_guidance_pid_h_run_pos s).
+
+Theorem original_position_y_store_arithmetic_certificate:forall e m mf bg gh pb sb reference measured flags k,
+ e!S._gh=Some(bg,tptr gh_type) ->e!S._guidance_pid_pos_err=None ->e!S._stateGetPositionNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint32 m gh 48=Some(Vint reference) ->
+ Mem.load Mint32 m sb 104=Some(Vint measured) ->
+ Mem.load Mint16unsigned m sb 2=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ NumericBounds.signed32(Int.signed reference-Int.signed measured) ->
+ Mem.store Mint32 m pb 4(Vint(Int.sub reference measured))=Some mf ->
+ exists P,certificate E.ge P(State S.f_guidance_pid_h_run_pos Sskip k e mf) /\
+ P(State S.f_guidance_pid_h_run_pos(original_position_assignment S._y)k e m)/\
+ (forall s,P s->subtraction_observation E.ge S.f_guidance_pid_h_run_pos s).
+
+Theorem original_speed_x_store_arithmetic_certificate:forall e m mf bg gh pb sb reference measured flags k,
+ e!S._gh=Some(bg,tptr gh_type) ->e!S._guidance_pid_speed_err=None ->e!S._stateGetSpeedNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint32 m gh 52=Some(Vint reference) ->
+ Mem.load Mint32 m sb 296=Some(Vint measured) ->
+ Mem.load Mint16unsigned m sb 280=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ NumericBounds.signed32(Int.signed reference-Int.signed measured) ->
+ Mem.store Mint32 m pb 0(Vint(Int.sub reference measured))=Some mf ->
+ exists P,certificate E.ge P(State S.f_guidance_pid_h_run_pos Sskip k e mf) /\
+ P(State S.f_guidance_pid_h_run_pos(original_speed_assignment S._x)k e m)/\
+ (forall s,P s->subtraction_observation E.ge S.f_guidance_pid_h_run_pos s).
+
+Theorem original_speed_y_store_arithmetic_certificate:forall e m mf bg gh pb sb reference measured flags k,
+ e!S._gh=Some(bg,tptr gh_type) ->e!S._guidance_pid_speed_err=None ->e!S._stateGetSpeedNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint32 m gh 56=Some(Vint reference) ->
+ Mem.load Mint32 m sb 300=Some(Vint measured) ->
+ Mem.load Mint16unsigned m sb 280=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ NumericBounds.signed32(Int.signed reference-Int.signed measured) ->
+ Mem.store Mint32 m pb 4(Vint(Int.sub reference measured))=Some mf ->
+ exists P,certificate E.ge P(State S.f_guidance_pid_h_run_pos Sskip k e mf) /\
+ P(State S.f_guidance_pid_h_run_pos(original_speed_assignment S._y)k e m)/\
+ (forall s,P s->subtraction_observation E.ge S.f_guidance_pid_h_run_pos s).
+
+FILE core/cbmc/ArithmeticAssignment.v
+Lemma assignment_tree_estep:forall ge f e k m l r ty vr t next,
+ simple l=true ->conditional_value ge e m r vr ->
+ arithmetic_tree ge e m(Eassign l r ty) ->
+ Csem.estep ge(ExprState f(Eassign l r ty)k e m)t next ->
+ next=Stuckstate \/exists ar mr,next=ExprState f ar k e mr /\arithmetic_tree ge e mr ar.
+
+Lemma pending_immediate:forall l r,pending l r ->
+ imm_safe ge e RV(Eassign l r ty)m.
+
+Lemma pending_not_stuck:forall l r,pending l r ->
+ Csem.not_stuck ge e(Eassign l r ty)m.
+
+Lemma pending_estep:forall shell_k l r t next,
+ pending l r ->Csem.estep ge(ExprState f(Eassign l r ty)shell_k e m)t next ->
+ (exists l' r',next=ExprState f(Eassign l' r' ty)shell_k e m /\t=E0 /\pending l' r') \/
+ (next=ExprState f(Eval vout ty)shell_k e mf /\t=E0).
+
+Lemma before_commit_successors:forall s t next,
+ before_commit s ->s<>ExprState f(Eval vout ty)(Kdo k)e mf ->
+ Csem.step ge s t next ->before_commit next.
+
+Lemma before_commit_progress:forall s,before_commit s ->
+ s=ExprState f(Eval vout ty)(Kdo k)e mf \/
+ exists t next,Csem.step ge s t next /\before_commit next.
+
+Theorem conditional_arithmetic_assignment_certificate:
+ certificate ge assignment_arithmetic_invariant(State f Sskip k e mf).
+
+Theorem conditional_arithmetic_assignment_initial:
+ assignment_arithmetic_invariant(State f(Sdo(Eassign original_l original_r ty))k e m).
+
+Theorem conditional_arithmetic_assignment_observation:forall f' a k' e' mr,
+ assignment_arithmetic_invariant(ExprState f' a k' e' mr) ->arithmetic_tree ge e' mr a.
+
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress PhaseComposition CallfreeExecution AtomicDenotation.
+From compcert Require Import Integers Cexec Determinism.
+From CoreCBMC Require Import ArithmeticAtomic.
+From PidPositionTranslationCore Require Import ConditionalPure ConditionalAssignment.
+From CoreCBMC Require Import ArithmeticTree ArithmeticConditional.
+Lemma assignment_tree_estep:forall ge f e k m l r ty vr t next,
+ simple l=true ->conditional_value ge e m r vr ->
+ arithmetic_tree ge e m(Eassign l r ty) ->
+ Csem.estep ge(ExprState f(Eassign l r ty)k e m)t next ->
+ next=Stuckstate \/exists ar mr,next=ExprState f ar k e mr /\arithmetic_tree ge e mr ar.
+Proof.
+ intros ge f e k m l r ty vr t next SL CV TREE STEP;inversion STEP;subst.
+ - right;lazymatch goal with LR:lred ge e ?sub m ?ar ?mr,CT:Csem.context LV RV ?C|-_ =>
+   destruct(pure_lred ge e sub m ar mr LR)as[MM[TY[SS EE]]];subst mr;
+   exists(C ar),m;split;[reflexivity|];
+   eapply arithmetic_context_congr;[exact CT|symmetry;exact TY|exact EE|rewrite H0;exact TREE|];
+   eapply arithmetic_lred;exact LR end.
+ - lazymatch goal with RR:rred ge ?sub m ?tr ?ar ?mr,CT:Csem.context RV RV ?C|-_ =>
+   destruct(simple sub)eqn:SA;
+   [destruct(pure_rred ge e sub m tr ar mr SA RR)as[MM[TT[TY[SS EE]]]];subst mr;
+    right;exists(C ar),m;split;[reflexivity|];
+    eapply arithmetic_context_congr;[exact CT|symmetry;exact TY|exact EE|rewrite H0;exact TREE|];
+    eapply arithmetic_rred;[eapply arithmetic_context_hole;[exact CT|rewrite H0;exact TREE]|exact RR]
+   |destruct(assignment_context_inv RV C l r ty sub CT(eq_sym H0))
+     as[[K[ROOT ID]]|[[D[DC[LEFT ID]]]|[D[DC[RIGHT ID]]]]]]
+   end.
+   + right;subst a;rewrite ID;exists a',m';split;[reflexivity|].
+     eapply arithmetic_rred;[exact TREE|exact H6].
+   + exfalso;apply Bool.diff_false_true;rewrite <-SA.
+     eapply simple_context_hole;[exact DC|rewrite <-LEFT;exact SL].
+   + right;lazymatch goal with RR:rred ge ?sub m ?tr ?ar ?mr|-_ =>
+     assert(ES:Csem.estep ge(ExprState f r k e m)tr(ExprState f(D ar)k e mr))
+      by(rewrite RIGHT;eapply step_rred;[exact RR|exact DC]);
+     destruct(conditional_tree_estep ge e m f r k tr _ vr CV(proj2 TREE)ES)as[res[EQ TT]];
+     injection EQ as AA MM;subst res mr;
+     exists(Eassign l(D ar)ty),m;rewrite ID;split;[reflexivity|];
+     cbn[arithmetic_tree];split;[exact(proj1 TREE)|exact TT]end.
+ - lazymatch goal with CR:callred ge ?sub m _ _ _,CT:Csem.context RV RV ?C|-_ =>
+   destruct(assignment_context_inv RV C l r ty sub CT(eq_sym H0))
+    as[[K[ROOT ID]]|[[D[DC[LEFT ID]]]|[D[DC[RIGHT ID]]]]];
+   [subst sub;inversion CR|
+    assert(SA:simple sub=true)by(eapply simple_context_hole;[exact DC|rewrite <-LEFT;exact SL]);
+    inversion CR;subst;discriminate|
+    destruct(conditional_context_hole ge e m _ _ _ DC sub vr eq_refl ltac:(rewrite <-RIGHT;exact CV))as[SA|[w CW]];
+    inversion CR;subst;[discriminate|inversion CW;discriminate]]end.
+ - left;reflexivity.
+Qed.
+Print Assumptions assignment_tree_estep.
+
+Section ASSIGNMENT.
+Variable ge:genv.
+Variable f:function.
+Variable e:env.
+Variable k:cont.
+Variable m mf:mem.
+Variable ty rty:type.
+Variable b:block.
+Variable ofs:ptrofs.
+Variable bf:bitfield.
+Variable vr vc vout:val.
+Hypothesis nonvolatile:nv ty=true.
+Hypothesis cast_result:sem_cast vr rty ty m=Some vc.
+Hypothesis store_result:Cex
+Lemma sequence_transition:forall ge f st tail k e m,
+Lemma skip_sequence_transition:forall ge f tail k e m,
+Lemma singleton_certificate:forall ge target,certificate ge(fun s=>s=target)target.
+Lemma prepend_transition:forall ge initial middle P target,
+Lemma normal_statement_path:forall ge e m st mf,
+Lemma normal_block_certificate:forall ge f e k m st mf,
+Lemma sequence_certificate:forall ge f e k m mid first second P Q target,
+Lemma target_certificate:forall ge target,
+Theorem original_position_pair_all_orders : forall e m bg gh pb sb rx ry px py flags,
+Theorem original_speed_pair_all_orders : forall e m bg gh pb sb rx ry px py flags,
+Theorem original_front_all_orders : forall e m bg gh pb vb sb rx ry px py sx sy vx vy flags sflags,

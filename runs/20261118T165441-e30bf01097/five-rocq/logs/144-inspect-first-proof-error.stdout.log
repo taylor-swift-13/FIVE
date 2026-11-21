@@ -1,0 +1,119 @@
+   170	Qed.
+   171	
+   172	Lemma common_initial_exists:
+   173	 exists gh ret m,OrderInitial m gh ret /\
+   174	 Mem.range_perm m gh 0 84 Cur Writable /\PrivateBlocks gh ret.
+   175	Proof.
+   176	 destruct(initial_private_writable_input_exists 0 1 1 ltac:(unfold Parameters;lia))
+   177	 as(gh&ret&base&INPUT&WG&PRIVATE).
+   178	 pose proof INPUT as(GOOD&RX&RY&PX&PY&AXES&KP&KD&KI&KV&KA&HEAD&IX&IY).
+   179	 destruct(inputgood_core_initial_data base gh ret GOOD)as[D _].
+   180	 destruct(actual_global_variable_binding S._guidance_pid_trim_att_integrator
+   181	   S.v_guidance_pid_trim_att_integrator ltac:(vm_compute;reflexivity))as[bi[SI VI]].
+   182	 assert(EI:bi=cid_i _ _ D)by(pose proof(cid_i_symbol _ _ D);congruence).
+   183	 assert(VA:Mem.valid_access base Mint32 bi 0 Writable).
+   184	 { rewrite EI;eapply scalar_access_inside with(n:=8);[exact(cid_i_writable _ _ D)|lia|cbn;lia|exists 0;reflexivity]. }
+   185	 destruct(Mem.valid_access_store base Mint32 bi 0(Vint(Int.repr limit))VA)as[m STORE].
+   186	 assert(BOUND:-100000000<=Int.signed(Int.repr limit)<=100000000).
+   187	 { vm_compute;lia. }
+   188	 assert(GOOD':InputGood m gh ret).
+   189	 { eapply inputgood_store_integral_x;eassumption. }
+   190	 assert(GI:gh<>bi).
+   191	 { destruct GOOD as[LEG _];unfold InputGoodLegacy in LEG;
+   192	   destruct LEG as(GR&UNIQ&REST);intro EQ;subst gh;specialize(UNIQ _ SI);discriminate. }
+   193	 assert(PATH:forall ch b ty path,b<>bi ->load_path ch m b ty path=load_path ch base b ty path).
+   194	 { intros ch b ty path NE;unfold load_path;destruct(path_info ty path)as[[ft ofs]|];[|reflexivity].
+   195	   eapply Mem.load_store_other;[exact STORE|left;exact NE]. }
+   196	 assert(GLOBAL:forall ch id ty path,id<>S._guidance_pid_trim_att_integrator ->
+   197	 load_global ch m id ty path=load_global ch base id ty path).
+   198	 { intros ch id ty path NE;unfold load_global;destruct(Genv.find_symbol E.ge id)as[b|]eqn:SB;[|reflexivity].
+   199	   apply PATH;eapply Genv.global_addresses_distinct;[exact NE|exact SB|exact SI]. }
+   200	 assert(AXES':forall axis,In axis[S._x;S._y]->
+   201	 load_path Mint32 m gh gh_type[S._ref;S._speed;axis]=Some(Vint Int.zero) /\
+   202	 load_path Mint32 m gh gh_type[S._ref;S._accel;axis]=Some(Vint Int.zero) /\
+   203	 load_global Mint32 m S._state state_type[S._ned_speed_i;axis]=Some(Vint Int.zero)).
+   204	 { intros axis IN;destruct(AXES axis IN)as[SPEED[ACCEL VEL]];
+   205	   rewrite !PATH by exact GI;rewrite GLOBAL by discriminate;auto. }
+   206	 exists gh,ret,m;split.
+   207	 - unfold OrderInitial,AlternatingInput;split;[exact GOOD'|].
+   208	   rewrite !PATH by exact GI.
+   209	   rewrite !(GLOBAL Mint32 S._state) by discriminate.
+   210	   rewrite !(GLOBAL Mint32 S._guidance_pid) by discriminate.
+   211	   rewrite (GLOBAL Mfloat32 S._guidance_h) by discriminate.
+   212	   repeat(first[assumption|split]).
+   213	   + unfold integral_load,load_global;rewrite SI;exact(Mem.load_store_same _ _ _ _ _ _ STORE).
+   214	   + unfold load_global in IY|-*;rewrite SI in IY|-*.
+   215	     change(Mem.load Mint32 m bi 4=Some(Vint Int.zero)).
+   216	     rewrite(Mem.load_store_other _ _ _ _ _ _ STORE Mint32 bi 4)by(right;right;cbn;lia);exact IY.
+   217	 - split;[intros z R;eapply Mem.perm_store_1;[exact STORE|apply WG;exact R]|exact PRIVATE].
+   218	Qed.
+   219	From PidAlternatingAttempt001 Require Import Proof.
+   220	Lemma execute_reference:forall m gh ret r iz r' jz,
+   221	 AlternatingInput m gh ret r 1 1(Int.repr iz) ->
+   222	 Mem.range_perm m gh 0 84 Cur Writable ->PrivateBlocks gh ret ->
+   223	 -4096<=r'<=4096 ->
+   224	 zclamp integral_limit(Int.signed(Int.repr iz)+1*(1*r'/64))=jz ->
+   225	 exists q mf,
+   226	 ReferenceStore gh m r' q /\
+   227	 AlternatingInput q gh ret r' 1 1(Int.repr iz) /\
+   228	 NormalCall gh ret true q mf /\
+   229	 AlternatingInput mf gh ret r' 1 1(Int.repr jz) /\
+   230	 Mem.range_perm mf gh 0 84 Cur Writable.
+   231	Proof.
+   232	 intros m gh ret r iz r' jz INPUT WRITE PRIVATE RR CALC.
+   233	 destruct(prepare_reference_store m gh ret r r' 1 1(Int.repr iz)RR INPUT WRITE PRIVATE)
+   234	 as(q&STORE&ENV&IQ&WQ).
+   235	 destruct(normal_call_exists q gh ret(input_good _ _ _ _ _ _ _ IQ))as[mf CALL].
+   236	 destruct(returned_input q mf gh ret r' 1 1(Int.repr iz)RR ltac:(lia)ltac:(lia)IQ WQ PRIVATE CALL)
+   237	 as[iy[IF WF]].
+   238	 destruct(original_call_integral_exact q mf gh ret r' 1 1(Int.repr iz)RR ltac:(lia)ltac:(lia)IQ CALL)
+   239	 as[j[LOAD SIGN]].
+   240	 assert(EQ:iy=j)by(eapply integral_unique;[exact(input_integral _ _ _ _ _ _ _ IF)|exact LOAD]).
+
+def config():
+    spec = importlib.util.spec_from_file_location("pid_build_configuration", OLD_CONFIGURATION)
+    obj = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(obj)
+    pairs = list(obj.LOADPATHS)
+    pairs.extend([("paparazzi/relations/pid_measurement_robustness/problem","PidMeasurementProblem"),("paparazzi/relations/pid_measurement_robustness/attempts/001","PidMeasurementAttempt001")])
+    pairs.extend([
+        ("paparazzi/relations/pid_alternating_bias/problem", "PidAlternatingProblem"),
+        ("paparazzi/relations/pid_alternating_bias/attempts/001", "PidAlternatingAttempt001"),
+    ])
+    pairs.extend([
+        (relative(PROBLEM), "PidInputOrderProblem"),
+        (relative(ATTEMPT), "PidInputOrderAttempt001"),
+    ])
+    if len({prefix for _, prefix in pairs}) != len(pairs):
+        raise ValueError("Duplicate logical namespace")
+    return pairs
+
+
+def module(path, pairs):
+    path = Path(path).resolve()
+    candidates = [
+        (len(str(ROOT / directory)), directory, prefix)
+        for directory, prefix in pairs
+        if path.is_relative_to(ROOT / directory)
+    ]
+    if not candidates:
+        raise ValueError("No explicit namespace for " + str(path))
+    _, directory, prefix = max(candidates)
+    return prefix + "." + ".".join(path.relative_to(ROOT / directory).with_suffix("").parts)
+
+
+def problem():
+    status = json.loads((PROBLEM / "status.json").read_text())
+    expected = [goal for goal, _ in GOALS]
+    if status.get("requested_goals") != expected:
+        raise ValueError("Canonical requested goals differ from the exact checker bindings")
+    return {
+usage: five_telemetry.py finish [-h] --run RUN --verdict VERDICT --summary
+                                SUMMARY --outputs OUTPUTS
+
+options:
+  -h, --help         show this help message and exit
+  --run RUN
+  --verdict VERDICT
+  --summary SUMMARY
+  --outputs OUTPUTS  JSON map of output role to path

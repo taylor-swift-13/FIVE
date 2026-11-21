@@ -1,0 +1,63 @@
+
+Record axis_bounds(kp kd ki kv ka pe se rs ra initial_i:int):Prop:={
+ bound_kp:0<=Int.signed kp<=100;bound_kd:0<=Int.signed kd<=100;
+ bound_ki:0<=Int.signed ki<=100;bound_kv:0<=Int.signed kv<=100;bound_ka:0<=Int.signed ka<=100;
+ bound_pe:int_bound pe 4096;bound_se:int_bound se 8388608;
+ bound_rs:int_bound rs 10000;bound_ra:int_bound ra 10000;bound_initial_i:int_bound initial_i 100000000
+}.
+Definition pd_stage(kp kd pe se:int):int:=pd_bits kp kd pe se.
+Definition velocity_stage(kp kd kv pe se rs:int):int:=
+ Int.add(pd_stage kp kd pe se)(Int.shr(Int.mul kv rs)(Int.repr 17)).
+Definition feedforward_stage(kp kd kv ka pe se rs ra:int):int:=
+ feedforward_bits(pd_stage kp kd pe se)kv rs ka ra.
+Definition integral_sum(kp kd ki pe se initial_i:int):int:=
+ Int.add initial_i(Int.mul ki(pd_stage kp kd pe se)).
+Definition integral_trim(kp kd ki pe se initial_i:int):int:=
+ clip_bits(integral_sum kp kd ki pe se initial_i)(Int.shl(Int.repr 1429)(Int.repr 16)).
+Definition command_before_total(kp kd ki kv ka pe se rs ra initial_i:int):int:=
+ Int.add(clip_bits(feedforward_stage kp kd kv ka pe se rs ra)(Int.repr 1429))
+ (Int.shr(integral_trim kp kd ki pe se initial_i)(Int.repr 16)).
+
+Theorem original_axis_intermediate_bounds:forall kp kd ki kv ka pe se rs ra initial_i,
+ axis_bounds kp kd ki kv ka pe se rs ra initial_i ->
+ int_bound(pd_stage kp kd pe se)12800 /\
+ int_bound(velocity_stage kp kd kv pe se rs)12808 /\
+ int_bound(feedforward_stage kp kd kv ka pe se rs ra)16715 /\
+ int_bound(integral_sum kp kd ki pe se initial_i)101280000 /\
+ int_bound(integral_trim kp kd ki pe se initial_i)93650944 /\
+ int_bound(command_before_total kp kd ki kv ka pe se rs ra initial_i)2858.
+Proof.
+ intros kp kd ki kv ka pe se rs ra initial_i D;destruct D as[KP KD KI KV KA PE SE RS RA II].
+ destruct(gain_product_bound kp pe 4096 KP PE ltac:(lia)ltac:(lia))as[PM PMOK].
+ assert(PS:int_bound(Int.shr(Int.mul kp pe)(Int.repr 6))6400).
+ { eapply shift_bound with(d:=64)(bound:=409600);[exact PM|lia|reflexivity|vm_compute;congruence|vm_compute;congruence]. }
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory.
+Import ListNotations.
+Open Scope Z_scope.
+Eval vm_compute in (path_info gh_type [S._ref;S._speed;S._x],path_info gh_type [S._ref;S._accel;S._x],path_info pid_type [S._cmd_earth;S._x]).
+Ltac core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM :=
+ lazymatch goal with
+ | |- eval_simple_rvalue _ _ _ (Eval _ _) _=>constructor
+ | |- eval_simple_rvalue _ _ _ (Ebinop ?op _ _ _) _=>eapply esr_binop;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity]
+ | |- eval_simple_rvalue _ _ _ (Eunop _ _ _) _=>eapply esr_unop;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity]
+ | |- eval_simple_rvalue _ _ _ (Ecast _ _) _=>eapply esr_cast;[core_rv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity]
+ | |- eval_simple_rvalue _ _ _ (Evalof ?l ?ty) _=>
+   let mode:=eval hnf in(access_mode ty)in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM|reflexivity|reflexivity|reflexivity|
+       lazymatch goal with|-Mem.loadv ?c ?mm(Vptr ?bb ?oo)=Some ?vv=>
+       let ox:=eval vm_compute in(Ptrofs.unsigned oo)in change(Mem.load c mm bb ox=Some vv);scalar_frame;first[eassumption|reflexivity] end]
+   end
+ | |- eval_simple_rvalue _ _ _ (Eaddrof _ _) _=>apply esr_addrof;core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM
+ end
+with core_lv EX EY EG NP NE NS SP SE SS NI SI NM SM :=
+ lazymatch goal with
+ | |- eval_simple_lvalue _ _ _ (Evar ?id _) _ _ _=>
+   lazymatch id with

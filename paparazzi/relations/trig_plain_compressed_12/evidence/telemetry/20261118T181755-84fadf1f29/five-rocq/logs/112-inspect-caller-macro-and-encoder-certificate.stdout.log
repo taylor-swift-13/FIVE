@@ -1,0 +1,82 @@
+From Stdlib Require Import Bool List String ZArith.
+From compcert Require Import Coqlib Errors Maps Integers AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From PprzTrigRelationSupport Require Import PlainCore Total.
+From PprzTrigInitSupport Require Import Control SideEffects.
+Import ListNotations Csyntaxdefs.CsyntaxNotations.
+Local Open Scope string_scope.
+Definition negate_expr (neg:bool)(a:expr):expr := if neg then Eunop Oneg a tint else a.
+Definition negate_int(neg:bool)(a:int):int := if neg then Int.neg a else a.
+
+Lemma read_call_total : forall (ge:Csem.genv)Q f e m k fnid argid targetty returnty target funblock argblock a castarg neg,
+ e!fnid=None -> e!argid=Some(argblock,tint) ->
+ Genv.find_symbol ge fnid=Some funblock ->
+ Cexec.do_deref_loc ge Control.quiet tint m argblock Ptrofs.zero Full=Some(Control.quiet,E0,Vint a) ->
+ Genv.find_funct ge(Vptr funblock Ptrofs.zero)=Some(Internal target) ->
+ type_of_fundef(Internal target)=Tfunction[targetty]returnty cc_default ->
+ sem_cast(Vint(negate_int neg a))tint targetty m=Some castarg ->
+ nv returnty=true ->
+ Total.total ge Q(Callstate(Internal target)[castarg]
+  (Kcall f e (fun x=>negate_expr neg x) returnty k)m) ->
+ Total.total ge Q(ExprState f
+  (negate_expr neg(Ecall
+   (Evalof(Evar fnid(Tfunction[targetty]returnty cc_default))(Tfunction[targetty]returnty cc_default))
+   (Econs(negate_expr neg(Evalof(Evar argid tint)tint))Enil)returnty))k e m).
+Proof.
+ intros ge Q f e m k fnid argid targetty returnty target funblock argblock a castarg neg EF EA SYM ARG FUN TY CAST NV END.
+ assert(FADDR:Cexec.do_deref_loc ge Control.quiet(Tfunction[targetty]returnty cc_default)m funblock Ptrofs.zero Full=
+   Some(Control.quiet,E0,Vptr funblock Ptrofs.zero))by reflexivity.
+ destruct neg;cbn[negate_expr negate_int]in *.
+ all:let rec dag :=
+   first[exact END|
+    eapply quiet_successors_total;
+    [cbn[quiet_expr quiet_exprlist nv tint type_is_volatile noattr];rewrite NV;reflexivity|
+     repeat(progress(cbn[Cexec.do_step Cexec.step_expr Cexec.step_exprlist Cexec.is_val Cexec.is_loc
+      Cexec.is_val_list Cexec.incontext Cexec.incontext2 Cexec.topred Cexec.ret Cexec.expr_final_state
+      Cexec.sem_cast_arguments classify_fun typeof];
+      rewrite ?EF,?EA,?SYM,?ARG,?FADDR,?FUN,?TY,?CAST,?dec_eq_true));
+      repeat eexists;cbn[Cexec.expr_final_state];left;reflexivity|
+     intros rule trace next IN;
+     repeat(progress(cbn[Cexec.do_step Cexec.step_expr Cexec.step_exprlist Cexec.is_val Cexec.is_loc
+      Cexec.is_val_list Cexec.incontext Cexec.incontext2 Cexec.topred Cexec.ret Cexec.expr_final_state
+      Cexec.sem_cast_arguments classify_fun typeof]in IN;
+      rewrite ?EF,?EA,?SYM,?ARG,?FADDR,?FUN,?TY,?CAST,?dec_eq_true in IN));
+     cbn in IN;repeat match goal with H:_ \/ _|-_=>destruct H end;
+     try contradiction;match goal with H:TR _ _ _=TR _ _ _|-_=>inversion H;subst;clear H end;dag]]
+ in dag.
+Qed.
+From Stdlib Require Import List ZArith Lia Bool.
+From compcert Require Import Coqlib AST Integers.
+From PprzTrigRelationSupport Require Import TrigData PackedPrefix.
+Open Scope Z_scope.
+Definition encoder_high_index(a:Int.int):Int.int :=Int.add(Int.repr 6434)(Int.divs a(Int.repr 2)).
+Definition encoder_offset(a:Int.int):ptrofs :=Ptrofs.add Ptrofs.zero(Ptrofs.mul(Ptrofs.repr 1)(Ptrofs.of_ints a)).
+Definition encoder_even_choice(a:Int.int):bool :=Int.cmp Ceq(Int.mods a(Int.repr 2))Int.zero.
+Definition encoder_low_machine(v:Int.int):Int.int :=Int.zero_ext 8(Int.mods v(Int.repr 256)).
+Definition encoder_high_machine(a v old:Int.int):Int.int :=Int.zero_ext 8
+ (if encoder_even_choice a then Int.shr(Int.and v(Int.repr 3840))(Int.repr 8)
+ else Int.or old(Int.shr(Int.and v(Int.repr 3840))(Int.repr 4))).
+Definition encoder_machine_ok(cnt:Z):bool :=
+ Z.eqb(Ptrofs.unsigned(encoder_offset(Int.repr cnt)))cnt &&
+ Z.eqb(Ptrofs.unsigned(encoder_offset(encoder_high_index(Int.repr cnt))))(high_address cnt) &&
+ Bool.eqb(encoder_even_choice(Int.repr cnt))(Z.eqb(cnt mod 2)0) &&
+ Int.eq(encoder_low_machine(Int.repr(table_at cnt)))(Int.repr(low_written cnt)) &&
+ Int.eq(encoder_high_machine(Int.repr cnt)(Int.repr(table_at cnt))(Int.repr(buffer_view cnt(high_address cnt))))(Int.repr(high_written cnt)).
+Lemma literal_encoder_machine_certificate : forallb(fun n=>encoder_machine_ok(Z.of_nat n))(seq 0 6434)=true.
+Proof. vm_compute;reflexivity. Qed.
+Lemma literal_encoder_machine : forall cnt,0<=cnt<6434 ->
+ Ptrofs.unsigned(encoder_offset(Int.repr cnt))=cnt /\
+ Ptrofs.unsigned(encoder_offset(encoder_high_index(Int.repr cnt)))=high_address cnt /\
+ encoder_even_choice(Int.repr cnt)=Z.eqb(cnt mod 2)0 /\
+ encoder_low_machine(Int.repr(table_at cnt))=Int.repr(low_written cnt) /\
+ encoder_high_machine(Int.repr cnt)(Int.repr(table_at cnt))(Int.repr(buffer_view cnt(high_address cnt)))=Int.repr(high_written cnt).
+Proof.
+ intros cnt C. pose proof literal_encoder_machine_certificate as H.
+ apply forallb_forall with(x:=Z.to_nat cnt)in H.
+ - rewrite Z2Nat.id in H by lia. unfold encoder_machine_ok in H.
+   repeat rewrite andb_true_iff in H. destruct H as[[[[A B]D]E]F].
+   apply Z.eqb_eq in A;apply Z.eqb_eq in B;apply(proj1(Bool.eqb_true_iff _ _))in D;
+   apply Int.same_if_eq in E;apply Int.same_if_eq in F;repeat split;assumption.
+ - apply in_seq;split;[lia|]. cbn [Nat.add]. change(Z.to_nat cnt<Z.to_nat 6434)%nat.
+   apply(proj1(Z2Nat.inj_lt cnt 6434 ltac:(lia)ltac:(lia)));lia.
+Qed.
+-rw-r--r-- 1 yangfp yangfp 28847 Nov 19 03:49 paparazzi/relations/trig_plain_compressed_12/init_support/EncoderBody.vo

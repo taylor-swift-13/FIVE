@@ -1,0 +1,273 @@
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Csem.v
+e: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_condition: forall v1 ty1 r1 r2 ty b m,
+      bool_val v1 ty1 m = Some b ->
+      rred (Econdition (Eval v1 ty1) r1 r2 ty) m
+        E0 (Eparen (if b then r1 else r2) ty ty) m
+  | red_sizeof: forall ty1 ty m,
+      rred (Esizeof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (sizeof ge ty1))) ty) m
+  | red_alignof: forall ty1 ty m,
+      rred (Ealignof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (alignof ge ty1))) ty) m
+  | red_assign: forall b ofs ty1 bf v2 ty2 m v t m' v',
+      sem_cast v2 ty2 ty1 m = Some v ->
+      assign_loc ty1 m b ofs bf v t m' v' ->
+      rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+         t (Eval v' ty1) m'
+  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+      deref_loc ty1 m b ofs bf t v1 ->
+      rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+         t (Eassign (Eloc b ofs bf ty1)
+                    (Eb
+         (Eval v1 ty) ty) m
+  | red_comma: forall v ty1 r2 ty m,
+      typeof r2 = ty ->
+      rred (Ecomma (Eval v ty1) r2 ty) m
+        E0 r2 m
+  | red_paren: forall v1 ty1 ty2 ty m v,
+      sem_cast v1 ty1 ty2 m = Some v ->
+      rred (Eparen (Eval v1 ty1) ty2 ty) m
+        E0 (Eval v ty) m
+  | red_builtin: forall ef tyargs el ty m vargs t vres m',
+      cast_arguments m el tyargs vargs ->
+      external_call ef ge vargs m t vres m' ->
+      rred (Ebuiltin ef tyargs el ty) m
+         t (Eval vres ty) m'.
+
+
+(** Head reduction for function calls.
+    (More exactly, identification of function calls that can reduce.) *)
+
+Inductive callred: expr -> mem -> fundef -> list val -> type -> Prop :=
+  | red_call: forall vf tyf m tyargs tyres cconv el ty fd vargs,
+      Genv.find_funct ge vf = Some fd ->
+      cast_arguments m el tyargs vargs ->
+      type_of_fundef fd = Tfunction tyargs tyres cconv ->
+      classify_fun tyf = fun_case_f tyargs tyres cconv ->
+      callred (Ecall (Eval vf tyf) el ty) m
+              fd vargs ty.
+
+(** Reduction 
+om] is the kind of the hole in the context and [to] is
+  the kind of the term resulting from filling the hole.
+*)
+
+Inductive kind : Type := LV | RV.
+
+Inductive context: kind -> kind -> (expr -> expr) -> Prop :=
+  | ctx_top: forall k,
+      context k k (fun x => x)
+  | ctx_deref: forall k C ty,
+      context k RV C -> context k LV (fun x => Ederef (C x) ty)
+  | ctx_field: forall k C f ty,
+      context k RV C -> context k LV (fun x => Efield (C x) f ty)
+  | ctx_rvalof: forall k C ty,
+      context k LV C -> context k RV (fun x => Evalof (C x) ty)
+  | ctx_addrof: forall k C ty,
+      context k LV C -> context k RV (fun x => Eaddrof (C x) ty)
+  | ctx_unop: forall k C op ty,
+      context k RV C -> context k RV (fun x => Eunop op (C x) ty)
+  | ctx_binop_left: forall k C op e2 ty,
+      context k RV C -> context k RV (fun x => Ebinop op (C x) e2 ty)
+  | ctx_binop_right: forall k C op e1 ty,
+      context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+  | ctx_cast: forall k C ty,
+      context k RV C -> context k RV (fun x => Ecast
+Lemma source_clamp_expression : forall e m r err shift bound,
+ typeof r=tint -> source_simple r=true ->
+ Cstrategy.eval_simple_rvalue Execution.ge e m r(Vint err) ->
+ Cstrategy.eval_simple_rvalue Execution.ge e m(source_bound shift)(Vfloat(Float.of_int bound)) ->
+ Float.neg(Float.of_int bound)=Float.of_int(Int.neg bound) ->
+ exists chosen,
+ Cstrategy.eval_expression Execution.ge e m(source_clamp r shift)E0 m(Vfloat(Float.of_int chosen)).
+Proof.
+ intros e m r err shift bound TY SIMPLE READ BOUND NEG.
+ set (below:=Float.cmp Clt(Float.of_int err)(Float.of_int(Int.neg bound))).
+ set (above:=Float.cmp Cgt(Float.of_int err)(Float.of_int bound)).
+ assert (LOW : Cstrategy.eval_simple_rvalue Execution.ge e m
+   (Eunop Oneg(source_bound shift)tdouble)(Vfloat(Float.of_int(Int.neg bound)))).
+ { eapply Cstrategy.esr_unop;[exact BOUND|]. change(Some(Vfloat(Float.neg(Float.of_int bound)))=Some(Vfloat(Float.of_int(Int.neg bound)))). rewrite NEG;reflexivity. }
+ assert (LT : Cstrategy.eval_expression Execution.ge e m
+   (Ebinop Olt r(Eunop Oneg(source_bound shift)tdouble)tint)E0 m(Val.of_bool below)).
+ { apply simple_expression.
+   - eapply Cstrategy.esr_binop;[exact READ|exact LOW|].
+     rewrite TY;reflexivity.
+   - cbn[source_simple];rewrite SIMPLE;reflexivity. }
+ assert (GT : Cstrategy.eval_expression Execution.ge e m
+   (Ebinop Ogt r(source_bound shift)tint)E0 m(Val.of_bool above)).
+ { apply simple_expression.
+   - eapply Cstrategy.esr_binop;[exact READ|exact BOUND|]. rewrite TY;reflexivity.
+   - cbn[source_simple];rewrite SIMPLE;reflexivity. }
+ unfold source_clamp.
+ destruct below eqn:BELOW.
+ - exists(Int.neg bound).
+   eapply conditional_expression with(vt:=Val.of_bool true)(vb:=true)
+    (vbranch:=Vfloat(Float.of_int(Int.neg bound)));try exact LT;try reflexivity.
+   apply simple_expression;[exact LOW|reflexivity].
+ - destruct above eqn:ABOVE.
+   + exists bound.
+     eapply conditional_expression with(vt:=Val.of_bool false)(vb:=false)
+      (vbranch:=Vfloat(Float.of_int bound));try exact LT;try reflexivity.
+     eapply conditional_expression with(vt:=Val.of_bool true)(vb:=true)
+      (vbranch:=Vfloat(Float.of_int bound));try exact GT;try reflexivity.
+     apply simple_expression;[exact BOUND|reflexivity].
+   + exists err.
+     eapply conditional_expression with(vt:=Val.of_bool false)(vb:=false)
+      (vbranch:=Vfloat(Float.of_int err));try exact LT;try reflexivity.
+     eapply conditional_expression with(vt:=Val.of_bool false)(vb:=false)
+      (vbranch:=Vint err);try exact GT;try reflexivity.
+     * apply simple_expression;[exact READ|exact SIMPLE].
+     * rewrite TY;reflexivity.
+Qed.
+
+Lemma source_clamp_assignment_exists : forall e m l err shift bound eb eofs,
+ typeof l=tint -> source_simple l=true ->
+ Cstrategy.eval_simple_lvalue Execution.ge e m l eb eofs Full ->
+ Mem.loadv Mint32 m(Vptr eb eofs)=Some(Vint err) ->
+ Mem.valid_access m Mint32 eb(Ptrofs.unsigned eofs) Writable ->
+ Cstrategy.eval_simple_rvalue Execution.ge e m(source_bound shift)(Vfloat(Float.of_int bound)) ->
+ Float.neg(Float.of_int bound)=Float.of_int(Int.neg bound) ->
+ exists chosen mf,
+ Cstrategy.exec_stmt Execution.ge e m
+  (Sdo(Eassign l(source_clamp(Evalof l tint)shift)tint))E0 mf Out_normal /\
+ Mem.storev Mint32 m(Vptr eb eofs)(Vint chosen)=Some mf /\
+ Mem.loadv Mint32 mf(Vptr eb eofs)=Some(Vint chosen).
+Proof.
+ intros e m l err shift bound eb eofs TY SIMPLE LV LOAD ACCESS BOUND NEG.
+ assert(READ : Cstrategy.eval_simple_rvalue Execution.ge e m(Evalof l tint)(Vint err)).
+ { apply BigstepSupport.read_scalar with(b:=eb)(ofs:=eofs)(chunk:=Mint32);try exact LV;try exact LOAD.
+   all:try rewrite TY;reflexivity. }
+ destruct(source_clamp_expression e m(Evalof l tint)err shift bound eq_refl)
+  as[chosen EVAL];[cbn[source_simple];rewrite TY,SIMPLE;reflexivity|exact READ|exact BOUND|exact NEG|].
+ destruct(Mem.valid_access_store m Mint32 eb(Ptrofs.unsigned eofs)(Vint chosen) ACCESS)
+  as[mf STORE].
+ assert(NOWRAP : Ptrofs.unsigned eofs+size_chunk Mint32<=Ptrofs.modulus).
+ { unfold Mem.loadv in LOAD;destruct(zle(Ptrofs.unsigned eofs+size_chunk Mint32)Ptrofs.modulus);[assumption|discriminate]. }
+ assert(STOREV : Mem.storev Mint32 m(Vptr eb eofs)(Vint chosen)=Some mf).
+ { unfold Mem.storev;destruct(zle(Ptrofs.unsigned eofs+size_chunk Mint32)Ptrofs.modulus);[exact STORE|lia]. }
+ exists chosen,mf;split.
+ - inversion EVAL as[e0 m0 a0 t0 m0' a0' v0 EVAL0 VAL];subst.
+   eapply effectful_assignment with(r':=a0')(v:=Vfloat(Float.of_int chosen))(vc:=Vint chosen).
+   + exact LV.
+   + exact SIMPLE.
+   + exact EVAL0.
+   + exact VAL.
+   + rewrite TY;change(match Float.to_int(Float.of_int chosen)with Some i=>Some(Vint i)|None=>None end=Some(Vint chosen)).
+     rewrite signed_int_double_roundtrip;reflexivity.
+   + rewrite TY;apply BigstepSupport.assign_scalar with(chunk:=Mint32);try reflexivity;exact STOREV.
+   + symmetry;exact TY.
+ - split;[exact STOREV|]. unfold Mem.loadv;destruct(zle(Ptrofs.unsigned eofs+size_chunk Mint32)Ptrofs.modulus);[|lia].
+   rewrite(Mem.load_store_same Mint32 m eb(Ptrofs.unsigned eofs)(Vint chosen)mf STORE);reflexivity.
+Qed.
+
+Lemma original_clamp_prefix_binding :
+ match fn_body Source.f_guidance_pid_h_run_pos with
+ | Ssequence _ (Ssequence a (Ssequence _ (Ssequence b _))) =>
+   a=Ssequence(original_position_clamp Source._x)(original_position_clamp Source._y) /\
+   b=Ssequence(original_speed_clamp Source._x)(original_speed_clamp Source._y)
+ | _=>False end.
+Proof. split;reflexivity. Qed.
+
+Print Assumptions signed_int_double_roundtrip.
+Print Assumptions source_clamp_assignment_exists.
+
+Definition clamp_bits(err bound:int):int :=
+ if Float.cmp Clt(Float.of_int err)(Float.of_int(Int.neg bound))
+ then Int.neg bound
+ else if Float.cmp Cgt(Float.of_int err)(Float.of_int bound)then bound else err.
+
+Lemma source_clamp_expression_exact : forall e m r err shift bound,
+ typeof r=tint -> source_simple r=true ->
+ Cstrategy.eval_simple_rvalue Execution.ge e m r(Vint err) ->
+ Cstrategy.eval_simple_rvalue Execution.ge e m(source_bound shift)(Vfloat(Float.of_int bound)) ->
+ Float.neg(Float.of_int bound)=Float.of_int(Int.neg bound) ->
+ Cstrategy.eval_expression Execution.ge e m(source_clamp r shift)E0 m(Vfloat(Float.of_int(clamp_bits err bound))).
+Proof.
+ intros e m r err shift bound TY SIMPLE READ BOUND NEG.
+ set (below:=Float.cmp Clt(Float.of_int err)(Float.of_int(Int.neg bound))).
+ set (above:=Float.cmp Cgt(Float.of_int err)(Float.of_int bound)).
+ assert (LOW : Cstrategy.eval_simple_rvalue Execution.ge e m
+   (Eunop Oneg(source_bound shift)tdouble)(Vfloat(Float.of_int(Int.neg bound)))).
+ { eapply Cstrategy.esr_unop;[exact BOUND|]. change(Some(Vfloat(Float.neg(Float.of_int bound)))=Some(Vfloat(Float.of_int(Int.neg bound)))). rewrite NEG;reflexivity. }
+ assert (LT : Cstrategy.eval_expression Execution.ge e m
+   (Ebinop Olt r(Eunop Oneg(source_bound shift)tdouble)tint)E0 m(Val.of_bool below)).
+ { apply simple_expression.
+   - eapply Cstrategy.esr_binop;[exact READ|exact LOW|].
+     rewrite TY;reflexivity.
+   - cbn[source_simple];rewrite SIMPLE;reflexivity. }
+ assert (GT : Cstrategy.eval_expression Execution.ge e m
+   (Ebinop Ogt r(source_bound shift)tint)E0 m(Val.of_bool above)).
+ { apply simple_expression.
+   - eapply Cstrategy.esr_binop;[exact READ|exact BOUND|]. rewrite TY;reflexivity.
+   - cbn[source_simple];rewrite SIMPLE;reflexivity. }
+ unfold source_clamp,clamp_bits;fold below above.
+ destruct below eqn:BELOW.
+ -
+   eapply conditional_expression with(vt:=Val.of_bool true)(vb:=true)
+    (vbranch:=Vfloat(Float.of_int(Int.neg bound)));try exact LT;try reflexivity.
+   apply simple_expression;[exact LOW|reflexivity].
+ - destruct above eqn:ABOVE.
+   +
+     eapply conditional_expression with(vt:=Val.of_bool false)(vb:=false)
+      (vbranch:=Vfloat(Float.of_int bound));try exact LT;try reflexivity.
+     eapply conditional_expression with(vt:=Val.of_bool true)(vb:=true)
+      (vbranch:=Vfloat(Float.of_int bound));try exact GT;try reflexivity.
+     apply simple_expression;[exact BOUND|reflexivity].
+   +
+     eapply conditional_expression with(vt:=Val.of_bool false)(vb:=false)
+      (vbranch:=Vfloat(Float.of_int err));try exact LT;try reflexivity.
+     eapply conditional_expression with(vt:=Val.of_bool false)(vb:=false)
+      (vbranch:=Vint err);try exact GT;try reflexivity.
+     * apply simple_expression;[exact READ|exact SIMPLE].
+     * rewrite TY;reflexivity.
+Qed.
+
+
+Lemma source_clamp_assignment_exact_exists : forall e m l err shift bound eb eofs,
+ typeof l=tint -> source_simple l=true ->
+ Cstrategy.eval_simple_lvalue Execution.ge e m l eb eofs Full ->
+ Mem.loadv Mint32 m(Vptr eb eofs)=Some(Vint err) ->
+ Mem.valid_access m Mint32 eb(Ptrofs.unsigned eofs) Writable ->
+ Cstrategy.eval_simple_rvalue Execution.ge e m(source_bound shift)(Vfloat(Float.of_int bound)) ->
+ Float.neg(Float.of_int bound)=Float.of_int(Int.neg bound) ->
+ exists mf,
+ Cstrategy.exec_stmt Execution.ge e m
+  (Sdo(Eassign l(source_clamp(Evalof l tint)shift)tint))E0 mf Out_normal /\
+ Mem.storev Mint32 m(Vptr eb eofs)(Vint(clamp_bits err bound))=Some mf /\
+ Mem.loadv Mint32 mf(Vptr eb eofs)=Some(Vint(clamp_bits err bound)).
+Proof.
+ intros e m l err shift bound eb eofs TY SIMPLE LV LOAD ACCESS BOUND NEG.
+ assert(READ : Cstrategy.eval_simple_rvalue Execution.ge e m(Evalof l tint)(Vint err)).
+ { apply BigstepSupport.read_scalar with(b:=eb)(ofs:=eofs)(chunk:=Mint32);try exact LV;try exact LOAD.
+   all:try rewrite TY;reflexivity. }
+ pose proof(source_clamp_expression_exact e m(Evalof l tint)err shift bound eq_refl
+  ltac:(cbn[source_simple];rewrite TY,SIMPLE;reflexivity)READ BOUND NEG)as EVAL.
+ set(chosen:=clamp_bits err bound)in *. 
+ destruct(Mem.valid_access_store m Mint32 eb(Ptrofs.unsigned eofs)(Vint(clamp_bits err bound)) ACCESS)
+  as[mf STORE].
+ assert(NOWRAP : Ptrofs.unsigned eofs+size_chunk Mint32<=Ptrofs.modulus).
+ { unfold Mem.loadv in LOAD;destruct(zle(Ptrofs.unsigned eofs+size_chunk Mint32)Ptrofs.modulus);[assumption|discriminate]. }
+ assert(STOREV : Mem.storev Mint32 m(Vptr eb eofs)(Vint(clamp_bits err bound))=Some mf).
+ { unfold Mem.storev;destruct(zle(Ptrofs.unsigned eofs+size_chunk Mint32)Ptrofs.modulus);[exact STORE|lia]. }
+ exists mf;split.
+ - inversion EVAL as[e0 m0 a0 t0 m0' a0' v0 EVAL0 VAL];subst.
+   eapply effectful_assignment with(r':=a0')(v:=Vfloat(Float.of_int chosen))(vc:=Vint chosen).
+   + exact LV.
+   + exact SIMPLE.
+   + exact EVAL0.
+   + exact VAL.
+   + rewrite TY;change(match Float.to_int(Float.of_int chosen)with Some i=>Some(Vint i)|None=>None end=Some(Vint(clamp_bits err bound))).
+     rewrite signed_int_double_roundtrip;reflexivity.
+   + rewrite TY;apply BigstepSupport.assign_scalar with(chunk:=Mint32);try reflexivity;exact STOREV.
+   + symmetry;exact TY.
+ - split;[exact STOREV|]. unfold Mem.loadv;destruct(zle(Ptrofs.unsigned eofs+size_chunk Mint32)Ptrofs.modulus);[|lia].
+   rewrite(Mem.load_store_same Mint32 m eb(Ptrofs.unsigned eofs)(Vint(clamp_bits err bound))mf STORE);reflexivity.
+Qed.
+
+
+Local Transparent Float.neg Float.of_int.
+Lemma position_bound_neg

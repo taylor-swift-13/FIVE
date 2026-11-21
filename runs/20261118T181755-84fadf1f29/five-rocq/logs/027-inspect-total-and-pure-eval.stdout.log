@@ -1,0 +1,278 @@
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From PprzTrigRelationSupport Require Import PlainCore.
+Import ListNotations.
+
+(** This denotation is used to establish uniqueness of normal executions.
+    Execution remains the complete error-preserving operational model. *)
+Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
+
+Section DENOTATION.
+Variable ge: genv.
+Variable e: env.
+Variable m: mem.
+
+Fixpoint pure_rval (a: expr): option val :=
+  match a with
+  | Eval v _ => Some v
+  | Evalof l ty =>
+      if type_eq ty (typeof l) then
+      match pure_lval l with
+      | Some (b,ofs,bf) =>
+          match Cexec.do_deref_loc ge quiet_world ty m b ofs bf with
+          | Some (_,_,v) => Some v | None => None end
+      | None => None end else None
+  | Eaddrof l _ =>
+      match pure_lval l with Some (b,ofs,Full) => Some (Vptr b ofs) | _ => None end
+  | Eunop op a _ =>
+      match pure_rval a with Some v => sem_unary_operation op v (typeof a) m | None => None end
+  | Ebinop op a b _ =>
+      match pure_rval a, pure_rval b with
+      | Some v, Some w => sem_binary_operation ge op v (typeof a) w (typeof b) m
+      | _,_ => None end
+  | Ecast a ty =>
+      match pure_rval a with Some v => sem_cast v (typeof a) ty m | None => None end
+  | Esizeof ty _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty)))
+  | Ealignof ty _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty)))
+  | _ => None
+  end
+with pure_lval (a: expr): option (block * ptrofs * bitfield) :=
+  match a with
+  | Eloc b ofs bf _ => Some (b,ofs,bf)
+  | Evar id ty =>
+      match PTree.get id e with
+      | Some (b,ty') => if type_eq ty ty' then Some (b,Ptrofs.zero,Full) else None
+      | None => match Genv.find_symbol ge id with Some b => Some (b,Ptrofs.zero,Full) | None => None end end
+  | Ederef a _ =>
+      match pure_rval a with Some (Vptr b ofs) => Some (b,ofs,Full) | _ => None end
+  | Efield a id _ =>
+      match pure_rval a with
+      | Some (Vptr b ofs) =>
+          match typeof a with
+          | Tstruct sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | Tunion sid _ =>
+              match PTree.get sid (genv_cenv ge) with
+              | Some co => match union_field_offset ge id (co_members co) with
+                | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+                | _ => None end
+              | None => None end
+          | _ => None end
+      | _ => None end
+  | _ => None
+  end.
+
+Definition pure_eq (k: kind) (a b: expr): Prop :=
+  match k with RV => pure_rval a = pure_rval b | LV => pure_lval a = pure_lval b end.
+
+Lemma context_type_eq:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> typeof (C a) = typeof (C b).
+Proof. induction 1; simpl; intros; auto. Qed.
+
+Lemma pure_context_congr:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> pure_eq from a b -> pure_eq to (C a) (C b).
+Proof.
+  induction 1; simpl; intros a b HT HE; auto;
+    try (rewrite (IHcontext a b HT HE); reflexivity);
+    try (rewrite (context_type_eq _ _ _ H a b HT), (IHcontext a b HT HE); reflexivity).
+Qed.
+
+End DENOTATION.
+
+Lemma simple_context_hole:
+  forall from to C, context from to C -> forall a,
+  simple (C a) = true -> simple a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+Qed.
+
+Lemma pure_lred:
+  forall ge e a m a' m', lred ge e a m a' m' ->
+  m' = m /\ typeof a' = typeof a /\ simple a' = true /\
+  pure_lval ge e m a = pure_lval ge e m a'.
+Proof.
+  intros ge e a m a' m' H; inversion H; subst; simpl; repeat split; auto;
+    try rewrite H0; try rewrite H1; try rewrite H2; try rewrite dec_eq_true; auto.
+Qed.
+
+Lemma pure_rred:
+  forall ge e a m t a' m', simple a = true -> rred ge a m t a' m' ->
+  m' = m /\ t = E0 /\ typeof a' = typeof a /\ simple a' = true /\
+  pure_rval ge e m a = pure_rval ge e m a'.
+Proof.
+From Stdlib Require Import Bool List Arith Lia Wellfounded.
+From compcert Require Import Coqlib Maps Integers AST Values Memory Events Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveShared.verification Require Import Obligations.
+From PprzTrigRelationSupport Require Import PlainCore PureEval PureProgress.
+Import ListNotations.
+
+(** A finite all-successor proof tree over the ORIGINAL Csem relation.  Its
+    constructor requires every Csem edge, including every evaluation order.
+    It is a proof device, not a replacement execution relation. *)
+Section TOTAL.
+Variable ge : Csem.genv.
+Variable Q : val -> mem -> Prop.
+Inductive total : Csem.state -> Prop :=
+| total_final : forall v m, Q v m -> total (Returnstate v Kstop m)
+| total_next : forall s,
+    (exists t s', Csem.step ge s t s') ->
+    (forall t s', Csem.step ge s t s' -> total s') -> total s.
+
+Lemma final_nostep : forall v m, nostep Csem.step ge (Returnstate v Kstop m).
+Proof. intros v m t s [E|S]; inversion E || inversion S. Qed.
+Lemma total_one : forall s t s', total s -> Csem.step ge s t s' -> total s'.
+Proof.
+ intros s t s' T E; inversion T; subst; eauto.
+ exfalso; eapply final_nostep; exact E.
+Qed.
+Lemma total_reachable : forall s t s', total s -> star Csem.step ge s t s' -> total s'.
+Proof. intros s t s' T H; induction H; auto; apply IHstar; eauto using total_one. Qed.
+Lemma total_progress : forall s, total s -> normal_return s \/ exists t s', Csem.step ge s t s'.
+Proof. intros s T; inversion T; subst; [left;red;eauto|right;auto]. Qed.
+Theorem total_no_error : forall s, total s -> no_error ge s.
+Proof.
+ intros s T t s' E. pose proof(total_reachable _ _ _ T E) as R.
+ destruct(total_progress _ R) as [F|[u[n N]]]; intros [NF NS]; [contradiction|eapply NS;eauto].
+Qed.
+Theorem total_termination : forall s, total s -> terminates ge s.
+Proof.
+ intros s T; unfold terminates; induction T.
+ - constructor;intros n[t E];exfalso;eapply final_nostep;exact E.
+ - constructor;intros n[t E];eauto.
+Qed.
+Theorem total_result : forall s v m t,
+ total s -> star Csem.step ge s t (Returnstate v Kstop m) -> Q v m.
+Proof.
+ intros s v m t T E; pose proof(total_reachable _ _ _ T E) as R.
+ inversion R; subst; auto. destruct H as [u[n N]]. exfalso;eapply final_nostep;exact N.
+Qed.
+End TOTAL.
+Local Open Scope nat_scope.
+
+Fixpoint expr_rank (a:expr) : nat :=
+ match a with
+ | Eval _ _ | Eloc _ _ _ _ => 0
+ | Evar _ _ | Esizeof _ _ | Ealignof _ _ => 1
+ | Evalof a _ | Efield a _ _ | Ederef a _ | Eaddrof a _
+ | Eunop _ a _ | Ecast a _ | Eparen a _ _ => S(expr_rank a)
+ | Ebinop _ a b _ | Eassign a b _ => S(expr_rank a+expr_rank b)
+ | _=>0 end.
+Lemma simple_rank_lred : forall ge e a m a' m',
+ lred ge e a m a' m' -> expr_rank a' < expr_rank a.
+Proof. intros;inversion H;subst;simpl;lia. Qed.
+Lemma simple_rank_rred : forall ge a m t a' m',
+ simple a=true -> rred ge a m t a' m' -> expr_rank a'<expr_rank a.
+Proof. intros;inversion H0;subst;simpl in *;core_unpack;try discriminate;lia. Qed.
+Lemma simple_rank_context : forall from to C, context from to C -> forall a b,
+ simple(C a)=true -> expr_rank b<expr_rank a -> expr_rank(C b)<expr_rank(C a).
+Proof.
+ induction 1;simpl;intros;core_unpack;try discriminate;try lia;
+ match goal with IH:forall a b,_ |- _=>specialize(IH a b ltac:(assumption) ltac:(assumption));lia end.
+Qed.
+Lemma simple_estep_not_stuck : forall ge f a k e m t s' v,
+ simple a=true -> pure_rval ge e m a=Some v ->
+ Csem.estep ge (ExprState f a k e m) t s' -> s'<>Stuckstate.
+Proof.
+ intros ge f a k e m t s' v SA PV ES EQ;subst s';inversion ES;subst.
+ pose proof(pure_not_stuck _ _ _ _ _ SA PV) as NS.
+ match goal with H: ~Csem.imm_safe _ _ _ _ _ |- _ => apply H;eapply NS;eauto end.
+Qed.
+Lemma simple_estep_rank : forall ge f a k e m t a',
+ simple a=true -> Csem.estep ge (ExprState f a k e m) t (ExprState f a' k e m) ->
+ expr_rank a'<expr_rank a.
+Proof.
+ intros ge f a k e m t a' SA ES;inversion ES;subst.
+ - eapply simple_rank_context; eauto using simple_rank_lred.
+ - eapply simple_rank_context; eauto using simple_rank_rred,simple_context_hole.
+Qed.
+Lemma simple_nonvalue_progress : forall ge f a k e m v,
+ simple a=true -> pure_rval ge e m a=Some v ->
+ (forall w ty,a<>Eval w ty) -> exists t s', Csem.step ge (ExprState f a k e m) t s'.
+Proof.
+ intros ge f a k e m v SA PV NV.
+ pose proof(simple_immediate _ _ _ _ SA ltac:(rewrite PV;discriminate)) as IM.
+ inversion IM;subst.
+ - exfalso;eapply NV;reflexivity.
+ - eexists;eexists;left;eapply Csem.step_lred;eauto.
+ - eexists;eexists;left;eapply Csem.step_rred;eauto.
+ - assert (BAD:simple e0=true) by (eapply simple_context_hole;eauto).
+   inversion H;subst;discriminate.
+Qed.
+
+(** Evaluate a pure expression in every legal C evaluation order and then
+    continue with an already established all-successor execution. *)
+Theorem pure_prefix_total : forall ge Q f e m k a v,
+ simple a=true -> pure_rval ge e m a=Some v ->
+ total ge Q (ExprState f (Eval v (typeof a)) k e m) ->
+ total ge Q (ExprState f a k e m).
+Proof.
+ intros ge Q f e m k.
+ apply (well_founded_induction (well_founded_ltof _ expr_rank)
+   (fun a=>forall v, simple a=true -> pure_rval ge e m a=Some v ->
+    total ge Q (ExprState f (Eval v (typeof a)) k e m) ->
+    total ge Q (ExprState f a k e m))).
+ intros a IH v SA PV END.
+ destruct a eqn:EA;try discriminate SA;try discriminate PV.
+ all: try (simpl in PV;inversion PV;subst;exact END).
+ all: apply total_next.
+ all: try (eapply simple_nonvalue_progress;eauto;intros;discriminate).
+ all: intros t next STEP;destruct STEP as [ES|SS].
+ all: try (inversion SS;subst;discriminate).
+ all: destruct(simple_estep _ _ _ _ _ _ _ _ SA ES) as [BAD|[a'[EQ[TY[SA' PV']]]]].
+ all: try (exfalso;eapply(simple_estep_not_stuck _ _ _ _ _ _ _ _ _ SA PV ES);exact BAD).
+ all: subst next;apply IH with(v:=v);auto.
+ all: try (unfold ltof;eapply simple_estep_rank;eauto).
+ all: try (rewrite <- PV';exact PV).
+ all: try (rewrite TY;exact END).
+Qed.
+Proof. exact (proj1 (proj2 (proj2 bigstep_to_steps))). Qed.
+
+Lemma exec_stmt_to_steps:
+   forall e m s t m' out,
+   exec_stmt e m s t m' out ->
+   forall f k,
+   exists S,
+   star step ge (State f s k e m) t S /\ outcome_state_match e m' f k out S.
+Proof. exact (proj1 (proj2 (proj2 (proj2 bigstep_to_steps)))). Qed.
+
+Lemma eval_funcall_to_steps:
+  forall m fd args t m' res,
+  eval_funcall m fd args t m' res ->
+  forall k,
+  is_call_cont k ->
+  star step ge (Callstate fd args k m) t (Returnstate res k m').
+Proof. exact (proj2 (proj2 (proj2 (proj2 bigstep_to_steps)))). Qed.
+
+Fixpoint esize (a: expr) : nat :=
+  match a with
+  | Eloc _ _ _ _ => 1%nat
+  | Evar _ _ => 1%nat
+  | Ederef r1 _ => S(esize r1)
+  | Efield l1 _ _ => S(esize l1)
+  | Eval _ _ => O
+  | Evalof l1 _ => S(esize l1)
+  | Eaddrof l1 _ => S(esize l1)
+  | Eunop _ r1 _ => S(esize r1)
+  | Ebinop _ r1 r2 _ => S(esize r1 + esize r2)%nat
+  | Ecast r1 _ => S(esize r1)
+  | Eseqand r1 r2 _ => S(esize r1)
+  | Eseqor r1 r2 _ => S(esize r1)
+  | Econdition r1 _ _ _ => S(esize r1)
+  | Esizeof _ _ => 1%nat
+  | Ealignof _ _ => 1%nat
+  | Eassign l1 r2 _ => S(esize l1 + esize r2)%nat
+  | Eassignop _ l1 r2 _ _ => S(esize l1 + esize r2)%nat
+  | Epostincr _ l1 _ => S(esize l1)
+  | Ecomma r1 r2 _ => S(esize r1 + esize r2)%nat
+  | Ecall r1 rl2 _ => S(esize r1 + esizelist rl2)%nat
+  | Ebuiltin ef tyargs rl _ => S(esizelist rl)
+  | Eparen r1 _ _ => S(esize r1)
+  end

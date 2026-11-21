@@ -1,0 +1,20 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  b : block
+  ofs : ptrofs
+  ty : type
+  chunk : AST.memory_chunk
+  AM : access_mode ty = By_value chunk
+  NV : type_is_volatile ty = false
+  SAFE : imm_safe ge e RV (ready_read b ofs ty) m
+  v : val
+  D : deref_loc ge ty m b ofs Full E0 v
+  chunk0 : AST.memory_chunk
+  H : access_mode ty = By_value chunk0
+  H0 : type_is_volatile ty = false
+  H1 : Mem.loadv chunk0 m (Vptr b ofs) = Some v
+  ============================
+  exists v0 : val, Mem.load chunk m b (Ptrofs.unsigned ofs) = Some v0

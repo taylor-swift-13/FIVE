@@ -1,0 +1,101 @@
+diff --git a/paparazzi/relations/pid_position_translation/attempts/002/evidence/Spec-original-001.v b/paparazzi/relations/pid_position_translation/problem/Spec.v
+index 146c8ce..a6323e4 100644
+--- a/paparazzi/relations/pid_position_translation/attempts/002/evidence/Spec-original-001.v
++++ b/paparazzi/relations/pid_position_translation/problem/Spec.v
+@@ -35,7 +35,7 @@ Definition heading_safe (m:mem) : Prop :=
+  exists h, load_global Mfloat32 m Source._guidance_h gh_type [Source._sp;Source._heading]=Some(Vsingle h)
+  /\ Float32.cmp Cle (Float32.of_int(Int.repr(-3))) h=true
+  /\ Float32.cmp Cle h (Float32.of_int(Int.repr 3))=true.
+-Definition InputGood (m:mem) (gh ret:block) : Prop :=
++Definition InputGoodLegacy (m:mem) (gh ret:block) : Prop :=
+  gh<>ret
+  /\ (forall id, Genv.find_symbol Execution.ge id=Some gh -> id=Source._guidance_h) /\ (forall id, Genv.find_symbol Execution.ge id<>Some ret)
+  /\ Mem.range_perm m gh 0 (sizeof ce gh_type) Cur Readable
+@@ -49,6 +49,21 @@ Definition InputGood (m:mem) (gh ret:block) : Prop :=
+  /\ bounded_path m gh gh_type [Source._ref;Source._speed;axis] (-10000) 10000
+  /\ bounded_path m gh gh_type [Source._ref;Source._accel;axis] (-10000) 10000
+  /\ bounded_global m Source._state state_type [Source._ned_speed_i;axis] (-10000) 10000).
++(** Attempt 002 correction: readability does not imply an initialized integer.
++    These are input facts; neither contains an execution or output premise. *)
++Definition initialized_positions (m:mem) (gh:block) : Prop :=
++ forall axis, In axis [Source._x;Source._y] ->
++ exists r p,
++ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
++ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p).
++Definition position_subtractions_safe (m:mem) (gh:block) : Prop :=
++ forall axis, In axis [Source._x;Source._y] ->
++ exists r p,
++ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
++ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p)
++ /\ signed32 (Int.signed r-Int.signed p).
++Definition InputGood (m:mem) (gh ret:block) : Prop :=
++ InputGoodLegacy m gh ret /\ initialized_positions m gh /\ position_subtractions_safe m gh.
+ Definition AxisTranslation (gh:block) (a b:mem) (axis:ident) (delta:Z) : Prop :=
+  exists ra pa rb pb,
+  load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint ra)
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import AST Integers Values Memory.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma axis_translation_initialized : forall gh a b axis d,
+ AxisTranslation gh a b axis d ->
+ (exists r p, load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint p)) /\
+ (exists r p, load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint p)).
+Proof.
+ intros gh a b axis d [ra [pa [rb [pb [RA [PA [RB [PB REST]]]]]]]].
+ split; [exists ra,pa|exists rb,pb];auto.
+Qed.
+
+Lemma axis_translation_subtractions_safe : forall gh a b axis d,
+ AxisTranslation gh a b axis d ->
+ (exists r p, load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint p) /\
+ signed32(Int.signed r-Int.signed p)) /\
+ (exists r p, load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint r) /\
+ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint p) /\
+ signed32(Int.signed r-Int.signed p)).
+Proof.
+ intros gh a b axis d [ra [pa [rb [pb [RA [PA [RB [PB [PHY [RBE PBE]]]]]]]]]].
+ destruct PHY as [R [P [D [RD [PD ERR]]]]].
+ split.
+ - exists ra,pa;auto.
+ - exists rb,pb;split;[exact RB|];split;[exact PB|]. rewrite RBE,PBE.
+   rewrite common_translation_difference;exact ERR.
+Qed.
+
+Definition LegacyInputPair (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputGoodLegacy a gh ret /\ InputGoodLegacy b gh ret /\
+ same_except_positions_and_return gh ret a b /\
+ AxisTranslation gh a b Source._x dx /\ AxisTranslation gh a b Source._y dy.
+
+Theorem corrected_relation_domain_unchanged : forall gh ret a b dx dy,
+ InputPair gh ret a b dx dy <-> LegacyInputPair gh ret a b dx dy.
+Proof.
+ intros gh ret a b dx dy;split.
+ - intros [[A _] [[B _] REST]];exact(conj A(conj B REST)).
+ - intros [A [B [FRAME [X Y]]]].
+   assert (INIT : initialized_positions a gh /\ initialized_positions b gh).
+   { split;unfold initialized_positions;intros axis AX;
+     destruct AX as [<-|[<-|[]]];
+     [exact(proj1(axis_translation_initialized _ _ _ _ _ X))|
+      exact(proj1(axis_translation_initialized _ _ _ _ _ Y))|
+      exact(proj2(axis_translation_initialized _ _ _ _ _ X))|
+      exact(proj2(axis_translation_initialized _ _ _ _ _ Y))]. }
+   assert (SAFE : position_subtractions_safe a gh /\ position_subtractions_safe b gh).
+   { split;unfold position_subtractions_safe;intros axis AX;
+     destruct AX as [<-|[<-|[]]];
+     [exact(proj1(axis_translation_subtractions_safe _ _ _ _ _ X))|
+      exact(proj1(axis_translation_subtractions_safe _ _ _ _ _ Y))|
+      exact(proj2(axis_translation_subtractions_safe _ _ _ _ _ X))|
+      exact(proj2(axis_translation_subtractions_safe _ _ _ _ _ Y))]. }
+   destruct INIT as [IA IB];destruct SAFE as [SA SB].
+   exact(conj (conj A(conj IA SA))(conj(conj B(conj IB SB))(conj FRAME(conj X Y)))).
+Qed.
+Print Assumptions corrected_relation_domain_unchanged.
+paparazzi/relations/pid_position_translation/attempts/002/core/runtime.json

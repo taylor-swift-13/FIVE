@@ -1,0 +1,8 @@
+From PidPositionTranslationSupport Require Import TranslationArithmetic QuietWalk WitnessSetup.
+Print Assumptions common_translation_difference.
+Print Assumptions physical_translation_preserves_representable_error.
+Print Assumptions common_translation_trimmed_error.
+Print Assumptions nonzero_physical_translation_witness.
+Print Assumptions quiet_next_sound.
+Print Assumptions quiet_walk_actual_Csem_path.
+Print Assumptions every_run_witness_is_actual_Csem_path.

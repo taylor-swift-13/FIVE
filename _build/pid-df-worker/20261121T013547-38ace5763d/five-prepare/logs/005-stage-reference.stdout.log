@@ -1,0 +1,205 @@
+                dump(self.folder/'run.json',metadata)
+        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+        dump(self.folder/'run.json',metadata)
+        roles = {}
+        for role, path in required_roles.items():
+            try:
+                roles[role] = {'status':'present',**self.capture(path,role)}
+            except FileNotFoundError:
+                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+        # Child runs are linked (normally nested under stages/), never copied twice.
+        metrics = self.refresh_metrics()
+        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+             'note':'A passed verifier result does not imply all requested measurements are available.'})
+        from cost_audit import audit_run
+        cost_audit = audit_run(self.folder)
+        metadata = self.read('run.json')
+        metadata['cost_audit'] = cost_audit
+        if cost_audit['status'] != 'complete':
+            metadata['completeness']['measurements'] = 'partial'
+            metrics['measurement_status'] = 'partial'
+            dump(self.folder/'metrics.json',metrics)
+        dump(self.folder/'run.json',metadata)
+        self.render()
+        print(f'ARTIFACTS: {self.folder}',flush=True)
+
+    def render(self):
+        metrics = self.read('metrics.json')
+        meta = self.read('run.json')
+        result = meta.get('result',{'verdict':'running','summary':''})
+        peak = metrics['memory']['peak_process_tree_rss_sampled_bytes']
+        text = f"# {meta['skill']} / {meta['run_id']}\n\nVerification: {result['verdict']}\n\n{result['summary']}\n\n"
+        text += f"Wall time: {metrics['time']['wall_seconds']:.6f} s\n\nCPU tool time: {metrics['time']['cpu_tool_seconds']} s\n\nObserved tool-tree RSS peak: {peak if peak is not None else 'unavailable'} bytes\n\nModel tokens: {metrics['tokens']['status']}; total={metrics['tokens']['total_tokens']}\n\nMeasurement completeness: {metrics['measurement_status']}\n\n"
+        text += 'run.json contains scope, input/output hashes, commands, token evidence and remaining obligations. metrics.json contains resource measurements and their limits.\n'
+        if meta.get('cost_audit'):
+            text += '\nCost evidence audit: '+meta['cost_audit']['status']+'\n'
+            for issue in meta['cost_audit'].get('issues',[]):
+                text += '\n- '+issue+'\n'
+        (self.folder/'report.md').write_text(text)
+        inventory = []
+        for path in sorted(self.folder.rglob('*')):
+            if path.is_file() and path != self.folder/'run.json' and not path.name.endswith('.tmp'):
+                inventory.append({'path':str(path.relative_to(self.folder)),'bytes':path.stat().st_size,'sha256':sha(path)})
+        meta = self.read('run.json')
+        meta['artifacts'] = inventory
+        dump(self.folder/'run.json',meta)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='action',required=True)
+    start = sub.add_parser('start')
+    start.add_argument('--base',required=True)
+    start.add_argument('--skill',required=True)
+    start.add_argument('--scope',required=True)
+    start.add_argument('--input',action='append',default=[])
+    start.add_argument('--parent')
+    start.add_argument('--session',help='Explicit current actor Codex session JSONL, to track model-token event boundaries')
+    command = sub.add_parser('exec')
+    command.add_argument('--run',required=True)
+    command.add_argument('--label',required=True)
+    command.add_argument('--timeout',type=float,default=180)
+    command.add_argument('argv',nargs=argparse.REMAINDER)
+    tokens = sub.add_parser('tokens')
+    tokens.add_argument('--run',required=True)
+    tokens.add_argument('--receipt',required=True)
+    finish = sub.add_parser('finish')
+    finish.add_argument('--run',required=True)
+    finish.add_argument('--verdict',required=True)
+    finish.add_argument('--summary',required=True)
+    finish.add_argument('--outputs',required=True,help='JSON map of output role to path')
+    args = parser.parse_args()
+    if args.action == 'start':
+        run = Run.start(args.base,args.skill,[(f'input-{i}',p) for i,p in enumerate(args.input)],json.loads(Path(args.scope).read_text()),args.parent,'skill-session',usage_session=args.session)
+        print(run.folder)
+    else:
+        run = Run(args.run)
+        if args.action == 'exec':
+            argv = args.argv[1:] if args.argv[:1]==['--'] else args.argv
+            run.command(argv,args.label,args.timeout)
+        elif args.action == 'tokens':
+            run.import_tokens(args.receipt)
+            if run.read('run.json').get('result'):
+                # Token updates invalidate ancestor bundles; refresh child first,
+                # then refresh/finalize each parent explicitly.
+                completeness = run.read('completeness.json')
+                completeness['measurements'] = run.read('metrics.json')['measurement_status']
+                dump(run.folder/'completeness.json',completeness)
+                run.render()
+        else:
+            run.finish(args.verdict,args.summary,json.loads(Path(args.outputs).read_text()))
+
+
+if __name__ == '__main__':
+    main()
+#include "../prepare/source/update_first_order_low_pass.c"
+#include <stdint.h>
+#include <string.h>
+extern float nondet_float(void);
+static uint32_t bits(float x) { uint32_t u; memcpy(&u,&x,4); return u; }
+void main(void) {
+ struct FirstOrderLowPass f={nondet_float(),nondet_float(),nondet_float()};
+ float old_tc=f.time_const;
+ float input=nondet_float();
+ float result=update_first_order_low_pass(&f,input);
+ __CPROVER_assert(bits(result)==bits(f.last_out),"update returns stored last_out exact bits");
+ __CPROVER_assert(bits(f.last_in)==bits(input),"last_in input exact bits");
+ __CPROVER_assert(bits(f.time_const)==bits(old_tc),"time_const readonly");
+}
+{
+  "purpose": "execution-translation",
+  "execution_backend": "compcert-csyntax-cexec",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "domain": {
+    "inputs": "all list val argument lists",
+    "memories": "all CompCert mem including invalid, uninitialized, unwritable states"
+  },
+  "prepared_verification_request": "../prepare/verification-request.json"
+}
+[
+  {
+    "description": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+    "property": "memcpy.pointer.1",
+    "sourceLocation": {
+      "comment": "same object violation in (const unsigned char *)(const void *)&x >= (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "33",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer",
+      "propertyId": "memcpy.pointer.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+    "property": "memcpy.pointer_arithmetic.1",
+    "sourceLocation": {
+      "comment": "pointer relation: dead object in (const unsigned char *)(const void *)&x",
+      "file": "<builtin-library-memcpy>",
+      "function": "memcpy",
+      "line": "33",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer arithmetic",
+      "propertyFatal": true,
+      "propertyId": "memcpy.pointer_arithmetic.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "pointer relation: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+    "property": "memcpy.pointer_arithmetic.2",
+    "sourceLocation": {
+      "comment": "pointer relation: dead object in (const unsigned char *)(void *)&u + (signed long int)(size_t)4",
+      "file": "<builtin-library-memcpy>",

@@ -1,0 +1,114 @@
+{
+  "schema": "five-stage-costs/1",
+  "records": [
+    {
+      "stage": "five-rocq",
+      "run": "_build/pid-df-worker/20261121T014138-51757861f2/five-rocq",
+      "status": "recorded",
+      "outcome": "interrupted",
+      "time": {
+        "wall_seconds": 61.227601528167725,
+        "tool_cpu_seconds": 0.0
+      },
+      "token": {
+        "input": 304527,
+        "output": 1952,
+        "total": 306479,
+        "cached_input": 302592,
+        "reasoning_output": 275
+      },
+      "memory": {
+        "tool_peak_rss_bytes": 1589248
+      },
+      "evidence": [
+        "../../../../../_build/pid-df-worker/20261121T014138-51757861f2/five-rocq/run.json",
+        "../../../../../_build/pid-df-worker/20261121T014138-51757861f2/five-rocq/metrics.json",
+        "evidence/runtime-config.json",
+        "evidence/measurement-gap.json"
+      ],
+      "scope": "Interrupted numerical startup before metadata correction; no numeric proof artifact. Overlapping setup events must be deduplicated by event ID.",
+      "cost_audit": {
+        "status": "complete",
+        "run": "/home/yangfp/five/_build/pid-df-worker/20261121T014138-51757861f2/five-rocq",
+        "skill": "five-rocq",
+        "issues": [],
+        "own_model_tokens_excluding_children": 306479,
+        "inclusive_unique_model_tokens": 306479,
+        "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+      },
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "evidence": "evidence/runtime-config.json"
+      }
+    },
+    {
+      "stage": "five-rocq",
+      "run": "_build/pid-df-worker/20261121T014239-1dca5ac2ba/five-rocq",
+      "status": "recorded",
+      "outcome": "passed",
+      "time": {
+        "wall_seconds": 1117.5462658405304,
+        "tool_cpu_seconds": null
+      },
+      "token": {
+        "input": 6794494,
+        "output": 33397,
+        "total": 6827891,
+        "cached_input": 6684928,
+        "reasoning_output": 11379
+      },
+      "memory": {
+        "tool_peak_rss_bytes": 1017954304
+      },
+      "evidence": [
+        "../../../../../_build/pid-df-worker/20261121T014239-1dca5ac2ba/five-rocq/run.json",
+        "../../../../../_build/pid-df-worker/20261121T014239-1dca5ac2ba/five-rocq/metrics.json",
+        "evidence/runtime-config.json",
+        "evidence/measurement-gap.json"
+      ],
+      "scope": "Complete numeric authoring and final cold build/certificate/kernel; all failures/retries included. Full tool CPU is null: one externally interrupted failed compile had no resource row and a bounded timeout lacked GNU-time CPU. Observed tool subset CPU is147.01s; sampled peak1,017,954,304B is an observed subset, not a guaranteed full-session peak. Model tokens/wall cover the whole session.",
+      "cost_audit": {
+        "status": "incomplete",
+        "run": "/home/yangfp/five/_build/pid-df-worker/20261121T014239-1dca5ac2ba/five-rocq",
+        "skill": "five-rocq",
+        "issues": [
+          "Missing CPU/RSS receipt: 030-debug-Numerical",
+          "Missing sampled tool memory: 034-read-inhabited-memory-witness",
+          "Missing/mismatched tool CPU total",
+          "Measurements are marked partial"
+        ],
+        "own_model_tokens_excluding_children": 6827891,
+        "inclusive_unique_model_tokens": 6827891,
+        "memory_note": "Observed tool-process RSS only; 10ms sampling may miss peaks and count shared pages twice. Excludes model-server/desktop memory."
+      },
+      "agent": {
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "ultra",
+        "actual_reasoning_effort": "ultra",
+        "evidence": "evidence/runtime-config.json"
+      }
+    }
+  ],
+  "shared_work": "Original Csem single-call support is costed once in the model rocq/report/costs.json. Absorption helper uses its own actor run; coordinator union references it without fabricating per-lemma splits.",
+  "aggregation": "Do not add overlapping actor events or duplicate source-proof work. The root aggregates exact event-ID unions and actual execution scopes.",
+  "shared_evidence": [
+    {
+      "role": "absorption-helper",
+      "run": "runs/20261121T014526-e600c6f756/five-rocq",
+      "run_json": "../../../../../runs/20261121T014526-e600c6f756/five-rocq/run.json",
+      "metrics_json": "../../../../../runs/20261121T014526-e600c6f756/five-rocq/metrics.json",
+      "scope": "Separate actual GPT-6.1 Sol Ultra actor, source Absorption.v; shared work referenced once and deduplicated by coordinator event-ID union."
+    },
+    {
+      "role": "original-csem-support",
+      "costs": "../../../../models/update_pid_df/rocq/report/costs.json",
+      "scope": "Single-model proof worker owns this support; relation consumes its source and records its own independent compile only."
+    }
+  ],
+  "verification_tail": {
+    "run": "_build/pid-df-worker/20261121T020117-5b83689d6a/five-verify",
+    "scope": "Separate measured report/cost/current-artifact validation tail; coordinator includes its finalized metrics and full dedicated actor session usage."
+  }
+}

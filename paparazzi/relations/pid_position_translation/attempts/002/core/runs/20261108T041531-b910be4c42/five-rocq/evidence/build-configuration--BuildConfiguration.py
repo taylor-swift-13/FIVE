@@ -1,0 +1,19 @@
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[6]
+CORE = Path(__file__).resolve().parent
+RUN = CORE / "runs/20261108T041531-b910be4c42/five-rocq"
+LOADPATHS = [
+ ("shared","FiveShared"),
+ ("paparazzi/models/guidance_pid_h_run_pos/align/model","PidPositionRunPos"),
+ ("paparazzi/relations/guidance_mode/support/semantics","FiveGuidanceSemantics"),
+ ("paparazzi/relations/guidance_mode/support/allocation","FiveGuidanceAllocation"),
+ ("paparazzi/relations/guidance_mode/support/entry","FiveGuidanceEntry"),
+ ("paparazzi/relations/guidance_mode/support/allorder","FiveGuidanceAllOrder"),
+ ("paparazzi/relations/pid_position_translation/support","PidPositionTranslationSupport"),
+ ("paparazzi/relations/pid_position_translation/problem","PidPositionTranslationProblem"),
+ ("paparazzi/relations/pid_position_translation/attempts/002","PidPositionTranslationAttempt002"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/core","PidPositionTranslationCore"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/safety","PidPositionSafety"),
+ ("paparazzi/relations/pid_position_translation/attempts/002/core/cbmc","CoreCBMC"),
+]
+FLAGS = [arg for path,namespace in LOADPATHS for arg in ("-Q",path,namespace)]

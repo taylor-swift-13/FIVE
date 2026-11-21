@@ -1,0 +1,171 @@
+lhs_res
+     : AST.ident ->
+       AST.ident ->
+       AST.ident -> Values.block -> BinNums.Z -> lhs_stage -> Csyntax.expr
+ref_res
+     : AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       BinNums.Z ->
+       BinNums.Z ->
+       BinNums.Z -> Integers.Int.int -> ref_stage -> Csyntax.expr
+pre_expr
+     : AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       BinNums.Z ->
+       BinNums.Z ->
+       BinNums.Z ->
+       Integers.Int.int -> lhs_stage -> ref_stage -> fn_stage -> Csyntax.expr
+pre_state
+     : Csyntax.function ->
+       Csem.env ->
+       Csem.cont ->
+       Memory.Mem.mem ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       BinNums.Z ->
+       BinNums.Z ->
+       BinNums.Z ->
+       Integers.Int.int -> lhs_stage -> ref_stage -> fn_stage -> Csem.state
+call_frame
+     : Csyntax.function ->
+       Csem.env ->
+       Csem.cont ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       AST.ident ->
+       Values.block ->
+       Values.block ->
+       Values.block ->
+       BinNums.Z ->
+       BinNums.Z ->
+       BinNums.Z -> Integers.Int.int -> lhs_stage -> ref_stage -> Csem.cont
+pre_all_successors
+     : forall (ge : Csem.genv) (caller leaf : Csyntax.function)
+         (e : Csem.env) (k : Csem.cont) (m : Memory.Mem.mem)
+         (ghid refid vectid nedid axis iref icomponent ierr igh
+          igetter : AST.ident)
+         (berr bparam bgh bgetter : Values.block)
+         (dref dcomponent daxis : BinNums.Z) (reference : Integers.Int.int),
+       Maps.PTree.get igh e = Some (bparam, Ctypesdefs.tptr (ghty ghid)) ->
+       Maps.PTree.get ierr e = None ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv ge) ierr = Some berr ->
+       Maps.PTree.get igetter e = None ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv ge) igetter = Some bgetter ->
+       forall ghco refco vecco : Ctypes.composite,
+       Maps.PTree.get ghid (Csem.genv_cenv ge) = Some ghco ->
+       Maps.PTree.get refid (Csem.genv_cenv ge) = Some refco ->
+       Maps.PTree.get vectid (Csem.genv_cenv ge) = Some vecco ->
+       Ctypes.field_offset (Csem.genv_cenv ge) iref (Ctypes.co_members ghco) =
+       Errors.OK (dref, Ctypes.Full) ->
+       Ctypes.field_offset (Csem.genv_cenv ge) icomponent
+         (Ctypes.co_members refco) =
+       Errors.OK (dcomponent, Ctypes.Full) ->
+       Ctypes.field_offset (Csem.genv_cenv ge) axis (Ctypes.co_members vecco) =
+       Errors.OK (daxis, Ctypes.Full) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world
+         (Ctypesdefs.tptr (ghty ghid)) m bparam Integers.Ptrofs.zero
+         Ctypes.Full =
+       Some
+         (PureDenotation.quiet_world, Events.E0,
+          Values.Vptr bgh Integers.Ptrofs.zero) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tint m bgh
+         (scalar_offset dref dcomponent daxis) Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vint reference) ->
+       Globalenvs.Genv.find_funct (Csem.genv_genv ge)
+         (Values.Vptr bgetter Integers.Ptrofs.zero) =
+       Some (Ctypes.Internal leaf) ->
+       Csyntax.type_of_fundef (Ctypes.Internal leaf) = function_type nedid ->
+       forall (ls : lhs_stage) (rs : ref_stage) (fs : fn_stage)
+         (t : Events.trace) (next : Csem.state),
+       Csem.step ge
+         (pre_state caller e k m ghid refid vectid nedid axis iref icomponent
+            ierr igh igetter berr bparam bgh bgetter dref dcomponent daxis
+            reference ls rs fs)
+         t next ->
+       t = Events.E0 /\
+       pre_or_call caller leaf e k m ghid refid vectid nedid axis iref
+         icomponent ierr igh igetter berr bparam bgh bgetter dref dcomponent
+         daxis reference next
+pre_progress
+     : forall (ge : Csem.genv) (caller leaf : Csyntax.function)
+         (e : Csem.env) (k : Csem.cont) (m : Memory.Mem.mem)
+         (ghid refid vectid nedid axis iref icomponent ierr igh
+          igetter : AST.ident)
+         (berr bparam bgh bgetter : Values.block)
+         (dref dcomponent daxis : BinNums.Z) (reference : Integers.Int.int),
+       Maps.PTree.get igh e = Some (bparam, Ctypesdefs.tptr (ghty ghid)) ->
+       Maps.PTree.get ierr e = None ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv ge) ierr = Some berr ->
+       Maps.PTree.get igetter e = None ->
+       Globalenvs.Genv.find_symbol (Csem.genv_genv ge) igetter = Some bgetter ->
+       forall ghco refco vecco : Ctypes.composite,
+       Maps.PTree.get ghid (Csem.genv_cenv ge) = Some ghco ->
+       Maps.PTree.get refid (Csem.genv_cenv ge) = Some refco ->
+       Maps.PTree.get vectid (Csem.genv_cenv ge) = Some vecco ->
+       Ctypes.field_offset (Csem.genv_cenv ge) iref (Ctypes.co_members ghco) =
+       Errors.OK (dref, Ctypes.Full) ->
+       Ctypes.field_offset (Csem.genv_cenv ge) icomponent
+         (Ctypes.co_members refco) =
+       Errors.OK (dcomponent, Ctypes.Full) ->
+       Ctypes.field_offset (Csem.genv_cenv ge) axis (Ctypes.co_members vecco) =
+       Errors.OK (daxis, Ctypes.Full) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world
+         (Ctypesdefs.tptr (ghty ghid)) m bparam Integers.Ptrofs.zero
+         Ctypes.Full =
+       Some
+         (PureDenotation.quiet_world, Events.E0,
+          Values.Vptr bgh Integers.Ptrofs.zero) ->
+       Cexec.do_deref_loc ge PureDenotation.quiet_world Ctypesdefs.tint m bgh
+         (scalar_offset dref dcomponent daxis) Ctypes.Full =
+       Some (PureDenotation.quiet_world, Events.E0, Values.Vint reference) ->
+       Globalenvs.Genv.find_funct (Csem.genv_genv ge)
+         (Values.Vptr bgetter Integers.Ptrofs.zero) =
+       Some (Ctypes.Internal leaf) ->
+       Csyntax.type_of_fundef (Ctypes.Internal leaf) = function_type nedid ->
+       forall (ls : lhs_stage) (rs : ref_stage) (fs : fn_stage),
+       exists (t : Events.trace) (next : Csem.state),
+         Csem.step ge
+           (pre_state caller e k m ghid refid vectid nedid axis iref
+              icomponent ierr igh igetter berr bparam bgh bgetter dref
+              dcomponent daxis reference ls rs fs)
+           t next /\
+         pre_or_call caller leaf e k m ghid refid vectid nedid axis iref
+           icomponent ierr igh igetter berr bparam bgh bgetter dref
+           dcomponent daxis reference next

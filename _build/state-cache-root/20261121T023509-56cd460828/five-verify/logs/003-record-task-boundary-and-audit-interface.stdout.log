@@ -1,0 +1,14 @@
+TASK_START 2026-11-21T02:33:12.092Z
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def certificate_source(imports, bindings):
+    return ''.join(f'Require Import {name}.\n' for name in imports) + ''.join(
+        f'Definition goal_{i} : {row["type"]} := {row["theorem"]}.\nPrint Assumptions goal_{i}.\n'
+        for i, row in enumerate(bindings))
+
+
+def input_index(root, active):
+    """Explicit adap
+PRIOR_TIMEOUT_PROGRESS 

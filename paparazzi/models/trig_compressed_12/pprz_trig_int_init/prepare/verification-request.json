@@ -1,0 +1,33 @@
+{
+  "schema": "five-verification-request/1",
+  "entry": "pprz_trig_int_init",
+  "implementation": "prepare/source/pprz_trig_int_init.c",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "arch": "x86",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "domain": "all int32 angle inputs for Rocq sine; initial global memory per actual program; actual initializer success and data refinement required",
+  "properties": [
+    "memory safety and signed-overflow/shift/division checks of unchanged actual code",
+    "actual compressed initialization returns zero and decoded lookup equals literal ordinary table",
+    "sine bit-exact int32 return equivalence"
+  ],
+  "bounds": {
+    "cbmc_angle": "[-12867,12867] initially (normalization-free); broader source model uncut",
+    "initializer_outer_unwind": 3380,
+    "initializer_inner_unwind": 42
+  },
+  "harness": "cbmc/harness.c",
+  "assumptions": [
+    "Initial static data from original source unmodified; genuine initialization is executed before compressed sine"
+  ],
+  "not_claimed": [
+    "cosine",
+    "COMPR_HIGH or COMPR_HIGHEST"
+  ]
+}

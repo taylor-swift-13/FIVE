@@ -1,0 +1,23 @@
+From PprzTrigInitSupport Require Import ByteObservation Frame PathCertificate Control SideEffects Compound
+ PostIncrement FreeList EncoderBody EncoderMemory EncoderTransport CallFour EncoderCall EncoderStatement
+ InitAllocation InitCleanup InitFinish InitStart TotalExistence InitClosed.
+Check @EncoderCall.encoder_source_call.
+Check @EncoderStatement.encoder_statement_total.
+Check @InitAllocation.init_entry_allocation.
+Check @InitCleanup.init_locals_free.
+Check @InitFinish.init_finish_total.
+Check @InitStart.init_source_entry_prefix_total.
+Check @TotalExistence.total_actual_execution.
+Check @InitClosed.initializer_source_total.
+Check @InitClosed.initializer_source_safe_termination.
+Check @InitClosed.initializer_source_success_and_representation.
+Print Assumptions EncoderCall.encoder_source_call.
+Print Assumptions EncoderStatement.encoder_statement_total.
+Print Assumptions InitAllocation.init_entry_allocation.
+Print Assumptions InitCleanup.init_locals_free.
+Print Assumptions InitFinish.init_finish_total.
+Print Assumptions InitStart.init_source_entry_prefix_total.
+Print Assumptions TotalExistence.total_actual_execution.
+Print Assumptions InitClosed.initializer_source_total.
+Print Assumptions InitClosed.initializer_source_safe_termination.
+Print Assumptions InitClosed.initializer_source_success_and_representation.

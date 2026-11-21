@@ -1,0 +1,47 @@
+91        GAIN PDXB CLX CXW))). }
+92    assert(ANN6:arithmetic_tree ge e m5(command_add_expr S._y)).
+93    { eapply (proj2(proj2(original_flight_axis_annotations e m5 bpy bp bi bm S._y S._pd_y 4 pdy ki
+94        (clip_bits(Int.add iy(Int.mul ki pdy))(Int.shl(Int.repr 1429)(Int.repr 16)))cy
+95        EY NP SP NI SI NM SM (or_intror(conj eq_refl eq_refl))
+96        ltac:(scalar_frame;exact LPY) ltac:(scalar_frame;exact LKI)
+97        ltac:(scalar_frame;reflexivity) ltac:(scalar_frame;exact LCY) ltac:(scalar_frame;exact LM)
+98        GAIN PDYB CLY CYW))). }
+99    exists mf;split.
+100    + unfold flight_statement;cbn[top_statement S.f_guidance_pid_h_run fn_body].
+101      eapply ax_if with(value:=Vint Int.zero)(taken:=false).
+102      * reflexivity.
+103      * apply(proj1(simple_big_denotation ge e m));[exact FL|reflexivity].
+104      * reflexivity.
+105      * apply data_expression_tree;reflexivity.
+106      * cbn;eapply ax_sequence.
+107        -- eapply ax_atomic;[reflexivity|eapply atomic_assign;[core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|constructor|reflexivity|reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact ST1]|reflexivity]|].
+108           cbn[arithmetic_tree];split;apply data_expression_tree;reflexivity.
+109        -- eapply ax_atomic;[reflexivity|eapply atomic_assign;[core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|constructor|reflexivity|reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact ST2]|reflexivity]|].
+110           cbn[arithmetic_tree];split;apply data_expression_tree;reflexivity.
+111    + repeat split;try(scalar_frame;reflexivity).
+112      eapply raw_writes_store;[left;reflexivity|exact ST1|].
+113      eapply raw_writes_store;[left;reflexivity|exact ST2|].
+114      eapply raw_writes_store;[left;reflexivity|exact ST3|].
+115      eapply raw_writes_store;[left;reflexivity|exact ST4|].
+116      eapply raw_writes_store;[right;reflexivity|exact ST5|].
+117      eapply raw_writes_store;[right;reflexivity|exact ST6|constructor].
+118      cbv beta iota zeta delta[flight_updates next_integral next_command replay_stores];rewrite ST1,ST2,ST3,ST4,ST5,ST6;reflexivity.
+119  - cbn[next_integral next_command]in*.
+120    destruct(Mem.valid_access_store m Mint32 bi 0(Vint Int.zero)AIX)as[m1 ST1].
+121    assert(A2:Mem.valid_access m1 Mint32 bi 4 Writable)by(eapply Mem.store_valid_access_1;eauto).
+122    destruct(Mem.valid_access_store m1 Mint32 bi 4(Vint Int.zero)A2)as[mf ST2].
+123    exists mf;split.
+124    + unfold flight_statement;cbn[top_statement S.f_guidance_pid_h_run fn_body].
+125      eapply exec_Sifthenelse with(v1:=Vint Int.zero)(b:=false)(m1:=m)(t1:=E0)(t2:=E0).
+126      * apply simple_expression;[exact FL|reflexivity].
+127      * reflexivity.
+128      * cbn;eapply sequence_normal;
+129        [eapply atomic_assign;[core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|constructor|reflexivity|reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact ST1]|reflexivity]|
+130         eapply atomic_assign;[core_lv EX EY I NP I I SP I I NI SI NM SM|reflexivity|constructor|reflexivity|reflexivity|eapply assign_loc_value;[reflexivity|reflexivity|exact ST2]|reflexivity]].
+131    + repeat split;try(scalar_frame;first[reflexivity|assumption]).
+132      eapply raw_writes_store;[left;reflexivity|exact ST1|].
+133      eapply raw_writes_store;[left;reflexivity|exact ST2|constructor].
+134      cbv beta iota zeta delta[flight_updates replay_stores];rewrite ST1,ST2;reflexivity.
+135 Qed.
+136 
+137 Print Assumptions original_flight_integrator_annotated.

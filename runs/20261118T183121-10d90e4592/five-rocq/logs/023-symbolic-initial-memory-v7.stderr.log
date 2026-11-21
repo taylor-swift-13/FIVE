@@ -1,0 +1,19 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/InitialMemory.v", line 107, characters 38-80:
+Error: Illegal application (Non-functional construction): 
+The expression "Genv.init_mem_characterization ?p ?b ?e ?e0" of type
+ "Mem.range_perm ?m ?b 0 (init_data_list_size (gvar_init ?gv)) Cur
+    (Genv.perm_globvar ?gv) /\
+  (forall (ofs : Z) (k : perm_kind) (p : permission),
+   Mem.perm ?m ?b ofs k p ->
+   0 <= ofs < init_data_list_size (gvar_init ?gv) /\
+   perm_order (Genv.perm_globvar ?gv) p) /\
+  (gvar_volatile ?gv = false ->
+   Genv.load_store_init_data (Genv.globalenv ?p) ?m ?b 0 (gvar_init ?gv)) /\
+  (gvar_volatile ?gv = false ->
+   Mem.loadbytes ?m ?b 0 (init_data_list_size (gvar_init ?gv)) =
+   Some (Genv.bytes_of_init_data_list (Genv.globalenv ?p) (gvar_init ?gv)))"
+cannot be applied to the term
+ "VAR"
+   : "Genv.find_var_info (globalenv PprzTrigPlain.Source.prog) b =
+      Some Source.v_pprz_trig_int"
+

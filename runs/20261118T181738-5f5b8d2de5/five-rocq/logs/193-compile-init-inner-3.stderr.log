@@ -1,0 +1,53 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/InitInner.v", line 69, characters 52-56:
+Error:
+In environment
+BODY : SourceBodyRule
+Q : val -> mem -> Prop
+k : cont
+e : env
+base : mem
+input, buffer : block
+c : chunk
+m : mem
+IN : In c literal_chunks
+BUFFER :
+  Genv.find_symbol PprzTrigInit.Execution.ge PprzTrigInit.Source._data_buf_12 =
+  Some buffer
+INV : iteration_inv e base input buffer c 0 BeforeEncode m
+END :
+  forall mf : mem,
+  iteration_inv e base input buffer c (repetitions c) BeforeEncode mf ->
+  total PprzTrigInit.Execution.ge Q
+    (State PprzTrigInit.Source.f_pprz_trig_int_init Sskip k e mf)
+j : Z
+mm : mem
+RANGE : 0 <= j <= repetitions c
+C : protocol_core e base input buffer mm
+P : packed_prefix (iteration_prefix c j BeforeEncode) mm buffer
+I : short_cell e mm PprzTrigInit.Source._i (pos c + consumed c)
+T : short_cell e mm PprzTrigInit.Source._tab_12 0
+REST :
+  if multi c
+  then
+   short_cell e mm PprzTrigInit.Source._temp (third c) /\
+   short_cell e mm PprzTrigInit.Source._k (ChunkMachine.k_value c)
+  else short_cell e mm PprzTrigInit.Source._temp (first c)
+J : short_cell e mm PprzTrigInit.Source._j j
+COUNT :
+  short_cell e mm PprzTrigInit.Source._cnt (iteration_count c j BeforeEncode)
+VAL :
+  short_cell e mm PprzTrigInit.Source._val (iteration_value c j BeforeEncode)
+PREV :
+  short_cell e mm PprzTrigInit.Source._val_prev
+    (iteration_previous c j BeforeEncode)
+The term "REST" has type
+ "if multi c
+  then
+   short_cell e mm PprzTrigInit.Source._temp (third c) /\
+   short_cell e mm PprzTrigInit.Source._k (ChunkMachine.k_value c)
+  else short_cell e mm PprzTrigInit.Source._temp (first c)"
+while it is expected to have type
+ "if multi c
+  then short_cell e mm PprzTrigInit.Source._k (ChunkMachine.k_value c)
+  else short_cell e mm PprzTrigInit.Source._temp (first c)".
+

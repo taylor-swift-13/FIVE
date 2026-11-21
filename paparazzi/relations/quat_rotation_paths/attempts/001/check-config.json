@@ -1,0 +1,108 @@
+{
+  "root": "/home/yangfp/five",
+  "attempt": "paparazzi/relations/quat_rotation_paths/attempts/001",
+  "namespace": "FiveQuatRotation",
+  "mappings": {
+    "FiveQuatVmult": "paparazzi/models/float_quat_vmult/align/model",
+    "FiveRmatOfQuat": "paparazzi/models/float_rmat_of_quat/align/model",
+    "FiveRmatVmult": "paparazzi/models/float_rmat_vmult/align/model",
+    "FiveShared": "shared",
+    "FiveQuatRotationSupport": "paparazzi/relations/quat_rotation_paths/support",
+    "FiveQuatRotation": "paparazzi/relations/quat_rotation_paths/problem",
+    "FiveGuidanceSemantics": "paparazzi/relations/guidance_mode/support/semantics",
+    "FiveGuidanceAllOrder": "paparazzi/relations/guidance_mode/support/allorder",
+    "FiveGuidanceAllocation": "paparazzi/relations/guidance_mode/support/allocation",
+    "FiveGuidanceEntry": "paparazzi/relations/guidance_mode/support/entry",
+    "FiveLowpassSupport": "paparazzi/relations/lowpass_recovery/support",
+    "FiveQuatVmultCorrespondence": "paparazzi/models/float_quat_vmult/rocq/execution_correspondence/problem",
+    "FiveQuatVmultTermination": "paparazzi/models/float_quat_vmult/rocq/termination/problem",
+    "FiveQuatVmultNoError": "paparazzi/models/float_quat_vmult/rocq/no_error/problem",
+    "FiveQuatVmultRecheck": "paparazzi/models/float_quat_vmult/rocq/cbmc_recheck/problem",
+    "FiveRmatOfQuatCorrespondence": "paparazzi/models/float_rmat_of_quat/rocq/execution_correspondence/problem",
+    "FiveRmatOfQuatTermination": "paparazzi/models/float_rmat_of_quat/rocq/termination/problem",
+    "FiveRmatOfQuatNoError": "paparazzi/models/float_rmat_of_quat/rocq/no_error/problem",
+    "FiveRmatOfQuatRecheck": "paparazzi/models/float_rmat_of_quat/rocq/cbmc_recheck/problem",
+    "FiveRmatVmultCorrespondence": "paparazzi/models/float_rmat_vmult/rocq/execution_correspondence/problem",
+    "FiveRmatVmultTermination": "paparazzi/models/float_rmat_vmult/rocq/termination/problem",
+    "FiveRmatVmultNoError": "paparazzi/models/float_rmat_vmult/rocq/no_error/problem",
+    "FiveRmatVmultRecheck": "paparazzi/models/float_rmat_vmult/rocq/cbmc_recheck/problem",
+    "FiveQuatVmultCase": "paparazzi/models/float_quat_vmult/rocq/support",
+    "FiveRmatOfQuatCase": "paparazzi/models/float_rmat_of_quat/rocq/support",
+    "FiveRmatVmultCase": "paparazzi/models/float_rmat_vmult/rocq/support"
+  },
+  "modules": {
+    "FiveQuatRotation.Proof": "paparazzi/relations/quat_rotation_paths/attempts/001/Proof.v",
+    "FiveQuatVmultNoError.Proof": "paparazzi/models/float_quat_vmult/rocq/no_error/attempts/001/Proof.v",
+    "FiveQuatVmultRecheck.Proof": "paparazzi/models/float_quat_vmult/rocq/cbmc_recheck/attempts/001/Proof.v",
+    "FiveRmatOfQuatNoError.Proof": "paparazzi/models/float_rmat_of_quat/rocq/no_error/attempts/001/Proof.v",
+    "FiveRmatOfQuatRecheck.Proof": "paparazzi/models/float_rmat_of_quat/rocq/cbmc_recheck/attempts/001/Proof.v",
+    "FiveRmatVmultNoError.Proof": "paparazzi/models/float_rmat_vmult/rocq/no_error/attempts/001/Proof.v",
+    "FiveRmatVmultRecheck.Proof": "paparazzi/models/float_rmat_vmult/rocq/cbmc_recheck/attempts/001/Proof.v"
+  },
+  "imports": [
+    "FiveQuatRotation.Spec",
+    "FiveQuatRotation.Proof"
+  ],
+  "goal_bindings": [
+    {
+      "requested_goal": "unit original Csem protocol and bytes",
+      "theorem": "FiveQuatRotation.Proof.unit_protocol_witness",
+      "type": "FiveQuatRotation.Spec.UnitWitness"
+    },
+    {
+      "requested_goal": "exact original CBMC trace replay",
+      "theorem": "FiveQuatRotation.Proof.actual_cbmc_trace_replayed",
+      "type": "FiveQuatRotation.Spec.ActualTraceWitness"
+    },
+    {
+      "requested_goal": "candidate1 universal equality refuted",
+      "theorem": "FiveQuatRotation.Proof.candidate1_refuted",
+      "type": "FiveQuatRotation.Spec.Refutation"
+    },
+    {
+      "requested_goal": "all original 300 successful properties",
+      "theorem": "FiveQuatRotation.Proof.all_original_300_proved",
+      "type": "FiveQuatRotation.Spec.Independent300"
+    },
+    {
+      "requested_goal": "unit original assertion Csem false",
+      "theorem": "FiveQuatRotation.Proof.unit_assertion_false",
+      "type": "FiveQuatRotation.Spec.UnitAssertionFalse"
+    },
+    {
+      "requested_goal": "actual trace original assertion Csem false",
+      "theorem": "FiveQuatRotation.Proof.actual_assertion_replayed",
+      "type": "FiveQuatRotation.Spec.ActualAssertionFalse"
+    }
+  ],
+  "extra_inputs": [
+    "paparazzi/report/quat_rotation_paths/runtime-configuration.json",
+    "paparazzi/report/quat_rotation_paths/cbmc/harness.c",
+    "paparazzi/report/quat_rotation_paths/cbmc/counterexample-trace.json",
+    "paparazzi/models/float_quat_vmult/prepare/source/bindings.json",
+    "paparazzi/models/float_quat_vmult/align/request.json",
+    "paparazzi/models/float_quat_vmult/align/model/compcert-manifest.json",
+    "paparazzi/models/float_rmat_of_quat/prepare/source/bindings.json",
+    "paparazzi/models/float_rmat_of_quat/align/request.json",
+    "paparazzi/models/float_rmat_of_quat/align/model/compcert-manifest.json",
+    "paparazzi/models/float_rmat_vmult/prepare/source/bindings.json",
+    "paparazzi/models/float_rmat_vmult/align/request.json",
+    "paparazzi/models/float_rmat_vmult/align/model/compcert-manifest.json"
+  ],
+  "gate_inputs": [
+    "paparazzi/models/float_quat_vmult/prepare/source/float_quat_vmult.c",
+    "paparazzi/models/float_quat_vmult/prepare/source/quat_types.h",
+    "paparazzi/models/float_quat_vmult/align/model/Source.v",
+    "paparazzi/models/float_quat_vmult/align/model/Execution.v",
+    "paparazzi/models/float_rmat_of_quat/prepare/source/float_rmat_of_quat.c",
+    "paparazzi/models/float_rmat_of_quat/prepare/source/quat_types.h",
+    "paparazzi/models/float_rmat_of_quat/align/model/Source.v",
+    "paparazzi/models/float_rmat_of_quat/align/model/Execution.v",
+    "paparazzi/models/float_rmat_vmult/prepare/source/float_rmat_vmult.c",
+    "paparazzi/models/float_rmat_vmult/prepare/source/quat_types.h",
+    "paparazzi/models/float_rmat_vmult/align/model/Source.v",
+    "paparazzi/models/float_rmat_vmult/align/model/Execution.v"
+  ],
+  "build": "_build/quat-rotation-ultra/relation-checked-002",
+  "timeout": 600
+}

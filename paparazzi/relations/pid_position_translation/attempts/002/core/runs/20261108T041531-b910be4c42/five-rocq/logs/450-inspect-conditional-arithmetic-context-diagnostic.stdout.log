@@ -1,0 +1,138 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/core/cbmc/ArithmeticConditional.v", line 34, characters 10-34:
+Error:
+In environment
+ge : genv
+e : env
+m : mem
+k : kind
+C : expr -> expr
+r2, r3 : expr
+ty : type
+CT : context k RV C
+WHOLE : context k RV (fun x : expr => Econdition (C x) r2 r3 ty)
+IHCT :
+  context k RV C ->
+  forall a b : expr,
+  typeof a = typeof b ->
+  (simple a = true -> pure_eq ge e m k a b) ->
+  RV = RV ->
+  forall v : val,
+  conditional_value ge e m (C a) v ->
+  arithmetic_tree ge e m (C a) ->
+  arithmetic_tree ge e m b -> arithmetic_tree ge e m (C b)
+a, b : expr
+TY : typeof a = typeof b
+EQ : simple a = true -> pure_eq ge e m k a b
+KIND : RV = RV
+v : val
+CV : conditional_value ge e m (Econdition (C a) r2 r3 ty) v
+TREE : arithmetic_tree ge e m (Econdition (C a) r2 r3 ty)
+NEW : arithmetic_tree ge e m b
+vt : val
+taken : bool
+vb : val
+H3 : simple (C a) = true
+H4 : pure_rval ge e m (C a) = Some vt
+H6 : bool_val vt (typeof (C a)) m = Some taken
+H7 : conditional_value ge e m (if taken then r2 else r3) vb
+H8 : sem_cast vb (typeof (if taken then r2 else r3)) ty m = Some v
+Unable to unify
+ "(fix arithmetic_tree
+     (ge : genv) (e : env) (m : mem) (a : expr) {struct a} : Prop :=
+     match a with
+     | Eunop op a0 _ =>
+         arithmetic_tree ge e m a0 /\ unary_condition ge e m op a0
+     | Ebinop op a0 b _ =>
+         arithmetic_tree ge e m a0 /\
+         arithmetic_tree ge e m b /\ binary_condition ge e m op a0 b
+     | Econdition c a0 b _ =>
+         arithmetic_tree ge e m c /\
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Eassignop op l r _ _ =>
+         arithmetic_tree ge e m l /\
+         arithmetic_tree ge e m r /\
+         nv (typeof l) = true /\ assignop_condition ge e m op l r
+     | Eseqand a0 b _ | Eseqor a0 b _ | Eassign a0 b _ | Ecomma a0 b _ =>
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Epostincr _ _ _ | Ecall _ _ _ | Ebuiltin _ _ _ _ => False
+     | Efield a0 _ _ | Evalof a0 _ | Ederef a0 _ | 
+       Eaddrof a0 _ | Ecast a0 _ | Eparen a0 _ _ => 
+         arithmetic_tree ge e m a0
+     | _ => True
+     end)
+    ?ge ?e ?m (?C ?b)"
+with
+ "(fix arithmetic_tree
+     (ge : genv) (e : env) (m : mem) (a : expr) {struct a} : Prop :=
+     match a with
+     | Eunop op a0 _ =>
+         arithmetic_tree ge e m a0 /\ unary_condition ge e m op a0
+     | Ebinop op a0 b _ =>
+         arithmetic_tree ge e m a0 /\
+         arithmetic_tree ge e m b /\ binary_condition ge e m op a0 b
+     | Econdition c a0 b _ =>
+         arithmetic_tree ge e m c /\
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Eassignop op l r _ _ =>
+         arithmetic_tree ge e m l /\
+         arithmetic_tree ge e m r /\
+         nv (typeof l) = true /\ assignop_condition ge e m op l r
+     | Eseqand a0 b _ | Eseqor a0 b _ | Eassign a0 b _ | Ecomma a0 b _ =>
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Epostincr _ _ _ | Ecall _ _ _ | Ebuiltin _ _ _ _ => False
+     | Efield a0 _ _ | Evalof a0 _ | Ederef a0 _ | 
+       Eaddrof a0 _ | Ecast a0 _ | Eparen a0 _ _ => 
+         arithmetic_tree ge e m a0
+     | _ => True
+     end)
+    ge e m (C b) /\
+  (fix arithmetic_tree
+     (ge : genv) (e : env) (m : mem) (a : expr) {struct a} : Prop :=
+     match a with
+     | Eunop op a0 _ =>
+         arithmetic_tree ge e m a0 /\ unary_condition ge e m op a0
+     | Ebinop op a0 b _ =>
+         arithmetic_tree ge e m a0 /\
+         arithmetic_tree ge e m b /\ binary_condition ge e m op a0 b
+     | Econdition c a0 b _ =>
+         arithmetic_tree ge e m c /\
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Eassignop op l r _ _ =>
+         arithmetic_tree ge e m l /\
+         arithmetic_tree ge e m r /\
+         nv (typeof l) = true /\ assignop_condition ge e m op l r
+     | Eseqand a0 b _ | Eseqor a0 b _ | Eassign a0 b _ | Ecomma a0 b _ =>
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Epostincr _ _ _ | Ecall _ _ _ | Ebuiltin _ _ _ _ => False
+     | Efield a0 _ _ | Evalof a0 _ | Ederef a0 _ | 
+       Eaddrof a0 _ | Ecast a0 _ | Eparen a0 _ _ => 
+         arithmetic_tree ge e m a0
+     | _ => True
+     end)
+    ge e m r2 /\
+  (fix arithmetic_tree
+     (ge : genv) (e : env) (m : mem) (a : expr) {struct a} : Prop :=
+     match a with
+     | Eunop op a0 _ =>
+         arithmetic_tree ge e m a0 /\ unary_condition ge e m op a0
+     | Ebinop op a0 b _ =>
+         arithmetic_tree ge e m a0 /\
+         arithmetic_tree ge e m b /\ binary_condition ge e m op a0 b
+     | Econdition c a0 b _ =>
+         arithmetic_tree ge e m c /\
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Eassignop op l r _ _ =>
+         arithmetic_tree ge e m l /\
+         arithmetic_tree ge e m r /\
+         nv (typeof l) = true /\ assignop_condition ge e m op l r
+     | Eseqand a0 b _ | Eseqor a0 b _ | Eassign a0 b _ | Ecomma a0 b _ =>
+         arithmetic_tree ge e m a0 /\ arithmetic_tree ge e m b
+     | Epostincr _ _ _ | Ecall _ _ _ | Ebuiltin _ _ _ _ => False
+     | Efield a0 _ _ | Evalof a0 _ | Ederef a0 _ | 
+       Eaddrof a0 _ | Ecast a0 _ | Eparen a0 _ _ => 
+         arithmetic_tree ge e m a0
+     | _ => True
+     end)
+    ge e m r3".
+
+

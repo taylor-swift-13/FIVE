@@ -1,0 +1,71 @@
+     = (36, 4)
+     : Z * Z
+     = (Some
+          (Tstruct 1197166875818972652%positive
+             {| attr_volatile := false; attr_alignas := None |},
+           8),
+        Some
+          (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |},
+           16),
+        Some
+          (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |},
+           24),
+        Some
+          (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |},
+           28),
+        Some
+          (Tint I32 Signed {| attr_volatile := false; attr_alignas := None |},
+           32))
+     : option (type * Z) * option (type * Z) * option (type * Z) *
+       option (type * Z) * option (type * Z)
+esl_field_union
+     : forall (ge : genv) (e : env) (m : mem) (r : expr) 
+         (f : ident) (ty : type) (b : block) (ofs : ptrofs) 
+         (id : ident) (co : composite) (a : attr) 
+         (delta : Z) (bf : bitfield),
+       eval_simple_rvalue ge e m r (Vptr b ofs) ->
+       typeof r = Tunion id a ->
+       union_field_offset ge f (co_members co) = OK (delta, bf) ->
+       ge ! id = Some co ->
+       eval_simple_lvalue ge e m (Efield r f ty) b
+         (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+esl_field_struct
+     : forall (ge : genv) (e : env) (m : mem) (r : expr) 
+         (f : ident) (ty : type) (b : block) (ofs : ptrofs) 
+         (id : ident) (co : composite) (a : attr) 
+         (delta : Z) (bf : bitfield),
+       eval_simple_rvalue ge e m r (Vptr b ofs) ->
+       typeof r = Tstruct id a ->
+       ge ! id = Some co ->
+       field_offset ge f (co_members co) = OK (delta, bf) ->
+       eval_simple_lvalue ge e m (Efield r f ty) b
+         (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+assign_loc_copy
+     : forall (ge : genv) (ty : type) (m : mem) (b : block) 
+         (ofs : ptrofs) (b' : block) (ofs' : ptrofs) 
+         (bytes : list memval) (m' : mem),
+       access_mode ty = By_copy ->
+       (alignof_blockcopy ge ty | Ptrofs.unsigned ofs') ->
+       (alignof_blockcopy ge ty | Ptrofs.unsigned ofs) ->
+       b' <> b \/
+       Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs \/
+       Ptrofs.unsigned ofs' + sizeof ge ty <= Ptrofs.unsigned ofs \/
+       Ptrofs.unsigned ofs + sizeof ge ty <= Ptrofs.unsigned ofs' ->
+       Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof ge ty) = Some bytes ->
+       Mem.storebytes m b (Ptrofs.unsigned ofs) bytes = Some m' ->
+       assign_loc ge ty m b ofs Full (Vptr b' ofs') E0 m' (Vptr b' ofs')
+exec_Sreturn_none
+     : forall (ge : genv) (e : env) (m : mem),
+       exec_stmt ge e m (Sreturn None) E0 m (Out_return None)
+eval_funcall_internal
+     : forall (ge : genv) (m : mem) (f : function) 
+         (vargs : list val) (t : trace) (e : env) 
+         (m1 m2 m3 : mem) (out : outcome) (vres : val) 
+         (m4 : mem),
+       list_norepet (var_names (fn_params f) ++ var_names (fn_vars f)) ->
+       alloc_variables ge empty_env m (fn_params f ++ fn_vars f) e m1 ->
+       bind_parameters ge e m1 (fn_params f) vargs m2 ->
+       exec_stmt ge e m2 (fn_body f) t m3 out ->
+       outcome_result_value out (fn_return f) vres m3 ->
+       Mem.free_list m3 (blocks_of_env ge e) = Some m4 ->
+       eval_funcall ge m (Internal f) vargs t m4 vres

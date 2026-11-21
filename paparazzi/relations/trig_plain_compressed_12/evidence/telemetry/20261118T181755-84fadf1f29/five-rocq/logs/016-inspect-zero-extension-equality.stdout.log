@@ -1,0 +1,30 @@
+267:Definition zero_ext (n: Z) (x: int) : int := repr (Zzero_ext n (unsigned x)).
+2612:  forall n x, 0 <= n -> zero_ext n x = and x (repr (two_p n - 1)).
+2623:  unsigned (zero_ext n x) = Z.modulo (unsigned x) (two_p n).
+2745:  if ltu z y then shl (zero_ext (zwordsize - unsigned y) x) (sub y z)
+2746:             else zero_ext (zwordsize - unsigned z) (shru x (sub z y)).
+2834:Lemma zero_ext_range:
+2835:  forall n x, 0 <= n < zwordsize -> 0 <= unsigned (zero_ext n x) < two_p n.
+2841:  forall n x, 0 <= n < zwordsize -> eqmod (two_p n) (unsigned (zero_ext n x)) (unsigned x).
+2907:  shl (zero_ext n x) m = zero_ext (n + unsigned m) (shl x m).
+2933:  shru (zero_ext (n + unsigned m) x) m = zero_ext n (shru x m).
+2973:  zero_ext s (shru x n) = zero_ext (Z.min s (zwordsize - unsigned n)) (shru x n).
+3002:  shl (zero_ext s x) n = shl (zero_ext (Z.min s (zwordsize - unsigned n)) x) n.
+3444:  zero_ext width (shru n (repr pos)).
+3451:  or (shl (zero_ext width p) (repr pos))
+3461:  intros. unfold unsigned_bitfield_extract. rewrite bits_zero_ext by lia.
+3497:  rewrite bits_zero_ext, testbit_repr, Ztestbit_two_p_m1 by lia.
+3894:  if Int.ltu z y then shl' (zero_ext (zwordsize - Int.unsigned y) x) (Int.sub y z)
+3895:                 else zero_ext (zwordsize - Int.unsigned z) (shru' x (Int.sub z y)).
+3954:  shl' (zero_ext n x) m = zero_ext (n + Int.unsigned m) (shl' x m).
+3980:  shru' (zero_ext (n + Int.unsigned m) x) m = zero_ext n (shru' x m).
+4019:  zero_ext s (shru' x n) = zero_ext (Z.min s (zwordsize - Int.unsigned n)) (shru' x n).
+4048:  shl' (zero_ext s x) n = shl' (zero_ext (Z.min s (zwordsize - Int.unsigned n)) x) n.
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From PprzTrigInit Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_pprz_trig_int_init)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->

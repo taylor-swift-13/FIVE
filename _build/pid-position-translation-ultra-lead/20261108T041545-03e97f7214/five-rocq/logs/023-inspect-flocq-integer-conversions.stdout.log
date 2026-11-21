@@ -1,0 +1,524 @@
+Float.of_int =
+fun n : Integers.Int.int =>
+BofZ
+  (BinInt.Z.pos
+     (BinNums.xI
+        (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+  (BinInt.Z.pos
+     (BinNums.xO
+        (BinNums.xO
+           (BinNums.xO
+              (BinNums.xO
+                 (BinNums.xO
+                    (BinNums.xO
+                       (BinNums.xO
+                          (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+  eq_refl eq_refl (Integers.Int.signed n)
+     : Integers.Int.int -> float
+
+Arguments Float.of_int n
+Float.to_int =
+fun f : float =>
+Coqlib.option_map Integers.Int.repr
+  (ZofB_range
+     (BinInt.Z.pos
+        (BinNums.xI
+           (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+     (BinInt.Z.pos
+        (BinNums.xO
+           (BinNums.xO
+              (BinNums.xO
+                 (BinNums.xO
+                    (BinNums.xO
+                       (BinNums.xO
+                          (BinNums.xO
+                             (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+     f Integers.Int.min_signed Integers.Int.max_signed)
+     : float -> option Integers.Int.int
+
+Arguments Float.to_int f
+ZofBofZ_exact:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax) 
+    (n : BinNums.Z),
+  integer_representable prec emax n ->
+  ZofB prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) = Some n
+BofZ_finite_pos0:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax) 
+    (n : BinNums.Z),
+  BinInt.Z.le (BinInt.Z.abs n)
+    (BinInt.Z.sub (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) emax)
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.sub emax prec))) ->
+  is_finite_pos0 prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) = true
+BofZ_representable:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax) 
+    (n : BinNums.Z),
+  integer_representable prec emax n ->
+  Binary.B2R prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  Rdefinitions.IZR n /\
+  Binary.is_finite prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  true /\
+  Binary.Bsign prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  BinInt.Z.ltb n BinNums.Z0
+Float.from_words_eq:
+  forall x : Integers.Int.int,
+  Float.from_words Float.ox4330_0000 x =
+  BofZ
+    (BinInt.Z.pos
+       (BinNums.xI
+          (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+    eq_refl eq_refl
+    (BinInt.Z.add
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.pos
+             (BinNums.xO
+                (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH)))))))
+       (Integers.Int.unsigned x))
+Bconv_BofZ:
+  forall (prec1 emax1 prec2 emax2 : BinNums.Z)
+    (prec1_gt_0_ : FLX.Prec_gt_0 prec1) (prec2_gt_0_ : FLX.Prec_gt_0 prec2)
+    (Hmax1 : BinInt.Z.lt prec1 emax1) (Hmax2 : BinInt.Z.lt prec2 emax2)
+    (conv_nan : Binary.binary_float prec1 emax1 ->
+                {x : Binary.binary_float prec2 emax2
+                | Binary.is_nan prec2 emax2 x = true})
+    (n : BinNums.Z),
+  integer_representable prec1 emax1 n ->
+  Bconv prec1 emax1 prec2 emax2 prec2_gt_0_ Hmax2 conv_nan
+    BinarySingleNaN.mode_NE (BofZ prec1 emax1 prec1_gt_0_ Hmax1 n) =
+  BofZ prec2 emax2 prec2_gt_0_ Hmax2 n
+BofZ_plus:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (nan : Binary.binary_float prec emax ->
+           Binary.binary_float prec emax ->
+           {x : Binary.binary_float prec emax
+           | Binary.is_nan prec emax x = true})
+    (p q : BinNums.Z),
+  integer_representable prec emax p ->
+  integer_representable prec emax q ->
+  Binary.Bplus prec emax prec_gt_0_ prec_lt_emax_ nan BinarySingleNaN.mode_NE
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_ p)
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_ q) =
+  BofZ prec emax prec_gt_0_ prec_lt_emax_ (BinInt.Z.add p q)
+BofZ_minus:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (nan : Binary.binary_float prec emax ->
+           Binary.binary_float prec emax ->
+           {x : Binary.binary_float prec emax
+           | Binary.is_nan prec emax x = true})
+    (p q : BinNums.Z),
+  integer_representable prec emax p ->
+  integer_representable prec emax q ->
+  Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ nan
+    BinarySingleNaN.mode_NE (BofZ prec emax prec_gt_0_ prec_lt_emax_ p)
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_ q) =
+  BofZ prec emax prec_gt_0_ prec_lt_emax_ (BinInt.Z.sub p q)
+Float.of_longu_decomp:
+  forall l : Integers.Int64.int,
+  Float.of_longu l =
+  Float.add
+    (Float.mul (Float.of_intu (Integers.Int64.hiword l))
+       (BofZ
+          (BinInt.Z.pos
+             (BinNums.xI
+                (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+          (BinInt.Z.pos
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO
+                               (BinNums.xO
+                                  (BinNums.xO
+                                     (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+          eq_refl eq_refl
+          (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+             (BinInt.Z.pos
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))
+    (Float.of_intu (Integers.Int64.loword l))
+Float.of_long_decomp:
+  forall l : Integers.Int64.int,
+  Float.of_long l =
+  Float.add
+    (Float.mul (Float.of_int (Integers.Int64.hiword l))
+       (BofZ
+          (BinInt.Z.pos
+             (BinNums.xI
+                (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+          (BinInt.Z.pos
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO
+                               (BinNums.xO
+                                  (BinNums.xO
+                                     (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+          eq_refl eq_refl
+          (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+             (BinInt.Z.pos
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))
+    (Float.of_intu (Integers.Int64.loword l))
+BofZ_mult:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (nan : Binary.binary_float prec emax ->
+           Binary.binary_float prec emax ->
+           {x : Binary.binary_float prec emax
+           | Binary.is_nan prec emax x = true})
+    (p q : BinNums.Z),
+  integer_representable prec emax p ->
+  integer_representable prec emax q ->
+  BinInt.Z.lt BinNums.Z0 q ->
+  Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ nan BinarySingleNaN.mode_NE
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_ p)
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_ q) =
+  BofZ prec emax prec_gt_0_ prec_lt_emax_ (BinInt.Z.mul p q)
+Float.from_words_eq':
+  forall x : Integers.Int.int,
+  Float.from_words Float.ox4530_0000 x =
+  BofZ
+    (BinInt.Z.pos
+       (BinNums.xI
+          (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+    eq_refl eq_refl
+    (BinInt.Z.add
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.pos
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xI
+                      (BinNums.xO (BinNums.xI (BinNums.xO BinNums.xH))))))))
+       (BinInt.Z.mul (Integers.Int.unsigned x)
+          (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+             (BinInt.Z.pos
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))
+BofZ_exact:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax) 
+    (n : BinNums.Z),
+  BinInt.Z.le
+    (BinInt.Z.opp (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) prec))
+    n /\
+  BinInt.Z.le n (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) prec) ->
+  Binary.B2R prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  Rdefinitions.IZR n /\
+  Binary.is_finite prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  true /\
+  Binary.Bsign prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  BinInt.Z.ltb n BinNums.Z0
+BofZ_finite_equal:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (x y : BinNums.Z),
+  BinInt.Z.le (BinInt.Z.abs x)
+    (BinInt.Z.sub (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) emax)
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.sub emax prec))) ->
+  BinInt.Z.le (BinInt.Z.abs y)
+    (BinInt.Z.sub (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) emax)
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.sub emax prec))) ->
+  Binary.B2R prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ x) =
+  Binary.B2R prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ y) ->
+  BofZ prec emax prec_gt_0_ prec_lt_emax_ x =
+  BofZ prec emax prec_gt_0_ prec_lt_emax_ y
+BofZ_round_odd:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (x p : BinNums.Z),
+  BinInt.Z.gt prec (BinInt.Z.pos BinNums.xH) ->
+  BinInt.Z.le (BinInt.Z.abs x)
+    (BinInt.Z.sub (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) emax)
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.sub emax prec))) ->
+  BinInt.Z.le BinNums.Z0 p /\ BinInt.Z.le p (BinInt.Z.sub emax prec) ->
+  BinInt.Z.le
+    (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+       (BinInt.Z.add (BinInt.Z.add prec p) (BinInt.Z.pos BinNums.xH)))
+    (BinInt.Z.abs x) ->
+  BofZ prec emax prec_gt_0_ prec_lt_emax_ x =
+  BofZ prec emax prec_gt_0_ prec_lt_emax_ (int_round_odd x p)
+BofZ_finite:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax) 
+    (n : BinNums.Z),
+  BinInt.Z.le (BinInt.Z.abs n)
+    (BinInt.Z.sub (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) emax)
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.sub emax prec))) ->
+  Binary.B2R prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+    (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) 
+    (Rdefinitions.IZR n) /\
+  Binary.is_finite prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  true /\
+  Binary.Bsign prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+  BinInt.Z.ltb n BinNums.Z0
+BofZ_correct:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax) 
+    (n : BinNums.Z),
+  if
+   Raux.Rlt_bool
+     (Rbasic_fun.Rabs
+        (Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+           (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)
+           (Rdefinitions.IZR n)))
+     (Raux.bpow Zaux.radix2 emax)
+  then
+   Binary.B2R prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+   Generic_fmt.round Zaux.radix2 (SpecFloat.fexp prec emax)
+     (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)
+     (Rdefinitions.IZR n) /\
+   Binary.is_finite prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+   true /\
+   Binary.Bsign prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+   BinInt.Z.ltb n BinNums.Z0
+  else
+   Binary.B2FF prec emax (BofZ prec emax prec_gt_0_ prec_lt_emax_ n) =
+   Binary.binary_overflow prec emax BinarySingleNaN.mode_NE
+     (BinInt.Z.ltb n BinNums.Z0)
+BofZ_mult_2p:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (nan : Binary.binary_float prec emax ->
+           Binary.binary_float prec emax ->
+           {x : Binary.binary_float prec emax
+           | Binary.is_nan prec emax x = true})
+    (x p : BinNums.Z),
+  BinInt.Z.le (BinInt.Z.abs x)
+    (BinInt.Z.sub (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) emax)
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+          (BinInt.Z.sub emax prec))) ->
+  BinInt.Z.le (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) prec)
+    (BinInt.Z.abs x) ->
+  BinInt.Z.le BinNums.Z0 p /\
+  BinInt.Z.le p (BinInt.Z.sub emax (BinInt.Z.pos BinNums.xH)) ->
+  Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ nan BinarySingleNaN.mode_NE
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_ x)
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_
+       (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) p)) =
+  BofZ prec emax prec_gt_0_ prec_lt_emax_
+    (BinInt.Z.mul x (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) p))
+ZofB_minus:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (minus_nan : Binary.binary_float prec emax ->
+                 Binary.binary_float prec emax ->
+                 {x : Binary.binary_float prec emax
+                 | Binary.is_nan prec emax x = true})
+    (m : BinarySingleNaN.mode) (f : Binary.binary_float prec emax)
+    (p q : BinNums.Z),
+  ZofB prec emax f = Some p ->
+  BinInt.Z.le BinNums.Z0 p /\
+  BinInt.Z.lt p (BinInt.Z.mul (BinInt.Z.pos (BinNums.xO BinNums.xH)) q) ->
+  BinInt.Z.le q (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) prec) ->
+  Rdefinitions.Rle (Rdefinitions.IZR q) (Binary.B2R prec emax f) ->
+  ZofB prec emax
+    (Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ minus_nan m f
+       (BofZ prec emax prec_gt_0_ prec_lt_emax_ q)) =
+  Some (BinInt.Z.sub p q)
+ZofB_range_minus:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (minus_nan : Binary.binary_float prec emax ->
+                 Binary.binary_float prec emax ->
+                 {x : Binary.binary_float prec emax
+                 | Binary.is_nan prec emax x = true})
+    (m : BinarySingleNaN.mode) (f : Binary.binary_float prec emax)
+    (p q : BinNums.Z),
+  ZofB_range prec emax f BinNums.Z0
+    (BinInt.Z.sub (BinInt.Z.mul (BinInt.Z.pos (BinNums.xO BinNums.xH)) q)
+       (BinInt.Z.pos BinNums.xH)) =
+  Some p ->
+  BinInt.Z.le q (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH)) prec) ->
+  Rdefinitions.Rle (Rdefinitions.IZR q) (Binary.B2R prec emax f) ->
+  ZofB_range prec emax
+    (Binary.Bminus prec emax prec_gt_0_ prec_lt_emax_ minus_nan m f
+       (BofZ prec emax prec_gt_0_ prec_lt_emax_ q))
+    (BinInt.Z.opp q) (BinInt.Z.sub q (BinInt.Z.pos BinNums.xH)) =
+  Some (BinInt.Z.sub p q)
+Bmult2_Bplus:
+  forall (prec emax : BinNums.Z) (prec_gt_0_ : FLX.Prec_gt_0 prec)
+    (prec_lt_emax_ : BinarySingleNaN.Prec_lt_emax prec emax)
+    (plus_nan
+     mult_nan : Binary.binary_float prec emax ->
+                Binary.binary_float prec emax ->
+                {x : Binary.binary_float prec emax
+                | Binary.is_nan prec emax x = true})
+    (mode : BinarySingleNaN.mode) (f : Binary.binary_float prec emax),
+  (forall x y : Binary.binary_float prec emax,
+   Binary.is_nan prec emax x = true ->
+   Binary.is_finite prec emax y = true -> plus_nan x x = mult_nan x y) ->
+  Binary.Bplus prec emax prec_gt_0_ prec_lt_emax_ plus_nan mode f f =
+  Binary.Bmult prec emax prec_gt_0_ prec_lt_emax_ mult_nan mode f
+    (BofZ prec emax prec_gt_0_ prec_lt_emax_
+       (BinInt.Z.pos (BinNums.xO BinNums.xH)))
+Float32.of_long_round_odd:
+  forall (n : BinNums.Z)
+    (conv_nan : Binary.binary_float
+                  (BinInt.Z.pos
+                     (BinNums.xI
+                        (BinNums.xO
+                           (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+                  (BinInt.Z.pos
+                     (BinNums.xO
+                        (BinNums.xO
+                           (BinNums.xO
+                              (BinNums.xO
+                                 (BinNums.xO
+                                    (BinNums.xO
+                                       (BinNums.xO
+                                          (BinNums.xO
+                                             (BinNums.xO
+                                                (BinNums.xO BinNums.xH))))))))))) ->
+                {x
+                : Binary.binary_float
+                    (BinInt.Z.pos
+                       (BinNums.xO
+                          (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH)))))
+                    (BinInt.Z.pos
+                       (BinNums.xO
+                          (BinNums.xO
+                             (BinNums.xO
+                                (BinNums.xO
+                                   (BinNums.xO
+                                      (BinNums.xO (BinNums.xO BinNums.xH))))))))
+                | Binary.is_nan
+                    (BinInt.Z.pos
+                       (BinNums.xO
+                          (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH)))))
+                    (BinInt.Z.pos
+                       (BinNums.xO
+                          (BinNums.xO
+                             (BinNums.xO
+                                (BinNums.xO
+                                   (BinNums.xO
+                                      (BinNums.xO (BinNums.xO BinNums.xH))))))))
+                    x =
+                  true}),
+  BinInt.Z.le
+    (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+       (BinInt.Z.pos
+          (BinNums.xO
+             (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xO BinNums.xH)))))))
+    (BinInt.Z.abs n) /\
+  BinInt.Z.lt (BinInt.Z.abs n)
+    (BinInt.Z.pow (BinInt.Z.pos (BinNums.xO BinNums.xH))
+       (BinInt.Z.pos
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))) ->
+  BofZ
+    (BinInt.Z.pos
+       (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH)))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))))
+    eq_refl eq_refl n =
+  Bconv
+    (BinInt.Z.pos
+       (BinNums.xI
+          (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+    (BinInt.Z.pos
+       (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xI BinNums.xH)))))
+    (BinInt.Z.pos
+       (BinNums.xO
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO (BinNums.xO (BinNums.xO (BinNums.xO BinNums.xH))))))))
+    eq_refl eq_refl conv_nan BinarySingleNaN.mode_NE
+    (BofZ
+       (BinInt.Z.pos
+          (BinNums.xI
+             (BinNums.xO (BinNums.xI (BinNums.xO (BinNums.xI BinNums.xH))))))
+       (BinInt.Z.pos
+          (BinNums.xO
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO
+                               (BinNums.xO
+                                  (BinNums.xO (BinNums.xO BinNums.xH)))))))))))
+       eq_refl eq_refl
+       (BinInt.Z.land
+          (BinInt.Z.lor n
+             (BinInt.Z.add
+                (BinInt.Z.land n
+                   (BinInt.Z.pos
+                      (BinNums.xI
+                         (BinNums.xI
+                            (BinNums.xI
+                               (BinNums.xI
+                                  (BinNums.xI
+                                     (BinNums.xI
+                                        (BinNums.xI
+                                           (BinNums.xI
+                                              (BinNums.xI
+                                                 (BinNums.xI BinNums.xH))))))))))))
+                (BinInt.Z.pos
+                   (BinNums.xI
+                      (BinNums.xI
+                         (BinNums.xI
+                            (BinNums.xI
+                               (BinNums.xI
+                                  (BinNums.xI
+                                     (BinNums.xI
+                                        (BinNums.xI
+                                           (BinNums.xI
+                                              (BinNums.xI BinNums.xH)))))))))))))
+          (BinInt.Z.neg
+             (BinNums.xO
+                (BinNums.xO
+                   (BinNums.xO
+                      (BinNums.xO
+                         (BinNums.xO
+                            (BinNums.xO
+                               (BinNums.xO
+                                  (BinNums.xO
+                                     (BinNums.xO
+                                        (BinNums.xO (BinNums.xO BinNums.xH))))))))))))))

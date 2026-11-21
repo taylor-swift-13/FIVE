@@ -1,0 +1,25 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/NibbleEntry.v", line 37, characters 10-37:
+Error:
+In environment
+m : mem
+bc : block
+p : Z
+P : 0 <= p < 3379
+SYMBOL :
+  Genv.find_symbol (globalenv PprzTrigInit.Source.prog)
+    Source._pprz_trig_int_compr =
+  Some bc
+BYTE :
+  Mem.load Mint8unsigned m bc (p / 2) =
+  Some (Vint (Int.repr (source_byte p)))
+ma : Mem.mem'
+bp : block
+ALLOC : Mem.alloc m 0 2 = (ma, bp)
+FRESH : ~ Mem.valid_block m bp
+Unable to unify
+ "Mem.range_perm ?m2 ?b ?ofs (?ofs + size_chunk ?chunk) Cur Freeable /\
+  (align_chunk ?chunk | ?ofs)"
+with
+ "Mem.range_perm ma bp 0 (0 + size_chunk Mint16unsigned) Cur Writable /\
+  (align_chunk Mint16unsigned | 0)".
+

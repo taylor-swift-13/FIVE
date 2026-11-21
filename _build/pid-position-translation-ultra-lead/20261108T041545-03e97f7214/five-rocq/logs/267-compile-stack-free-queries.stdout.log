@@ -1,0 +1,52 @@
+Mem.loadbytes_alloc_unchanged
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) ->
+       forall (b' : Values.block) (ofs n : BinNums.Z),
+       Mem.valid_block m1 b' ->
+       Mem.loadbytes m2 b' ofs n = Mem.loadbytes m1 b' ofs n
+Mem.alloc_result
+     : forall (m1 : mem) (lo hi : BinNums.Z) (m2 : mem) (b : Values.block),
+       Mem.alloc m1 lo hi = (m2, b) -> b = Mem.nextblock m1
+Mem.perm_free_1
+     : forall (m1 : mem) (bf : Values.block) (lo hi : BinNums.Z) (m2 : mem),
+       Mem.free m1 bf lo hi = Some m2 ->
+       forall (b : Values.block) (ofs : BinNums.Z) 
+         (k : perm_kind) (p : permission),
+       b <> bf \/ BinInt.Z.lt ofs lo \/ BinInt.Z.le hi ofs ->
+       Mem.perm m1 b ofs k p -> Mem.perm m2 b ofs k p
+Mem.perm_free_2
+     : forall (m1 : mem) (bf : Values.block) (lo hi : BinNums.Z) (m2 : mem),
+       Mem.free m1 bf lo hi = Some m2 ->
+       forall (ofs : BinNums.Z) (k : perm_kind) (p : permission),
+       BinInt.Z.le lo ofs /\ BinInt.Z.lt ofs hi -> ~ Mem.perm m2 bf ofs k p
+Mem.perm_free_3
+     : forall (m1 : mem) (bf : Values.block) (lo hi : BinNums.Z) (m2 : mem),
+       Mem.free m1 bf lo hi = Some m2 ->
+       forall (b : Values.block) (ofs : BinNums.Z) 
+         (k : perm_kind) (p : permission),
+       Mem.perm m2 b ofs k p -> Mem.perm m1 b ofs k p
+Mem.loadbytes_free
+     : forall (m1 : mem) (bf : Values.block) (lo hi : BinNums.Z) (m2 : mem),
+       Mem.free m1 bf lo hi = Some m2 ->
+       forall (b : Values.block) (ofs n : BinNums.Z),
+       b <> bf \/
+       BinInt.Z.ge lo hi \/
+       BinInt.Z.le (BinInt.Z.add ofs n) lo \/ BinInt.Z.le hi ofs ->
+       Mem.loadbytes m2 b ofs n = Mem.loadbytes m1 b ofs n
+Mem.loadbytes_free_2
+     : forall (m1 : mem) (bf : Values.block) (lo hi : BinNums.Z) (m2 : mem),
+       Mem.free m1 bf lo hi = Some m2 ->
+       forall (b : Values.block) (ofs n : BinNums.Z) (bytes : list memval),
+       Mem.loadbytes m2 b ofs n = Some bytes ->
+       Mem.loadbytes m1 b ofs n = Some bytes
+Mem.loadbytes_store_same
+     : forall (chunk : AST.memory_chunk) (m1 : mem) 
+         (b : Values.block) (ofs : BinNums.Z) (v : Values.val) 
+         (m2 : mem),
+       Mem.store chunk m1 b ofs v = Some m2 ->
+       Mem.loadbytes m2 b ofs (size_chunk chunk) = Some (encode_val chunk v)
+Mem.loadbytes_storebytes_same
+     : forall (m1 : mem) (b : Values.block) (ofs : BinNums.Z)
+         (bytes : list memval) (m2 : mem),
+       Mem.storebytes m1 b ofs bytes = Some m2 ->
+       Mem.loadbytes m2 b ofs (BinInt.Z.of_nat (length bytes)) = Some bytes

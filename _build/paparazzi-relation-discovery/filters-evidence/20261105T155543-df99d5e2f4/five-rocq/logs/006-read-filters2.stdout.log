@@ -1,0 +1,1524 @@
+FILE: pid.h
+1 /*
+2  * Copyright (C) 2018 Gautier Hattenberger
+3  *
+4  * This file is part of paparazzi.
+5  *
+6  * paparazzi is free software; you can redistribute it and/or modify
+7  * it under the terms of the GNU General Public License as published by
+8  * the Free Software Foundation; either version 2, or (at your option)
+9  * any later version.
+10  *
+11  * paparazzi is distributed in the hope that it will be useful,
+12  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+13  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+14  * GNU General Public License for more details.
+15  *
+16  * You should have received a copy of the GNU General Public License
+17  * along with paparazzi; see the file COPYING.  If not, see
+18  * <http://www.gnu.org/licenses/>.
+19  */
+20 
+21 /** @file filters/pid.h
+22  *  @brief Several forms of PID controllers
+23  *
+24  */
+25 
+26 #ifndef PID_H
+27 #define PID_H
+28 
+29 /** Simple PID structure
+30  *  floating point
+31  *
+32  * u_k = Kp * e_k + Kd * (e_k - e_k-1) / dt + Ki * (sum (e_k * dt))
+33  *
+34  * with:
+35  *  u = outputs
+36  *  e = inputs
+37  *  Kp = proportional gain
+38  *  Kd = derivative gain
+39  *  Ki = integral gain
+40  *  dt = time since last input
+41  */
+42 struct PID_f {
+43   float u;        ///< output
+44   float e[2];     ///< input
+45   float sum;      ///< integral of input
+46   float g[3];     ///< controller gains (Kp, Kd, Ki)
+47   float max_sum;  ///< windup protection, max of Ki * sum(e_k * dt)
+48 };
+49 
+50 static inline void init_pid_f(struct PID_f *pid, float Kp, float Kd, float Ki, float max_sum)
+51 {
+52   *pid = (struct PID_f) {
+53     0.f,
+54     { 0.f , 0.f },
+55     0.f,
+56     { Kp, Kd, Ki },
+57     max_sum
+58   };
+59 }
+60 
+61 /** Update PID with a new value and return new command.
+62  *
+63  * @param pid pointer to PID structure
+64  * @param value new input value of the PID
+65  * @param dt time since last input (in seconds)
+66  * @return new output command
+67  */
+68 static inline float update_pid_f(struct PID_f *pid, float value, float dt)
+69 {
+70   pid->e[1] = pid->e[0];
+71   pid->e[0] = value;
+72   float integral = pid->g[2] * (pid->sum + value);
+73   if (integral > pid->max_sum) {
+74     integral = pid->max_sum;
+75   } else if (integral < -pid->max_sum) {
+76     integral = -pid->max_sum;
+77   } else {
+78     pid->sum += value;
+79   }
+80   pid->u = pid->g[0] * pid->e[0] + pid->g[1] * (pid->e[0] - pid->e[1]) / dt + integral;
+81   return pid->u;
+82 }
+83 
+84 /** Get current value of the PID command.
+85  *
+86  * @param pid pointer to PID structure
+87  * @return current value of PID command
+88  */
+89 static inline float get_pid_f(struct PID_f *pid)
+90 {
+91   return pid->u;
+92 }
+93 
+94 /** Reset PID struture, gains left unchanged.
+95  *
+96  * @param pid pointer to PID structure
+97  */
+98 static inline void reset_pid_f(struct PID_f *pid)
+99 {
+100   pid->u = 0.f;
+101   pid->e[0] = 0.f;
+102   pid->e[1] = 0.f;
+103   pid->sum = 0.f;
+104 }
+105 
+106 /** Set gains of the PID struct.
+107  *
+108  * @param pid pointer to PID structure
+109  * @param Kp proportional gain
+110  * @param Kd derivative gain
+111  * @param Ki integral gain
+112  */
+113 static inline void set_gains_pid_f(struct PID_f *pid, float Kp, float Kd, float Ki)
+114 {
+115   pid->g[0] = Kp;
+116   pid->g[1] = Kd;
+117   pid->g[2] = Ki;
+118 }
+119 
+120 /** Set integral part, can be used to reset.
+121  *  The new sum of errors is calculated from current gains and bounds.
+122  *
+123  * @param pid pointer to PID structure
+124  * @param value integral part of the PID control, 0. will reset it
+125  */
+126 static inline void set_integral_pid_f(struct PID_f *pid, float value)
+127 {
+128   float integral = value;
+129   if (integral < -pid->max_sum) {
+130     integral = -pid->max_sum;
+131   } else if (integral > pid->max_sum) {
+132     integral = pid->max_sum;
+133   }
+134   if (fabsf(pid->g[2]) < 1e-6) {
+135     pid->sum = 0.f; // integral gain is too low, prevent division by zero, just reset sum
+136   } else {
+137     pid->sum = integral / pid->g[2];
+138   }
+139 }
+140 
+141 
+142 
+143 /** Distcrete time PID structure.
+144  *  floating point, fixed frequency.
+145  *
+146  * u_k = u_k-1 + a * e_k  + b * e_k-1 + c * e_k-2
+147  *
+148  * with:
+149  *  u = outputs
+150  *  e = inputs
+151  *  a = Kp + Ki Ts/2 + Kd/Ts
+152  *  b = -Kp + Ki Ts/2 - 2 Kd/Ts
+153  *  c = Kd/Ts
+154  *  Kp = proportional gain
+155  *  Kd = derivative gain
+156  *  Ki = integral gain
+157  *  Ts = sampling frequency
+158  *
+159  */
+160 struct PID_df {
+161   float u[2]; ///< output
+162   float e[3]; ///< input
+163   float g[3]; ///< controller gains
+164 };
+165 
+166 /** Init PID struct.
+167  *
+168  * @param pid pointer to PID structure
+169  * @param Kp proportional gain
+170  * @param Kd derivative gain
+171  * @param Ki integral gain
+172  * @param Ts sampling time
+173  */
+174 static inline void init_pid_df(struct PID_df *pid, float Kp, float Kd, float Ki, float Ts)
+175 {
+176   *pid = (struct PID_df) {
+177     { 0.f, 0.f },
+178     { 0.f ,0.f , 0.f },
+179     { Kp + Ki * Ts / 2.f + Kd / Ts,
+180      -Kp + Ki * Ts / 2.f - 2.f * Kd / Ts,
+181       Kd / Ts }
+182   };
+183 }
+184 
+185 /** Update PID with a new value and return new command.
+186  *
+187  * @param pid pointer to PID structure
+188  * @param value new input value of the PID
+189  * @return new output command
+190  */
+191 static inline float update_pid_df(struct PID_df *pid, float value)
+192 {
+193   pid->e[2] = pid->e[1];
+194   pid->e[1] = pid->e[0];
+195   pid->e[0] = value;
+196   pid->u[1] = pid->u[0];
+197   pid->u[0] = pid->u[1] + pid->g[0] * pid->e[0] + pid->g[1] * pid->e[1] + pid->g[2] * pid->e[2];
+198   return pid->u[0];
+199 }
+200 
+201 /** Get current value of the PID command.
+202  *
+203  * @param pid pointer to PID structure
+204  * @return current value of PID command
+205  */
+206 static inline float get_pid_df(struct PID_df *pid)
+207 {
+208   return pid->u[0];
+209 }
+210 
+211 /** Reset PID struture, gains left unchanged.
+212  *
+213  * @param pid pointer to PID structure
+214  */
+215 static inline void reset_pid_df(struct PID_df *pid)
+216 {
+217   pid->u[0] = 0.f;
+218   pid->u[1] = 0.f;
+219   pid->e[0] = 0.f;
+220   pid->e[1] = 0.f;
+221   pid->e[2] = 0.f;
+222 }
+223 
+224 /** Set gains of the PID struct.
+225  *
+226  * @param pid pointer to PID structure
+227  * @param Kp proportional gain
+228  * @param Kd derivative gain
+229  * @param Ki integral gain
+230  * @param Ts sampling time
+231  */
+232 static inline void set_gains_pid_df(struct PID_df *pid, float Kp, float Kd, float Ki, float Ts)
+233 {
+234   pid->g[0] = Kp + Ki * Ts / 2.f + Kd / Ts;
+235   pid->g[1] = -Kp + Ki * Ts / 2.f - 2.f * Kd / Ts;
+236   pid->g[2] = Kd / Ts;
+237 }
+238 
+239 /** Distcrete time PI-D structure.
+240  *  derivative term is directly provided as input
+241  *  as it may be available directly from a sensor
+242  *  or estimated separately.
+243  *  floating point, fixed frequency.
+244  *
+245  * u_k = u_k-1 + a * e_k  + b * e_k-1 + Kd * d_k
+246  *
+247  * with:
+248  *  u = outputs
+249  *  e = inputs
+250  *  d = derivative of input
+251  *  a = Kp + Ki Ts/2
+252  *  b = -Kp + Ki Ts/2
+253  *  Kp = proportional gain
+254  *  Kd = derivative gain
+255  *  Ki = integral gain
+256  *  Ts = sampling frequency
+257  *
+258  */
+259 struct PI_D_df {
+260   float u[2]; ///< output
+261   float e[2]; ///< input
+262   float g[3]; ///< controller gains
+263 };
+264 
+265 /** Init PI-D struct.
+266  *
+267  * @param pid pointer to PID structure
+268  * @param Kp proportional gain
+269  * @param Kd derivative gain
+270  * @param Ki integral gain
+271  * @param Ts sampling time
+272  */
+273 static inline void init_pi_d_df(struct PI_D_df *pid, float Kp, float Kd, float Ki, float Ts)
+274 {
+275   *pid = (struct PI_D_df) {
+276     { 0.f, 0.f },
+277     { 0.f ,0.f },
+278     { Kp + Ki * Ts / 2.f,
+279      -Kp + Ki * Ts / 2.f,
+280       Kd }
+281   };
+282 }
+283 
+284 /** Update PI-D with a new value and return new command.
+285  *
+286  * @param pid pointer to PI-D structure
+287  * @param value new input value of the PI-D
+288  * @param deriv new input derivative
+289  * @return new output command
+290  */
+291 static inline float update_pi_d_df(struct PI_D_df *pid, float value, float deriv)
+292 {
+293   pid->e[1] = pid->e[0];
+294   pid->e[0] = value;
+295   pid->u[1] = pid->u[0];
+296   pid->u[0] = pid->u[1] + pid->g[0] * pid->e[0] + pid->g[1] * pid->e[1] + pid->g[2] * deriv;
+297   return pid->u[0];
+298 }
+299 
+300 /** Get current value of the PI-D command.
+301  *
+302  * @param pid pointer to PI-D structure
+303  * @return current value of PI-D command
+304  */
+305 static inline float get_pi_d_df(struct PI_D_df *pid)
+306 {
+307   return pid->u[0];
+308 }
+309 
+310 /** Reset PI-D struture, gains left unchanged.
+311  *
+312  * @param pid pointer to PI-D structure
+313  */
+314 static inline void reset_pi_d_df(struct PI_D_df *pid)
+315 {
+316   pid->u[0] = 0.f;
+317   pid->u[1] = 0.f;
+318   pid->e[0] = 0.f;
+319   pid->e[1] = 0.f;
+320 }
+321 
+322 /** Set gains PI-D struct.
+323  *
+324  * @param pid pointer to PID structure
+325  * @param Kp proportional gain
+326  * @param Kd derivative gain
+327  * @param Ki integral gain
+328  * @param Ts sampling time
+329  */
+330 static inline void set_gains_pi_d_df(struct PI_D_df *pid, float Kp, float Kd, float Ki, float Ts)
+331 {
+332   pid->g[0] = Kp + Ki * Ts / 2.f;
+333   pid->g[1] = -Kp + Ki * Ts / 2.f;
+334   pid->g[2] = Kd;
+335 }
+336 
+337 #endif
+338 
+FILE: low_pass_filter.h
+1 /*
+2  * Copyright (C) 2013 Gautier Hattenberger
+3  *
+4  * This file is part of paparazzi.
+5  *
+6  * paparazzi is free software; you can redistribute it and/or modify
+7  * it under the terms of the GNU General Public License as published by
+8  * the Free Software Foundation; either version 2, or (at your option)
+9  * any later version.
+10  *
+11  * paparazzi is distributed in the hope that it will be useful,
+12  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+13  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+14  * GNU General Public License for more details.
+15  *
+16  * You should have received a copy of the GNU General Public License
+17  * along with paparazzi; see the file COPYING.  If not, write to
+18  * the Free Software Foundation, 59 Temple Place - Suite 330,
+19  * Boston, MA 02111-1307, USA.
+20  */
+21 
+22 /** @file filters/low_pass_filter.h
+23  *  @brief Simple first order low pass filter with bilinear transform
+24  *
+25  * @FIXME: INT and FLOAT implementations are inconsistent, tau and cut_off freq are mixed.
+26  *         Suggestion: Change everything to freq.
+27  *
+28  */
+29 
+30 #ifndef LOW_PASS_FILTER_H
+31 #define LOW_PASS_FILTER_H
+32 
+33 #include "std.h"
+34 #include "math/pprz_algebra_int.h"
+35 
+36 #define INT32_FILT_FRAC  8
+37 
+38 /** First order low pass filter structure.
+39  *
+40  * using bilinear z transform
+41  */
+42 struct FirstOrderLowPass {
+43   float time_const;
+44   float last_in;
+45   float last_out;
+46 };
+47 
+48 /** Init first order low pass filter.
+49  *
+50  * Laplace transform in continious time:
+51  *            1
+52  * H(s) = ---------
+53  *        1 + tau*s
+54  *
+55  * @param filter first order low pass filter structure
+56  * @param tau time constant of the first order low pass filter
+57  * @param sample_time sampling period of the signal
+58  * @param value initial value of the filter
+59  */
+60 static inline void init_first_order_low_pass(struct FirstOrderLowPass *filter, float tau, const float sample_time,
+61     float value)
+62 {
+63   filter->last_in = value;
+64   filter->last_out = value;
+65   filter->time_const = 2.0f * tau / sample_time;
+66 }
+67 
+68 /** Update first order low pass filter state with a new value.
+69  *
+70  * @param filter first order low pass filter structure
+71  * @param value new input value of the filter
+72  * @return new filtered value
+73  */
+74 static inline float update_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)
+75 {
+76   float out = (value + filter->last_in + (filter->time_const - 1.0f) * filter->last_out) / (1.0f + filter->time_const);
+77   filter->last_in = value;
+78   filter->last_out = out;
+79   return out;
+80 }
+81 
+82 /**
+83  * @brief Reset the first order low-pass filter to a specific value.
+84  *
+85  * @param filter first order low pass filter structure
+86  * @param value Value to reset the filter to
+87  * @return The reset value
+88  */
+89 static inline float reset_first_order_low_pass(struct FirstOrderLowPass *filter, const float value)
+90 {
+91   filter->last_in = value;
+92   filter->last_out = value;
+93   return value;
+94 }
+95 
+96 /** Get current value of the first order low pass filter.
+97  *
+98  * @param filter first order low pass filter structure
+99  * @return current value of the filter
+100  */
+101 static inline float get_first_order_low_pass(const struct FirstOrderLowPass *filter)
+102 {
+103   return filter->last_out;
+104 }
+105 
+106 /** Update time constant (tau parameter) for first order low pass filter
+107  *
+108  * @param filter first order low pass filter structure
+109  * @param tau time constant of the first order low pass filter
+110  * @param sample_time sampling period of the signal
+111  */
+112 static inline void update_first_order_low_pass_tau(struct FirstOrderLowPass *filter, const float tau,
+113     const float sample_time)
+114 {
+115   filter->time_const = 2.0f * tau / sample_time;
+116 }
+117 
+118 /** Second order low pass filter structure.
+119  *
+120  * using biquad filter with bilinear z transform
+121  *
+122  * http://en.wikipedia.org/wiki/Digital_biquad_filter
+123  * http://www.earlevel.com/main/2003/03/02/the-bilinear-z-transform
+124  *
+125  * Laplace continious form:
+126  *
+127  *                 1
+128  * H(s) = -------------------
+129  *        s^2/w^2 + s/w*Q + 1
+130  *
+131  *
+132  * Polynomial discrete form:
+133  *
+134  *        b0 + b1 z^-1 + b2 z^-2
+135  * H(z) = ----------------------
+136  *        a0 + a1 z^-1 + a2 z^-2
+137  *
+138  * with:
+139  *  a0 = 1
+140  *  a1 = 2*(K^2 - 1) / (K^2 + K/Q + 1)
+141  *  a2 = (K^2 - K/Q + 1) / (K^2 + K/Q + 1)
+142  *  b0 = K^2 / (K^2 + K/Q + 1)
+143  *  b1 = 2*b0
+144  *  b2 = b0
+145  *  K = tan(pi*Fc/Fs) ~ pi*Fc/Fs = Ts/(2*tau)
+146  *  Fc: cutting frequency
+147  *  Fs: sampling frequency
+148  *  Ts: sampling period
+149  *  tau: time constant (tau = 1/(2*pi*Fc))
+150  *  Q: gain at cutoff frequency
+151  *
+152  * Note that b[0]=b[2], so we don't need to save b[2]
+153  */
+154 struct SecondOrderLowPass {
+155   float a[2]; ///< denominator gains
+156   float b[2]; ///< numerator gains
+157   float i[2]; ///< input history
+158   float o[2]; ///< output history
+159 };
+160 
+161 
+162 /** Init second order low pass filter.
+163  *
+164  * @param filter second order low pass filter structure
+165  * @param tau time constant of the second order low pass filter
+166  * @param Q Q value of the second order low pass filter
+167  * @param sample_time sampling period of the signal
+168  * @param value initial value of the filter
+169  */
+170 static inline void init_second_order_low_pass(struct SecondOrderLowPass *filter, const float tau, const float Q,
+171     const float sample_time,
+172     float value)
+173 {
+174   float K = tanf(sample_time / (2.0f * tau));
+175   float poly = K * K + K / Q + 1.0f;
+176   filter->a[0] = 2.0f * (K * K - 1.0f) / poly;
+177   filter->a[1] = (K * K - K / Q + 1.0f) / poly;
+178   filter->b[0] = K * K / poly;
+179   filter->b[1] = 2.0f * filter->b[0];
+180   filter->i[0] = filter->i[1] = filter->o[0] = filter->o[1] = value;
+181 }
+182 
+183 /**
+184  * @brief Reset the second order low-pass filter to a specific value.
+185  *
+186  * @param filter second order low pass filter structure
+187  * @param value Value to reset the filter to
+188  * @return The reset value
+189  */
+190 static inline float reset_second_order_low_pass(struct SecondOrderLowPass *filter, const float value)
+191 {
+192   filter->i[0] = filter->i[1] = filter->o[0] = filter->o[1] = value;
+193   return value;
+194 }
+195 
+196 /** Update second order low pass filter state with a new value.
+197  *
+198  * @param filter second order low pass filter structure
+199  * @param value new input value of the filter
+200  * @return new filtered value
+201  */
+202 static inline float update_second_order_low_pass(struct SecondOrderLowPass *filter, const float value)
+203 {
+204   float out = filter->b[0] * value
+205               + filter->b[1] * filter->i[0]
+206               + filter->b[0] * filter->i[1]
+207               - filter->a[0] * filter->o[0]
+208               - filter->a[1] * filter->o[1];
+209   filter->i[1] = filter->i[0];
+210   filter->i[0] = value;
+211   filter->o[1] = filter->o[0];
+212   filter->o[0] = out;
+213   return out;
+214 }
+215 
+216 /** Get current value of the second order low pass filter.
+217  *
+218  * @param filter second order low pass filter structure
+219  * @return current value of the filter
+220  */
+221 static inline float get_second_order_low_pass(const struct SecondOrderLowPass *filter)
+222 {
+223   return filter->o[0];
+224 }
+225 
+226 struct SecondOrderLowPass_int {
+227   int32_t a[2]; ///< denominator gains
+228   int32_t b[2]; ///< numerator gains
+229   int32_t i[2]; ///< input history
+230   int32_t o[2]; ///< output history
+231   int32_t loop_gain; ///< loop gain
+232 };
+233 
+234 /** Init second order low pass filter(fixed point version).
+235  *
+236  * @param filter second order low pass filter structure
+237  * @param cut_off Cutoff frequency of the filter with -3dB
+238  * @param Q Q value of the second order low pass filter
+239  * @param sample_time sampling period of the signal
+240  * @param value initial value of the filter
+241  */
+242 static inline void init_second_order_low_pass_int(struct SecondOrderLowPass_int *filter, const float cut_off,
+243     const float Q,
+244     float sample_time, int32_t value)
+245 {
+246   struct SecondOrderLowPass filter_temp;
+247   float tau = 7.0f / (44.0f * cut_off);
+248   float K = sample_time / (2.0f * tau);
+249   float poly = K * K + K / Q + 1.0f;
+250   float loop_gain_f;
+251 
+252   filter_temp.a[0] = 2.0f * (K * K - 1.0f) / poly;
+253   filter_temp.a[1] = (K * K - K / Q + 1.0f) / poly;
+254   filter_temp.b[0] = K * K / poly;
+255   filter_temp.b[1] = 2.0f * filter_temp.b[0];
+256   loop_gain_f = 1.0f / filter_temp.b[0];
+257 
+258   filter->a[0] = BFP_OF_REAL((filter_temp.a[0] * loop_gain_f), INT32_FILT_FRAC);
+259   filter->a[1] = BFP_OF_REAL((filter_temp.a[1] * loop_gain_f), INT32_FILT_FRAC);
+260   filter->b[0] = BFP_OF_REAL(1, INT32_FILT_FRAC);
+261   filter->b[1] = 2 * filter->b[0];
+262   filter->i[0] = filter->i[1] = filter->o[0] = filter->o[1] = value;
+263   filter->loop_gain = BFP_OF_REAL(loop_gain_f, INT32_FILT_FRAC);
+264 }
+265 
+266 /** Update second order low pass filter state with a new value(fixed point version).
+267  *
+268  * @param filter second order low pass filter structure
+269  * @param value new input value of the filter
+270  * @return new filtered value
+271  */
+272 static inline int32_t update_second_order_low_pass_int(struct SecondOrderLowPass_int *filter, const int32_t value)
+273 {
+274   int32_t out = filter->b[0] * value
+275                 + filter->b[1] * filter->i[0]
+276                 + filter->b[0] * filter->i[1]
+277                 - filter->a[0] * filter->o[0]
+278                 - filter->a[1] * filter->o[1];
+279 
+280   filter->i[1] = filter->i[0];
+281   filter->i[0] = value;
+282   filter->o[1] = filter->o[0];
+283   filter->o[0] = out / (filter->loop_gain);
+284   return filter->o[0];
+285 }
+286 
+287 /** Get current value of the second order low pass filter(fixed point version).
+288  *
+289  * @param filter second order low pass filter structure
+290  * @return current value of the filter
+291  */
+292 static inline int32_t get_second_order_low_pass_int(const struct SecondOrderLowPass_int *filter)
+293 {
+294   return filter->o[0];
+295 }
+296 
+297 /** Second order Butterworth low pass filter.
+298  */
+299 typedef struct SecondOrderLowPass Butterworth2LowPass;
+300 
+301 /** Init a second order Butterworth filter.
+302  *
+303  * based on the generic second order filter
+304  * with Q = 0.7071 = 1/sqrt(2)
+305  *
+306  * http://en.wikipedia.org/wiki/Butterworth_filter
+307  *
+308  * @param filter second order Butterworth low pass filter structure
+309  * @param tau time constant of the second order low pass filter
+310  * @param sample_time sampling period of the signal
+311  * @param value initial value of the filter
+312  */
+313 static inline void init_butterworth_2_low_pass(Butterworth2LowPass *filter, const float tau, const float sample_time,
+314     const float value)
+315 {
+316   init_second_order_low_pass((struct SecondOrderLowPass *)filter, tau, 0.7071, sample_time, value);
+317 }
+318 
+319 /** Update second order Butterworth low pass filter state with a new value.
+320  *
+321  * @param filter second order Butterworth low pass filter structure
+322  * @param value new input value of the filter
+323  * @return new filtered value
+324  */
+325 static inline float update_butterworth_2_low_pass(Butterworth2LowPass *filter, const float value)
+326 {
+327   return update_second_order_low_pass((struct SecondOrderLowPass *)filter, value);
+328 }
+329 
+330 /**
+331  * @brief Reset a Butterworth low-pass filter to a specific value.
+332  *
+333  * @param[out] filter Butterworth2LowPass filter instance to reset.
+334  * @param[in] value Value to reset the filter to.
+335  * @return The reset value.
+336  */
+337 static inline float reset_butterworth_2_low_pass(Butterworth2LowPass *filter, const float value)
+338 {
+339   return reset_second_order_low_pass((struct SecondOrderLowPass *)filter, value);
+340 }
+341 
+342 /** Get current value of the second order Butterworth low pass filter.
+343  *
+344  * @param filter second order Butterworth low pass filter structure
+345  * @return current value of the filter
+346  */
+347 static inline float get_butterworth_2_low_pass(const Butterworth2LowPass *filter)
+348 {
+349   return get_second_order_low_pass((const struct SecondOrderLowPass *)filter);
+350 }
+351 
+352 /** Second order Butterworth low pass filter(fixed point version).
+353  */
+354 typedef struct SecondOrderLowPass_int Butterworth2LowPass_int;
+355 
+356 /** Init a second order Butterworth filter.
+357  *
+358  * based on the generic second order filter
+359  * with Q = 0.7071 = 1/sqrt(2)
+360  *
+361  * http://en.wikipedia.org/wiki/Butterworth_filter
+362  *
+363  * @param filter second order Butterworth low pass filter structure
+364  * @param cut_off Cutoff frequency of the filter with -3dB
+365  * @param sample_time sampling period of the signal
+366  * @param value initial value of the filter
+367  */
+368 static inline void init_butterworth_2_low_pass_int(Butterworth2LowPass_int *filter, const float cut_off,
+369     const float sample_time,
+370     int32_t value)
+371 {
+372   init_second_order_low_pass_int((struct SecondOrderLowPass_int *)filter, cut_off, 0.7071, sample_time, value);
+373 }
+374 
+375 /** Update second order Butterworth low pass filter state with a new value(fixed point version).
+376  *
+377  * @param filter second order Butterworth low pass filter structure
+378  * @param value new input value of the filter
+379  * @return new filtered value
+380  */
+381 static inline int32_t update_butterworth_2_low_pass_int(Butterworth2LowPass_int *filter, const int32_t value)
+382 {
+383   return update_second_order_low_pass_int((struct SecondOrderLowPass_int *)filter, value);
+384 }
+385 
+386 /** Get current value of the second order Butterworth low pass filter(fixed point version).
+387  *
+388  * @param filter second order Butterworth low pass filter structure
+389  * @return current value of the filter
+390  */
+391 static inline int32_t get_butterworth_2_low_pass_int(const Butterworth2LowPass_int *filter)
+392 {
+393   return filter->o[0];
+394 }
+395 
+396 /** Fourth order Butterworth low pass filter.
+397  *
+398  * using two cascaded second order filters
+399  */
+400 typedef struct {
+401   struct SecondOrderLowPass lp1;
+402   struct SecondOrderLowPass lp2;
+403 } Butterworth4LowPass;
+404 
+405 /** Init a fourth order Butterworth filter.
+406  *
+407  * based on two generic second order filters
+408  * with Q1 = 1.30651
+409  *  and Q2 = 0.541184
+410  *
+411  * http://en.wikipedia.org/wiki/Butterworth_filter
+412  *
+413  * @param filter fourth order Butterworth low pass filter structure
+414  * @param tau time constant of the fourth order low pass filter
+415  * @param sample_time sampling period of the signal
+416  * @param value initial value of the filter
+417  */
+418 static inline void init_butterworth_4_low_pass(Butterworth4LowPass *filter, const float tau, const float sample_time,
+419     const float value)
+420 {
+421   init_second_order_low_pass(&filter->lp1, tau, 1.30651, sample_time, value);
+422   init_second_order_low_pass(&filter->lp2, tau, 0.51184, sample_time, value);
+423 }
+424 
+425 /** Update fourth order Butterworth low pass filter state with a new value.
+426  *
+427  * using two cascaded second order filters
+428  *
+429  * @param filter fourth order Butterworth low pass filter structure
+430  * @param value new input value of the filter
+431  * @return new filtered value
+432  */
+433 static inline float update_butterworth_4_low_pass(Butterworth4LowPass *filter, const float value)
+434 {
+435   float tmp = update_second_order_low_pass(&filter->lp1, value);
+436   return update_second_order_low_pass(&filter->lp2, tmp);
+437 }
+438 
+439 /** Get current value of the fourth order Butterworth low pass filter.
+440  *
+441  * @param filter fourth order Butterworth low pass filter structure
+442  * @return current value of the filter
+443  */
+444 static inline float get_butterworth_4_low_pass(const Butterworth4LowPass *filter)
+445 {
+446   return filter->lp2.o[0];
+447 }
+448 
+449 /**
+450  * @brief Reset a Butterworth low-pass filter to a specific value.
+451  *
+452  * @param[out] filter Butterworth4LowPass filter instance to reset.
+453  * @param[in] value Value to reset the filter to.
+454  */
+455 static inline void reset_butterworth_4_low_pass(Butterworth4LowPass *filter, const float value)
+456 {
+457   filter->lp1.i[0] = filter->lp1.i[1] = filter->lp1.o[0] = filter->lp1.o[1] = filter->lp2.i[0] = filter->lp2.i[1] =
+458                                           filter->lp2.o[0] = filter->lp2.o[1] = value;
+459 }
+460 
+461 /** Fourth order Butterworth low pass filter(fixed point version).
+462  *
+463  * using two cascaded second order filters
+464  */
+465 typedef struct {
+466   struct SecondOrderLowPass_int lp1;
+467   struct SecondOrderLowPass_int lp2;
+468 } Butterworth4LowPass_int;
+469 
+470 /** Init a fourth order Butterworth filter(fixed point version).
+471  *
+472  * based on two generic second order filters
+473  * with Q1 = 1.30651
+474  *  and Q2 = 0.541184
+475  *
+476  * http://en.wikipedia.org/wiki/Butterworth_filter
+477  *
+478  * @param filter fourth order Butterworth low pass filter structure
+479  * @param cut_off Cutoff frequency of the filter with -3dB
+480  * @param sample_time sampling period of the signal
+481  * @param value initial value of the filter
+482  */
+483 static inline void init_butterworth_4_low_pass_int(Butterworth4LowPass_int *filter, const float cut_off,
+484     const float sample_time,
+485     int32_t value)
+486 {
+487   init_second_order_low_pass_int(&filter->lp1, cut_off, 1.30651, sample_time, value);
+488   init_second_order_low_pass_int(&filter->lp2, cut_off, 0.51184, sample_time, value);
+489 }
+490 
+491 /** Update fourth order Butterworth low pass filter state with a new value(fixed point version).
+492  *
+493  * using two cascaded second order filters
+494  *
+495  * @param filter fourth order Butterworth low pass filter structure
+496  * @param value new input value of the filter
+497  * @return new filtered value
+498  */
+499 static inline int32_t update_butterworth_4_low_pass_int(Butterworth4LowPass_int *filter, const int32_t value)
+500 {
+501   int32_t tmp = update_second_order_low_pass_int(&filter->lp1, value);
+502   return update_second_order_low_pass_int(&filter->lp2, tmp);
+503 }
+504 
+505 /** Get current value of the fourth order Butterworth low pass filter(fixed point version).
+506  *
+507  * @param filter fourth order Butterworth low pass filter structure
+508  * @return current value of the filter
+509  */
+510 static inline int32_t get_butterworth_4_low_pass_int(const Butterworth4LowPass_int *filter)
+511 {
+512   return filter->lp2.o[0];
+513 }
+514 
+515 #endif
+516 
+FILE: low_pass_filter_types.h
+1 /*
+2  *
+3  * Copyright (C) 2025 Justin Dubois <j.p.g.dubois@student.tudelft.nl>
+4  *
+5  * This file is part of paparazzi
+6  *
+7  * paparazzi is free software; you can redistribute it and/or modify
+8  * it under the terms of the GNU General Public License as published by
+9  * the Free Software Foundation; either version 2, or (at your option)
+10  * any later version.
+11  *
+12  * paparazzi is distributed in the hope that it will be useful,
+13  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+14  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+15  * GNU General Public License for more details.
+16  *
+17  * You should have received a copy of the GNU General Public License
+18  * along with paparazzi; see the file COPYING.  If not, see
+19  * <http://www.gnu.org/licenses/>.
+20  *
+21  */
+22 
+23 /** @file filters/low_pass_filter_types.h
+24  *  @brief Definitions and inline functions for 1st order low-pass filter vector types
+25  *
+26  * Provides structures and functions to initialize, update, reset, and get outputs from
+27  * 1st order low-pass filter vectors.
+28  *
+29  * @author Justin Dubois <j.p.g.dubois@student.tudelft.nl>
+30  */
+31 
+32 #ifndef LOW_PASS_FILTER_TYPES_H
+33 #define LOW_PASS_FILTER_TYPES_H
+34 
+35 #include "std.h"
+36 #include "filters/low_pass_filter.h"
+37 #include "math/pprz_algebra_float.h"
+38 
+39 struct FirstOrderLowPassVect3 {
+40   struct FirstOrderLowPass x;
+41   struct FirstOrderLowPass y;
+42   struct FirstOrderLowPass z;
+43 };
+44 
+45 /**
+46  * @brief Initialize a set of first order low-pass filters to zero for 3D vector data.
+47  *
+48  * @param[out] filter Struct containing first order low-pass filters for x, y, z components.
+49  * @param[in] omega Cut-off frequencies for the filters (rad/s).
+50  * @param[in] dt Sampling time interval (seconds).
+51  */
+52 static inline void init_first_order_low_pass_vect3(struct FirstOrderLowPassVect3 *filter,
+53     const struct FloatVect3 *omega, const float dt)
+54 {
+55   init_first_order_low_pass(&filter->x, 1.0f / omega->x, dt, 0.0f);
+56   init_first_order_low_pass(&filter->y, 1.0f / omega->y, dt, 0.0f);
+57   init_first_order_low_pass(&filter->z, 1.0f / omega->z, dt, 0.0f);
+58 }
+59 
+60 /**
+61  * @brief Retrieve the filtered output from 3D vector first order low-pass filters.
+62  *
+63  * @param[in] filter Struct containing first order low-pass filters for x, y, z components.
+64  * @return FloatVect3 struct containing the filtered output values.
+65  */
+66 static inline struct FloatVect3 get_first_order_low_pass_vect3(const struct FirstOrderLowPassVect3 *filter)
+67 {
+68   struct FloatVect3 output;
+69   output.x = get_first_order_low_pass(&filter->x);
+70   output.y = get_first_order_low_pass(&filter->y);
+71   output.z = get_first_order_low_pass(&filter->z);
+72   return output;
+73 }
+74 
+75 /**
+76  * @brief Retrieve the filtered output from 3D vector first order low-pass filters.
+77  *
+78  * @param[in] filter Struct containing first order low-pass filters for x, y, z components.
+79  * @return FloatRates struct containing the filtered output rate values.
+80  */
+81 static inline struct FloatRates get_first_order_low_pass_rates(const struct FirstOrderLowPassVect3 *filter)
+82 {
+83   struct FloatRates output;
+84   output.p = get_first_order_low_pass(&filter->x);
+85   output.q = get_first_order_low_pass(&filter->y);
+86   output.r = get_first_order_low_pass(&filter->z);
+87   return output;
+88 }
+89 
+90 /**
+91  * @brief Update 3D vector first order low-pass filters with new input data.
+92  *
+93  * @param[in,out] filter Struct containing first order low-pass filters for x, y, z components.
+94  * @param[in] input Pointer to FloatVect3 struct containing new input data.
+95  */
+96 static inline struct FloatVect3 update_first_order_low_pass_vect3(struct FirstOrderLowPassVect3 *filter,
+97     const struct FloatVect3 *input)
+98 {
+99   update_first_order_low_pass(&filter->x, input->x);
+100   update_first_order_low_pass(&filter->y, input->y);
+101   update_first_order_low_pass(&filter->z, input->z);
+102   return get_first_order_low_pass_vect3(filter);
+103 }
+104 
+105 /**
+106  * @brief Update 3D vector first order low-pass filters with new rate input data.
+107  *
+108  * @param[in,out] filter Struct containing first order low-pass filters for x, y, z components.
+109  * @param[in] input Pointer to FloatRates struct containing new input rate data.
+110  */
+111 static inline struct FloatRates update_first_order_low_pass_rates(struct FirstOrderLowPassVect3 *filter,
+112     const struct FloatRates *input)
+113 {
+114   update_first_order_low_pass(&filter->x, input->p);
+115   update_first_order_low_pass(&filter->y, input->q);
+116   update_first_order_low_pass(&filter->z, input->r);
+117   return get_first_order_low_pass_rates(filter);
+118 }
+119 
+120 /**
+121  * @brief Reset 3D vector first order low-pass filters to a specific value.
+122  *
+123  * @param[out] filter Struct containing first order low-pass filters for x, y, z components.
+124  * @param[in] value Pointer to FloatVect3 struct containing the reset value.
+125  */
+126 static inline void reset_first_order_low_pass_vect3(struct FirstOrderLowPassVect3 *filter,
+127     const struct FloatVect3 *value)
+128 {
+129   reset_first_order_low_pass(&filter->x, value->x);
+130   reset_first_order_low_pass(&filter->y, value->y);
+131   reset_first_order_low_pass(&filter->z, value->z);
+132 }
+133 
+134 /**
+135  * @brief Reset 3D vector first order low-pass filters to specific rate values.
+136  *
+137  * @param[out] filter Struct containing first order low-pass filters for x, y, z components.
+138  * @param[in] value Pointer to FloatRates struct containing the reset values.
+139  */
+140 static inline void reset_first_order_low_pass_rates(struct FirstOrderLowPassVect3 *filter,
+141     const struct FloatRates *value)
+142 {
+143   reset_first_order_low_pass(&filter->x, value->p);
+144   reset_first_order_low_pass(&filter->y, value->q);
+145   reset_first_order_low_pass(&filter->z, value->r);
+146 }
+147 
+148 /**
+149  * @brief Initialize an array of first order low-pass filters.
+150  *
+151  * @param n Number of filters in the array.
+152  * @param filter_array Array of FirstOrderLowPass filters to initialize.
+153  * @param omega Cut-off frequencies for the filters (rad/s).
+154  * @param dt Sampling time interval (seconds).
+155  */
+156 static inline void init_first_order_low_pass_array(const uint8_t n, struct FirstOrderLowPass filter_array[restrict n],
+157     const float omega[restrict n], const float dt)
+158 {
+159   for (uint8_t i = 0; i < n; i++) {
+160     init_first_order_low_pass(&filter_array[i], 1.0f / omega[i], dt, 0.0f);
+161   }
+162 }
+163 
+164 /**
+165  * @brief Update an array of first order low-pass filters.
+166  *
+167  * @param n Number of filters in the array.
+168  * @param filter_array Array of FirstOrderLowPass filters to update.
+169  * @param input_array Array of input values for the filters.
+170  */
+171 static inline void update_first_order_low_pass_array(const uint8_t n, struct FirstOrderLowPass filter_array[restrict n],
+172     const float input_array[restrict n])
+173 {
+174   for (uint8_t i = 0; i < n; i++) {
+175     update_first_order_low_pass(&filter_array[i], input_array[i]);
+176   }
+177 }
+178 
+179 /**
+180  * @brief Reset an array of first order low-pass filters to specific values.
+181  *
+182  * @param n Number of filters in the array.
+183  * @param filter_array Array of FirstOrderLowPass filters to reset.
+184  * @param value_array Array of values to reset the filters to.
+185  */
+186 static inline void reset_first_order_low_pass_array(const uint8_t n, struct FirstOrderLowPass filter_array[restrict n],
+187     const float value_array[restrict n])
+188 {
+189   for (uint8_t i = 0; i < n; i++) {
+190     reset_first_order_low_pass(&filter_array[i], value_array[i]);
+191   }
+192 }
+193 
+194 /**
+195  * @brief Retrieve the filtered outputs from an array of first order low-pass filters.
+196  *
+197  * @param n Number of filters in the array.
+198  * @param filter_array Array of FirstOrderLowPass filters.
+199  * @param output_array Array to store the filtered output values.
+200  */
+201 static inline void get_first_order_low_pass_array(const uint8_t n,
+202     const struct FirstOrderLowPass filter_array[restrict n], float output_array[restrict n])
+203 {
+204   for (uint8_t i = 0; i < n; i++) {
+205     output_array[i] = get_first_order_low_pass(&filter_array[i]);
+206   }
+207 }
+208 
+209 
+210 struct Butterworth2LowPassVect3 {
+211   Butterworth2LowPass x;
+212   Butterworth2LowPass y;
+213   Butterworth2LowPass z;
+214 };
+215 
+216 /**
+217  * @brief Initialize a set of Butterworth low-pass filters to zero for 3D vector data.
+218  *
+219  * @param[out] filter Struct containing Butterworth filters for x, y, z components.
+220  * @param[in] omega Cut-off frequencies for the filters (rad/s).
+221  * @param[in] dt Sampling time interval (seconds).
+222  */
+223 static inline void init_butterworth_2_low_pass_vect3(struct Butterworth2LowPassVect3 *filter,
+224     const struct FloatVect3 *omega, const float dt)
+225 {
+226   init_butterworth_2_low_pass(&filter->x, 1.0f / omega->x, dt, 0.0f);
+227   init_butterworth_2_low_pass(&filter->y, 1.0f / omega->y, dt, 0.0f);
+228   init_butterworth_2_low_pass(&filter->z, 1.0f / omega->z, dt, 0.0f);
+229 }
+230 
+231 /**
+232  * @brief Retrieve the filtered output from 3D vector Butterworth filters.
+233  *
+234  * @param[in] filter Struct containing Butterworth filters for x, y, z components.
+235  * @return FloatVect3 struct containing the filtered output values.
+236  */
+237 static inline struct FloatVect3 get_butterworth_2_low_pass_vect3(const struct Butterworth2LowPassVect3 *filter)
+238 {
+239   struct FloatVect3 output;
+240   output.x = get_butterworth_2_low_pass(&filter->x);
+241   output.y = get_butterworth_2_low_pass(&filter->y);
+242   output.z = get_butterworth_2_low_pass(&filter->z);
+243   return output;
+244 }
+245 
+246 /**
+247  * @brief Retrieve the filtered output from a Butterworth low-pass filter.
+248  *
+249  * @param[in] filter Butterworth2LowPass filter instance.
+250  * @return Filtered output value.
+251  */
+252 static inline struct FloatRates get_butterworth_2_low_pass_rates(const struct Butterworth2LowPassVect3 *filter)
+253 {
+254   struct FloatRates output;
+255   output.p = get_butterworth_2_low_pass(&filter->x);
+256   output.q = get_butterworth_2_low_pass(&filter->y);
+257   output.r = get_butterworth_2_low_pass(&filter->z);
+258   return output;
+259 }
+260 
+261 /**
+262  * @brief Update 3D vector Butterworth filters with new input data.
+263  *
+264  * @param[in,out] filter Struct containing Butterworth filters for x, y, z components.
+265  * @param[in] input Pointer to FloatVect3 struct containing new input data.
+266  */
+267 static inline struct FloatVect3 update_butterworth_2_low_pass_vect3(struct Butterworth2LowPassVect3 *filter,
+268     const struct FloatVect3 *input)
+269 {
+270   update_butterworth_2_low_pass(&filter->x, input->x);
+271   update_butterworth_2_low_pass(&filter->y, input->y);
+272   update_butterworth_2_low_pass(&filter->z, input->z);
+273   return get_butterworth_2_low_pass_vect3(filter);
+274 }
+275 
+276 /**
+277  * @brief Update 3D vector Butterworth filters with new rate input data.
+278  *
+279  * @param[in,out] filter Struct containing Butterworth filters for x, y, z components.
+280  * @param[in] input Pointer to FloatRates struct containing new input rate data.
+281  */
+282 static inline struct FloatRates update_butterworth_2_low_pass_rates(struct Butterworth2LowPassVect3 *filter,
+283     const struct FloatRates *input)
+284 {
+285   update_butterworth_2_low_pass(&filter->x, input->p);
+286   update_butterworth_2_low_pass(&filter->y, input->q);
+287   update_butterworth_2_low_pass(&filter->z, input->r);
+288   return get_butterworth_2_low_pass_rates(filter);
+289 }
+290 
+291 /**
+292  * @brief Reset 3D vector Butterworth filters to a specific value.
+293  *
+294  * @param[out] filter Struct containing Butterworth filters for x, y, z components.
+295  * @param[in] value Pointer to FloatVect3 struct containing the reset value.
+296  */
+297 static inline void reset_butterworth_2_low_pass_vect3(struct Butterworth2LowPassVect3 *filter,
+298     const struct FloatVect3 *value)
+299 {
+300   reset_butterworth_2_low_pass(&filter->x, value->x);
+301   reset_butterworth_2_low_pass(&filter->y, value->y);
+302   reset_butterworth_2_low_pass(&filter->z, value->z);
+303 }
+304 
+305 /**
+306  * @brief Reset 3D vector Butterworth filters to specific rate values.
+307  *
+308  * @param[out] filter Struct containing Butterworth filters for x, y, z components.
+309  * @param[in] value Pointer to FloatRates struct containing the reset values.
+310  */
+311 static inline void reset_butterworth_2_low_pass_rates(struct Butterworth2LowPassVect3 *filter,
+312     const struct FloatRates *value)
+313 {
+314   reset_butterworth_2_low_pass(&filter->x, value->p);
+315   reset_butterworth_2_low_pass(&filter->y, value->q);
+316   reset_butterworth_2_low_pass(&filter->z, value->r);
+317 }
+318 
+319 /**
+320  * @brief Initialize an array of Butterworth low-pass filters to zero.
+321  *
+322  * @param[in] n Number of filters to initialize.
+323  * @param[out] filter_array Array of Butterworth2LowPass filters to initialize.
+324  * @param[in] omega Cut-off frequencies for the filters (rad/s).
+325  * @param[in] dt Sampling time interval (seconds).
+326  */
+327 static inline void init_butterworth_2_low_pass_array(const uint8_t n, Butterworth2LowPass filter_array[restrict n],
+328     const float omega[restrict n], const float dt)
+329 {
+330   for (uint8_t i = 0; i < n; i++) {
+331     init_butterworth_2_low_pass(&filter_array[i], 1.0f / omega[i], dt, 0.0f);
+332   }
+333 }
+334 
+335 /**
+336  * @brief Update an array of Butterworth low-pass filters with new input data.
+337  *
+338  * @param[in] n Number of filters in the array.
+339  * @param[in,out] filter_array Array of Butterworth2LowPass filters to update.
+340  * @param[in] input_array Array containing new input data for each filter.
+341  */
+342 static inline void update_butterworth_2_low_pass_array(const uint8_t n, Butterworth2LowPass filter_array[restrict n],
+343     const float input_array[restrict n])
+344 {
+345   for (uint8_t i = 0; i < n; i++) {
+346     update_butterworth_2_low_pass(&filter_array[i], input_array[i]);
+347   }
+348 }
+349 
+350 /**
+351  * @brief Reset an array of Butterworth low-pass filters to specific values.
+352  *
+353  * @param[in] n Number of filters in the array.
+354  * @param[out] filter_array Array of Butterworth2LowPass filters to reset.
+355  * @param[in] value_array Array containing reset values for each filter.
+356  */
+357 static inline void reset_butterworth_2_low_pass_array(const uint8_t n, Butterworth2LowPass filter_array[restrict n],
+358     const float value_array[restrict n])
+359 {
+360   for (uint8_t i = 0; i < n; i++) {
+361     reset_butterworth_2_low_pass(&filter_array[i], value_array[i]);
+362   }
+363 }
+364 
+365 /**
+366  * @brief Retrieve the filtered outputs from an array of Butterworth low-pass filters.
+367  *
+368  * @param[in] n Number of filters in the array.
+369  * @param[in] filter_array Array of Butterworth2LowPass filters.
+370  * @param[out] output_array Array to store the filtered output values.
+371  */
+372 static inline void get_butterworth_2_low_pass_array(const uint8_t n, const Butterworth2LowPass filter_array[restrict n],
+373     float output_array[restrict n])
+374 {
+375   for (uint8_t i = 0; i < n; i++) {
+376     output_array[i] = get_butterworth_2_low_pass(&filter_array[i]);
+377   }
+378 }
+379 
+380 struct Butterworth4LowPassVect3 {
+381   Butterworth4LowPass x;
+382   Butterworth4LowPass y;
+383   Butterworth4LowPass z;
+384 };
+385 
+386 /**
+387  * @brief Initialize a set of Butterworth low-pass filters to zero for 3D vector data.
+388  *
+389  * @param[out] filter Struct containing Butterworth filters for x, y, z components.
+390  * @param[in] omega Cut-off frequencies for the filters (rad/s).
+391  * @param[in] dt Sampling time interval (seconds).
+392  */
+393 static inline void init_butterworth_4_low_pass_vect3(struct Butterworth4LowPassVect3 *filter,
+394     const struct FloatVect3 *omega, const float dt)
+395 {
+396   init_butterworth_4_low_pass(&filter->x, 1.0f / omega->x, dt, 0.0f);
+397   init_butterworth_4_low_pass(&filter->y, 1.0f / omega->y, dt, 0.0f);
+398   init_butterworth_4_low_pass(&filter->z, 1.0f / omega->z, dt, 0.0f);
+399 }
+400 
+401 /**
+402  * @brief Retrieve the filtered output from 3D vector Butterworth filters.
+403  *
+404  * @param[in] filter Struct containing Butterworth filters for x, y, z components.
+405  * @return FloatVect3 struct containing the filtered output values.
+406  */
+407 static inline struct FloatVect3 get_butterworth_4_low_pass_vect3(const struct Butterworth4LowPassVect3 *filter)
+408 {
+409   struct FloatVect3 output;
+410   output.x = get_butterworth_4_low_pass(&filter->x);
+411   output.y = get_butterworth_4_low_pass(&filter->y);
+412   output.z = get_butterworth_4_low_pass(&filter->z);
+413   return output;
+414 }
+415 
+416 /**
+417  * @brief Retrieve the filtered output from a Butterworth low-pass filter.
+418  *
+419  * @param[in] filter Butterworth4LowPass filter instance.
+420  * @return Filtered output value.
+421  */
+422 static inline struct FloatRates get_butterworth_4_low_pass_rates(const struct Butterworth4LowPassVect3 *filter)
+423 {
+424   struct FloatRates output;
+425   output.p = get_butterworth_4_low_pass(&filter->x);
+426   output.q = get_butterworth_4_low_pass(&filter->y);
+427   output.r = get_butterworth_4_low_pass(&filter->z);
+428   return output;
+429 }
+430 
+431 /**
+432  * @brief Update 3D vector Butterworth filters with new input data.
+433  *
+434  * @param[in,out] filter Struct containing Butterworth filters for x, y, z components.
+435  * @param[in] input Pointer to FloatVect3 struct containing new input data.
+436  */
+437 static inline struct FloatVect3 update_butterworth_4_low_pass_vect3(struct Butterworth4LowPassVect3 *filter,
+438     const struct FloatVect3 *input)
+439 {
+440   update_butterworth_4_low_pass(&filter->x, input->x);
+441   update_butterworth_4_low_pass(&filter->y, input->y);
+442   update_butterworth_4_low_pass(&filter->z, input->z);
+443   return get_butterworth_4_low_pass_vect3(filter);
+444 }
+445 
+446 /**
+447  * @brief Update 3D vector Butterworth filters with new rate input data.
+448  *
+449  * @param[in,out] filter Struct containing Butterworth filters for x, y, z components.
+450  * @param[in] input Pointer to FloatRates struct containing new input rate data.
+451  */
+452 static inline struct FloatRates update_butterworth_4_low_pass_rates(struct Butterworth4LowPassVect3 *filter,
+453     const struct FloatRates *input)
+454 {
+455   update_butterworth_4_low_pass(&filter->x, input->p);
+456   update_butterworth_4_low_pass(&filter->y, input->q);
+457   update_butterworth_4_low_pass(&filter->z, input->r);
+458   return get_butterworth_4_low_pass_rates(filter);
+459 }
+460 
+461 /**
+462  * @brief Reset 3D vector Butterworth filters to a specific value.
+463  *
+464  * @param[out] filter Struct containing Butterworth filters for x, y, z components.
+465  * @param[in] value Pointer to FloatVect3 struct containing the reset value.
+466  */
+467 static inline void reset_butterworth_4_low_pass_vect3(struct Butterworth4LowPassVect3 *filter,
+468     const struct FloatVect3 *value)
+469 {
+470   reset_butterworth_4_low_pass(&filter->x, value->x);
+471   reset_butterworth_4_low_pass(&filter->y, value->y);
+472   reset_butterworth_4_low_pass(&filter->z, value->z);
+473 }
+474 
+475 /**
+476  * @brief Reset 3D vector Butterworth filters to specific rate values.
+477  *
+478  * @param[out] filter Struct containing Butterworth filters for x, y, z components.
+479  * @param[in] value Pointer to FloatRates struct containing the reset values.
+480  */
+481 static inline void reset_butterworth_4_low_pass_rates(struct Butterworth4LowPassVect3 *filter,
+482     const struct FloatRates *value)
+483 {
+484   reset_butterworth_4_low_pass(&filter->x, value->p);
+485   reset_butterworth_4_low_pass(&filter->y, value->q);
+486   reset_butterworth_4_low_pass(&filter->z, value->r);
+487 }
+488 
+489 /**
+490  * @brief Initialize an array of Butterworth low-pass filters to zero.
+491  *
+492  * @param[in] n Number of filters to initialize.
+493  * @param[out] filter_array Array of Butterworth4LowPass filters to initialize.
+494  * @param[in] omega Cut-off frequencies for the filters (rad/s).
+495  * @param[in] dt Sampling time interval (seconds).
+496  */
+497 static inline void init_butterworth_4_low_pass_array(const uint8_t n, Butterworth4LowPass filter_array[restrict n],
+498     const float omega[restrict n], const float dt)
+499 {
+500   for (uint8_t i = 0; i < n; i++) {
+501     init_butterworth_4_low_pass(&filter_array[i], 1.0f / omega[i], dt, 0.0f);
+502   }
+503 }
+504 
+505 /**
+506  * @brief Update an array of Butterworth low-pass filters with new input data.
+507  *
+508  * @param[in] n Number of filters in the array.
+509  * @param[in,out] filter_array Array of Butterworth4LowPass filters to update.
+510  * @param[in] input_array Array containing new input data for each filter.
+511  */
+512 static inline void update_butterworth_4_low_pass_array(const uint8_t n, Butterworth4LowPass filter_array[restrict n],
+513     const float input_array[restrict n])
+514 {
+515   for (uint8_t i = 0; i < n; i++) {
+516     update_butterworth_4_low_pass(&filter_array[i], input_array[i]);
+517   }
+518 }
+519 
+520 /**
+521  * @brief Reset an array of Butterworth low-pass filters to specific values.
+522  *
+523  * @param[in] n Number of filters in the array.
+524  * @param[out] filter_array Array of Butterworth4LowPass filters to reset.
+525  * @param[in] value_array Array containing reset values for each filter.
+526  */
+527 static inline void reset_butterworth_4_low_pass_array(const uint8_t n, Butterworth4LowPass filter_array[restrict n],
+528     const float value_array[restrict n])
+529 {
+530   for (uint8_t i = 0; i < n; i++) {
+531     reset_butterworth_4_low_pass(&filter_array[i], value_array[i]);
+532   }
+533 }
+534 
+535 /**
+536  * @brief Retrieve the filtered outputs from an array of Butterworth low-pass filters.
+537  *
+538  * @param[in] n Number of filters in the array.
+539  * @param[in] filter_array Array of Butterworth4LowPass filters.
+540  * @param[out] output_array Array to store the filtered output values.
+541  */
+542 static inline void get_butterworth_4_low_pass_array(const uint8_t n, const Butterworth4LowPass filter_array[restrict n],
+543     float output_array[restrict n])
+544 {
+545   for (uint8_t i = 0; i < n; i++) {
+546     output_array[i] = get_butterworth_4_low_pass(&filter_array[i]);
+547   }
+548 }
+549 
+550 #endif // LOW_PASS_FILTER_TYPES_H
+FILE: low_pass_zoh_filter.h
+1 /*
+2  * Copyright (C) 2025 Justin Dubois <j.p.g.dubois@student.tudelft.nl>
+3  *
+4  * This file is part of paparazzi
+5  *
+6  * paparazzi is free software; you can redistribute it and/or modify
+7  * it under the terms of the GNU General Public License as published by
+8  * the Free Software Foundation; either version 2, or (at your option)
+9  * any later version.
+10  *
+11  * paparazzi is distributed in the hope that it will be useful,
+12  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+13  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+14  * GNU General Public License for more details.
+15  *
+16  * You should have received a copy of the GNU General Public License
+17  * along with paparazzi; see the file COPYING.  If not, see
+18  * <http://www.gnu.org/licenses/>.
+19  */
+20 /** @file low_pass_zoh_filter.h
+21  *  @brief A first order low pass filter using Zero Order Hold (ZOH) discretization.
+22  */
+23 
+24 #ifndef LOW_PASS_ZOH_FILTER_H
+25 #define LOW_PASS_ZOH_FILTER_H
+26 
+27 #include "std.h"
+28 #include "math/pprz_algebra_int.h"
+29 
+30 
+31 /**
+32  * @brief Zero Order Hold (ZOH) discrete first order low pass filter structure.
+33  *
+34  * This structure represents a first order low pass filter implemented using
+35  * the Zero Order Hold (ZOH) method for discretization. It maintains the necessary
+36  * state for filtering operations.
+37  */
+38 struct FirstOrderZOHLowPass {
+39   float discrete_time_constant;
+40   float last_in;
+41   float last_out;
+42 };
+43 
+44 /**
+45  * @brief Init first order ZOH low pass filter.
+46  *
+47  * The ZOH discretization method is used to convert a continuous-time first order
+48  * low pass filter into its discrete-time equivalent which matches the continuous-time
+49  * behavior at the sampling instants exactly when holding the input constant between samples.
+50  *
+51  * @param[out] filter first order ZOH low pass filter structure
+52  * @param[in] tau time constant of the first order low pass filter [s]
+53  * @param[in] sample_time sampling period of the signal [s]
+54  * @param[in] value initial value of the filter
+55  */
+56 static inline void init_first_order_zoh_low_pass(struct FirstOrderZOHLowPass *filter, const float tau,
+57     const float sample_time,
+58     float value)
+59 {
+60   filter->discrete_time_constant = exp(-sample_time / tau);
+61   filter->last_in = value;
+62   filter->last_out = value;
+63 }
+64 
+65 /**
+66  * @brief Update first order ZOH low pass filter state with a new value.
+67  *
+68  * @param[in,out] filter first order ZOH low pass filter structure
+69  * @param[in] value new input value of the filter
+70  * @return new filtered value
+71  */
+72 static inline float update_first_order_zoh_low_pass(struct FirstOrderZOHLowPass *filter, const float value)
+73 {
+74   float out = (1.0f - filter->discrete_time_constant) * value + filter->discrete_time_constant * filter->last_out;
+75   filter->last_in = value;
+76   filter->last_out = out;
+77   return out;
+78 }
+79 
+80 /**
+81  * @brief Reset the first order ZOH low-pass filter to a specific value.
+82  *
+83  * @param[in,out] filter first order ZOH low pass filter structure
+84  * @param[in] value Value to reset the filter to
+85  * @return The reset value
+86  */
+87 static inline float reset_first_order_zoh_low_pass(struct FirstOrderZOHLowPass *filter, const float value)
+88 {
+89   filter->last_in = value;
+90   filter->last_out = value;
+91   return value;
+92 }
+93 
+94 /**
+95  * @brief Get current value of the first order ZOH low pass filter.
+96  *
+97  * @param[in] filter first order ZOH low pass filter structure
+98  * @return current value of the filter
+99  */
+100 static inline float get_first_order_zoh_low_pass(const struct FirstOrderZOHLowPass *filter)
+101 {
+102   return filter->last_out;
+103 }
+104 
+105 /** @brief Update time constant (tau parameter) for first order ZOH low pass filter
+106  * @param[in,out] filter first order ZOH low pass filter structure
+107  * @param[in] tau time constant of the  first order low pass filter [s]
+108  * @param[in] sample_time sampling period of the signal [s]
+109  */
+110 static inline void update_first_order_zoh_low_pass_tau(struct FirstOrderZOHLowPass *filter, const float tau,
+111     const float sample_time)
+112 {
+113   filter->discrete_time_constant = exp(-sample_time / tau);
+114 }
+115 
+116 #endif // LOW_PASS_ZOH_FILTER_H

@@ -1,0 +1,111 @@
+372:Definition callback_free_state (S: state): Prop :=
+373-  match S with
+374-  | ExprState _ a _ _ _ => no_builtin a = true
+375-  | Callstate (External ef _ _ _) _ _ _ => executable_builtin ef = true
+376-  | _ => True
+377-  end.
+378-
+379-Section LOCAL_STATES.
+380-Variable ge: genv.
+381-Variable do_external_function do_inline_assembly:
+382-  string -> signature -> Senv.t -> world -> list val -> mem -> option (world * trace * val * mem).
+383-Local Notation do_step := (Cexec.do_step ge do_external_function do_inline_assembly).
+384-Local Notation step_expr := (Cexec.step_expr ge do_external_function do_inline_assembly).
+385-Ltac myinv :=
+386-  match goal with
+387-  | [ |- In _ nil -> _ ] => let X := fresh "X" in intro X; elim X
+388-  | [ |- In _ (ret _ _) -> _ ] =>
+389-        let X := fresh "X" in
+390-        intro X; elim X; clear X;
+391-        [let EQ := fresh "EQ" in intro EQ; unfold ret in EQ; inv EQ; myinv | myinv]
+392-  | [ |- In _ (_ :: nil) -> _ ] =>
+393-        let X := fresh "X" in
+394-        intro X; elim X; clear X; [let EQ := fresh "EQ" in intro EQ; inv EQ; myinv | myinv]
+395-  | [ |- In _ (match ?x with Some _ => _ | None => _ end) -> _ ] => destruct x eqn:?; myinv
+396-  | [ |- In _ (match ?x with false => _ | true => _ end) -> _ ] => destruct x eqn:?; myinv
+397-  | [ |- In _ (match ?x with left _ => _ | right _ => _ end) -> _ ] => destruct x; myinv
+398-  | _ => idtac
+399-  end.
+400-
+401-Local Hint Extern 3 => exact I : core.
+402-
+403-Theorem pure_do_step_sound:
+404-  forall w S rule t S',
+405-  callback_free_state S -> In (TR rule t S') (do_step w S) ->
+406-  Csem.step ge S t S' \/ (t = E0 /\ S' = Stuckstate /\ can_crash_world ge w S).
+407-Proof with try (left; right; econstructor; eauto; fail).
+408-  intros until S'. intros NB. destruct S; simpl in NB; simpl.
+409-(* State *)
+410-  destruct s; myinv...
+411-  (* skip *)
+412-  destruct k; myinv...
+413-  (* break *)
+414-  destruct k; myinv...
+415-  (* continue *)
+416-  destruct k; myinv...
+417-  (* goto *)
+418-  destruct p as [s' k']. myinv...
+419-(* ExprState *)
+420-  destruct (is_val r) as [[v ty]|] eqn:?.
+421-  (* expression is a value *)
+422-  rewrite (is_val_inv _ _ _ Heqo).
+423-  destruct k; myinv...
+424-  (* expression reduces *)
+425-  intros. exploit list_in_map_inv; eauto. intros [[C rd] [A B]].
+426-  generalize (pure_step_expr_sound ge do_external_function do_inline_assembly e w r RV m NB). unfold reducts_ok. intros [P Q].
+427-  exploit P; eauto. intros [a' [k' [CTX [EQ RD]]]].
+428-  unfold expr_final_state in A. simpl in A.
+429-  destruct k'; destruct rd; inv A; simpl in RD; try contradiction.
+430-  (* lred *)
+431-  left; left; apply step_lred; auto.
+432-  (* stuck lred *)
+433-  exploit not_imm_safe_t; eauto. intros [R | R]; eauto.
+434-  (* rred *)
+435-  destruct RD. left; left; apply step_rred; auto.
+436-  (* callred *)
+437-  destruct RD; subst m'. left; left; apply step_call; eauto.
+438-  (* stuck rred *)
+439-  exploit not_imm_safe_t; eauto. intros [R | R]; eauto.
+440-(* callstate *)
+441-  destruct fd; simpl in NB; try contradiction; myinv.
+442-  (* internal *)
+443-  destruct (do_alloc_variables ge empty_env m (fn_params f ++ fn_vars f)) as [e m1] eqn:?.
+444-  myinv. left; right; apply step_internal_function with m1. auto.
+445-  change e with (fst (e,m1)). change m1 with (snd (e,m1)) at 2. rewrite <- Heqp.
+446-  apply do_alloc_variables_sound. eapply sem_bind_parameters_sound; eauto.
+447-  (* executable external function *)
+448-  destruct p as [[[w2 tr] v] m2]. myinv. left; right; constructor.
+449-  eapply executable_builtin_sound; eauto.
+450-(* returnstate *)
+451-  destruct k; myinv...
+452-(* stuckstate *)
+453-  contradiction.
+454-Qed.
+455-
+456-Theorem pure_do_step_complete:
+457-  forall w S t S' w',
+458-  callback_free_state S -> possible_trace w t w' -> Csem.step ge S t S' -> exists rule, In (TR rule t S') (do_step w S).
+459-Proof with (unfold ret; eauto with coqlib).
+460-  intros until w'; intros NB PT H.
+461-  destruct H.
+462-  (* Expression step *)
+463-  inversion H; subst; exploit estep_not_val; eauto; intro NOTVAL; simpl in NB.
+464-(* lred *)
+465-  unfold do_step; rewrite NOTVAL.
+466-  exploit (lred_topred ge do_external_function do_inline_assembly e w); eauto. intros (rule & STEP).
+467-  exists rule. change (TR rule E0 (ExprState f (C a') k e m')) with (expr_final_state f k e (C, Lred rule a' m')).
+468-  apply in_map.
+469-  generalize (step_expr_context ge do_external_function do_inline_assembly e w _ _ _ H1 a m). unfold reducts_incl.
+470-  intro. replace C with (fun x => C x). apply H2.
+471-  rewrite STEP. unfold topred; auto with coqlib.
+472-  apply extensionality; auto.
+473-(* rred *)
+474-  unfold do_step; rewrite NOTVAL.
+475-  assert (NBA: no_builtin a = true) by (eapply context_no_builtin; eauto).
+476-  destruct (pure_rred_topred ge do_external_function do_inline_assembly e w w' a m t a' m' NBA H0 PT) as [rule STEP].
+477-  exists rule.
+478-  change (TR rule t (ExprState f (C a') k e m')) with (expr_final_state f k e (C, Rred rule a' m' t)).
+479-  apply in_map.
+480-  generalize (step_expr_context ge do_external_function do_inline_assembly e w _ _ _ H1 a m). unfold reducts_incl.
+481-  intro. replace C with (fun x => C x). apply H2.
+482-  rewrite STEP; unfold topred; auto with coqlib.

@@ -1,0 +1,238 @@
+
+FILE paparazzi/relations/guidance_mode/support/allorder/PureIfShell.v
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress CallfreeExecution PhaseComposition.
+Section IF_SHELL.
+Variable ge:genv.
+Variable f:function.
+Variable e:env.
+Variable k:cont.
+Variable m:mem.
+Variable condition:expr.
+Variable yes no:statement.
+Variable value:val.
+Variable taken:bool.
+Hypothesis condition_simple:simple condition=true.
+Hypothesis condition_value:pure_rval ge e m condition=Some value.
+Hypothesis condition_bool:bool_val value(typeof condition)m=Some taken.
+Definition target:Csem.state:=State f(if taken then yes else no)k e m.
+Definition invariant(s:Csem.state):Prop:=
+ s=State f(Sifthenelse condition yes no)k e m \/
+ (exists residual,s=ExprState f residual(Kifthenelse yes no k)e m /\
+ typeof residual=typeof condition /\simple residual=true /\pure_rval ge e m residual=Some value) \/s=target.
+Lemma initial:invariant(State f(Sifthenelse condition yes no)k e m).
+Proof. left;reflexivity. Qed.
+Theorem all_successors:forall s t next,invariant s->s<>target->Csem.step ge s t next->invariant next.
+Proof.
+ intros s t next[START|[EXPR|DONE]]NF STEP.
+ - subst s;destruct STEP as[ES|SS];[inversion ES|].
+   inversion SS;subst;
+   try solve[right;left;exists condition;repeat split;auto];
+   repeat match goal with H:_ \/ _|-_=>destruct H end;discriminate.
+ - destruct EXPR as[a[EQ[TY[SI VAL]]]];subst s.
+   destruct STEP as[ES|SS].
+   + destruct(simple_estep ge f a(Kifthenelse yes no k)e m t next SI ES)as[BAD|[a'[EQ[TA[SA DEN]]]]].
+     * subst next;inversion ES;subst;exfalso.
+       match goal with N:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _|-_=>
+       apply N;pose proof(pure_not_stuck ge e m _ value SI VAL)as NS;exact(NS _ _ _ CT eq_refl)end.
+     * subst next;right;left;exists a';repeat split;auto;congruence.
+   + inversion SS;subst.
+     cbn[pure_rval]in VAL;injection VAL as EQ.
+     cbn[typeof]in TY.
+     match goal with B:bool_val _ _ _=Some _|-_=>
+     rewrite EQ,TY in B;rewrite condition_bool in B;injection B as EQB end.
+     right;right;unfold target;rewrite <-EQB;reflexivity.
+ - contradiction.
+Qed.
+Theorem progress:forall s,invariant s->s=target \/exists t next,Csem.step ge s t next /\invariant next.
+Proof.
+ intros s[START|[EXPR|DONE]].
+ - subst s;right;exists E0,(ExprState f condition(Kifthenelse yes no k)e m);split.
+   + right;apply step_ifthenelse_1.
+   + right;left;exists condition;repeat split;auto.
+ - destruct EXPR as[a[EQ[TY[SI VAL]]]];subst s.
+   destruct(literal RV a)eqn:LIT.
+   + destruct(literal_r_inv a LIT)as[v[ty EQ]];subst a.
+     cbn[pure_rval]in VAL;injection VAL as EQ.
+     cbn[typeof]in TY;right;exists E0,target;split.
+     * right;unfold target;eapply step_ifthenelse_2;rewrite EQ,TY;exact condition_bool.
+     * right;right;reflexivity.
+   + destruct(immediate_has_step ge f a(Kifthenelse yes no k)e m LIT
+     (simple_immediate ge e m a SI ltac:(rewrite VAL;discriminate)))as[t[next STEP]].
+     right;exists t,next;split;[exact STEP|].
+     eapply all_successors;[right;left;exists a;repeat split;auto| |exact STEP].
+     intro EQ;unfold target in EQ;discriminate EQ.
+ - auto.
+Qed.
+Theorem if_certificate:certificate ge invariant target.
+Proof. split;[apply progress|apply all_successors]. Qed.
+Print Assumptions if_certificate.
+End IF_SHELL.
+
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/core/cbmc/ArithmeticAtomic.v
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress CallfreeExecution PhaseComposition StandaloneCallShell.
+From CoreCBMC Require Import ArithmeticTree.
+Section ARITHMETIC_ATOMIC.
+Variable ge:genv.
+Variable f:function.
+Variable e:env.
+Variable k:cont.
+Variable m mf:mem.
+Variable original:expr.
+Variable result:val.
+Hypothesis syntax:atomic_expr original=true.
+Hypothesis evaluation:atomic_eval ge e m original=Some(result,mf).
+Hypothesis annotated:arithmetic_tree ge e m original.
+Definition arithmetic_atomic_invariant(s:Csem.state):Prop:=
+ s=State f Sskip k e mf \/
+ exists a ma,s=ExprState f a(Kdo k)e ma /\atomic_expr a=true /\
+ atomic_eval ge e ma a=Some(result,mf) /\arithmetic_tree ge e ma a.
+Lemma arithmetic_atomic_successors:forall s t next,
+ arithmetic_atomic_invariant s ->s<>State f Sskip k e mf ->
+ Csem.step ge s t next ->arithmetic_atomic_invariant next.
+Proof.
+ intros s t next[DONE|[a[ma[EQ[AT[AE TREE]]]]]]NF STEP;[contradiction|subst s].
+ destruct STEP as[ES|SS].
+ - destruct(atomic_defined_estep ge f a(Kdo k)e ma t next result mf AT AE ES)
+   as[ar[mr[EQ[TT[SY DEN]]]]].
+   destruct(arithmetic_atomic_estep ge f a(Kdo k)e ma t next AT TREE ES)
+   as[BAD|[ar2[mr2[EQ2[SY2 TREE2]]]]];[congruence|].
+   rewrite EQ in EQ2;injection EQ2 as EX EM;subst ar2 mr2.
+   right;exists ar,mr;auto.
+ - inversion SS;subst;cbn[atomic_eval pure_rval]in AE;injection AE as VR MM;subst.
+   left;reflexivity.
+Qed.
+Lemma arithmetic_atomic_progress:forall s,
+ arithmetic_atomic_invariant s ->s=State f Sskip k e mf \/
+ exists t next,Csem.step ge s t next /\arithmetic_atomic_invariant next.
+Proof.
+ intros s[DONE|[a[ma[EQ[AT[AE TREE]]]]]];[left;exact DONE|subst s].
+ destruct(literal RV a)eqn:LIT.
+ - destruct(literal_r_inv a LIT)as[v[ty EQ]];subst a.
+   cbn[atomic_eval pure_rval]in AE;injection AE as VR MM;subst.
+   right;exists E0,(State f Sskip k e mf);split;[right;constructor|left;reflexivity].
+ - destruct(immediate_has_step ge f a(Kdo k)e ma LIT
+    ltac:(exact(atomic_not_stuck ge e ma a result mf AT AE RV(fun x=>x)a(ctx_top RV)eq_refl)))as[t[next STEP]].
+   right;exists t,next;split;[exact STEP|].
+   eapply arithmetic_atomic_successors;[right;exists a,ma;auto|discriminate|exact STEP].
+Qed.
+Theorem arithmetic_atomic_certificate:
+ certificate ge arithmetic_atomic_invariant(State f Sskip k e mf).
+Proof. split;[exact arithmetic_atomic_progress|exact arithmetic_atomic_successors]. Qed.
+Theorem arithmetic_atomic_initial:
+ arithmetic_atomic_invariant(ExprState f original(Kdo k)e m).
+Proof. right;exists original,m;auto. Qed.
+Theorem arithmetic_atomic_observation:forall f' a k' e' ma,
+ arithmetic_atomic_invariant(ExprState f' a k' e' ma) ->arithmetic_tree ge e' ma a.
+Proof.
+ intros f' a k' e' ma[DONE|[ar[mr[EQ REST]]]];[discriminate|].
+ injection EQ as FF AA KK EE MM;subst;tauto.
+Qed.
+End ARITHMETIC_ATOMIC.
+Print Assumptions arithmetic_atomic_certificate.
+
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/core/cbmc/ArithmeticAssignment.v
+8 Lemma assignment_tree_estep:forall ge f e k m l r ty vr t next,
+52 Section ASSIGNMENT.
+53 Variable ge:genv.
+54 Variable f:function.
+55 Variable e:env.
+56 Variable k:cont.
+57 Variable m mf:mem.
+58 Variable ty rty:type.
+59 Variable b:block.
+60 Variable ofs:ptrofs.
+61 Variable bf:bitfield.
+62 Variable vr vc vout:val.
+63 Hypothesis nonvolatile:nv ty=true.
+64 Hypothesis cast_result:sem_cast vr rty ty m=Some vc.
+65 Hypothesis store_result:Cexec.do_assign_loc ge quiet_world ty m b ofs bf vc=
+67 Definition pending(l r:expr):Prop:=
+70 Lemma pending_immediate:forall l r,pending l r ->
+91 Lemma pending_not_stuck:forall l r,pending l r ->
+107 Lemma pending_estep:forall shell_k l r t next,
+175 Hypothesis original_pending:pending original_l original_r.
+176 Hypothesis original_annotation:arithmetic_tree ge e m(Eassign original_l original_r ty).
+177 Definition before_commit(s:Csem.state):Prop:=
+181 Lemma before_commit_successors:forall s t next,
+201 Lemma before_commit_progress:forall s,before_commit s ->
+216 Definition assignment_arithmetic_invariant(s:Csem.state):Prop:=
+218 Theorem conditional_arithmetic_assignment_certificate:
+240 Theorem conditional_arithmetic_assignment_initial:
+243 Theorem conditional_arithmetic_assignment_observation:forall f' a k' e' mr,
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/core/cbmc/ArithmeticConditional.v
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation.
+From PidPositionTranslationCore Require Import ConditionalPure ConditionalAssignment.
+From CoreCBMC Require Import ArithmeticTree.
+Lemma conditional_tree_simple_context:forall ge e m from C,
+ context from RV C ->forall a b,
+ typeof a=typeof b ->
+ (simple a=true ->pure_eq ge e m from a b) ->
+ simple(C a)=true ->
+ arithmetic_tree ge e m(C a) ->arithmetic_tree ge e m b ->
+ arithmetic_tree ge e m(C b).
+Proof.
+ intros ge e m from C CT a b TY EQ SI TREE NEW.
+ eapply arithmetic_context_congr;[exact CT|exact TY| |exact TREE|exact NEW].
+ apply EQ;eapply simple_context_hole;[exact CT|exact SI].
+Qed.
+Lemma conditional_tree_context_congr:forall ge e m from to C,
+ context from to C ->forall a b,
+ typeof a=typeof b ->
+ (simple a=true ->pure_eq ge e m from a b) ->
+ to=RV ->forall v,conditional_value ge e m(C a)v ->
+ arithmetic_tree ge e m(C a) ->arithmetic_tree ge e m b ->
+ arithmetic_tree ge e m(C b).
+Proof.
+ intros ge e m from to C CT;pose proof CT as WHOLE;induction CT;
+ intros a b TY EQ KIND v CV TREE NEW;try discriminate.
+ all:try solve[exact NEW].
+ all:try solve[
+  inversion CV;subst;try discriminate;
+  match goal with SI:simple ?whole=true|-_ =>
+   exact(conditional_tree_simple_context ge e m _ _ WHOLE a b TY EQ SI TREE NEW)end].
+ - inversion CV;subst;try discriminate.
+   assert(SA:simple a=true)by(eapply simple_context_hole;[exact CT|exact H3]).
+   exact(arithmetic_context_congr ge e m _ _ _ WHOLE a b TY(EQ SA)TREE NEW).
+ - inversion CV;subst;try discriminate;cbn[arithmetic_tree]in *;eapply IHCT;eauto.
+Qed.
+Lemma arithmetic_rred_type:forall ge a m t ar mf,
+ rred ge a m t ar mf ->typeof a=typeof ar.
+Proof. intros;inversion H;subst;cbn[typeof];auto. Qed.
+Lemma conditional_tree_estep:forall ge e m f a k t next v,
+ conditional_value ge e m a v ->arithmetic_tree ge e m a ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ exists ar,next=ExprState f ar k e m /\arithmetic_tree ge e m ar.
+Proof.
+ intros ge e m f a k t next v CV TREE STEP.
+ destruct(conditional_estep ge e m f a k t next v CV STEP)as[ar[EQ[TT[TY VR]]]].
+ exists ar;split;[exact EQ|];subst next;inversion STEP;subst.
+ - lazymatch goal with LR:lred ge e ?sub m ?sub' ?mm,CT:Csem.context LV RV ?C|-_ =>
+   destruct(pure_lred ge e sub m sub' mm LR)as[MM[TYPE[SI DEN]]];
+   eapply conditional_tree_context_congr;[exact CT|symmetry;exact TYPE| |reflexivity|exact CV|exact TREE|];
+   [intros _;exact DEN|eapply arithmetic_lred;exact LR]end.
+ - lazymatch goal with RR:rred ge ?sub m ?tr ?sub' m,CT:Csem.context RV RV ?C|-_ =>
+   pose proof(arithmetic_context_hole ge e m _ _ _ CT sub TREE)as HEAD;
+   eapply conditional_tree_context_congr;[exact CT| | |reflexivity|exact CV|exact TREE|];
+   [eapply arithmetic_rred_type;exact RR|
+    intros SI;destruct(pure_rred ge e sub m tr sub' m SI RR)as[_[_[_[_ DEN]]]];exact DEN|
+    eapply arithmetic_rred;[exact HEAD|exact RR]]end.
+Qed.
+Print Assumptions conditional_tree_estep.
+
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/ControllerAnnotations.v
+13 Definition controller_expression(n:nat):expr:=
+16 Record controller_leaf_context(e:env)(m:mem)(bp be bs gh bg bx bpy:block)
+76 Theorem original_pd_x_arithmetic_tree :
+90 Theorem original_pd_y_arithmetic_tree :
+103 Theorem original_feedforward_x_arithmetic_tree :
+117 Theorem original_feedforward_y_arithmetic_tree :

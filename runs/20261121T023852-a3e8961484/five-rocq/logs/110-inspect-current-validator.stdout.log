@@ -1,0 +1,16 @@
+68:def validate_current(root, problem, active, status):
+69-    from compcert_gate import kernel_record
+70-    root = Path(root).resolve()
+71-    path = active / 'evidence/goal-validation.json'
+72-    data = json.loads(path.read_text())
+73-    if data.get('schema') != 'five-proof-validation/1':
+74-        raise ValueError('unsupported current proof validation schema')
+75-    def checked(row):
+76-        if not isinstance(row, dict) or not isinstance(row.get('path'), str):
+77-            raise ValueError('malformed current binding')
+78-        source = (root / row['path']).resolve()
+79-        if not source.is_relative_to(root) or not source.is_file() or digest(source) != row.get('sha256'):
+80-            raise ValueError('stale/missing current binding: ' + str(source))
+81-        return source
+82-    index, historical = input_index(root, active)
+83-    if checked(data.get('index')) != index:

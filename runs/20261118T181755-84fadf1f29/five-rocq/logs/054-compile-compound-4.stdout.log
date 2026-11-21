@@ -1,0 +1,55 @@
+1 goal
+  
+  ge : genv
+  e : env
+  op : binary_operation
+  tyres, ty : type
+  m' : mem
+  b : block
+  ofs : ptrofs
+  bf : bitfield
+  v2 : val
+  ty2 : type
+  v1 : val
+  HR :
+    rred ge (Eassignop op (Eloc b ofs bf ty) (Eval v2 ty2) tyres ty) m' E0
+      (Eassign (Eloc b ofs bf ty)
+         (Ebinop op (Eval v1 ty) (Eval v2 ty2) tyres) ty)
+      m'
+  CORE0 : nv ty = true
+  CORE3 : nv tyres = true
+  CORE2 : nv ty = true
+  CORE1 : nv ty2 = true
+  H8 : deref_loc ge ty m' b ofs bf E0 v1
+  ============================
+  match do_deref_loc ge quiet_world ty m' b ofs bf with
+  | Some (_, _, v0) =>
+      match sem_binary_operation ge op v0 ty v2 ty2 m' with
+      | Some v3 =>
+          match sem_cast v3 tyres ty m' with
+          | Some v4 =>
+              match do_assign_loc ge quiet_world ty m' b ofs bf v4 with
+              | Some (_, _, m'0, v') => Some (v', m'0)
+              | None => None
+              end
+          | None => None
+          end
+      | None => None
+      end
+  | None => None
+  end =
+  (if type_eq ty ty
+   then
+    match sem_binary_operation ge op v1 ty v2 ty2 m' with
+    | Some v =>
+        match sem_cast v tyres ty m' with
+        | Some v0 =>
+            match do_assign_loc ge quiet_world ty m' b ofs bf v0 with
+            | Some (_, _, m'0, v') => Some (v', m'0)
+            | None => None
+            end
+        | None => None
+        end
+    | None => None
+    end
+   else None)

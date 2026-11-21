@@ -1,0 +1,31 @@
+1 goal
+  
+  ge : genv
+  allowed : function -> Prop
+  ids : list ident
+  allowed_locals :
+    forall f : function,
+    allowed f ->
+    Forall (fun p : ident * type => ~ In (fst p) ids)
+      (fn_params f ++ fn_vars f)
+  allowed_bodies :
+    forall f : function,
+    allowed f -> forall e : env, unshadowed e -> closed_stmt e (fn_body f)
+  v : val
+  f : function
+  e : env
+  C : expr -> expr
+  ty : type
+  k : cont
+  m : mem
+  STEP :
+    sstep ge (Returnstate v (Kcall f e C ty k) m) E0
+      (ExprState f (C (Eval v ty)) k e m)
+  CS :
+    exists _ : env,
+      allowed f /\
+      unshadowed e /\
+      (forall v : val, closed_expr e (C (Eval v ty))) /\ closed_cont e k
+  ============================
+  allowed f /\
+  unshadowed e /\ closed_expr e (C (Eval v ty)) /\ closed_cont e k

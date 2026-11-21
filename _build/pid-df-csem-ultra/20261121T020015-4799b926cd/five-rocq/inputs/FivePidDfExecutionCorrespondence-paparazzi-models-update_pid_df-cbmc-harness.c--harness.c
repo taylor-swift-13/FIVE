@@ -1,0 +1,21 @@
+#include "../prepare/source/update_pid_df.c"
+#include <stdint.h>
+#include <string.h>
+extern float nondet_float(void);
+static uint32_t bits(float x) { uint32_t u; memcpy(&u,&x,4); return u; }
+void main(void) {
+ struct PID_df f={{nondet_float(),nondet_float()},
+                  {nondet_float(),nondet_float(),nondet_float()},
+                  {nondet_float(),nondet_float(),nondet_float()}};
+ struct PID_df old=f;
+ float input=nondet_float();
+ float result=update_pid_df(&f,input);
+ __CPROVER_assert(bits(result)==bits(f.u[0]),"return equals stored u0 exact bits");
+ __CPROVER_assert(bits(f.u[1])==bits(old.u[0]),"u1 shifts old u0 exact bits");
+ __CPROVER_assert(bits(f.e[0])==bits(input),"e0 stores input exact bits");
+ __CPROVER_assert(bits(f.e[1])==bits(old.e[0]),"e1 shifts old e0 exact bits");
+ __CPROVER_assert(bits(f.e[2])==bits(old.e[1]),"e2 shifts old e1 exact bits");
+ __CPROVER_assert(bits(f.g[0])==bits(old.g[0]),"a coefficient preserved exact bits");
+ __CPROVER_assert(bits(f.g[1])==bits(old.g[1]),"b coefficient preserved exact bits");
+ __CPROVER_assert(bits(f.g[2])==bits(old.g[2]),"c coefficient preserved exact bits");
+}

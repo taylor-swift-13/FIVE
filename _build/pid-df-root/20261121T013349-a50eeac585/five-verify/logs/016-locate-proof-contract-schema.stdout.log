@@ -1,0 +1,35 @@
+CONTRACT_PATH paparazzi/models/update_first_order_low_pass/rocq/execution-contract.json
+CONTRACT_PATH paparazzi/models/update_first_order_low_pass_tau/rocq/execution-contract.json
+CONTRACT_PATH paparazzi/models/float_quat_vmult/rocq/execution-contract.json
+8 from execution_contract import _execution_contract
+11 CONTRACT_REPLACEMENT_FLAGS={'--apply-loop-contracts','--replace-call-with-contract',
+12  '--enforce-contract','--enforce-contract-rec','--function-contracts'}
+14 def kernel_record(root,ref):
+54 def check_spec_recheck(root,path,request_sha,manifest_sha,original_c,execution_bindings=None):
+59         raise RuntimeError('CBMC must use traditional symbolic execution/BMC, not contract replacement')
+66     if any(a.split('=')[0] in CONTRACT_REPLACEMENT_FLAGS for a in argv):
+67         raise RuntimeError('Contract-replacement CBMC mode is outside the requested BMC workflow')
+115 def check_external_support(root,manifest,contract):
+125     sources=contract.get('source_semantics',{}).get('source_sha256',{})
+131         binding=contract.get('external_library_bindings',{}).get(name,{})
+133             raise RuntimeError('Missing explicit callback, specification or trusted library-contract assumption: '+name)
+136 def accept_compcert_delivery(root,*,request_path,contract_path,expected_request_sha256,
+146     contract=json.loads((root/contract_path).read_text())
+147     if contract.get('execution_backend')!='compcert-csyntax-cexec' or contract.get('backend_manifest_sha256')!=sha(manifest_path):
+148         raise RuntimeError('Execution proof contract is not bound to this CompCert export')
+149     external_inventory=check_external_support(root,m,contract)
+150     issues=contract.get('alignment_issues')
+153     hashes=_execution_contract(root,request_path,contract_path,expected_request_sha256=expected_request_sha256)
+154     for row in contract['obligations']:
+156     entry=contract['execution_entry'];wrapper=m['files']['Execution.v']
+158         raise RuntimeError('Contract execution entry is not the generated original-Cexec wrapper')
+159     dependencies=contract['source_semantics']['source_sha256']
+161         if dependencies.get(row['path'])!=row['sha256']:raise RuntimeError('Proof contract does not bind original C/AST/wrapper')
+CLI 11 from compcert_gate import accept_compcert_delivery
+CLI 17     gate = actions.add_parser('gate', help='Check existing execution and CBMC-reproof evidence')
+CLI 18     gate.add_argument('--request', required=True)
+CLI 19     gate.add_argument('--request-sha256', required=True)
+CLI 20     gate.add_argument('--contract', required=True)
+CLI 21     gate.add_argument('--manifest', required=True)
+CLI 22     gate.add_argument('--spec-recheck', required=True)
+CLI 26         request_path=args.request, contract_path=args.contract,

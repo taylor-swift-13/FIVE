@@ -1,0 +1,88 @@
+234:Record composite : Type := {
+235-  co_su: struct_or_union;
+236-  co_members: members;
+237-  co_attr: attr;
+238-  co_sizeof: Z;
+239-  co_alignof: Z;
+240-  co_rank: nat;
+241-  co_sizeof_pos: co_sizeof >= 0;
+242-  co_alignof_two_p: exists n, co_alignof = two_power_nat n;
+243-  co_sizeof_alignof: (co_alignof | co_sizeof)
+244-}.
+245-
+246-Definition composite_env : Type := PTree.t composite.
+247-
+248-(** Access modes for members of structs or unions: either a plain field
+249-    or a bitfield *)
+--
+677:Fixpoint field_type (id: ident) (ms: members) {struct ms} : res type :=
+678-  match ms with
+679-  | nil => Error (MSG "Unknown field " :: CTX id :: nil)
+680-  | m :: ms => if ident_eq id (name_member m) then OK (type_member m) else field_type id ms
+681-  end.
+682-
+683-(** [field_offset env id fld] returns the byte offset for field [id]
+684-  in a structure whose members are [fld].  It also returns a
+685-  bitfield designator, giving the location of the bits to access
+686-  within the storage unit for the bitfield. *)
+687-
+688:Fixpoint field_offset_rec (env: composite_env) (id: ident) (ms: members) (pos: Z)
+689-                          {struct ms} : res (Z * bitfield) :=
+690-  match ms with
+691-  | nil => Error (MSG "Unknown field " :: CTX id :: nil)
+692-  | m :: ms =>
+693-      if ident_eq id (name_member m)
+694-      then layout_field env pos m
+695-      else field_offset_rec env id ms (next_field env pos m)
+696-  end.
+697-
+698:Definition field_offset (env: composite_env) (id: ident) (ms: members) : res (Z * bitfield) :=
+699-  field_offset_rec env id ms 0.
+700-
+701-(* [field_zero_or_padding m] returns true if the field is a zero length bitfield
+702-   or does not have a name *)
+703-Definition field_zero_or_padding (m: member) : bool :=
+704-  match m with
+705-  | Member_plain _ _ => false
+706-  | Member_bitfield _ _ _ _ w p => orb (zle w 0) p
+707-  end.
+708-
+709-(** [layout_struct env ms accu pos] computes the layout of all fields of a struct that
+710-    are not unnamed or zero width bitfield members *)
+711-Fixpoint layout_struct_rec (env: composite_env) (ms: members)
+712-                           (accu: list (ident * Z * bitfield)) (pos: Z)
+713-                           {struct ms} : res (list (ident * Z * bitfield)) :=
+--
+1373:Record composite_consistent (env: composite_env) (co: composite) : Prop := {
+1374-  co_consistent_complete:
+1375-     complete_members env (co_members co) = true;
+1376-  co_consistent_alignof:
+1377-     co_alignof co = align_attr (co_attr co) (alignof_composite env (co_members co));
+1378-  co_consistent_sizeof:
+1379-     co_sizeof co = align (sizeof_composite env (co_su co) (co_members co)) (co_alignof co);
+1380-  co_consistent_rank:
+1381-     co_rank co = rank_members env (co_members co)
+1382-}.
+1383-
+1384-Definition composite_env_consistent (env: composite_env) : Prop :=
+1385-  forall id co, env!id = Some co -> composite_consistent env co.
+1386-
+1387-Lemma composite_consistent_stable:
+1388-  forall (env env': composite_env)
+--
+1545:Record program : Type := {
+1546-  prog_defs: list (ident * globdef fundef type);
+1547-  prog_public: list ident;
+1548-  prog_main: ident;
+1549-  prog_types: list composite_definition;
+1550-  prog_comp_env: composite_env;
+1551-  prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env
+1552-}.
+1553-
+1554-Definition program_of_program (p: program) : AST.program fundef type :=
+1555-  {| AST.prog_defs := p.(prog_defs);
+1556-     AST.prog_public := p.(prog_public);
+1557-     AST.prog_main := p.(prog_main) |}.
+1558-
+1559-Coercion program_of_program: program >-> AST.program.
+1560-

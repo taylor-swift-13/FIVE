@@ -1,0 +1,25 @@
+Lemma axis_translation_sub_equal : forall gh a b axis d ra pa rb pb,
+ AxisTranslation gh a b axis d ->
+ load_path Mint32 a gh gh_type(ref_pos axis)=Some(Vint ra) ->
+ load_global Mint32 a S._state state_type(measured_pos axis)=Some(Vint pa) ->
+ load_path Mint32 b gh gh_type(ref_pos axis)=Some(Vint rb) ->
+ load_global Mint32 b S._state state_type(measured_pos axis)=Some(Vint pb) ->
+ Int.sub ra pa=Int.sub rb pb.
+Proof.
+ intros gh a b axis d ra pa rb pb
+ (ra0&pa0&rb0&pb0&RA&PA&RB&PB&PHY&RBE&PBE)RA' PA' RB' PB'.
+ rewrite RA in RA';inversion RA';subst ra0.
+ rewrite PA in PA';inversion PA';subst pa0.
+ rewrite RB in RB';inversion RB';subst rb0.
+ rewrite PB in PB';inversion PB';subst pb0.
+ rewrite!Int.sub_signed;rewrite RBE,PBE,common_translation_difference;reflexivity.
+Qed.
+Lemma active_fields_pair_observation : forall ret a b x y heading,
+ active_fields a ret x y heading ->active_fields b ret x y heading ->ActiveReturnEqual ret a b.
+Proof.
+ intros ret a b x y heading(A0&A4&A8&A12&A16&AR)(B0&B4&B8&B12&B16&BR).
+ unfold ActiveReturnEqual;split;[exact A0|];split;[exact B0|];split;[exact A4|];split;[exact B4|].
+ intros path IN;destruct IN as[<-|[<-|[<-|[]]]];unfold same_loaded_int32;
+ [exists x|exists y|exists heading];split;assumption.
+Qed.
+Lemma equal_raw_controller_observation : forall a 

@@ -1,0 +1,19 @@
+                             'parallel_children':parallel},
+                   'tokens':token_metrics,'command_count':len(commands),
+                   'measurement_status':'complete' if token_status == 'available' and peaks and not parallel and cpu_complete and tree_sampling_complete else 'partial'}
+        metrics['memory']['tree_sampling_complete'] = tree_sampling_complete
+        metrics['memory']['commands_without_sampled_tree_peak'] = missing_tree_peaks
+        dump(self.folder/'metrics.json',metrics)
+        return metrics
+
+    def finish(self, verdict, summary, required_roles, missing=None):
+        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+            raise ValueError('Invalid verification verdict')
+        metadata = self.read('run.json')
+        boundary=metadata.get('codex_usage_boundary')
+        if boundary and not boundary.get('after'):
+            try:
+                from codex_usage import snapshot, receipt
+                import tempfile
+                boundary['after']=snapshot(boundary['session_file'])
+                metadata['codex_usage_boundary']=boundary

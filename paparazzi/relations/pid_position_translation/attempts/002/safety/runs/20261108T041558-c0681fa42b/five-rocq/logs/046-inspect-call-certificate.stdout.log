@@ -1,0 +1,174 @@
+56- - exfalso;eapply normal_no_callred;eauto.
+57- - eapply step_stuck;eauto.
+58-Qed.
+59:Theorem plug_normal_step: forall ge base s t next,
+60- is_call_cont base -> normal_state s=true -> Csem.step ge s t next ->
+61- Csem.step ge(plug_state base s)t(plug_state base next).
+62-Proof.
+63- intros ge base s t next BASE NORMAL[ES|SS].
+64- - left;eapply plug_normal_estep;eauto.
+65- - right;eapply plug_normal_sstep;eauto.
+66-Qed.
+67:Theorem plug_normal_path: forall ge base s t next,
+68- is_call_cont base -> normal_state s=true -> star Csem.step ge s t next ->
+69- star Csem.step ge(plug_state base s)t(plug_state base next).
+70-Proof.
+71- intros ge base s t next BASE NORMAL PATH;revert NORMAL.
+72- induction PATH;intros NORMAL;[constructor|].
+73- eapply star_step;[eapply plug_normal_step;eauto| |eauto].
+74- apply IHPATH;exact(proj1(normal_step_backward _ _ _ _ NORMAL H)).
+75-Qed.
+76-Print Assumptions plug_normal_path.
+77-
+78-Lemma call_cont_plug_normal: forall base k,
+79- is_call_cont base -> normal_cont k=true ->
+80- plug_cont base(call_cont k)=call_cont(plug_cont base k).
+81-Proof.
+--
+122- - exfalso;eapply normal_no_callred;eauto.
+123- - exists Stuckstate;split;[reflexivity|eapply step_stuck;eauto].
+124-Qed.
+125:Theorem plug_step_inverse: forall ge base s t next,
+126- is_call_cont base -> normal_state s=true -> ~normal_return s ->
+127- Csem.step ge(plug_state base s)t next ->
+128- exists raw,next=plug_state base raw /\ Csem.step ge s t raw.
+129-Proof.
+130- intros ge base s t next BASE NORMAL NF[ES|SS].
+131- - destruct(plug_estep_inverse _ _ _ _ _ NORMAL ES)as [raw[EQ STEP]].
+132-   exists raw;split;auto;left;exact STEP.
+133- - destruct(plug_sstep_inverse _ _ _ _ _ BASE NORMAL NF SS)as [raw[EQ STEP]].
+134-   exists raw;split;auto;right;exact STEP.
+135-Qed.
+136-Print Assumptions plug_step_inverse.
+137-
+138-Definition callee_invariant(ge:genv)(base:cont)(v:val)(mf:mem)(s:Csem.state):Prop :=
+139- exists raw,s=plug_state base raw /\ execution_invariant ge raw /\
+--
+147- pose proof(all_order_normal_correspondence ge initial tw v mf NORMAL WIT)as DEN.
+148- exists initial;split;auto;split;auto;split;auto;split;auto;exists(v,mf);exact DEN.
+149-Qed.
+150:Theorem callee_invariant_progress: forall ge base v mf s,
+151- is_call_cont base -> callee_invariant ge base v mf s ->
+152- s=Returnstate v base mf \/
+153- exists t next,Csem.step ge s t next /\ callee_invariant ge base v mf next.
+154-Proof.
+155- intros ge base v mf s BASE[raw[EQ[INV DEN]]];subst s.
+156- destruct(invariant_progress ge raw INV)as [[vr[mr RETURN]]|[t[next STEP]]].
+157- - subst raw;cbn[state_eval] in DEN;inversion DEN;subst;left;reflexivity.
+158- - right;exists t,(plug_state base next);split.
+159-   + apply plug_normal_step;auto;exact(proj1 INV).
+160-   + exists next;split;auto;split.
+161-     * eapply invariant_preserved;eauto.
+162-     * exact(proj2(normal_step_forward _ _ _ _ _ (proj1 INV) DEN STEP)).
+163-Qed.
+164:Theorem callee_invariant_all_successors: forall ge base v mf s t next,
+165- is_call_cont base -> callee_invariant ge base v mf s ->
+166- s<>Returnstate v base mf -> Csem.step ge s t next ->
+167- callee_invariant ge base v mf next.
+168-Proof.
+169- intros ge base v mf s t next BASE[raw[EQ[INV DEN]]] NF STEP;subst s.
+170- assert(NR:~normal_return raw).
+171- { intros[vr[mr RETURN]];subst raw;cbn[state_eval] in DEN;inversion DEN;subst.
+172-   apply NF;reflexivity. }
+173- destruct(plug_step_inverse ge base raw t next BASE(proj1 INV)NR STEP)
+174-  as [raw'[EQ STEP']].
+175- exists raw';split;auto;split.
+176- - eapply invariant_preserved;eauto.
+177- - exact(proj2(normal_step_forward _ _ _ _ _ (proj1 INV) DEN STEP')).
+178-Qed.
+179:Print Assumptions callee_invariant_all_successors.
+180-Print Assumptions callee_invariant_progress.
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Csyntax Csem Smallstep.
+Import ListNotations.
+Definition certificate(ge:genv)(P:Csem.state->Prop)(target:Csem.state):Prop :=
+ (forall s,P s ->s=target \/ exists t next,Csem.step ge s t next /\ P next) /\
+ (forall s t next,P s ->s<>target ->Csem.step ge s t next ->P next).
+Definition unique_transition(ge:genv)(from to:Csem.state):Prop :=
+ Csem.step ge from E0 to /\
+ forall t next,Csem.step ge from t next ->t=E0 /\ next=to.
+Theorem chain_certificate:forall ge P Q middle initial target,
+ certificate ge P middle -> certificate ge Q target ->
+ unique_transition ge middle initial ->Q initial ->
+ certificate ge(fun s=>P s \/ Q s)target.
+Proof.
+ intros ge P Q middle initial target[PP PC][QP QC][BRIDGE UNIQUE]QI.
+ split.
+ - intros s[PS|QS].
+   + destruct(PP s PS)as[EQ|[t[next[STEP PN]]]].
+     * subst s;right;exists E0,initial;split;auto.
+     * right;exists t,next;split;auto.
+   + destruct(QP s QS)as[EQ|[t[next[STEP QN]]]].
+     * auto.
+     * right;exists t,next;split;auto.
+ - intros s t next[PS|QS]NF STEP.
+   + destruct(classic(s=middle))as[EQ|NE].
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Cop Csyntax Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress CallfreeExecution PhaseComposition.
+Section IF_SHELL.
+Variable ge:genv.
+Variable f:function.
+Variable e:env.
+Variable k:cont.
+Variable m:mem.
+Variable condition:expr.
+Variable yes no:statement.
+Variable value:val.
+Variable taken:bool.
+Hypothesis condition_simple:simple condition=true.
+Hypothesis condition_value:pure_rval ge e m condition=Some value.
+Hypothesis condition_bool:bool_val value(typeof condition)m=Some taken.
+Definition target:Csem.state:=State f(if taken then yes else no)k e m.
+Definition invariant(s:Csem.state):Prop:=
+ s=State f(Sifthenelse condition yes no)k e m \/
+ (exists residual,s=ExprState f residual(Kifthenelse yes no k)e m /\
+ typeof residual=typeof condition /\simple residual=true /\pure_rval ge e m residual=Some value) \/s=target.
+Lemma initial:invariant(State f(Sifthenelse condition yes no)k e m).
+Proof. left;reflexivity. Qed.
+Theorem all_successors:forall s t next,invariant s->s<>target->Csem.step ge s t next->invariant next.
+Proof.
+ intros s t next[START|[EXPR|DONE]]NF STEP.
+ - subst s;destruct STEP as[ES|SS];[inversion ES|].
+   inversion SS;subst;
+   try solve[right;left;exists condition;repeat split;auto];
+   repeat match goal with H:_ \/ _|-_=>destruct H end;discriminate.
+ - destruct EXPR as[a[EQ[TY[SI VAL]]]];subst s.
+   destruct STEP as[ES|SS].
+   + destruct(simple_estep ge f a(Kifthenelse yes no k)e m t next SI ES)as[BAD|[a'[EQ[TA[SA DEN]]]]].
+     * subst next;inversion ES;subst;exfalso.
+       match goal with N:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _|-_=>
+       apply N;pose proof(pure_not_stuck ge e m _ value SI VAL)as NS;exact(NS _ _ _ CT eq_refl)end.
+     * subst next;right;left;exists a';repeat split;auto;congruence.
+   + inversion SS;subst.
+     cbn[pure_rval]in VAL;injection VAL as EQ.
+     cbn[typeof]in TY.
+     match goal with B:bool_val _ _ _=Some _|-_=>
+     rewrite EQ,TY in B;rewrite condition_bool in B;injection B as EQB end.
+     right;right;unfold target;rewrite <-EQB;reflexivity.
+ - contradiction.
+Qed.
+Theorem progress:forall s,invariant s->s=target \/exists t next,Csem.step ge s t next /\invariant next.
+Proof.
+ intros s[START|[EXPR|DONE]].
+ - subst s;right;exists E0,(ExprState f condition(Kifthenelse yes no k)e m);split.
+   + right;apply step_ifthenelse_1.
+   + right;left;exists condition;repeat split;auto.
+ - destruct EXPR as[a[EQ[TY[SI VAL]]]];subst s.
+   destruct(literal RV a)eqn:LIT.
+   + destruct(literal_r_inv a LIT)as[v[ty EQ]];subst a.
+     cbn[pure_rval]in VAL;injection VAL as EQ.
+     cbn[typeof]in TY;right;exists E0,target;split.
+     * right;unfold target;eapply step_ifthenelse_2;rewrite EQ,TY;exact condition_bool.
+     * right;right;reflexivity.
+   + destruct(immediate_has_step ge f a(Kifthenelse yes no k)e m LIT
+     (simple_immediate ge e m a SI ltac:(rewrite VAL;discriminate)))as[t[next STEP]].
+     right;exists t,next;split;[exact STEP|].
+     eapply all_successors;[right;left;exists a;repeat split;auto| |exact STEP].
+     intro EQ;unfold target in EQ;discriminate EQ.
+ - auto.
+Qed.
+Theorem if_certificate:certificate ge invariant target.
+Proof. split;[apply progress|apply all_successors]. Qed.
+Print Assumptions if_certificate.
+End IF_SHELL.

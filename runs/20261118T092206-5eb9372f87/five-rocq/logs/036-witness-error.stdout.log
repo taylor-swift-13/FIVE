@@ -1,0 +1,18 @@
+  forall (b : block) (gv : globvar type),
+  Genv.find_var_info E.ge b = Some gv -> gvar_readonly gv = true -> b <> bi
+ROS :
+  forall (b : block) (gv : globvar type),
+  Genv.find_var_info E.ge b = Some gv -> gvar_readonly gv = true -> b <> sb
+GOOD :
+  forall (r : Z) (mf : mem),
+  -4096 <= r <= 4096 ->
+  replay_stores base (symbolic_updates gh sb bp bi r kp ki) = Some mf ->
+  SymbolicInitial mf gh ret r kp ki
+m : mem
+RUN : replay_stores base (symbolic_updates gh sb bp bi A kp ki) = Some m
+z : Z
+R : 0 <= z < 84
+The term "RUN" has type
+ "replay_stores base (symbolic_updates gh sb bp bi A kp ki) = Some m"
+while it is expected to have type "block -> Prop".
+

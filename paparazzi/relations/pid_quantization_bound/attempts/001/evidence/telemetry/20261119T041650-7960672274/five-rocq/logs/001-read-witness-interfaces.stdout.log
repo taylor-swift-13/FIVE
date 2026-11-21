@@ -1,0 +1,189 @@
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Integers Values Memory.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidMeasurementProblem Require Import Spec.
+From PidMeasurementAttempt001 Require Import SemanticBridge.
+From PidQuantizationAttempt001 Require Import ExactArithmetic.
+Import ListNotations.
+Open Scope Z_scope.
+Module P:=PidPositionRunPos.Source.
+
+(** Units: integral numerator / T, command numerator / (T*S), radians
+    command numerator / (4096*T*S). Numerators are unbounded Z values.
+    Every dynamic right shift is exact division at these denominators.
+    The original input clamps, integral clamp and both command clamps remain. *)
+Definition ref_integral(g:Gains)(x:AxisSample)(old:Z):Z:=
+ integral_num(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+ (Int.signed(mpe x))(Int.signed(mse x))old.
+Definition ref_command(g:Gains)(x:AxisSample)(old:Z):Z:=
+ command_num(Int.signed(gain_p g))(Int.signed(gain_d g))(Int.signed(gain_i g))
+ (Int.signed(gain_v g))(Int.signed(gain_a g))
+ (Int.signed(mpe x))(Int.signed(mse x))
+ (Int.signed(reference_speed x))(Int.signed(reference_accel x))old.
+Definition CycleInput(axis:ident)(gh ret:block)(g:Gains)(m:mem)(x:AxisSample):Prop:=
+ InputGood m gh ret /\ReadAxis axis gh m g x.
+Definition last_command(first:Z)(tail:option Z):option Z:=
+ match tail with None=>Some first|Some c=>Some c end.
+
+(** Each step executes the unmodified original Csem entry. Reference and
+    implementation receive identical encoded inputs and fixed gains. *)
+Inductive ActualCycles(axis:ident)(gh ret:block)(g:Gains):
+ nat->mem->Z->mem->Z->option Z->Prop:=
+ | cycles_zero:forall a j,ActualCycles axis gh ret g O a j a j None
+ | cycles_step:forall n a j q x m af jf out,
+ EnvironmentStep gh a q ->CycleInput axis gh ret g q x ->
+ NormalCall gh ret true q m ->
+ ActualCycles axis gh ret g n m(ref_integral g x j)af jf out ->
+ ActualCycles axis gh ret g(Datatypes.S n)a j af jf
+ (last_command(ref_command g x j)out).
+Fixpoint ReadyCycles(axis:ident)(gh ret:block)(g:Gains)(n:nat)(m:mem):Prop:=
+ match n with
+ | O=>True
+ | Datatypes.S k=>exists q x,EnvironmentStep gh m q /\CycleInput axis gh ret g q x /\
+ (forall mf,NormalCall gh ret true q mf ->ReadyCycles axis gh ret g k mf)
+ end.
+Definition IntegralGap(axis:ident)(m:mem)(reference_numerator distance:Z):Prop:=
+ exists i,load_global Mint32 m P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint i) /\
+ 0<=reference_numerator-Int.signed i*T<=distance.
+Definition SameStart(axis:ident)(m:mem)(j:Z):Prop:=
+ exists i,load_global Mint32 m P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint i) /\j=Int.signed i*T.
+Definition CommandGap(axis:ident)(ret:block)(m:mem)(out:option Z)(distance:Z):Prop:=
+ exists c r,out=Some r /\
+ load_global Mint32 m P._guidance_pid pid_type[P._cmd_earth;axis]=Some(Vint c) /\
+ load_path Mint32 m ret sp_type[P._sp;P._ltp_i;P._vect;axis]=Some(Vint c) /\
+ 0<=r-Int.signed c*T*S<=Z.min output_cap distance.
+
+Definition ArbitraryHorizonGoal:Prop:=forall axis gh ret g n m j mf jf out,
+ In axis[P._x;P._y] ->SameStart axis m j ->ActualCycles axis gh ret g n m j mf jf out ->
+ IntegralGap axis mf jf(Z.of_nat n*Int.signed(gain_i g)*pd_loss(Int.signed(gain_d g))) /\
+ ((0<n)%nat ->CommandGap axis ret mf out(horizon_loss n(Int.signed(gain_i g))(Int.signed(gain_d g)))).
+Definition ExecutionTotalGoal:Prop:=forall axis gh ret g n m j,
+ ReadyCycles axis gh ret g n m ->exists mf jf out,ActualCycles axis gh ret g n m j mf jf out.
+Definition EveryCallNoErrorGoal:Prop:=PidPositionTranslationProblem.Spec.NoErrorGoal.
+Definition EveryCallTerminationGoal:Prop:=PidPositionTranslationProblem.Spec.AllSuccessorTerminationGoal.
+
+(** A symbolic admissible family for arbitrary n; no future return is assumed.
+    Both actual integrators start at zero. *)
+Definition witness_gains(kp ki:Z):Gains:=
+ {|gain_p:=Int.repr kp;gain_d:=Int.zero;gain_i:=Int.repr ki;
+   gain_v:=Int.zero;gain_a:=Int.zero|}.
+Definition ExecutionExistenceGoal:Prop:=forall A kp ki n,
+ 0<=A<=4096 ->0<=kp<=100 ->0<=ki<=100 ->
+ exists gh ret m,SameStart P._x m 0 /\SameStart P._y m 0 /\
+ ReadyCycles P._x gh ret(witness_gains kp ki)n m /\
+ ReadyCycles P._y gh ret(witness_gains kp ki)n m /\
+ (forall axis,In axis[P._x;P._y] ->
+ exists mf jf out,ActualCycles axis gh ret(witness_gains kp ki)n m 0 mf jf out).
+
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import AST Integers Values Memory Globalenvs Ctypes.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import CoreSemantics FlightSemantics ControllerPrefix.
+From PidPositionTranslationAttempt002 Require Import CoreInputs NormalReturn MainGoals ClampSemantics.
+From CoreCBMC Require Import NumericBounds CanonicalDomain.
+From PidMeasurementAttempt001 Require Import IntegerBounds MachineArithmetic RobustnessArithmetic.
+From PidMeasurementProblem Require Import Spec.
+Import ListNotations.
+Open Scope Z_scope.
+Module P:=PidPositionRunPos.Source.
+Definition mpe(x:AxisSample):int:=clamp_bits(Int.sub(reference x)(measurement x))(Int.repr 4096).
+Definition mse(x:AxisSample):int:=clamp_bits(Int.sub(reference_speed x)(measurement_speed x))(Int.repr 8388608).
+Definition mi(g:Gains)(x:AxisSample):int:=next_integral true(old_integral x)(gain_i g)
+ (pd_bits(gain_p g)(gain_d g)(mpe x)(mse x))(Int.repr 1429).
+Definition mc(g:Gains)(x:AxisSample):int:=controller_command true(gain_p g)(gain_d g)(gain_i g)(gain_v g)(gain_a g)
+ (mpe x)(mse x)(reference_speed x)(reference_accel x)(old_integral x)(Int.repr 1429)(Int.repr 3216).
+Definition GainAgreement m gh(g:Gains)(D:core_initial_data m gh):Prop:=
+ gain_p g=cid_kp _ _ D /\gain_d g=cid_kd _ _ D /\gain_i g=cid_ki _ _ D /\
+ gain_v g=cid_kv _ _ D /\gain_a g=cid_ka _ _ D.
+Lemma read_gain_agreement:forall axis gh m g x(D:core_initial_data m gh),
+ ReadAxis axis gh m g x ->GainAgreement m gh g D.
+Proof.
+ intros axis gh m g x D(RP&RD&RI&RV&RA&REST).
+ unfold GainAgreement,load_global in *;rewrite(cid_pid_symbol _ _ D)in RP,RD,RI,RV,RA.
+ change(Mem.load Mint32 m(cid_pid _ _ D)0=Some(Vint(gain_p g)))in RP.
+ change(Mem.load Mint32 m(cid_pid _ _ D)4=Some(Vint(gain_d g)))in RD.
+ change(Mem.load Mint32 m(cid_pid _ _ D)8=Some(Vint(gain_i g)))in RI.
+ change(Mem.load Mint32 m(cid_pid _ _ D)12=Some(Vint(gain_v g)))in RV.
+ change(Mem.load Mint32 m(cid_pid _ _ D)16=Some(Vint(gain_a g)))in RA.
+ rewrite(cid_gain_p _ _ D)in RP;rewrite(cid_gain_d _ _ D)in RD;
+ rewrite(cid_gain_i _ _ D)in RI;rewrite(cid_gain_v _ _ D)in RV;rewrite(cid_gain_a _ _ D)in RA.
+ repeat split;congruence.
+Qed.
+Lemma read_axis_bounds:forall axis gh ret m g x,
+ In axis[P._x;P._y] ->InputGood m gh ret ->ReadAxis axis gh m g x ->
+ axis_bounds(gain_p g)(gain_d g)(gain_i g)(gain_v g)(gain_a g)
+ (mpe x)(mse x)(reference_speed x)(reference_accel x)(old_integral x).
+Proof.
+ intros axis gh ret m g x AX GOOD READ.
+ destruct(inputgood_core_initial_data m gh ret GOOD)as[D _].
+ pose proof(read_gain_agreement axis gh m g x D READ)as(GP&GD&GI&GV&GA).
+ destruct READ as(_&_&_&_&_&RP&MP&RS&MS&ACC&OLD).
+ unfold mpe,mse;rewrite GP,GD,GI,GV,GA.
+ eapply inputgood_axis_bounds;[exact GOOD|exact AX|exact RS|exact ACC|exact OLD].
+Qed.
+Lemma read_axis_position_exact:forall axis gh ret m g x,
+ In axis[P._x;P._y] ->InputGood m gh ret ->ReadAxis axis gh m g x ->
+ Int.signed(mpe x)=position_error(Int.signed(reference x))(Int.signed(measurement x)).
+Proof.
+ intros axis gh ret m g x AX GOOD READ.
+ destruct READ as(_&_&_&_&_&RP&MP&REST).
+ destruct(proj2(proj2 GOOD)axis AX)as[r[p[RP0[MP0 SAFE]]]].
+ change(load_path Mint32 m gh gh_type[P._ref;P._pos;axis]=Some(Vint r))in RP0.
+ change(load_global Mint32 m P._state state_type[P._ned_pos_i;axis]=Some(Vint p))in MP0.
+ rewrite RP in RP0;rewrite MP in MP0;injection RP0 as EQ;subst r;injection MP0 as EQ;subst p.
+ unfold mpe,position_error;rewrite front_clamp_signed by lia.
+ rewrite Int.sub_signed,Int.signed_repr;[reflexivity|exact SAFE].
+Qed.
+Lemma normal_axis_observation:forall axis gh ret m mf g x,
+ In axis[P._x;P._y] ->InputGood m gh ret ->ReadAxis axis gh m g x ->
+ NormalCall gh ret true m mf ->
+ load_global Mint32 mf P._guidance_pid_trim_att_integrator vec_type[axis]=Some(Vint(mi g x)) /\
+ load_global Mint32 mf P._guidance_pid pid_type[P._cmd_earth;axis]=Some(Vint(mc g x)) /\
+ load_path Mint32 mf ret sp_type[P._sp;P._ltp_i;P._vect;axis]=Some(Vint(mc g x)).
+Proof.
+ intros axis gh ret m mf g x AX GOOD READ CALL.
+ destruct(inputgood_core_initial_data m gh ret GOOD)as[D _].
+ pose proof(read_gain_agreement axis gh m g x D READ)as(GP&GD&GI&GV&GA).
+ destruct(original_entry_normal_result m gh ret true D GOOD)
+ as(out&rx&ry&px&py&sx&sy&vx&vy&sb&NC&STATE&RX&RY&PX&PY&SX&SY&VX&VY&ACTIVE&IX&IY&CX&CY).
+ assert(EQ:mf=out)by(eapply original_entry_all_normal_memories_unique;[exact GOOD|exact CALL|exact NC]);subst mf.
+ destruct READ as(_&_&_&_&_&RP&MP&RS&MS&ACC&OLD).
+ unfold load_global in MP,MS,OLD;rewrite STATE in MP,MS;rewrite(cid_i_symbol _ _ D)in OLD.
+ unfold mi,mc,mpe,mse;rewrite GP,GD,GI,GV,GA.
+ destruct AX as[<-|[<-|[]]].
+ - change(Mem.load Mint32 m sb 100=Some(Vint(measurement x)))in MP.
+   change(Mem.load Mint32 m sb 296=Some(Vint(measurement_speed x)))in MS.
+   change(Mem.load Mint32 m gh 60=Some(Vint(reference_accel x)))in ACC.
+   change(Mem.load Mint32 m(cid_i _ _ D)0=Some(Vint(old_integral x)))in OLD.
+   rewrite RX in RP;rewrite PX in MP;rewrite SX in RS;rewrite VX in MS;
+   rewrite(cid_accel_x _ _ D)in ACC;rewrite(cid_integral_x _ _ D)in OLD.
+   injection RP as R;injection MP as M;injection RS as S;injection MS as V;injection ACC as A;injection OLD as I.
+   rewrite<-R,<-M,<-S,<-V,<-A,<-I.
+   split;[unfold load_global;rewrite(cid_i_symbol _ _ D);exact IX|].
+   split;[unfold load_global;rewrite(cid_pid_symbol _ _ D);exact CX|].
+   destruct ACTIVE as(T&F&X&Y&H&REST);exact X.
+ - change(Mem.load Mint32 m sb 104=Some(Vint(measurement x)))in MP.
+   change(Mem.load Mint32 m sb 300=Some(Vint(measurement_speed x)))in MS.
+   change(Mem.load Mint32 m gh 64=Some(Vint(reference_accel x)))in ACC.
+   change(Mem.load Mint32 m(cid_i _ _ D)4=Some(Vint(old_integral x)))in OLD.
+   rewrite RY in RP;rewrite PY in MP;rewrite SY in RS;rewrite VY in MS;
+   rewrite(cid_accel_y _ _ D)in ACC;rewrite(cid_integral_y _ _ D)in OLD.
+   injection RP as R;injection MP as M;injection RS as S;injection MS as V;injection ACC as A;injection OLD as I.
+   rewrite<-R,<-M,<-S,<-V,<-A,<-I.
+   split;[unfold load_global;rewrite(cid_i_symbol _ _ D);exact IY|].
+   split;[unfold load_global;rewrite(cid_pid_symbol _ _ D);exact CY|].
+   destruct ACTIVE as(T&F&X&Y&H&REST);exact Y.
+Qed.
+Lemma environment_integral_bound:forall axis gh a b qa qb distance,
+ In axis[P._x;P._y] ->EnvironmentStep gh a qa ->EnvironmentStep gh b qb ->
+ IntegralBound axis a b distance ->IntegralBound axis qa qb distance.
+Proof.
+ intros axis gh a b qa qb distance AX[_ EA][_ EB](ia&ib&LA&LB&D).
+ exists ia,ib;rewrite(EA axis AX),(EB axis AX);auto.
+Qed.
+Print Assumptions normal_axis_observation.
+

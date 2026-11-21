@@ -1,0 +1,92 @@
+   destruct(nostep_path_eq _ _ _ _ (return_stop_nostep _ _ _) P)as[EQ TT];discriminate EQ end.
+Qed.
+Theorem block_normal_correspondence:forall ge initial t f e mf,
+ block_state initial=true ->
+ star Csem.step ge initial t(State f Sskip Kstop e mf) ->
+ block_denotation ge initial=Some mf.
+Proof.
+ intros ge initial t f e mf BL PATH.
+ remember(State f Sskip Kstop e mf)as FINAL.
+ revert BL;induction PATH;intros BL;subst.
+ - reflexivity.
+ - destruct(classic(block_done s1))as[DONE|ND].
+   + destruct DONE as[ff[ee[mm EQ]]];subst s1.
+     assert(PP:exists tr,star Csem.step ge(State ff Sskip Kstop ee mm)tr(State f Sskip Kstop e mf)).
+     { eexists;eapply star_step;[exact H|exact PATH|reflexivity]. }
+     destruct PP as[tr PP];pose proof(block_done_path_eq _ _ _ _ _ _ _ _ PP)as EQ.
+     inversion EQ;subst;reflexivity.
+   + destruct H as[ES|SS].
+     * destruct s1;try solve[inversion ES].
+       destruct(block_estep _ _ _ _ _ _ _ _ BL ES)as[BAD|[BN DEN]].
+       -- inversion BAD;subst;destruct(nostep_path_eq _ _ _ _ (stuck_nostep ge) PATH)as[EQ TT];discriminate EQ.
+       -- rewrite DEN;apply IHPATH;auto.
+     * destruct(block_sstep _ _ _ _ BL ND SS)as[BN DEN].
+       rewrite DEN;apply IHPATH;auto.
+Qed.
+Print Assumptions block_normal_correspondence.
+
+Lemma block_plug_sstep:forall ge base s t next,
+From Stdlib Require Import List Bool.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Csyntax Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution ContinuationLift PhaseComposition.
+Definition function_scope(f:function)(s:Csem.state):Prop:=match s with
+| State f' _ _ _ _|ExprState f' _ _ _ _=>f'=f
+| Callstate fd _ _ _=>fd=Internal f
+| _=>True end.
+Lemma normal_scope_step:forall ge f s t next,
+ normal_state s=true ->function_scope f s ->Csem.step ge s t next ->function_scope f next.
+Proof.
+ intros ge f s t next NORMAL SCOPE[ES|SS].
+ - inversion ES;subst;cbn[function_scope]in*;try exact SCOPE;try exact I.
+   exfalso;eapply normal_no_callred;[exact NORMAL|eassumption|reflexivity|eassumption].
+ - inversion SS;subst;cbn[function_scope normal_state]in*;try discriminate;try exact SCOPE;try exact I.
+   injection SCOPE as FF;subst;reflexivity.
+Qed.
+Definition tagged_callee_invariant(ge:genv)(f:function)(base:cont)(v:val)(mf:mem)(s:Csem.state):Prop:=
+ exists raw,s=plug_state base raw/\execution_invariant ge raw/\state_eval ge raw=Some(v,mf)/\function_scope f raw.
+Lemma tagged_callee_entry:forall ge f base initial tw v mf,
+ normal_state initial=true ->call_names initial ->function_scope f initial ->
+ star Csem.step ge initial tw(Returnstate v Kstop mf) ->
+ tagged_callee_invariant ge f base v mf(plug_state base initial).
+Proof.
+ intros ge f base initial tw v mf NO NA SC PA.
+ destruct(callee_invariant_entry ge base initial tw v mf NO NA PA)as[raw[EQ[INV DEN]]].
+ pose proof(all_order_normal_correspondence ge initial tw v mf NO PA)as DI.
+ exists initial;split;[reflexivity|];split.
+ - split;[exact NO|];split;[exact NA|exists(v,mf);exact DI].
+ - auto.
+Qed.
+Lemma tagged_callee_scope:forall ge f base v mf s,
+ tagged_callee_invariant ge f base v mf s ->function_scope f s.
+Proof.
+ intros ge f base v mf s[raw[EQ[INV[DEN SC]]]];subst s;destruct raw;cbn[plug_state function_scope]in*;exact SC.
+Qed.
+Theorem tagged_callee_progress:forall ge f base v mf s,
+ is_call_cont base ->tagged_callee_invariant ge f base v mf s ->
+ s=Returnstate v base mf\/exists t next,Csem.step ge s t next/\tagged_callee_invariant ge f base v mf next.
+Lemma arithmetic_observed_binary:forall ge e m from C op va ta vb tb ty,
+ context from RV C ->from=RV ->
+ arithmetic_tree ge e m(C(Ebinop op(Eval va ta)(Eval vb tb)ty)) ->
+ binary_safe op ta tb va vb.
+Proof.
+ intros ge e m from C op va ta vb tb ty CT KIND TREE;subst from.
+ eapply arithmetic_binary_head;eapply arithmetic_context_hole;[exact CT|exact TREE].
+Qed.
+Lemma arithmetic_observed_unary:forall ge e m from C op va ta ty,
+ context from RV C ->from=RV ->
+ arithmetic_tree ge e m(C(Eunop op(Eval va ta)ty)) ->
+ unary_safe op ta va.
+Proof.
+ intros ge e m from C op va ta ty CT KIND TREE;subst from.
+ eapply arithmetic_unary_head;eapply arithmetic_context_hole;[exact CT|exact TREE].
+Qed.
+Print Assumptions arithmetic_atomic_estep.
+Lemma arithmetic_observed_unary:forall ge e m from C op va ta ty,
+ context from RV C ->from=RV ->
+ arithmetic_tree ge e m(C(Eunop op(Eval va ta)ty)) ->
+ unary_safe op ta va.
+Proof.
+ intros ge e m from C op va ta ty CT KIND TREE;subst from.
+ eapply arithmetic_unary_head;eapply arithmetic_context_hole;[exact CT|exact TREE].
+Qed.
+Print Assumptions arithmetic_atomic_estep.

@@ -1,0 +1,115 @@
+"""Measured exact-source Rocq compiler used by PID proof checkers."""
+from pathlib import Path
+import argparse,hashlib,json,re,shutil,sys,tempfile,subprocess
+ROOT=Path(__file__).resolve().parents[5]
+CASE=ROOT/"paparazzi/models/update_pid_df"
+COMMON={
+"FiveShared":"shared",
+"FiveGuidanceCbmcAdapters":"paparazzi/relations/guidance_mode/support/cbmc_adapters",
+"FiveGuidanceSemantics":"paparazzi/relations/guidance_mode/support/semantics",
+"FiveGuidanceAllOrder":"paparazzi/relations/guidance_mode/support/allorder",
+"FiveGuidanceAllocation":"paparazzi/relations/guidance_mode/support/allocation",
+"FiveGuidanceEntry":"paparazzi/relations/guidance_mode/support/entry",
+"FiveLowpassSupport":"paparazzi/relations/lowpass_recovery/support",
+"FivePidDf":"paparazzi/models/update_pid_df/align/model",
+"FivePidDfCase":"paparazzi/models/update_pid_df/rocq/support"}
+PROBLEMS={"NoError":"no_error","Termination":"termination","Functional":"functional","ExecutionCorrespondence":"execution_correspondence","Recheck":"cbmc_recheck"}
+MAPPINGS={**COMMON,**{"FivePidDf"+n:"paparazzi/models/update_pid_df/rocq/"+p+"/problem" for n,p in PROBLEMS.items()}}
+def digest(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def dump(p,o):p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,indent=2)+"\n")
+def resolve(n):
+ for key,p in PROBLEMS.items():
+  ns="FivePidDf"+key
+  if n==ns+".Proof":return CASE/"rocq"/p/"attempts/001/Proof.v"
+ for ns,rel in MAPPINGS.items():
+  if n.startswith(ns+"."):return (ROOT/rel).joinpath(*n[len(ns)+1:].split(".")).with_suffix(".v")
+ return None
+def imports(p):
+ s=re.sub(r"\(\*.*?\*\)","",p.read_text(),flags=re.S)
+ rows=[]
+ for prefix,names in re.findall(r"From\s+([A-Za-z0-9_.]+)\s+Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.",s):rows += [prefix+"."+x for x in names.split()]
+ s=re.sub(r"From\s+[A-Za-z0-9_.]+\s+Require\s+(?:Import\s+|Export\s+)?[A-Za-z0-9_.\s]+?\.","",s)
+ for names in re.findall(r"Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.(?=\s|$)",s):rows+=names.split()
+ return rows
+def closure(target):
+ order=[];seen=set()
+ def visit(n):
+  p=resolve(n)
+  if p is None:return
+  if n in seen:return
+  seen.add(n)
+  if not p.is_file():raise FileNotFoundError(str(p))
+  for m in imports(p):visit(m)
+  order.append((n,p))
+ visit(target)
+ return order
+def verify_handoff():
+ d=json.loads((CASE/"align/handoff.json").read_text())
+ for row in d["outputs"]:
+  p=CASE/row["path"]
+  if not p.is_file()or digest(p)!=row["sha256"]:raise RuntimeError("Changed align input: "+str(p))
+ return d
+def compile_target(target,run,build):
+ verify_handoff();order=closure(target)
+ flags=[];dirs={}
+ for ns in MAPPINGS:
+  dirs[ns]=build/ns;dirs[ns].mkdir(parents=True,exist_ok=True);flags+=["-Q",str(dirs[ns]),ns]
+ bindings=[];sources=[]
+ for n,p in order:
+  ns=next(ns for ns in dirs if n.startswith(ns+"."))
+  dest=dirs[ns].joinpath(*n[len(ns)+1:].split(".")).with_suffix(".v");dest.parent.mkdir(parents=True,exist_ok=True)
+  if dest.exists()and digest(dest)!=digest(p):raise RuntimeError("Changed immutable snapshot "+str(dest))
+  if not dest.exists():shutil.copyfile(p,dest)
+  bindings.append({"path":str(p.relative_to(ROOT)),"sha256":digest(p),"snapshot":str(dest.relative_to(ROOT))})
+  sources.append(dest)
+ def command(argv,label):
+  if run:return run.command(argv,label,timeout=600,cwd=str(ROOT))
+  subprocess.run(argv,cwd=ROOT,check=True);return None
+ for i,p in enumerate(sources):
+  argv=["/home/yangfp/.opam/five/bin/rocq","compile",*flags,str(p)]
+  if run and p.with_suffix(".vo").exists()and any(x.get("argv")==argv and x.get("status")=="passed" for x in run.read("commands.json")):continue
+  command(argv,target+"-compile-"+str(i))
+ return flags,sources,bindings,command
+def main():
+ parser=argparse.ArgumentParser();parser.add_argument("target");parser.add_argument("--run",required=True);parser.add_argument("--build",required=True);a=parser.parse_args()
+ sys.path.insert(0,str(ROOT/"scripts"));from five_telemetry import Run
+ run=Run(a.run);build=Path(a.build).resolve()
+ flags,sources,bindings,command=compile_target(a.target,run,build)
+ print(json.dumps({"target":a.target,"compiled":len(sources),"bindings":bindings}))
+if __name__=="__main__":main()
+ assert(B8:Mem.loadbytes mf b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle x))).
+ { erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV b OBJ)). erewrite Mem.loadbytes_store_other by(exact S5||(cbn[size_chunk];lia)). erewrite Mem.loadbytes_store_other by(exact S4||(cbn[size_chunk];lia)). exact(Mem.loadbytes_store_same _ _ _ _ _ _ S3). }
+ assert(B4:Mem.loadbytes mf b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle u0))).
+ { erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV b OBJ)). erewrite Mem.loadbytes_store_other by(exact S5||(cbn[size_chunk];lia)). exact(Mem.loadbytes_store_same _ _ _ _ _ _ S4). }
+ assert(B0:Mem.loadbytes mf b(Ptrofs.unsigned p+0)4=Some(encode_val Mfloat32(Vsingle (fp_step a bc c u0 e0 e1 x)))).
+ { erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV b OBJ)). exact(Mem.loadbytes_store_same _ _ _ _ _ _ S5). }
+ unfold Post;split;[split;[exact WF|repeat split;assumption]|].
+ split.
+ + intros delta y IN;cbn in IN;repeat destruct IN as[EQ|IN];try contradiction;injection EQ as<- <-;assumption.
+ + split;assumption.
+Qed.
+Print Assumptions update_call_summary.
+Theorem update_call_execution:forall m b p a bc c u0 u1 e0 e1 e2 x,
+ Initialized m b p a bc c u0 u1 e0 e1 e2->
+ exists t mf,star Csem.step Execution.ge(Execution.entry(Args b p x)m)t(Returnstate(Vsingle(fp_step a bc c u0 e0 e1 x))Kstop mf) /\Post m mf b p a bc c u0 e0 e1 x.
+Proof.
+ intros m b p a bc c u0 u1 e0 e1 e2 x P.
+ destruct(update_call_summary m b p a bc c u0 u1 e0 e1 e2 x P)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args b p x)m)=true)by(vm_compute;reflexivity).
+ assert(CN:call_names(Execution.entry(Args b p x)m))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ destruct(defined_evaluator_return_exists Execution.ge _ _ _ N CN EV)as[t PATH];exists t,mf;auto.
+Qed.
+Print Assumptions update_call_execution.
+
+Theorem update_call_observed:forall m b p a bc c u0 u1 e0 e1 e2 x,
+ Initialized m b p a bc c u0 u1 e0 e1 e2->
+ forall t result mf,star Csem.step Execution.ge(Execution.entry(Args b p x)m)t(Returnstate result Kstop mf)->
+ result=Vsingle(fp_step a bc c u0 e0 e1 x) /\Post m mf b p a bc c u0 e0 e1 x.
+Proof.
+ intros m b p a bc c u0 u1 e0 e1 e2 x P t result after PATH.
+ destruct(update_call_summary m b p a bc c u0 u1 e0 e1 e2 x P)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args b p x)m)=true)by(vm_compute;reflexivity).
+ destruct(defined_evaluator_exact_return Execution.ge _ _ _ _ _ _ N EV PATH)as[VR MR];subst result after;auto.
+Qed.
+Print Assumptions update_call_observed.
+paparazzi/models/update_pid_df/rocq/support/Witness.v

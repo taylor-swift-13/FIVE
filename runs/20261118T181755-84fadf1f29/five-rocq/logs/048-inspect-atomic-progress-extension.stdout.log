@@ -1,0 +1,129 @@
+167:Lemma flat_split : forall a,flat_expr a=true ->
+174:Lemma flat_immediate : forall ge e m a v m',
+175: flat_expr a=true -> flat_eval ge e m a=Some(v,m') -> imm_safe ge e RV a m.
+178: destruct (flat_split _ FL) as [S|[l[r[ty[EQ[SL SR]]]]]].
+179: - rewrite (flat_eval_simple ge e m a S) in E.
+181: - subst a. unfold flat_eval in E. option_cases E; inversion E; subst.
+203:Lemma flat_not_stuck : forall ge e m a v m',
+204: flat_expr a=true -> flat_eval ge e m a=Some(v,m') -> Csem.not_stuck ge e a m.
+207: destruct(flat_split _ FL) as [S|[l[r[ty[EQ[SL SR]]]]]].
+208: - rewrite(flat_eval_simple ge e m a S) in EV.
+212:   { unfold flat_eval in EV; option_cases EV; eauto. }
+214:   { unfold flat_eval in EV; option_cases EV; eauto. }
+216:   + cbn in EQ; subst sub. eapply flat_immediate; eauto.
+From Coq Require Import Bool List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Smallstep.
+
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+Import ListNotations.
+
+(** These predicates constrain syntax only.  Values, argument lists, memories,
+    allocation, initialization, alignment and permissions remain arbitrary. *)
+Definition nv (ty: type) := negb (type_is_volatile ty).
+Fixpoint core_expr (a: expr): bool :=
+  match a with
+  | Eval _ ty | Evar _ ty | Eloc _ _ _ ty => nv ty
+  | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+  | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty && core_expr a
+  | Ebinop _ a b ty | Eassign a b ty => nv ty && core_expr a && core_expr b
+  | Eassignop _ a b tyres ty => nv ty && nv tyres && core_expr a && core_expr b
+  | _ => false
+  end.
+Fixpoint core_stmt (s: statement): bool :=
+  match s with
+  | Sskip | Sreturn None => true
+  | Sdo a | Sreturn (Some a) => core_expr a
+  | Ssequence a b => core_stmt a && core_stmt b
+  | Sifthenelse a s1 s2 => core_expr a && core_stmt s1 && core_stmt s2
+  | Swhile a s => core_expr a && core_stmt s
+  | _ => false
+  end.
+Fixpoint core_cont (k: cont): bool :=
+  match k with
+  | Kstop => true
+  | Kseq s k => core_stmt s && core_cont k
+  | Kifthenelse s1 s2 k => core_stmt s1 && core_stmt s2 && core_cont k
+  | Kwhile1 a s k | Kwhile2 a s k => core_expr a && core_stmt s && core_cont k
+  | _ => false
+  end.
+Definition core_expr_cont (k: cont): bool :=
+  match k with
+  | Kdo k | Kreturn k => core_cont k
+  | Kifthenelse s1 s2 k => core_stmt s1 && core_stmt s2 && core_cont k
+  | Kwhile1 a s k => core_expr a && core_stmt s && core_cont k
+  | _ => false end.
+
+Ltac core_unpack := repeat match goal with H: _ && _ = true |- _ =>
+  apply andb_true_iff in H; let A := fresh "CORE" in let B := fresh "CORE" in destruct H as [A B] end.
+Ltac core_build := repeat match goal with |- _ && _ = true => apply andb_true_iff; split end.
+
+Lemma core_expr_no_builtin:
+  forall a, core_expr a = true -> no_builtin a = true.
+Proof.
+  induction a; simpl; intros H; core_unpack; try discriminate; core_build; eauto.
+Qed.
+
+Lemma core_context_hole:
+  forall from to C, context from to C -> forall a,
+  core_expr (C a) = true -> core_expr a = true.
+ (___builtin_va_end,
+   Gfun(External (EF_builtin "__builtin_va_end"
+                   (mksignature (AST.Xptr :: nil) AST.Xvoid cc_default))
+     ((tptr tvoid) :: nil) tvoid cc_default)) ::
+ (___builtin_unreachable,
+   Gfun(External (EF_builtin "__builtin_unreachable"
+                   (mksignature nil AST.Xvoid cc_default)) nil tvoid
+     cc_default)) ::
+ (___builtin_expect,
+   Gfun(External (EF_builtin "__builtin_expect"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___builtin_fmax,
+   Gfun(External (EF_builtin "__builtin_fmax"
+                   (mksignature (AST.Xfloat :: AST.Xfloat :: nil) AST.Xfloat
+                     cc_default)) (tdouble :: tdouble :: nil) tdouble
+     cc_default)) ::
+ (___builtin_fmin,
+   Gfun(External (EF_builtin "__builtin_fmin"
+                   (mksignature (AST.Xfloat :: AST.Xfloat :: nil) AST.Xfloat
+                     cc_default)) (tdouble :: tdouble :: nil) tdouble
+     cc_default)) ::
+ (___builtin_fmadd,
+   Gfun(External (EF_builtin "__builtin_fmadd"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fmsub,
+   Gfun(External (EF_builtin "__builtin_fmsub"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fnmadd,
+   Gfun(External (EF_builtin "__builtin_fnmadd"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_fnmsub,
+   Gfun(External (EF_builtin "__builtin_fnmsub"
+                   (mksignature
+                     (AST.Xfloat :: AST.Xfloat :: AST.Xfloat :: nil)
+                     AST.Xfloat cc_default))
+     (tdouble :: tdouble :: tdouble :: nil) tdouble cc_default)) ::
+ (___builtin_read16_reversed,
+   Gfun(External (EF_builtin "__builtin_read16_reversed"
+                   (mksignature (AST.Xptr :: nil) AST.Xint16unsigned
+                     cc_default)) ((tptr tushort) :: nil) tushort
+     cc_default)) ::
+ (___builtin_read32_reversed,
+   Gfun(External (EF_builtin "__builtin_read32_reversed"
+                   (mksignature (AST.Xptr :: nil) AST.Xint cc_default))
+     ((tptr tuint) :: nil) tuint cc_default)) ::
+ (___builtin_write16_reversed,
+   Gfun(External (EF_builtin "__builtin_write16_reversed"
+                   (mksignature (AST.Xptr :: AST.Xint16unsigned :: nil)
+                     AST.Xvoid cc_default))
+     ((tptr tushort) :: tushort :: nil) tvoid cc_default)) ::
+ (___builtin_write32_reversed,

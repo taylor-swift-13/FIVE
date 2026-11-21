@@ -1,0 +1,295 @@
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveShared.pure_semantics Require Import SemanticsSupport.
+From PprzTrigRelationSupport Require Import PlainCore PureEval PureProgress Total.
+Import ListNotations.
+Definition atom_expr (a: expr): bool :=
+  match a with
+ | Eassign l r _ | Eassignop _ l r _ _ => simple l && simple r
+ | _ => simple a end.
+
+Definition atom_eval (ge: genv) (e: env) (m: mem) (a: expr): option (val * mem) :=
+  match a with
+  | Eassign l r ty =>
+      if type_eq (typeof l) ty then
+      match pure_lval ge e m l, pure_rval ge e m r with
+      | Some (b,ofs,bf), Some v =>
+          match sem_cast v (typeof r) (typeof l) m with
+          | Some v => match Cexec.do_assign_loc ge quiet_world (typeof l) m b ofs bf v with
+              | Some (_,_,m',v') => Some (v',m') | None => None end
+          | None => None end
+      | _,_ => None end else None
+  | Eassignop op l r tyres ty =>
+      if type_eq (typeof l) ty then
+      match pure_lval ge e m l, pure_rval ge e m r with
+      | Some (b,ofs,bf), Some v2 =>
+        match Cexec.do_deref_loc ge quiet_world (typeof l) m b ofs bf with
+        | Some (_,_,v1) =>
+          match sem_binary_operation ge op v1 (typeof l) v2 (typeof r) m with
+          | Some v3 => match sem_cast v3 tyres (typeof l) m with
+            | Some v4 => match Cexec.do_assign_loc ge quiet_world (typeof l) m b ofs bf v4 with
+              | Some (_,_,m',v') => Some(v',m') | None => None end
+            | None => None end
+          | None => None end
+        | None => None end
+      | _,_ => None end else None
+  | _ => match pure_rval ge e m a with Some v => Some (v,m) | None => None end
+  end.
+
+Lemma atom_of_simple:
+  forall a, simple a = true -> atom_expr a = true.
+Proof. destruct a; simpl; auto; discriminate. Qed.
+
+Lemma atom_eval_simple:
+  forall ge e m a, simple a = true ->
+  atom_eval ge e m a = match pure_rval ge e m a with Some v => Some (v,m) | None => None end.
+Proof. destruct a; simpl; auto; discriminate. Qed.
+
+Lemma atom_context_hole:
+  forall from to C, context from to C -> forall a,
+  atom_expr (C a) = true -> atom_expr a = true.
+Proof.
+  induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto using atom_of_simple, simple_context_hole.
+Qed.
+
+Lemma atom_context_impure_root:
+ forall C, Csem.context RV RV C -> forall a,
+ atom_expr(C a)=true -> simple a=false -> forall z,C z=z.
+Proof.
+ intros C HC a HA SA;inversion HC;subst;simpl in HA;core_unpack;try discriminate;auto;
+ exfalso;match goal with
+ | H:Csem.context _ _ ?C, P:simple (?C a)=true |- _=>
+   pose proof(simple_context_hole _ _ _ H _ P);congruence
+ end.
+Qed.
+
+Lemma simple_context_replace:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> simple (C a) = true -> simple b = true -> simple (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HT HA HB; core_unpack; try discriminate; core_build; eauto.
+  rewrite <- (context_type_eq _ _ _ H a b HT); assumption.
+Qed.
+
+Lemma atom_context_replace:
+  forall from to C, context from to C -> forall a b,
+  typeof a = typeof b -> atom_expr (C a) = true -> simple b = true -> atom_expr (C b) = true.
+Proof.
+  induction 1; simpl; intros a b HT HA HB; core_unpack; try discriminate; core_build;
+    eauto using simple_context_replace, atom_of_simple.
+  rewrite <- (context_type_eq _ _ _ H a b HT); assumption.
+Qed.
+
+Lemma atom_context_congr:
+  forall ge e m from C, context from RV C -> forall a b,
+  typeof a = typeof b -> simple a = true -> simple b = true ->
+  pure_eq ge e m from a b -> atom_eval ge e m (C a) = atom_eval ge e m (C b).
+Proof.
+  intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+    try (repeat rewrite atom_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+  all: try (match goal with
+    | |- atom_eval ?ge ?e ?m ?A = atom_eval ?ge ?e ?m ?B =>
+      change (option_map (fun v => (v,m)) (pure_rval ge e m A) =
+              option_map (fun v => (v,m)) (pure_rval ge e m B))
+    end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+  - simpl. rewrite ?(context_type_eq _ _ _ H a b HT), (pure_context_congr ge e m _ _ _ H a b HT HE); reflexivity.
+Qed.
+
+Lemma atom_assign_head:
+  forall ge e m l r ty t a' m', core_expr (Eassign l r ty) = true ->
+  rred ge (Eassign l r ty) m t a' m' ->
+  atom_eval ge e m (Eassign l r ty) = atom_eval ge e m' a'.
+Proof.
+  intros ge e m l r ty t a' m' CORE HR; inversion HR; subst; simpl in CORE; core_unpack.
+  simpl. rewrite dec_eq_true.
+  match goal with H: sem_cast _ _ _ _ = Some _ |- _ => rewrite H end.
+  assert (HT: t = E0) by
+    (match goal with A: assign_loc ge ?T ?M ?B ?O ?BF ?V t ?M' ?V' |- _ =>
+       exact (assign_loc_silent ge T M B O BF V t M' V' ltac:(assumption) A) end). subst t.
+  match goal with A: assign_loc ge _ _ _ _ _ _ E0 _ _ |- _ =>
+    rewrite (do_assign_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ _ A (possible_trace_nil _)) end.
+  reflexivity.
+Qed.
+
+Lemma atom_lred_context:
+  forall ge e m a a' m' from C,
+  context from RV C -> from = LV -> atom_expr (C a) = true ->
+  lred ge e a m a' m' ->
+  m' = m /\ atom_expr (C a') = true /\
+  atom_eval ge e m (C a) = atom_eval ge e m' (C a').
+Proof.
+  intros ge e m a a' m' from C HC KIND FLAT HR; subst from.
+  destruct (pure_lred _ _ _ _ _ _ HR) as [HM [HT [HS HE]]]; subst m'.
+  split; auto; split.
+  - eapply (atom_context_replace _ _ _ HC a a'); eauto; symmetry; exact HT.
+  - assert (SA: simple a = true) by (inversion HR; subst; simpl; auto).
+    exact (atom_context_congr ge e m LV C HC a a' (eq_sym HT) SA HS HE).
+Qed.
+
+Lemma atom_assignop_head:
+ forall ge e m op l r tyres ty t a' m', core_expr(Eassignop op l r tyres ty)=true ->
+ rred ge (Eassignop op l r tyres ty) m t a' m' ->
+ atom_expr a'=true /\ atom_eval ge e m (Eassignop op l r tyres ty)=atom_eval ge e m' a'.
+Proof.
+ intros ge e m op l r tyres ty t a' m' CORE HR;inversion HR;subst;simpl in CORE;core_unpack.
+ split;[reflexivity|]. simpl. rewrite dec_eq_true.
+ assert(HT:t=E0) by (eapply deref_loc_silent;eauto). subst t.
+ match goal with D:deref_loc ge _ _ _ _ _ E0 _ |- _=>
+  rewrite(do_deref_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ D (possible_trace_nil _)) end.
+ reflexivity.
+Qed.
+
+Lemma atom_rred_context:
+ forall ge e m a a' t m' C,
+ Csem.context RV RV C -> atom_expr(C a)=true -> core_expr(C a)=true ->
+ rred ge a m t a' m' -> atom_expr(C a')=true /\
+ atom_eval ge e m (C a)=atom_eval ge e m' (C a').
+Proof.
+ intros ge e m a a' t m' C HC FLAT CORE HR.
+ destruct(simple a) eqn:SA.
+ - destruct(pure_rred ge e a m t a' m' SA HR) as [HM[TT[HT[HS HE]]]];subst m'.
+   split.
+   + exact(atom_context_replace _ _ _ HC a a' (eq_sym HT) FLAT HS).
+   + exact(atom_context_congr ge e m RV C HC a a' (eq_sym HT) SA HS HE).
+ - assert(FA:atom_expr a=true) by (eapply atom_context_hole;eauto).
+   assert(ID:forall z,C z=z) by (eapply atom_context_impure_root;eauto).
+   repeat rewrite ID in FLAT,CORE|-*.
+   destruct a;simpl in SA,FA;try congruence.
+   + inversion HR;subst;split;[reflexivity|]. eapply atom_assign_head;eauto.
+   + eapply atom_assignop_head;eauto.
+Qed.
+ all: try (exfalso;eapply(simple_estep_not_stuck _ _ _ _ _ _ _ _ _ SA PV ES);exact BAD).
+ all: subst next;apply IH with(v:=v);auto.
+ all: try (unfold ltof;eapply simple_estep_rank;eauto).
+ all: try (rewrite <- PV';exact PV).
+ all: try (rewrite TY;exact END).
+Qed.
+
+Lemma flat_rank_context : forall from to C, Csem.context from to C -> forall a b,
+ flat_expr(C a)=true -> expr_rank b<expr_rank a -> expr_rank(C b)<expr_rank(C a).
+Proof.
+ induction 1;simpl;intros;core_unpack;try discriminate;try lia;
+ match goal with IH:forall a b,_ |- _=>
+   assert(D:expr_rank(C b)<expr_rank(C a)) by (apply IH; eauto using flat_of_simple);lia end.
+Qed.
+Lemma flat_rank_rred : forall ge a m t a' m',
+ flat_expr a=true -> rred ge a m t a' m' -> expr_rank a'<expr_rank a.
+Proof. intros;inversion H0;subst;simpl in *;core_unpack;try discriminate;lia. Qed.
+Lemma flat_estep_not_stuck : forall ge f a k e m t s' v mf,
+ flat_expr a=true -> flat_eval ge e m a=Some(v,mf) ->
+ Csem.estep ge (ExprState f a k e m) t s' -> s'<>Stuckstate.
+Proof.
+ intros ge f a k e m t s' v mf SA PV ES EQ;subst s';inversion ES;subst.
+ pose proof(flat_not_stuck _ _ _ _ _ _ SA PV) as NS.
+ match goal with H: ~Csem.imm_safe _ _ _ _ _ |- _ => apply H;eapply NS;eauto end.
+Qed.
+Lemma flat_estep_rank : forall ge f a k e m t a' m',
+ flat_expr a=true -> Csem.estep ge (ExprState f a k e m) t (ExprState f a' k e m') ->
+ expr_rank a'<expr_rank a.
+Proof.
+ intros ge f a k e m t a' m' SA ES;inversion ES;subst.
+ - eapply flat_rank_context;eauto using simple_rank_lred.
+ - eapply flat_rank_context;eauto using flat_rank_rred,flat_context_hole.
+Qed.
+Lemma flat_nonvalue_progress : forall ge f a k e m v mf,
+ flat_expr a=true -> flat_eval ge e m a=Some(v,mf) ->
+ (forall w ty,a<>Eval w ty) -> exists t s',Csem.step ge (ExprState f a k e m) t s'.
+Proof.
+ intros ge f a k e m v mf SA PV NV.
+ pose proof(flat_immediate _ _ _ _ _ _ SA PV) as IM.
+ inversion IM;subst.
+ - exfalso;eapply NV;reflexivity.
+ - eexists;eexists;left;eapply Csem.step_lred;eauto.
+ - eexists;eexists;left;eapply Csem.step_rred;eauto.
+ - assert(BAD:flat_expr e0=true) by (eapply flat_context_hole;eauto).
+   inversion H;subst;discriminate.
+Qed.
+Lemma flat_estep : forall ge f a k e m t next,
+ flat_expr a=true -> core_expr a=true ->
+ Csem.estep ge (ExprState f a k e m) t next ->
+ next=Stuckstate \/ exists a' m',next=ExprState f a' k e m' /\
+ typeof a'=typeof a /\ flat_expr a'=true /\ core_expr a'=true /\
+ flat_eval ge e m a=flat_eval ge e m' a'.
+Proof.
+ intros ge f a k e m t next FL CO ES;inversion ES;subst.
+ - destruct(flat_lred_context ge e m a0 a' m' LV C H7 eq_refl FL H6) as[HM[NF EQ]].
+   destruct(pure_lred ge e a0 m a' m' H6) as[_[TY[_ _]]].
+   subst m'. right;exists(C a'),m;repeat split;auto.
+   + exact(context_type_eq _ _ _ H7 _ _ TY).
+   + eapply core_context_replace;[exact H7|exact CO|].
+     eapply core_lred;[exact(core_context_hole _ _ _ H7 _ CO)|exact H6].
+ - match goal with RR:rred ge ?A m t ?A' ?M',HC:Csem.context RV RV ?C |- _=>
+   destruct(flat_rred_context ge e m A A' t M' C HC FL CO RR) as[NF EQ];
+   right;exists(C A'),M';repeat split;auto end.
+   + eapply context_type_eq;eauto. match goal with RR:rred _ _ _ _ _ _|-_=>inversion RR;subst;simpl;auto end.
+   + eapply core_context_replace;eauto.
+     eapply (proj2(core_rred _ _ _ _ _ _ ltac:(eapply core_context_hole;eauto) ltac:(eassumption))).
+ - exfalso;eapply core_no_callred;[eapply core_context_hole;eauto|eassumption].
+ - left;reflexivity.
+Qed.
+Theorem flat_prefix_total : forall ge Q f e k a m v mf,
+ flat_expr a=true -> core_expr a=true -> flat_eval ge e m a=Some(v,mf) ->
+ total ge Q (ExprState f (Eval v (typeof a)) k e mf) ->
+ total ge Q (ExprState f a k e m).
+Proof.
+ intros ge Q f e k.
+ apply(well_founded_induction(well_founded_ltof _ expr_rank)
+  (fun a=>forall m v mf,flat_expr a=true -> core_expr a=true ->
+   flat_eval ge e m a=Some(v,mf) ->
+   total ge Q (ExprState f (Eval v (typeof a)) k e mf) -> total ge Q (ExprState f a k e m))).
+ intros a IH m v mf FL CO EV END.
+ destruct a eqn:EA;try discriminate FL.
+ all: try (simpl in EV;inversion EV;subst;exact END).
+ all: apply total_next.
+ all: try (eapply flat_nonvalue_progress;eauto;intros;discriminate).
+ all: intros t next STEP;destruct STEP as[ES|SS].
+ all: try(inversion SS;subst;discriminate).
+ all: destruct(flat_estep _ _ _ _ _ _ _ _ FL CO ES) as[BAD|[a'[m'[EQ[TY[FL'[CO' EV']]]]]]].
+ all: try(exfalso;eapply(flat_estep_not_stuck _ _ _ _ _ _ _ _ _ _ FL EV ES);exact BAD).
+ all: subst next;apply IH with(v:=v)(mf:=mf);auto.
+ all: try(unfold ltof;eapply flat_estep_rank;eauto).
+ all: try(rewrite <-EV';exact EV).
+ all: rewrite TY;exact END.
+Qed.
+291:  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+296:  | red_postincr: forall id b ofs ty bf m t v1 op,
+
+(** ** Reduction semantics for expressions *)
+
+Section EXPR.
+
+Variable e: env.
+
+(** The semantics of expressions follows the popular Wright-Felleisen style.
+  It is a small-step semantics that reduces one redex at a time.
+  We first define head reductions (at the top of an expression, then
+  use reduction contexts to define reduction within an expression. *)
+
+(** Head reduction for l-values. *)
+
+Inductive lred: expr -> mem -> expr -> mem -> Prop :=
+  | red_var_local: forall x ty m b,
+      e!x = Some(b, ty) ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_var_global: forall x ty m b,
+      e!x = None ->
+      Genv.find_symbol ge x = Some b ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_deref: forall b ofs ty1 ty m,
+      lred (Ederef (Eval (Vptr b ofs) ty1) ty) m
+           (Eloc b ofs Full ty) m
+  | red_field_struct: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tstruct id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m
+  | red_field_union: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      union_field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tunion id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m.
+
+(** Head reductions for r-values *)

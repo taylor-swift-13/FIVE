@@ -1,0 +1,84 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import BigstepSupport StackCleanup FunctionAllocation.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics.
+From PidPositionSafety Require Import FactoryCall.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+From PidPositionSafety Require Import FrontObserved InputSubtractionBounds SubtractionWiring SubtractionObservation.
+From CoreCBMC Require Import NumericBounds.
+From PidPositionTranslationAttempt002 Require Import EntryAllocation InputSemantics FrontSemantics ClampSemantics EntryIntegration.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+
+Lemma entry_allocation_deterministic:forall ge env m vars e1 ma1 e2 ma2,
+ alloc_variables ge env m vars e1 ma1 ->alloc_variables ge env m vars e2 ma2 ->
+ e1=e2 /\ ma1=ma2.
+Proof.
+ intros ge env m vars e1 ma1 e2 ma2 A1 A2.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A1)as D1.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma entry_parameters_deterministic:forall ge e m params args mf1 mf2,
+ bind_parameters ge e m params args mf1 ->bind_parameters ge e m params args mf2 ->mf1=mf2.
+Proof.
+ intros ge e m params args mf1 mf2 B1 B2.
+ pose proof(Cexec.sem_bind_parameters_complete ge Execution.quiet_world e m params args mf1 B1)as D1.
+ pose proof(Cexec.sem_bind_parameters_complete ge Execution.quiet_world e m params args mf2 B2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma entry_internal_dispatch_transition:forall ge f args m e ma mb k,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f)) ->
+ alloc_variables ge empty_env m(fn_params f++fn_vars f)e ma ->
+ bind_parameters ge e ma(fn_params f)args mb ->
+ unique_transition ge(Callstate(Internal f)args k m)(State f(fn_body f)k e mb).
+Proof.
+ intros ge f args m e ma mb k NAMES ALLOC BIND;split.
+ - right;eapply step_internal_function;[exact NAMES|exact ALLOC|exact BIND].
+ - intros t next[ES|SS];[inversion ES|].
+   inversion SS;subst;split;[reflexivity|].
+   match goal with A:alloc_variables ge empty_env m(fn_params f++fn_vars f)?ee ?mx
+    |-State _ _ _ ?ee _=_ =>
+     destruct(entry_allocation_deterministic ge empty_env m _ e ma ee mx ALLOC A)as[EE MM];subst ee mx end.
+   match goal with B:bind_parameters ge e ma(fn_params f)args ?mx |-State _ _ _ _ ?mx=_=>
+    pose proof(entry_parameters_deterministic ge e ma(fn_params f)args mb mx BIND B)as EQ;subst mx;reflexivity end.
+Qed.
+
+Theorem inputgood_entry_front_core_observed : forall m gh ret flight,
+ InputGood m gh ret ->
+ exists e mf pb vb sb rx ry px py sx sy vx vy br bf bg bs,
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb /\
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some vb /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ (exists P,certificate E.ge P(State S.f_guidance_pid_h_run_pos after_front Kstop e mf) /\
+ P(E.entry(call_args gh ret flight)m)/\
+ (forall s,P s->arithmetic_observation E.ge S.f_guidance_pid_h_run s)) /\
+ Mem.load Mint32 mf pb 0=Some(Vint(clamp_bits(Int.sub rx px)(Int.repr 4096))) /\
+ Mem.load Mint32 mf pb 4=Some(Vint(clamp_bits(Int.sub ry py)(Int.repr 4096))) /\
+ Mem.load Mint32 mf vb 0=Some(Vint(clamp_bits(Int.sub sx vx)(Int.repr 8388608))) /\
+ Mem.load Mint32 mf vb 4=Some(Vint(clamp_bits(Int.sub sy vy)(Int.repr 8388608))) /\
+ e!S.__res=Some(br,tptr sp_type) /\e!S._in_flight=Some(bf,tbool) /\
+ e!S._gh=Some(bg,tptr gh_type) /\e!S.__res__1=Some(bs,sp_type) /\
+ Mem.load Mint64 mf br 0=Some(Vptr ret Ptrofs.zero) /\
+ Mem.load Mint64 mf bg 0=Some(Vptr gh Ptrofs.zero) /\
+ Mem.load Mbool mf bf 0=Some(Vint(if flight then Int.one else Int.zero)) /\
+ env_separated e /\
+ (forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b) /\
+ (forall id b ty,e!id=Some(b,ty)->Mem.range_perm mf b 0(sizeof E.ge ty)Cur Freeable) /\
+ (forall ch b ofs v,Mem.load ch m b ofs=Some v ->b<>pb ->b<>vb ->Mem.load ch mf b ofs=Some v) /\
+ (forall b ofs k p,Mem.perm m b ofs k p ->Mem.perm mf b ofs k p) /\
+ (forall id,~In id(map fst entry_declar

@@ -1,0 +1,57 @@
+Chars 0 - 57 [From~compcert~Require~Import~E...] 0.487 secs (0.259u,0.226s)
+Chars 58 - 86 [Require~PprzTrigInit.Source.] 0.002 secs (0.u,0.002s)
+Chars 88 - 173 [Lemma~original_init_program_we...] 0. secs (0.u,0.s)
+Chars 174 - 180 [Proof.] 0. secs (0.u,0.s)
+Chars 182 - 272 [apply~~(@Ctyping.typecheck_pro...] 0. secs (0.u,0.s)
+Chars 274 - 297 [vm_compute;~reflexivity.] 0.18 secs (0.17u,0.008s)
+Chars 298 - 302 [Qed.] 0.142 secs (0.142u,0.s)
+wt_call_state
+     : forall (prog : program) (b : Values.val) (fd : fundef)
+         (vargs : list Values.val) (k : cont) (m : Memory.Mem.mem),
+       wt_call_cont prog k (fundef_return fd) ->
+       wt_fundef (globalenv prog)
+         (bind_globdef (Maps.PTree.empty Ctypes.type) (Ctypes.prog_defs prog))
+         fd ->
+       Globalenvs.Genv.find_funct (globalenv prog) b = Some fd ->
+       wt_state prog (Callstate fd vargs k m)
+Chars 303 - 332 [Check~@Ctyping.wt_call_state.] 0. secs (0.u,0.s)
+wt_find_funct
+     : forall prog : program,
+       wt_program prog ->
+       forall (v : Values.val) (fd : fundef),
+       Globalenvs.Genv.find_funct (globalenv prog) v = Some fd ->
+       wt_fundef (globalenv prog)
+         (bind_globdef (Maps.PTree.empty Ctypes.type) (Ctypes.prog_defs prog))
+         fd
+Chars 333 - 362 [Check~@Ctyping.wt_find_funct.] 0. secs (0.u,0.s)
+preservation
+     : forall prog : program,
+       wt_program prog ->
+       forall (S : state) (t : Events.trace) (S' : state),
+       step (globalenv prog) S t S' -> wt_state prog S -> wt_state prog S'
+Chars 363 - 391 [Check~@Ctyping.preservation.] 0. secs (0.u,0.s)
+wt_subexpr
+     : forall (cenv : Ctypes.composite_env) (tenv : typenv) 
+         (a : expr) (from to : kind) (C : expr -> expr),
+       context from to C ->
+       wt_expr_kind cenv tenv to (C a) -> wt_expr_kind cenv tenv from a
+Chars 392 - 418 [Check~@Ctyping.wt_subexpr.] 0. secs (0.u,0.s)
+wt_val_int
+     : forall (n : Integers.Int.int) (sz : Ctypes.intsize)
+         (sg : Ctypes.signedness) (a : Ctypes.attr),
+       wt_int n sz sg -> wt_val (Values.Vint n) (Ctypes.Tint sz sg a)
+Chars 419 - 445 [Check~@Ctyping.wt_val_int.] 0. secs (0.u,0.s)
+wt_int
+     : Integers.Int.int -> Ctypes.intsize -> Ctypes.signedness -> Prop
+Chars 446 - 468 [Check~@Ctyping.wt_int.] 0. secs (0.u,0.s)
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Chars 469 - 520 [Print~Assumptions~original_ini...] 0.679 secs (0.638u,0.038s)

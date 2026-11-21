@@ -1,0 +1,49 @@
+   'theorems':theorem_names,'statement_artifacts':[rel(snapshots[p])for p in roots],'dependency_sha256':hashes})
+  source_bound_receipt=base/'source-bound-kernel-evidence.json'
+  dump(source_bound_receipt,{'kind':'rocq-kernel-check','run':rel(run.folder),'command_id':kernel['id'],
+   'theorems':theorem_names,'statement_artifacts':[rel(snapshots[p])for p in roots],
+   'dependency_sha256':{**hashes,**{rel(p):h for p,h in {**frozen,**current}.items()}},
+   'canonical_to_compiled_snapshot':[{ 'source':rel(p),'snapshot':rel(snapshots[p]),'sha256':h}for p,h in current.items()],
+   'scope':'Same actual independent kernel; canonical C/model inputs were captured in this run and hash-equal .v source snapshots were fully compiled. Canonical proof-goal validation separately binds every source-to-snapshot pair.'})
+  certificates=[]
+  for g in groups:
+   target=checked/rel(g['attempt'])/'GoalBinding.v';target.write_text(certificate_source(g['imports'],g['bindings']))
+   run.capture(target,'cold-certificate-'+hashlib.sha256(rel(target).encode()).hexdigest()[:18],area='inputs')
+   compiled=command(['rocq','compile','-q',*flags,rel(target)],'cold-exact-goalbinding')
+   certificates.append((g,target,compiled,namespace(g['attempt']/'GoalBinding.v',pairs)))
+  cert_kernel=command(['rocq','check','-silent',*flags,*[c[3]for c in certificates]],'cold-independent-goalbinding-kernel')
+  for p,h in {**frozen,**current}.items():
+   if sha(p)!=h:raise ValueError('Input changed during cold check: '+str(p))
+  # Recheck pinned semantics and all originally consumed stage files separately.
+  fresh,semantics_now=frozen_inputs()
+  if semantics_now!=semantics or any(fresh.get(p)!=h for p,h in frozen.items() if p in fresh):
+   raise ValueError('Frozen model/source inputs changed during cold check')
+  for g,target,compiled,module in certificates:
+   cert_receipt=target.parent/'certificate-kernel-evidence.json'
+   dump(cert_receipt,{'kind':'rocq-kernel-check','run':rel(run.folder),'command_id':cert_kernel['id'],
+    'theorems':[module+'.goal_'+str(i)for i in range(len(g['bindings']))],
+    'statement_artifacts':[rel(target)],'dependency_sha256':{**hashes,rel(target):sha(target)}})
+   if args.publish:
+    index=g['attempt']/'provenance.json'
+    if (g['attempt']/'inputs.json').exists():raise ValueError('Competing input indexes')
+    indexed={rel(p):h for p,h in {**current,**frozen}.items()}
+    dump(index,{'schema':'five-proof-inputs/1','dependency_sha256':indexed,'semantic_dependencies':semantics})
+    rows=[{'path':p,'sha256':h,**({'snapshot':rel(snapshots[ROOT/p])}if ROOT/p in snapshots else{})}for p,h in sorted(indexed.items())]
+    dump(g['attempt']/'evidence/goal-validation.json',{'schema':'five-proof-validation/1','index':{'path':rel(index),'sha256':sha(index)},
+     'inputs':rows,'kernel_evidence':rel(proof_receipt),'source_bound_kernel_evidence':rel(source_bound_receipt),'goal_bindings':g['bindings'],
+     'certificate':{'path':rel(target),'sha256':sha(target),'module':module,'imports':g['imports'],
+      'run':rel(run.folder),'compile_command_id':compiled['id'],'kernel_command_id':cert_kernel['id'],'kernel_evidence':rel(cert_receipt)}})
+    status=read(g['problem']/'status.json')
+    if status['requested_goals']!=[b['requested_goal']for b in g['bindings']]:raise ValueError('Canonical goal list changed')
+    status.update(status=g['outcome'],goal_status={b['requested_goal']:b.get('outcome','proved')for b in g['bindings']})
+    dump(g['problem']/'status.json',status)
+  summary={'status':'passed','sources':len(order),'attempts':len(groups),'goals':len(theorem_names),'proof_kernel':rel(proof_receipt),'run':rel(run.folder)}
+  print(json.dumps(summary,indent=2))
+  if owned:run.finish('passed','Cold snapshots, exact typed worker goals and independent kernels passed.',{'kernel':proof_receipt})
+ except BaseException:
+  if owned and run.read('run.json')['status']=='running':
+   note=run.folder/'evidence/checker-failure.json';dump(note,{'status':'failed','note':'Inspect actual command logs; no new proof acceptance.'})
+   run.finish('failed','Cold checker did not complete.',{'failure':note})
+  raise
+
+if __name__=='__main__':main()

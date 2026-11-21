@@ -1,0 +1,33 @@
+Definition access_mode (ty: type) : mode :=
+  match ty with
+  | Tint I8 Signed _ => By_value Mint8signed
+  | Tint I8 Unsigned _ => By_value Mint8unsigned
+  | Tint I16 Signed _ => By_value Mint16signed
+  | Tint I16 Unsigned _ => By_value Mint16unsigned
+  | Tint I32 _ _ => By_value Mint32
+  | Tint IBool _ _ => By_value Mbool
+  | Tlong _ _ => By_value Mint64
+  | Tfloat F32 _ => By_value Mfloat32
+  | Tfloat F64 _ => By_value Mfloat64
+  | Tvoid => By_nothing
+  | Tpointer _ _ => By_value Mptr
+  | Tarray _ _ _ => By_reference
+  | Tfunction _ _ _ => By_reference
+  | Tstruct _ _ => By_copy
+  | Tunion _ _ => By_copy
+end.
+
+(** For the purposes of the semantics and the compiler, a type denotes
+  a volatile access if it carries the [volatile] attribute and it is
+  accessed by value. *)
+
+Definition type_is_volatile (ty: type) : bool :=
+  match access_mode ty with
+  | By_value _ => attr_volatile (attr_of_type ty)
+  | _          => false
+  end.
+
+(** ** Alignment for block copy operations *)
+
+(** A variant of [alignof] for use in block copy operations.
+  Block copy operations do not support alignment

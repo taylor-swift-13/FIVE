@@ -1,0 +1,31 @@
+Ltac scalar_frame :=
+ repeat match goal with
+ | ST:Mem.store ?ch ?before ?dst ?pos ?value=Some ?after |- context[Mem.load ?c ?after ?b ?o] =>
+   first [rewrite(Mem.load_store_same _ _ _ _ _ _ ST);cbn[Val.load_result]|
+          rewrite(Mem.load_store_other _ _ _ _ _ _ ST) by (first[left;congruence|right;cbn[size_chunk];lia])]
+ | ST:Mem.storebytes ?before ?dst ?pos ?value=Some ?after |- context[Mem.load ?c ?after ?b ?o] =>
+   rewrite(Mem.load_storebytes_other _ _ _ _ _ ST) by (first[left;congruence|right;cbn[size_chunk];lia])
+ end.
+Definition active_fields(m:mem)(ret:block)(x y h:int):Prop:=
+ Mem.load Mint32 m ret 0=Some(Vint(Int.repr 2)) /\
+ Mem.load Mint32 m ret 4=Some(Vint Int.zero) /\
+ Mem.load Mint32 m ret 8=Some(Vint x) /\
+ Mem.load Mint32 m ret 12=Some(Vint y) /\
+ Mem.load Mint32 m ret 16=Some(Vint h) /\
+ Mem.load Mint32 m ret 24=Some(Vint Int.zero) /\
+ Mem.load Mint32 m ret 28=Some(Vint Int.zero) /\
+ Mem.load Mint32 m ret 32=Some(Vint Int.zero).
+Theorem factory_trace_active:forall m bs src ret o h mf x y,
+ factory_trace m bs src ret o h mf ->src<>bs ->
+ Mem.load Mint32 m src(Ptrofs.unsigned o)=Some(Vint x) ->
+ Mem.load Mint32 m src(Ptrofs.unsigned o+4)=Some(Vint y) ->
+ active_fields mf ret x y h.
+Proof.
+ intros m bs src ret o h mf x y TRACE DS LX LY.
+ destruct TRACE as(m1&m2&m3&m4&m5&m6&m7&vb&sb&T&F&V&VC&H&P&Q&R&BY&COPY).
+ assert(X2:Mem.load Mint32 m2 src(Ptrofs.unsigned o+0)=Some(Vint x)).
+ { replace(Ptrofs.unsigned o+0)with(Ptrofs.unsigned o)by lia;scalar_frame;exact LX. }
+ assert(Y2:Mem.load Mint32 m2 src(Ptrofs.unsigned o+4)=Some(Vint y)).
+ { scalar_frame;exact LY. }
+ assert(X3:Mem.load Mint32 m3 bs 8=Some(Vint x)).
+ { replace 8 with(8+0)by lia;eapply copy_type

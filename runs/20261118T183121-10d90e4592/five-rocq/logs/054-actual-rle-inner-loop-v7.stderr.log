@@ -1,0 +1,51 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/InitLoop.v", line 126, characters 7-18:
+Error:
+In environment
+Q : val -> mem -> Prop
+k : cont
+e : env
+c : chunk
+P, A : Z -> mem -> Prop
+IN : In c literal_chunks
+GUARD :
+  forall (j : Z) (m : mem),
+  0 <= j <= repetitions c ->
+  P j m ->
+  pure_rval Execution.ge e m (inner_condition c) =
+  Some (Val.of_bool (Int.cmp Clt (Int.repr j) (Int.repr (repetitions c))))
+FINISH :
+  forall m : mem,
+  P (repetitions c) m ->
+  total Execution.ge Q (State Source.f_pprz_trig_int_init Sskip k e m)
+BODY :
+  forall (j : Z) (m : mem),
+  0 <= j < repetitions c ->
+  P j m ->
+  (forall mf : mem,
+   A j mf ->
+   total Execution.ge Q
+     (State Source.f_pprz_trig_int_init Sskip
+        (Kfor3 (inner_condition c) (inner_advance c) (inner_body c) k) e mf)) ->
+  total Execution.ge Q
+    (State Source.f_pprz_trig_int_init (inner_body c)
+       (Kfor3 (inner_condition c) (inner_advance c) (inner_body c) k) e m)
+ADVANCE :
+  forall (j : Z) (m : mem),
+  0 <= j < repetitions c ->
+  A j m ->
+  (forall mf : mem,
+   P (j + 1) mf ->
+   total Execution.ge Q
+     (State Source.f_pprz_trig_int_init Sskip
+        (Kfor4 (inner_condition c) (inner_advance c) (inner_body c) k) e mf)) ->
+  total Execution.ge Q
+    (State Source.f_pprz_trig_int_init (inner_advance c)
+       (Kfor4 (inner_condition c) (inner_advance c) (inner_body c) k) e m)
+REP : 0 < repetitions c <= 41
+m : mem
+INV : P (repetitions c) m
+J : 0 <= repetitions c <= repetitions c
+EQ : repetitions c + Z.of_nat 0 = repetitions c
+Unable to unify "Some false" with
+ "bool_val (Vint Int.zero) (typeof (inner_condition c)) m".
+

@@ -1,0 +1,1326 @@
+FILE paparazzi/relations/pid_position_translation/attempts/002/ComputedRelation.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement CoreInputs DataAgreement NormalReturn.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+
+Lemma axis_translation_sub_equal : forall gh a b axis d ra pa rb pb,
+ AxisTranslation gh a b axis d ->
+ load_path Mint32 a gh gh_type(ref_pos axis)=Some(Vint ra) ->
+ load_global Mint32 a S._state state_type(measured_pos axis)=Some(Vint pa) ->
+ load_path Mint32 b gh gh_type(ref_pos axis)=Some(Vint rb) ->
+ load_global Mint32 b S._state state_type(measured_pos axis)=Some(Vint pb) ->
+ Int.sub ra pa=Int.sub rb pb.
+Proof.
+ intros gh a b axis d ra pa rb pb
+ (ra0&pa0&rb0&pb0&RA&PA&RB&PB&PHY&RBE&PBE)RA' PA' RB' PB'.
+ rewrite RA in RA';inversion RA';subst ra0.
+ rewrite PA in PA';inversion PA';subst pa0.
+ rewrite RB in RB';inversion RB';subst rb0.
+ rewrite PB in PB';inversion PB';subst pb0.
+ rewrite!Int.sub_signed;rewrite RBE,PBE,common_translation_difference;reflexivity.
+Qed.
+Lemma active_fields_pair_observation : forall ret a b x y heading,
+ active_fields a ret x y heading ->active_fields b ret x y heading ->ActiveReturnEqual ret a b.
+Proof.
+ intros ret a b x y heading(A0&A4&A8&A12&A16&AR)(B0&B4&B8&B12&B16&BR).
+ unfold ActiveReturnEqual;split;[exact A0|];split;[exact B0|];split;[exact A4|];split;[exact B4|].
+ intros path IN;destruct IN as[<-|[<-|[<-|[]]]];unfold same_loaded_int32;
+ [exists x|exists y|exists heading];split;assumption.
+Qed.
+Lemma equal_raw_controller_observation : forall a b bp bi cx cy ix iy,
+ Genv.find_symbol E.ge S._guidance_pid=Some bp ->
+ Genv.find_symbol E.ge S._guidance_pid_trim_att_integrator=Some bi ->
+ Mem.load Mint32 a bp 32=Some(Vint cx) ->Mem.load Mint32 b bp 32=Some(Vint cx) ->
+ Mem.load Mint32 a bp 36=Some(Vint cy) ->Mem.load Mint32 b bp 36=Some(Vint cy) ->
+ Mem.load Mint32 a bi 0=Some(Vint ix) ->Mem.load Mint32 b bi 0=Some(Vint ix) ->
+ Mem.load Mint32 a bi 4=Some(Vint iy) ->Mem.load Mint32 b bi 4=Some(Vint iy) ->
+ ControllerEqual a b.
+Proof.
+ intros a b bp bi cx cy ix iy SP SI AX BX AY BY AIX BIX AIY BIY axis IN.
+ destruct IN as[<-|[<-|[]]];split;unfold same_loaded_int32.
+ - exists cx;unfold load_global;rewrite SP;split;assumption.
+ - exists ix;unfold load_global;rewrite SI;split;assumption.
+ - exists cy;unfold load_global;rewrite SP;split;assumption.
+ - exists iy;unfold load_global;rewrite SI;split;assumption.
+Qed.
+
+Theorem constructed_original_position_translation : forall gh ret a b dx dy flight,
+ InputPair gh ret a b dx dy ->
+ exists af bf,NormalCall gh ret flight a af /\NormalCall gh ret flight b bf /\FinalRelation gh ret af bf.
+Proof.
+ intros gh ret a b dx dy flight INPUT;pose proof INPUT as[A[B[FRAME[TX TY]]]].
+ destruct(inputgood_core_initial_data a gh ret A)as[DA _].
+ destruct(inputgood_core_initial_data b gh ret B)as[DB _].
+ pose proof(canonical_pair_core_parameters_agree a b gh ret dx dy DA DB INPUT)as EQ.
+ unfold core_parameters_agree in EQ;destruct EQ as(EPID&EIBLOCK&EKP&EKD&EKI&EKV&EKA&EAX&EAY&EIX&EIY&EHEAD).
+ destruct(original_entry_normal_result a gh ret flight DA A)
+ as(af&rax&ray&pax&pay&sax&say&vax&vay&sa&
+ CALLA&STA&RAX&RAY&PAX&PAY&SAX&SAY&VAX&VAY&ACTA&IAX&IAY&CAX&CAY).
+ destruct(original_entry_normal_result b gh ret flight DB B)
+ as(bf&rbx&rby&pbx&pby&sbx&sby&vbx&vby&sb&
+ CALLB&STB&RBX&RBY&PBX&PBY&SBX&SBY&VBX&VBY&ACTB&IBX&IBY&CBX&CBY).
+ assert(SAMESTATE:sb=sa)by(congruence);subst sb.
+ assert(DX:Int.sub rax pax=Int.sub rbx pbx).
+ { eapply axis_translation_sub_equal;[exact TX|exact RAX| |exact RBX|].
+   - unfold load_global;rewrite STA;exact PAX.
+   - unfold load_global;rewrite STA;exact PBX. }
+ assert(DY:Int.sub ray pay=Int.sub rby pby).
+ { eapply axis_translation_sub_equal;[exact TY|exact RAY| |exact RBY|].
+   - unfold load_global;rewrite STA;exact PAY.
+   - unfold load_global;rewrite STA;exact PBY. }
+ assert(GRET:gh<>ret)by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(RET:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(SRET:sa<>ret)by(intro EQUAL;subst sa;apply(RET S._state);exact STA).
+ change(Mem.load Mint32 a gh 52=Some(Vint sax))in SAX.
+ change(Mem.load Mint32 a gh 56=Some(Vint say))in SAY.
+ change(Mem.load Mint32 b gh 52=Some(Vint sbx))in SBX.
+ change(Mem.load Mint32 b gh 56=Some(Vint sby))in SBY.
+ let agree LA LB OUT :=
+ lazymatch type of LA with Mem.load ?ch a ?blk ?ofs=Some ?v=>
+ let TRANS:=fresh "TRANSFER" in
+ assert(TRANS:Mem.load ch b blk ofs=Some v)by(
+ eapply canonical_frame_load_transfer;[exact FRAME|exact OUT| |exact LA];
+ intros i R T;pose proof(translated_byte_offset _ _ _ T)as RANGE;cbn[size_chunk]in R;lia);
+ rewrite LB in TRANS;congruence end in
+ assert(ESX:sax=sbx)by(agree SAX SBX GRET);
+ assert(ESY:say=sby)by(agree SAY SBY GRET);
+ assert(EVX:vax=vbx)by(agree VAX VBX SRET);
+ assert(EVY:vay=vby)by(agree VAY VBY SRET).
+ assert(CMDX:entry_axis_command a gh DA flight rax pax sax vax(cid_ax _ _ DA)(cid_ix _ _ DA)=
+ entry_axis_command b gh DB flight rbx pbx sbx vbx(cid_ax _ _ DB)(cid_ix _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAX,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(CMDY:entry_axis_command a gh DA flight ray pay say vay(cid_ay _ _ DA)(cid_iy _ _ DA)=
+ entry_axis_command b gh DB flight rby pby sby vby(cid_ay _ _ DB)(cid_iy _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAY,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ assert(INTX:entry_axis_integral a gh DA flight rax pax sax vax(cid_ix _ _ DA)=
+ entry_axis_integral b gh DB flight rbx pbx sbx vbx(cid_ix _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(INTY:entry_axis_integral a gh DA flight ray pay say vay(cid_iy _ _ DA)=
+ entry_axis_integral b gh DB flight rby pby sby vby(cid_iy _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ rewrite<-CMDX,<-CMDY,<-EHEAD in ACTB.
+ rewrite<-EIBLOCK,<-INTX in IBX;rewrite<-EIBLOCK,<-INTY in IBY.
+ rewrite<-EPID,<-CMDX in CBX;rewrite<-EPID,<-CMDY in CBY.
+ exists af,bf;split;[exact CALLA|];split;[exact CALLB|];split.
+ - eapply equal_raw_controller_observation;
+   [exact(cid_pid_symbol _ _ DA)|exact(cid_i_symbol _ _ DA)|exact CAX|exact CBX|exact CAY|exact CBY|exact IAX|exact IBX|exact IAY|exact IBY].
+ - eapply active_fields_pair_observation;[exact ACTA|exact ACTB].
+Qed.
+Print Assumptions constructed_original_position_translation.
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/FramedNormalReturn.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import BigstepSupport StackCleanup FunctionAllocation.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreSemantics FlightSemantics ControllerPrefix CoreCall ReturnSemantics.
+From PidPositionSafety Require Import FactoryCall.
+From PidPositionTranslationAttempt002 Require Import ClampSemantics PrefixFields EntryAllocation EntryIntegration EntryReturn CoreInputs.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+From PidPositionTranslationAttempt002 Require Import InputSemantics NormalReturn EntryTraceIntegration CoreCompleteCall FrontBytes.
+From PidPositionTranslationCore Require Import CoreMemory MemoryShape PreciseFrame.
+Theorem original_entry_framed_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb be bs,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))) /\
+ load_global Mint32 mf S._guidance_pid_pos_err vec_type[S._x]=Some(Vint(ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096))) /\
+ load_global Mint32 mf S._guidance_pid_pos_err vec_type[S._y]=Some(Vint(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096))) /\
+ load_global Mint32 mf S._guidance_pid_speed_err vec_type[S._x]=Some(Vint(ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608))) /\
+ load_global Mint32 mf S._guidance_pid_speed_err vec_type[S._y]=Some(Vint(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608))) /\
+ load_path Mint32 mf gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 mf gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some be /\
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some bs /\
+ stack_shape m mf 15%nat /\
+ (forall b ofs n,Mem.valid_block m b ->b<>ret ->
+ (b<>be \/ofs+n<=0 \/8<=ofs) ->(b<>bs \/ofs+n<=0 \/8<=ofs) ->
+ (b<>cid_pid _ _ D \/ofs+n<=32 \/40<=ofs) ->(b<>cid_i _ _ D \/ofs+n<=0 \/8<=ofs) ->
+ 0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n) /\
+ Mem.loadbytes mf (cid_i _ _ D) 0 4=Some(encode_val Mint32(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D)))) /\
+ Mem.loadbytes mf (cid_i _ _ D) 4 4=Some(encode_val Mint32(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D)))) /\
+ Mem.loadbytes mf (cid_pid _ _ D) 32 4=Some(encode_val Mint32(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D)))) /\
+ Mem.loadbytes mf (cid_pid _ _ D) 36 4=Some(encode_val Mint32(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D)))) /\
+ Mem.loadbytes mf be 0 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096)))) /\
+ Mem.loadbytes mf be 4 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096)))) /\
+ Mem.loadbytes mf bs 0 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608)))) /\
+ Mem.loadbytes mf bs 4 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608)))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_front_trace m gh ret flight GOOD)
+ as(e&front&be&bs&sb&rx&ry&px&py&sx&sy&vx&vy&br&bf&bg&temp&
+ SE&SS&STATE&RX&RY&PX&PY&SX&SY&VX&VY&PATH&PEX&PEY&SEX&SEY&
+ LR&LF&LG&LC&RES&GH&FLIGHT&SEP&FRESH&FREE&FRAME&PERM&UNSH&TRACE).
+ destruct TRACE as(ma&mb&ALLOC&BINDWRITES&FRONTRUN&OLDBYTES).
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid SP)as IP.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_pos_err SE)as IE.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_speed_err SS)as IS.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_trim_att_integrator SI)as II.
+ pose proof(Genv.find_invert_symbol E.ge S._traj_max_bank ST)as IT.
+ pose proof(Genv.find_invert_symbol E.ge S._total_max_bank SU)as IU.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_h SH)as IH.
+ cbv[S._guidance_pid S._guidance_pid_pos_err S._guidance_pid_speed_err S._guidance_pid_trim_att_integrator S._traj_max_bank S._total_max_bank S._guidance_h]in IP,IE,IS,II,IT,IU,IH.
+ assert(GP:gh<>bp)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid bp GOOD SP ltac:(discriminate))).
+ assert(GE:gh<>be)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_pos_err be GOOD SE ltac:(discriminate))).
+ assert(GS:gh<>bs)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_speed_err bs GOOD SS ltac:(discriminate))).
+ assert(GI:gh<>bi)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_trim_att_integrator bi GOOD SI ltac:(discriminate))).
+ assert(GT:gh<>bt)by(exact(inputgood_guidance_separate m gh ret S._traj_max_bank bt GOOD ST ltac:(discriminate))).
+ assert(GU:gh<>bu)by(exact(inputgood_guidance_separate m gh ret S._total_max_bank bu GOOD SU ltac:(discriminate))).
+ assert(ND:NoDup[bp;be;bs;gh;bi;bt;bu]).
+ { let rec distinct := lazymatch goal with
+   | |-NoDup []=>apply NoDup_nil
+   | |-NoDup(_::_)=>apply NoDup_cons;[cbn;intuition congruence|distinct]
+   end in distinct. }
+ assert(VP:Mem.valid_block m bp)by(eapply loaded_block;exact KP).
+ assert(VI:Mem.valid_block m bi)by(eapply loaded_block;exact IX).
+ assert(TP:temp<>bp)by(intro EQ;subst temp;exact(FRESH S.__res__1 bp sp_type LC VP)).
+ assert(TI:temp<>bi)by(intro EQ;subst temp;exact(FRESH S.__res__1 bi sp_type LC VI)).
+ assert(BRP:br<>bp)by(intro EQ;subst br;exact(FRESH S.__res bp(tptr sp_type)LR VP)).
+ assert(BRI:br<>bi)by(intro EQ;subst br;exact(FRESH S.__res bi(tptr sp_type)LR VI)).
+ assert(BRT:br<>temp)by(eapply environment_distinct;[exact SEP| |exact LR|exact LC];discriminate).
+ assert(WPF:Mem.range_perm front bp 0 48 Cur Writable)by(intros ofs R;apply PERM;apply WP;exact R).
+ assert(WIF:Mem.range_perm front bi 0 8 Cur Writable)by(intros ofs R;apply PERM;apply WI;exact R).
+ assert(WTEMP:Mem.range_perm front temp 0 36 Cur Writable).
+ { pose proof(FREE S.__res__1 temp sp_type LC)as W.
+   rewrite PrefixFields.prefix_ge_ce in W;change(Mem.range_perm front temp 0 36 Cur Freeable)in W.
+   intros ofs R;eapply Mem.perm_implies;[apply W;exact R|constructor]. }
+ assert(WRET0:Mem.range_perm m ret 0 36 Cur Writable).
+ { destruct GOOD as[LEG _];assert(W:Mem.range_perm m ret 0(sizeof ce sp_type)Cur Writable)by(unfold InputGoodLegacy in LEG;tauto);exact W. }
+ assert(WRET:Mem.range_perm front ret 0 36 Cur Writable)by(intros ofs R;apply PERM;apply WRET0;exact R).
+ assert(VRET:Mem.valid_block m ret)by(exact(range_block m ret 0 36 Writable ltac:(lia)WRET0)).
+ assert(TR:temp<>ret)by(intro EQ;subst temp;exact(FRESH S.__res__1 ret sp_type LC VRET)).
+ assert(RETGLOBAL:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct GOOD as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(PR:bp<>ret)by(intro EQ;subst bp;apply(RETGLOBAL S._guidance_pid);exact SP).
+ assert(IR:bi<>ret)by(intro EQ;subst bi;apply(RETGLOBAL S._guidance_pid_trim_att_integrator);exact SI).
+ assert(FRAMED:forall id b ch ofs v,Genv.find_symbol E.ge id=Some b ->
+ id<>S._guidance_pid_pos_err ->id<>S._guidance_pid_speed_err ->
+ Mem.load ch m b ofs=Some v ->Mem.load ch front b ofs=Some v).
+ { intros id b ch ofs v SYMBOL NE NS LOAD;apply FRAME;[exact LOAD| |].
+   - eapply Genv.global_addresses_distinct;[exact NE|exact SYMBOL|exact SE].
+   - eapply Genv.global_addresses_distinct;[exact NS|exact SYMBOL|exact SS]. }
+ assert(AIX:Mem.valid_access front Mint32 bi 0 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|0);try(exists 0;reflexivity);cbn;lia. }
+ assert(AIY:Mem.valid_access front Mint32 bi 4 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|4);try(exists 1;reflexivity);cbn;lia. }
+ assert(ACX:Mem.valid_access front Mint32 bp 32 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|32);try(exists 8;reflexivity);cbn;lia. }
+ assert(ACY:Mem.valid_access front Mint32 bp 36 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|36);try(exists 9;reflexivity);cbn;lia. }
+ assert(RVEC:Mem.range_perm front bp 32 40 Cur Readable).
+ { intros ofs R;eapply Mem.perm_implies;[apply WPF;lia|constructor]. }
+ destruct(CoreCompleteCall.original_h_run_complete_funcall front bp be bs gh bi bt bu bh bfun temp flight
+ kp kd ki kv ka
+ (ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096))(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608))(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608))
+ sx sy ax ay ix iy(Int.repr 1429)(Int.repr 3216)h heading
+ SP SE SS SI ST SU SH SF FF ND TP TI ltac:(congruence)ltac:(congruence)
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact APP])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KP])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KD])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KI])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KV])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KA])
+ PEX PEY SEX SEY
+ ltac:(apply FRAME;[exact SX|exact GE|exact GS])ltac:(apply FRAME;[exact SY|exact GE|exact GS])
+ ltac:(apply FRAME;[exact AX|exact GE|exact GS])ltac:(apply FRAME;[exact AY|exact GE|exact GS])
+ ltac:(eapply FRAMED;[exact SI|discriminate|discriminate|exact IX])
+ ltac:(eapply FRAMED;[exact SI|discriminate|discriminate|exact IY])
+ ltac:(eapply FRAMED;[exact ST|discriminate|discriminate|exact LT])
+ ltac:(eapply FRAMED;[exact SU|discriminate|discriminate|exact LU])
+ ltac:(eapply FRAMED;[exact SH|discriminate|discriminate|exact HEAD])
+ (CAST front)RVEC WTEMP AIX AIY ACX ACY)
+ as(coreout&CALL&SHAPEC&CAL&ACTIVE&IXC&IYC&CMDX&CMDY&KEEP&CFRAME&CBFRAME&CW0&CW4&CW32&CW36).
+ assert(VBR:Mem.valid_block front br)by(eapply loaded_block;exact RES).
+ assert(RESC:Mem.load Mint64 coreout br 0=Some(Vptr ret Ptrofs.zero)).
+ { rewrite CFRAME;try assumption;exact RES. }
+ destruct actual_core_target as[funb[SFUN FFUN]].
+ assert(NCORE:e!S._guidance_pid_h_run=None)by(apply UNSH;unfold entry_declarations;cbn;intuition discriminate).
+ destruct(original_entry_return_tail e front coreout br bf bg temp funb gh ret flight _ _ heading
+ LR LF LG LC NCORE SFUN FFUN TR RES RESC FLIGHT GH CALL ACTIVE KEEP WTEMP WRET)
+ as(bodym&bytes&TAIL&ACTRET&TAILKEEP&BYTES&COPY).
+ assert(FREEBODY:forall id b ty,e!id=Some(b,ty)->Mem.range_perm bodym b 0(sizeof E.ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply access_preserved_byte_range;[exact TAILKEEP|exact(FREE id b ty LOOK)]. }
+ destruct(free_environment E.ge e bodym SEP FREEBODY)as[mf[FREEFINAL[FREEFRAME FREEACCESS]]].
+ assert(OUT:forall b,Mem.valid_block m b ->forall id ty,e!id=Some(b,ty)->False)
+ by(intros b VB id ty LOOK;exact(FRESH id b ty LOOK VB)).
+ lazymatch type of ACTRET with active_fields _ _ ?cx ?cy _=>assert(FINALRET:active_fields mf ret cx cy heading)end.
+ { unfold active_fields in *;repeat match goal with H:_/\_ |- _=>destruct H end.
+   repeat split;rewrite FREEFRAME by(apply OUT;exact VRET);assumption. }
+ assert(FIX:Mem.load Mint32 mf bi 0=Mem.load Mint32 coreout bi 0).
+ { rewrite FREEFRAME by(apply OUT;exact VI).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact IR]. }
+ assert(FIY:Mem.load Mint32 mf bi 4=Mem.load Mint32 coreout bi 4).
+ { rewrite FREEFRAME by(apply OUT;exact VI).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact IR]. }
+ assert(FCX:Mem.load Mint32 mf bp 32=Mem.load Mint32 coreout bp 32).
+ { rewrite FREEFRAME by(apply OUT;exact VP).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact PR]. }
+ assert(FCY:Mem.load Mint32 mf bp 36=Mem.load Mint32 coreout bp 36).
+ { rewrite FREEFRAME by(apply OUT;exact VP).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact PR]. }
+ assert(ENDLOAD:forall ch b ofs v,Mem.valid_block m b ->b<>ret ->b<>bp ->b<>bi ->
+ Mem.load ch front b ofs=Some v ->Mem.load ch mf b ofs=Some v).
+ { intros ch b ofs v VB DR DBP DBI LOAD.
+   rewrite FREEFRAME by(apply OUT;exact VB).
+   erewrite Mem.load_storebytes_other by(exact COPY||(left;exact DR)).
+   rewrite CFRAME.
+   - exact LOAD.
+   - eapply loaded_block;exact LOAD.
+   - exact DBP.
+   - exact DBI.
+   - intro EQ;subst b;exact(FRESH S.__res__1 temp sp_type LC VB). }
+ assert(VBE:Mem.valid_block m be).
+ { eapply range_block with(lo:=0)(hi:=8)(p:=Writable);[lia|].
+   exact(inputgood_error_global_writable m gh ret S._guidance_pid_pos_err be GOOD ltac:(cbn;auto)SE). }
+ assert(VBS:Mem.valid_block m bs).
+ { eapply range_block with(lo:=0)(hi:=8)(p:=Writable);[lia|].
+   exact(inputgood_error_global_writable m gh ret S._guidance_pid_speed_err bs GOOD ltac:(cbn;auto)SS). }
+ assert(VGH:Mem.valid_block m gh)by(eapply loaded_block;exact RX).
+ assert(ER:be<>ret)by(intro EQ;subst be;apply(RETGLOBAL S._guidance_pid_pos_err);exact SE).
+ assert(SR:bs<>ret)by(intro EQ;subst bs;apply(RETGLOBAL S._guidance_pid_speed_err);exact SS).
+ assert(GR:gh<>ret)by(destruct GOOD as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(EEX:load_global Mint32 mf S._guidance_pid_pos_err vec_type[S._x]=Some(Vint(ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096)))).
+ { unfold load_global;rewrite SE;change(Mem.load Mint32 mf be 0=Some(Vint(ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096))));eapply ENDLOAD;try eassumption;congruence. }
+ assert(EEY:load_global Mint32 mf S._guidance_pid_pos_err vec_type[S._y]=Some(Vint(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096)))).
+ { unfold load_global;rewrite SE;change(Mem.load Mint32 mf be 4=Some(Vint(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096))));eapply ENDLOAD;try eassumption;congruence. }
+ assert(ESX:load_global Mint32 mf S._guidance_pid_speed_err vec_type[S._x]=Some(Vint(ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608)))).
+ { unfold load_global;rewrite SS;change(Mem.load Mint32 mf bs 0=Some(Vint(ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608))));eapply ENDLOAD;try eassumption;congruence. }
+ assert(ESY:load_global Mint32 mf S._guidance_pid_speed_err vec_type[S._y]=Some(Vint(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608)))).
+ { unfold load_global;rewrite SS;change(Mem.load Mint32 mf bs 4=Some(Vint(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608))));eapply ENDLOAD;try eassumption;congruence. }
+ assert(RXFINAL:load_path Mint32 mf gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx)).
+ { change(Mem.load Mint32 mf gh 44=Some(Vint rx));eapply ENDLOAD;try eassumption.
+   apply FRAME;[exact RX|exact GE|exact GS]. }
+ assert(RYFINAL:load_path Mint32 mf gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry)).
+ { change(Mem.load Mint32 mf gh 48=Some(Vint ry));eapply ENDLOAD;try eassumption.
+   apply FRAME;[exact RY|exact GE|exact GS]. }
+ destruct(raw_writes_shape _ _ _ BINDWRITES)as[BINDNB BINDPERM].
+ assert(OLDFRONT:forall b,Mem.valid_block m b->Mem.valid_block front b).
+ { intros b VB;eapply replay_stores_valid_block;[exact FRONTRUN|].
+   unfold Mem.valid_block;rewrite BINDNB.
+   pose proof(allocation_valid_block E.ge entry_declarations empty_env m b VB)as A;rewrite ALLOC in A;exact A. }
+ assert(BODYSHAPE:stack_shape ma bodym 11%nat).
+ { destruct SHAPEC as[CNB CPERM];split.
+   - erewrite Mem.nextblock_storebytes by exact COPY.
+     rewrite CNB,(replay_stores_nextblock _ _ _ FRONTRUN),BINDNB;reflexivity.
+   - eapply same_permissions_trans;[exact BINDPERM|].
+     eapply same_permissions_trans;[eapply replay_stores_same_permissions;exact FRONTRUN|].
+     eapply same_permissions_trans;[exact CPERM|].
+     intros b z k p;split;[eapply Mem.perm_storebytes_2|eapply Mem.perm_storebytes_1];exact COPY. }
+ assert(FINALSHAPE:stack_shape m mf 15%nat).
+ { change(stack_shape m mf(length entry_declarations+11)%nat).
+   eapply finish_stack_shape;[unfold entry_declarations;repeat constructor;cbn;intuition discriminate|exact ALLOC|exact FRESH|exact BODYSHAPE|exact FREEFINAL]. }
+ assert(FRAMEALL:forall b ofs n,Mem.valid_block m b ->b<>ret ->
+ (b<>be \/ofs+n<=0 \/8<=ofs) ->(b<>bs \/ofs+n<=0 \/8<=ofs) ->
+ (b<>bp \/ofs+n<=32 \/40<=ofs) ->(b<>bi \/ofs+n<=0 \/8<=ofs) ->
+ 0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+ { intros b ofs n VB DR DE DS DP DI NN.
+   rewrite(free_environment_bytes_frame E.ge e bodym mf FREEFINAL b ofs n)by(apply OUT;exact VB).
+   rewrite(Mem.loadbytes_storebytes_other coreout ret 0 bytes bodym COPY b ofs n ltac:(lia)(or_introl DR)).
+   rewrite(CBFRAME b ofs n(OLDFRONT b VB)).
+   - rewrite(replay_stores_bytes_frame _ _ _ _ _ _ FRONTRUN (front_updates_miss_bytes be bs rx ry px py sx sy vx vy b ofs n DE DS)NN).
+     apply OLDBYTES;assumption.
+   - intro EQ;subst b;exact(FRESH S.__res__1 temp sp_type LC VB).
+   - exact DP.
+   - exact DI.
+   - exact NN. }
+ assert(ENDBYTES:forall b ofs bytes,Mem.valid_block m b ->b<>ret ->b<>bp ->b<>bi ->
+ Mem.loadbytes front b ofs 4=Some bytes ->Mem.loadbytes mf b ofs 4=Some bytes).
+ { intros b ofs bb VB DR DP DI LOAD.
+   rewrite(free_environment_bytes_frame E.ge e bodym mf FREEFINAL b ofs 4)by(apply OUT;exact VB).
+   rewrite(Mem.loadbytes_storebytes_other coreout ret 0 bytes bodym COPY b ofs 4 ltac:(lia)(or_introl DR)).
+   assert(BT:b<>temp)by(intro EQ;subst b;exact(FRESH S.__res__1 temp sp_type LC VB)).
+   rewrite(CBFRAME b ofs 4(OLDFRONT b VB)BT(or_introl DP)(or_introl DI)ltac:(lia));exact LOAD. }
+ assert(COREBYTES:forall b ofs bytes,Mem.valid_block m b ->b<>ret ->
+ Mem.loadbytes coreout b ofs 4=Some bytes ->Mem.loadbytes mf b ofs 4=Some bytes).
+ { intros b ofs bb VB DR LOAD.
+   rewrite(free_environment_bytes_frame E.ge e bodym mf FREEFINAL b ofs 4)by(apply OUT;exact VB).
+   rewrite(Mem.loadbytes_storebytes_other coreout ret 0 bytes bodym COPY b ofs 4 ltac:(lia)(or_introl DR));exact LOAD. }
+ assert(DEVS:be<>bs)by(congruence).
+ destruct(front_updates_word_bytes mb front be bs rx ry px py sx sy vx vy DEVS FRONTRUN)as[FW0[FW4[FWV0 FWV4]]].
+ pose proof(COREBYTES bi 0 _ VI IR CW0)as FINALWORD0.
+ pose proof(COREBYTES bi 4 _ VI IR CW4)as FINALWORD1.
+ pose proof(COREBYTES bp 32 _ VP PR CW32)as FINALWORD2.
+ pose proof(COREBYTES bp 36 _ VP PR CW36)as FINALWORD3.
+ assert(FINALWORD4:Mem.loadbytes mf be 0 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096))))).
+ { eapply ENDBYTES;[exact VBE|exact ER|congruence|congruence|exact FW0]. }
+ assert(FINALWORD5:Mem.loadbytes mf be 4 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096))))).
+ { eapply ENDBYTES;[exact VBE|exact ER|congruence|congruence|exact FW4]. }
+ assert(FINALWORD6:Mem.loadbytes mf bs 0 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608))))).
+ { eapply ENDBYTES;[exact VBS|exact SR|congruence|congruence|exact FWV0]. }
+ assert(FINALWORD7:Mem.loadbytes mf bs 4 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608))))).
+ { eapply ENDBYTES;[exact VBS|exact SR|congruence|congruence|exact FWV4]. }
+ cbv beta iota zeta delta[entry_axis_command entry_axis_integral cid_i cid_pid cid_ax cid_ay cid_ix cid_iy cid_hbits cid_kp cid_kd cid_ki cid_kv cid_ka].
+ exists mf,rx,ry,px,py,sx,sy,vx,vy,sb,be,bs;split.
+ - exists E0,Vundef;eapply star_trans with(t1:=E0)(t2:=E0);[exact PATH| |reflexivity].
+   eapply returning_statement_original_path;[exact TAIL|exact FREEFINAL].
+ - repeat(first[assumption|split]).
+   + rewrite FIX;exact IXC.
+   + rewrite FIY;exact IYC.
+   + rewrite FCX;exact CMDX.
+   + rewrite FCY;exact CMDY.
+Qed.
+
+Print Assumptions original_entry_framed_normal_result.
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/FrameRelation.v
+From Stdlib Require Import List ZArith Lia Classical.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement CoreInputs DataAgreement NormalReturn.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+
+From PidPositionTranslationAttempt002 Require Import ComputedRelation FramedNormalReturn StackAgreement ByteSubrange MainGoals.
+From PidPositionTranslationCore Require Import MemoryShape.
+Theorem constructed_original_framed_translation : forall gh ret a b dx dy flight,
+ InputPair gh ret a b dx dy ->
+ exists af bf,NormalCall gh ret flight a af /\NormalCall gh ret flight b bf /\same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dx dy flight INPUT;pose proof INPUT as[A[B[FRAME[TX TY]]]].
+ destruct(inputgood_core_initial_data a gh ret A)as[DA _].
+ destruct(inputgood_core_initial_data b gh ret B)as[DB _].
+ pose proof(canonical_pair_core_parameters_agree a b gh ret dx dy DA DB INPUT)as EQ.
+ unfold core_parameters_agree in EQ;destruct EQ as(EPID&EIBLOCK&EKP&EKD&EKI&EKV&EKA&EAX&EAY&EIX&EIY&EHEAD).
+ destruct(original_entry_framed_normal_result a gh ret flight DA A)
+ as(af&rax&ray&pax&pay&sax&say&vax&vay&sa&pea&sea&
+ CALLA&STA&RAX&RAY&PAX&PAY&SAX&SAY&VAX&VAY&ACTA&IAX&IAY&CAX&CAY&PEA0&PEA4&SEA0&SEA4&FRAX&FRAY&SPEA&SSEA&SHAPEA&FA&AW0&AW4&AW32&AW36&AWE0&AWE4&AWS0&AWS4).
+ destruct(original_entry_framed_normal_result b gh ret flight DB B)
+ as(bf&rbx&rby&pbx&pby&sbx&sby&vbx&vby&sb&peb&seb&
+ CALLB&STB&RBX&RBY&PBX&PBY&SBX&SBY&VBX&VBY&ACTB&IBX&IBY&CBX&CBY&PEB0&PEB4&SEB0&SEB4&FRBX&FRBY&SPEB&SSEB&SHAPEB&FB&BW0&BW4&BW32&BW36&BWE0&BWE4&BWS0&BWS4).
+ assert(SAMESTATE:sb=sa)by(congruence);subst sb.
+ assert(DX:Int.sub rax pax=Int.sub rbx pbx).
+ { eapply axis_translation_sub_equal;[exact TX|exact RAX| |exact RBX|].
+   - unfold load_global;rewrite STA;exact PAX.
+   - unfold load_global;rewrite STA;exact PBX. }
+ assert(DY:Int.sub ray pay=Int.sub rby pby).
+ { eapply axis_translation_sub_equal;[exact TY|exact RAY| |exact RBY|].
+   - unfold load_global;rewrite STA;exact PAY.
+   - unfold load_global;rewrite STA;exact PBY. }
+ assert(GRET:gh<>ret)by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(RET:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct A as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(SRET:sa<>ret)by(intro EQUAL;subst sa;apply(RET S._state);exact STA).
+ change(Mem.load Mint32 a gh 52=Some(Vint sax))in SAX.
+ change(Mem.load Mint32 a gh 56=Some(Vint say))in SAY.
+ change(Mem.load Mint32 b gh 52=Some(Vint sbx))in SBX.
+ change(Mem.load Mint32 b gh 56=Some(Vint sby))in SBY.
+ let agree LA LB OUT :=
+ lazymatch type of LA with Mem.load ?ch a ?blk ?ofs=Some ?v=>
+ let TRANS:=fresh "TRANSFER" in
+ assert(TRANS:Mem.load ch b blk ofs=Some v)by(
+ eapply canonical_frame_load_transfer;[exact FRAME|exact OUT| |exact LA];
+ intros i R T;pose proof(translated_byte_offset _ _ _ T)as RANGE;cbn[size_chunk]in R;lia);
+ rewrite LB in TRANS;congruence end in
+ assert(ESX:sax=sbx)by(agree SAX SBX GRET);
+ assert(ESY:say=sby)by(agree SAY SBY GRET);
+ assert(EVX:vax=vbx)by(agree VAX VBX SRET);
+ assert(EVY:vay=vby)by(agree VAY VBY SRET).
+ assert(CMDX:entry_axis_command a gh DA flight rax pax sax vax(cid_ax _ _ DA)(cid_ix _ _ DA)=
+ entry_axis_command b gh DB flight rbx pbx sbx vbx(cid_ax _ _ DB)(cid_ix _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAX,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(CMDY:entry_axis_command a gh DA flight ray pay say vay(cid_ay _ _ DA)(cid_iy _ _ DA)=
+ entry_axis_command b gh DB flight rby pby sby vby(cid_ay _ _ DB)(cid_iy _ _ DB)).
+ { unfold entry_axis_command;rewrite<-EKP,<-EKD,<-EKI,<-EKV,<-EKA,<-EAY,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ assert(INTX:entry_axis_integral a gh DA flight rax pax sax vax(cid_ix _ _ DA)=
+ entry_axis_integral b gh DB flight rbx pbx sbx vbx(cid_ix _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIX,<-ESX,<-EVX,<-DX;reflexivity. }
+ assert(INTY:entry_axis_integral a gh DA flight ray pay say vay(cid_iy _ _ DA)=
+ entry_axis_integral b gh DB flight rby pby sby vby(cid_iy _ _ DB)).
+ { unfold entry_axis_integral;rewrite<-EKP,<-EKD,<-EKI,<-EIY,<-ESY,<-EVY,<-DY;reflexivity. }
+ rewrite<-CMDX,<-CMDY,<-EHEAD in ACTB.
+ rewrite<-EIBLOCK,<-INTX in IBX;rewrite<-EIBLOCK,<-INTY in IBY.
+ rewrite<-EPID,<-CMDX in CBX;rewrite<-EPID,<-CMDY in CBY.
+ assert(SAMEPE:peb=pea)by(congruence);subst peb.
+ assert(SAMESE:seb=sea)by(congruence);subst seb.
+ rewrite<-EPID,<-EIBLOCK in FB.
+ rewrite<-EIBLOCK,<-INTX in BW0;rewrite<-EIBLOCK,<-INTY in BW4.
+ rewrite<-EPID,<-CMDX in BW32;rewrite<-EPID,<-CMDY in BW36.
+ rewrite<-DX in BWE0;rewrite<-DY in BWE4.
+ rewrite<-ESX,<-EVX in BWS0;rewrite<-ESY,<-EVY in BWS4.
+ assert(FINAL:same_except_positions_and_return gh ret af bf).
+ { destruct FRAME as[NB0[PERM0 BYTES0]].
+   destruct SHAPEA as[NBA PA];destruct SHAPEB as[NBB PB].
+   split;[rewrite NBA,NBB,NB0;reflexivity|].
+   split.
+   - intros blk ofs k p;rewrite(PA blk ofs k p),(PB blk ofs k p);apply PERM0.
+   - intros blk ofs NT NR.
+     destruct(plt blk(Mem.nextblock a))as[VB|NV].
+     2:{ assert(NA:~Mem.perm af blk ofs Cur Readable).
+         { intro PM;apply NV;eapply Mem.perm_valid_block;apply(PA blk ofs Cur Readable);exact PM. }
+         assert(NB:~Mem.perm bf blk ofs Cur Readable).
+         { intro PM;apply NV;eapply Mem.perm_valid_block;apply(PERM0 blk ofs Cur Readable);apply(PB blk ofs Cur Readable);exact PM. }
+         rewrite(unit_loadbytes_absent _ _ _ NA),(unit_loadbytes_absent _ _ _ NB);reflexivity. }
+     assert(VB2:Mem.valid_block b blk)by(unfold Mem.valid_block;rewrite<-NB0;exact VB).
+     destruct(classic(blk=pea /\0<=ofs<8))as[[EQ RANGE]|NPE].
+     { subst blk;destruct(zlt ofs 4).
+       - eapply equal_int32_words_all_units with(base:=0);[exact AWE0|exact BWE0|lia].
+       - eapply equal_int32_words_all_units with(base:=4);[exact AWE4|exact BWE4|lia]. }
+     destruct(classic(blk=sea /\0<=ofs<8))as[[EQ RANGE]|NSE].
+     { subst blk;destruct(zlt ofs 4).
+       - eapply equal_int32_words_all_units with(base:=0);[exact AWS0|exact BWS0|lia].
+       - eapply equal_int32_words_all_units with(base:=4);[exact AWS4|exact BWS4|lia]. }
+     destruct(classic(blk=cid_pid _ _ DA /\32<=ofs<40))as[[EQ RANGE]|NCP].
+     { subst blk;destruct(zlt ofs 36).
+       - eapply equal_int32_words_all_units with(base:=32);[exact AW32|exact BW32|lia].
+       - eapply equal_int32_words_all_units with(base:=36);[exact AW36|exact BW36|lia]. }
+     destruct(classic(blk=cid_i _ _ DA /\0<=ofs<8))as[[EQ RANGE]|NCI].
+     { subst blk;destruct(zlt ofs 4).
+       - eapply equal_int32_words_all_units with(base:=0);[exact AW0|exact BW0|lia].
+       - eapply equal_int32_words_all_units with(base:=4);[exact AW4|exact BW4|lia]. }
+     assert(DPE:blk<>pea \/ofs+1<=0 \/8<=ofs).
+     { destruct(peq blk(pea))as[EQ|NE];[right;subst blk;clear -NPE;lia|left;exact NE]. }
+     assert(DSE:blk<>sea \/ofs+1<=0 \/8<=ofs).
+     { destruct(peq blk(sea))as[EQ|NE];[right;subst blk;clear -NSE;lia|left;exact NE]. }
+     assert(DCP:blk<>cid_pid _ _ DA \/ofs+1<=32 \/40<=ofs).
+     { destruct(peq blk(cid_pid _ _ DA))as[EQ|NE];[right;subst blk;clear -NCP;lia|left;exact NE]. }
+     assert(DCI:blk<>cid_i _ _ DA \/ofs+1<=0 \/8<=ofs).
+     { destruct(peq blk(cid_i _ _ DA))as[EQ|NE];[right;subst blk;clear -NCI;lia|left;exact NE]. }
+     rewrite(FA blk ofs 1 VB NR DPE DSE DCP DCI ltac:(lia)).
+     rewrite(FB blk ofs 1 VB2 NR DPE DSE DCP DCI ltac:(lia)).
+     apply BYTES0;assumption. }
+ exists af,bf;exact(conj CALLA(conj CALLB FINAL)).
+Qed.
+
+Theorem proved_relational_frame : RelationalFrameGoal.
+Proof.
+ intros gh ret a b dx dy flight af bf PAIR CA CB.
+ destruct(constructed_original_framed_translation gh ret a b dx dy flight PAIR)
+ as[nfa[nfb[NA[NB FRAME]]]].
+ assert(EA:af=nfa)by(eapply original_entry_all_normal_memories_unique;[exact(proj1 PAIR)|exact CA|exact NA]).
+ assert(EB:bf=nfb)by(eapply original_entry_all_normal_memories_unique;[exact(proj1(proj2 PAIR))|exact CB|exact NB]).
+ subst af bf;exact FRAME.
+Qed.
+Print Assumptions proved_relational_frame.
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/MainGoals.v
+From Stdlib Require Import List.
+From compcert Require Import AST Values Memory Events Csem Smallstep.
+From PidPositionRunPos Require Import Execution.
+From PidPositionTranslationProblem Require Import Spec.
+From FiveGuidanceAllOrder Require Import PhaseComposition BlockExecution.
+From PidPositionSafety Require Import PidTermination.
+From PidPositionTranslationAttempt002 Require Import EntryAllOrder ComputedRelation NonemptyInput.
+
+Theorem original_entry_all_normal_memories_unique :
+ forall m gh ret flight af bf,InputGood m gh ret ->
+ NormalCall gh ret flight m af ->NormalCall gh ret flight m bf ->af=bf.
+Proof.
+ intros m gh ret flight af bf GOOD[ta[va PA]][tb[vb PB]].
+ destruct(original_entry_all_orders m gh ret flight GOOD)as[mf[P[CERT INIT]]].
+ destruct(certificate_normal_unique Execution.ge P Vundef mf _ CERT INIT ta va af PA)as[_ A].
+ destruct(certificate_normal_unique Execution.ge P Vundef mf _ CERT INIT tb vb bf PB)as[_ B].
+ congruence.
+Qed.
+
+Theorem proved_position_translation : PositionTranslationGoal.
+Proof.
+ intros gh ret a b dx dy flight PAIR.
+ destruct(constructed_original_position_translation gh ret a b dx dy flight PAIR)
+ as[af[bf[CA[CB REL]]]].
+ split;[exists af,bf;auto|].
+ intros af' bf' CA' CB'.
+ assert(A:af'=af)by(eapply original_entry_all_normal_memories_unique;[exact(proj1 PAIR)|exact CA'|exact CA]).
+ assert(B:bf'=bf)by(eapply original_entry_all_normal_memories_unique;[exact(proj1(proj2 PAIR))|exact CB'|exact CB]).
+ subst af' bf';exact REL.
+Qed.
+
+Theorem proved_no_error : NoErrorGoal.
+Proof.
+ intros gh ret m flight GOOD t reached PATH.
+ destruct(original_entry_all_orders m gh ret flight GOOD)as[mf[P[CERT INIT]]].
+ pose proof(return_stop_nostep Execution.ge Vundef mf)as STOP.
+ destruct(certificate_no_error Execution.ge P _ _ CERT INIT STOP t reached PATH)
+ as[EQ|[tr[next STEP]]].
+ - subst reached;intros[NONNORMAL NS];apply NONNORMAL;exists Vundef,mf;reflexivity.
+ - intros[NONNORMAL NS];eapply NS;exact STEP.
+Qed.
+
+Theorem proved_all_successor_termination : AllSuccessorTerminationGoal.
+Proof.
+ intros gh ret m flight GOOD.
+ exact(PidTermination.all_successor_termination(call_args gh ret flight)m).
+Qed.
+Theorem proved_input_nonvacuity : InputNonvacuityGoal.
+Proof. exact canonical_input_nonvacuity. Qed.
+Theorem proved_nonzero_nonvacuity : NonzeroNonvacuityGoal.
+Proof. exact canonical_nonzero_execution_nonvacuity. Qed.
+Print Assumptions proved_position_translation.
+Print Assumptions proved_no_error.
+Print Assumptions proved_all_successor_termination.
+Print Assumptions proved_input_nonvacuity.
+Print Assumptions proved_nonzero_nonvacuity.
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/NonemptyInput.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Floats Values Memory Memdata Globalenvs Ctypes Csyntax Csyntaxdefs Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout TranslationArithmetic.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import WitnessBase WitnessMemory WitnessUpdates ComputedRelation.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent Float32.of_int Float32.cmp Float32.compare.
+Ltac witness_zero_path ZERO :=
+ lazymatch goal with |-load_path ?ch ?mm ?bb ?ty ?path=Some ?v=>
+ let info:=eval vm_compute in(path_info ty path)in
+ lazymatch info with Some(_,?ofs)=>
+ change(Mem.load ch mm bb ofs=Some v);apply(ZERO ch ofs);[lia|cbn;lia|witness_align]
+ end end.
+Theorem canonical_input_nonvacuity : InputNonvacuityGoal.
+Proof.
+ destruct symbolic_witness_base as(base&gh&ret&bp&be&bv&bi&bh&sb&
+ CONTRACT&GHR&GSYM&RSYM&GVAR&WG&WR&SP&VP&SE&VE&SV&VV&SI&VI&SH&SS&VS&
+ WP&WE&WV&WI&WS&ZP&ZI&ZH&ZS).
+ assert(GS:gh<>sb)by(intro EQ;subst gh;apply(GSYM S._state);exact SS).
+ assert(PG:bp<>gh)by(intro EQ;subst bp;apply(GSYM S._guidance_pid);exact SP).
+ assert(IG:bi<>gh)by(intro EQ;subst bi;apply(GSYM S._guidance_pid_trim_att_integrator);exact SI).
+ assert(HG:bh<>gh)by(intro EQ;subst bh;apply(GSYM S._guidance_h);exact SH).
+ assert(PS:bp<>sb)by(eapply Genv.global_addresses_distinct;[|exact SP|exact SS];discriminate).
+ assert(IS:bi<>sb)by(eapply Genv.global_addresses_distinct;[|exact SI|exact SS];discriminate).
+ assert(HS:bh<>sb)by(eapply Genv.global_addresses_distinct;[|exact SH|exact SS];discriminate).
+ assert(ROS:forall b gv,Genv.find_var_info E.ge b=Some gv ->gvar_readonly gv=true ->b<>sb).
+ { intros b gv VAR RO EQ;subst b;rewrite VS in VAR;injection VAR as<-;discriminate. }
+ assert(GOOD:forall shift mf,0<=shift<=25600 ->
+ replay_stores base(witness_updates gh sb shift)=Some mf ->InputGood mf gh ret).
+ { intros shift mf RANGE RUN.
+   destruct(witness_updated_loads base mf gh sb shift GS ZS RUN)
+   as(CP&CS&RX&RY&SX&SY&AX&AY&PX&PY&VX&VY).
+   assert(RAW:raw_writes(fun _=>True)base mf).
+   { eapply replay_stores_raw;[exact RUN|];unfold witness_updates;witness_forall ltac:(exact I). }
+   assert(PZERO:Genv.read_as_zero mf bp 0 48).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZP| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(IZERO:Genv.read_as_zero mf bi 0 8).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZI| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(HZERO:Genv.read_as_zero mf bh 0 84).
+   { eapply zero_preserved_by_disjoint_replay;[exact ZH| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(cbn;congruence). }
+   assert(GLOBAL:global_bytes_initialized mf).
+   { eapply global_contract_after_replay;[exact CONTRACT| |exact RUN].
+     unfold witness_updates;witness_forall ltac:(
+       cbn;first[exact ROS|intros b gv VAR RO;eapply GVAR;exact VAR]). }
+   assert(UNIQUE:forall id,Genv.find_symbol E.ge id=Some gh->id=S._guidance_h).
+   { intros id BAD;exfalso;apply(GSYM id);exact BAD. }
+   assert(GHREAD:Mem.range_perm mf gh 0(sizeof ce gh_type)Cur Readable).
+   { change(Mem.range_perm mf gh 0 84 Cur Readable);intros ofs R.
+     eapply Mem.perm_implies with(p1:=Writable);[apply(proj1(raw_writes_perm _ _ _ RAW gh ofs Cur Writable));apply WG;exact R|constructor]. }
+   assert(RETWRITE:Mem.range_perm mf ret 0(sizeof ce sp_type)Cur Writable).
+   { eapply raw_writes_range;[exact RAW|exact WR]. }
+   assert(CTRL:writable_controller_globals mf).
+   { intros id IN;destruct IN as[<-|[<-|[<-|[<-|[]]]]].
+     - exists bp,S.v_guidance_pid;split;[exact SP|];split;[exact VP|];apply(raw_writes_range _ _ _ RAW);exact WP.
+     - exists be,S.v_guidance_pid_pos_err;split;[exact SE|];split;[exact VE|];apply(raw_writes_range _ _ _ RAW);exact WE.
+     - exists bv,S.v_guidance_pid_speed_err;split;[exact SV|];split;[exact VV|];apply(raw_writes_range _ _ _ RAW);exact WV.
+     - exists bi,S.v_guidance_pid_trim_att_integrator;split;[exact SI|];split;[exact VI|];apply(raw_writes_range _ _ _ RAW);exact WI. }
+   assert(CACHE:caches_valid mf).
+   { exists(Int.repr 2),(Int.repr 2);unfold load_global;rewrite SS;repeat split;assumption||reflexivity. }
+   assert(APP:load_global Mint8unsigned mf S._guidance_pid pid_type[S._approx_force_by_thrust]=Some(Vint Int.zero)).
+   { unfold load_global;rewrite SP;witness_zero_path PZERO. }
+   assert(HEAD:heading_safe mf).
+   { exists Float32.zero;split.
+     - unfold load_global;rewrite SH;witness_zero_path HZERO.
+     - split;reflexivity. }
+   assert(GAINS:forall gain,In gain[S._kp;S._kd;S._ki;S._kv;S._ka]->
+     bounded_global mf S._guidance_pid pid_type[gain]0 100).
+   { intros gain IN;destruct IN as[<-|[<-|[<-|[<-|[<-|[]]]]]];
+     (exists Int.zero;split;
+     [unfold load_global;rewrite SP;witness_zero_path PZERO
+     |rewrite Int.signed_zero;lia]). }
+   assert(AXES:forall axis,In axis[S._x;S._y]->
+     bounded_global mf S._guidance_pid_trim_att_integrator vec_type[axis](-100000000)100000000 /\
+     bounded_path mf gh gh_type[S._ref;S._speed;axis](-10000)10000 /\
+     bounded_path mf gh gh_type[S._ref;S._accel;axis](-10000)10000 /\
+     bounded_global mf S._state state_type[S._ned_speed_i;axis](-10000)10000).
+   { intros axis IN;destruct IN as[<-|[<-|[]]].
+     - split.
+       + exists Int.zero;split;[unfold load_global;rewrite SI;witness_zero_path IZERO|rewrite Int.signed_zero;lia].
+       + split.
+         * exists Int.zero;split;[exact SX|rewrite Int.signed_zero;lia].
+         * split.
+           -- exists Int.zero;split;[exact AX|rewrite Int.signed_zero;lia].
+           -- exists Int.zero;split;[unfold load_global;rewrite SS;exact VX|rewrite Int.signed_zero;lia].
+     - split.
+       + exists Int.zero;split;[unfold load_global;rewrite SI;witness_zero_path IZERO|rewrite Int.signed_zero;lia].
+       + split.
+         * exists Int.zero;split;[exact SY|rewrite Int.signed_zero;lia].
+         * split.
+           -- exists Int.zero;split;[exact AY|rewrite Int.signed_zero;lia].
+           -- exists Int.zero;split;[unfold load_global;rewrite SS;exact VY|rewrite Int.signed_zero;lia]. }
+   assert(SAFE:position_subtractions_safe mf gh).
+   { intros axis IN;destruct IN as[<-|[<-|[]]].
+     - exists(Int.repr(512+shift)),(Int.repr shift);split;[exact RX|];split.
+       + unfold load_global;rewrite SS;exact PX.
+       + unfold signed32.
+         rewrite(Int.signed_repr(512+shift))by(change(-2147483648<=512+shift<=2147483647);lia).
+         rewrite(Int.signed_repr shift)by(change(-2147483648<=shift<=2147483647);lia);lia.
+     - exists Int.zero,Int.zero;split;[exact RY|];split.
+       + unfold load_global;rewrite SS;exact PY.
+       + unfold signed32;rewrite Int.signed_zero;lia. }
+   assert(INITPOS:initialized_positions mf gh).
+   { intros axis IN;destruct(SAFE axis IN)as(r&p&R&P&N);exists r,p;auto. }
+   unfold InputGood;split;[unfold InputGoodLegacy;tauto|tauto]. }
+ destruct(witness_updates_exist base gh sb 0 WG WS)as[a RA].
+ destruct(witness_updates_exist base gh sb 25600 WG WS)as[b RB].
+ pose proof(GOOD 0 a ltac:(lia)RA)as GA.
+ pose proof(GOOD 25600 b ltac:(lia)RB)as GB.
+ destruct(witness_updated_loads base a gh sb 0 GS ZS RA)as(CPA&CSA&RXA&RYA&SXA&SYA&AXA&AYA&PXA&PYA&VXA&VYA).
+ destruct(witness_updated_loads base b gh sb 25600 GS ZS RB)as(CPB&CSB&RXB&RYB&SXB&SYB&AXB&AYB&PXB&PYB&VXB&VYB).
+ assert(FRAME:same_except_positions_and_return gh ret a b)by(eapply witness_replays_related;eauto).
+ assert(TX:AxisTranslation gh a b S._x 25600).
+ { exists(Int.repr 512),Int.zero,(Int.repr 26112),(Int.repr 25600).
+   split;[exact RXA|];split;[unfold load_global;rewrite SS;exact PXA|].
+   split;[exact RXB|];split;[unfold load_global;rewrite SS;exact PXB|].
+   rewrite(Int.signed_repr 512)by(change(-2147483648<=512<=2147483647);lia).
+   rewrite Int.signed_zero.
+   rewrite(Int.signed_repr 26112)by(change(-2147483648<=26112<=2147483647);lia).
+   rewrite(Int.signed_repr 25600)by(change(-2147483648<=25600<=2147483647);lia).
+   unfold physical_translation,signed32;repeat split;lia. }
+ assert(TY:AxisTranslation gh a b S._y 0).
+ { exists Int.zero,Int.zero,Int.zero,Int.zero.
+   split;[exact RYA|];split;[unfold load_global;rewrite SS;exact PYA|].
+   split;[exact RYB|];split;[unfold load_global;rewrite SS;exact PYB|].
+   rewrite Int.signed_zero;unfold physical_translation,signed32;repeat split;lia. }
+ exists gh,ret,a,b,25600,0;split.
+ - exact(conj GA(conj GB(conj FRAME(conj TX TY)))).
+ - split;[lia|]. exists(Int.repr 512),Int.zero;split;[exact RXA|];split.
+   + unfold load_global;rewrite SS;exact PXA.
+   + rewrite(Int.signed_repr 512)by(change(-2147483648<=512<=2147483647);lia);rewrite Int.signed_zero;lia.
+Qed.
+Theorem canonical_nonzero_execution_nonvacuity : NonzeroNonvacuityGoal.
+Proof.
+ destruct canonical_input_nonvacuity as(gh&ret&a&b&dx&dy&NONZERO).
+ exists gh,ret,a,b,dx,dy;split;[exact NONZERO|].
+ intro flight;exact(constructed_original_position_translation gh ret a b dx dy flight(proj1 NONZERO)).
+Qed.
+Print Assumptions canonical_input_nonvacuity.
+Print Assumptions canonical_nonzero_execution_nonvacuity.
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/WitnessMemory.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib AST Integers Values Memory Memdata Globalenvs Ctypes Csem.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory CoreMemory.
+From PidPositionTranslationAttempt002 Require Import ByteAgreement.
+Import ListNotations.
+Open Scope Z_scope.
+
+Lemma replay_stores_exists : forall us m,
+ Forall(fun u=>let '(ch,b,ofs,_):=u in Mem.valid_access m ch b ofs Writable)us ->
+ exists mf,replay_stores m us=Some mf.
+Proof.
+ induction us as[|[[[ch b]ofs]v]us IH];intros m ACCESS.
+ - exists m;reflexivity.
+ - inversion ACCESS as[|u tail A REST];subst.
+   destruct(Mem.valid_access_store m ch b ofs v A)as[ma STORE].
+   destruct(IH ma ltac:(eapply Forall_impl;[|exact REST];intros[[[cu bu]ou]vu] VA;eapply Mem.store_valid_access_1;eauto))as[mf RUN].
+   exists mf;cbn[replay_stores];rewrite STORE;exact RUN.
+Qed.
+Lemma replay_stores_value_at : forall i us m mf ch b ofs v,
+ nth_error us i=Some(ch,b,ofs,v) ->replay_stores m us=Some mf ->
+ Forall(misses_chunk ch b ofs)(skipn(S i)us) ->
+ Mem.load ch mf b ofs=Some(Val.load_result ch v).
+Proof.
+ induction i as[|i IH];intros us m mf ch b ofs v NTH RUN MISS;
+ destruct us as[|[[[cu bu]ou]vu]us];try discriminate;
+ cbn[replay_stores]in RUN;
+ destruct(Mem.store cu m bu ou vu)as[ma|]eqn:STORE;try discriminate.
+ - cbn[nth_error]in NTH;injection NTH as<- <- <- <-.
+   cbn[skipn]in MISS;rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN MISS).
+   eapply Mem.load_store_same;exact STORE.
+ - eapply IH;[exact NTH|exact RUN|exact MISS].
+Qed.
+
+Lemma global_contract_after_allocation : forall m ma fresh lo hi,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->Mem.valid_block m b) ->
+ Mem.alloc m lo hi=(ma,fresh) ->global_bytes_initialized ma.
+Proof.
+ intros m ma fresh lo hi[init[INIT GLOBAL]]VALID ALLOC.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros ofs R;eapply Mem.perm_alloc_1;[exact ALLOC|apply RP;exact R].
+ - intros RO ofs R;erewrite Mem.loadbytes_alloc_unchanged;[|exact ALLOC|apply VALID with(gv:=gv);exact VAR].
+   apply BY;assumption.
+Qed.
+Lemma global_contract_after_store : forall m mf ch dst ofs v,
+ global_bytes_initialized m ->
+ (forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst) ->
+ Mem.store ch m dst ofs v=Some mf ->global_bytes_initialized mf.
+Proof.
+ intros m mf ch dst ofs v[init[INIT GLOBAL]]OUT STORE.
+ exists init;split;[exact INIT|].
+ intros b gv VAR;destruct(GLOBAL b gv VAR)as[RP BY];split.
+ - intros i R;eapply Mem.perm_store_1;[exact STORE|apply RP;exact R].
+ - intros RO i R;rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ STORE b i 1)
+    by(left;eapply OUT;eauto);apply BY;assumption.
+Qed.
+Lemma global_contract_after_replay : forall us m mf,
+ global_bytes_initialized m ->
+ Forall(fun u=>let '(_,dst,_,_):=u in
+ forall b gv,Genv.find_var_info Execution.ge b=Some gv ->gvar_readonly gv=true ->b<>dst)us ->
+ replay_stores m us=Some mf ->global_bytes_initialized mf.
+Proof.
+ induction us as[|[[[ch dst]ofs]v]us IH];intros m mf GOOD OUT RUN;cbn[replay_stores]in RUN.
+ - injection RUN as<-;exact GOOD.
+ - destruct(Mem.store ch m dst ofs v)as[ma|]eqn:STORE;try discriminate.
+   inversion OUT as[|u tail HEAD REST];subst.
+   eapply IH;[eapply global_contract_after_store;eauto|exact REST|exact RUN].
+Qed.
+
+Lemma translated_store_pair_preserves_canonical_frame : forall gh ret a b dst ofs ch va vb af bf,
+ same_except_positions_and_return gh ret a b ->
+ (forall i,ofs<=i<ofs+size_chunk ch ->translated_byte gh dst i) ->
+ Mem.store ch a dst ofs va=Some af ->Mem.store ch b dst ofs vb=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret a b dst ofs ch va vb af bf[NEXT[PERM BY]]TRAN SA SB;split.
+ - rewrite(Mem.nextblock_store _ _ _ _ _ _ SA),(Mem.nextblock_store _ _ _ _ _ _ SB);exact NEXT.
+ - split.
+   + intros blk i k p;split;intro H.
+     * eapply Mem.perm_store_1;[exact SB|]. apply(proj1(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SA|exact H].
+     * eapply Mem.perm_store_1;[exact SA|]. apply(proj2(PERM blk i k p)).
+       eapply Mem.perm_store_2;[exact SB|exact H].
+   + intros blk i NT RET.
+     assert(OUT:blk<>dst \/i+1<=ofs\/ofs+size_chunk ch<=i).
+     { destruct(peq blk dst)as[->|D];[right|left;exact D].
+       destruct(zlt i ofs);[left;lia|right].
+       destruct(zle(ofs+size_chunk ch)i);[exact l|].
+       exfalso;apply NT;apply TRAN;lia. }
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SA blk i 1)by(tauto).
+     rewrite(Mem.loadbytes_store_other _ _ _ _ _ _ SB blk i 1)by(tauto).
+     apply BY;assumption.
+Qed.
+Definition compatible_update(gh:block)(u v:scalar_update):Prop:=
+ exists ch dst ofs va vb,u=(ch,dst,ofs,va)/\v=(ch,dst,ofs,vb)/\
+ (va=vb\/(forall i,ofs<=i<ofs+size_chunk ch->translated_byte gh dst i)).
+Lemma compatible_replay_preserves_canonical_frame : forall gh ret us vs a b af bf,
+ Forall2(compatible_update gh)us vs ->
+ same_except_positions_and_return gh ret a b ->
+ replay_stores a us=Some af ->replay_stores b vs=Some bf ->
+ same_except_positions_and_return gh ret af bf.
+Proof.
+ intros gh ret us vs a b af bf COMP;revert a b af bf.
+ induction COMP;intros a b af bf FRAME UA UB.
+ - cbn[replay_stores]in UA,UB;injection UA as<-;injection UB as<-;exact FRAME.
+ - destruct H as[ch[dst[ofs[va[vb[-> [-> CASE]]]]]]].
+   cbn[replay_stores]in UA,UB.
+   destruct(Mem.store ch a dst ofs va)as[ma|]eqn:SA;try discriminate.
+   destruct(Mem.store ch b dst ofs vb)as[mb|]eqn:SB;try discriminate.
+   eapply IHCOMP;[|exact UA|exact UB].
+   destruct CASE as[EQ|TR].
+   + subst vb;eapply synchronized_store_preserves_canonical_frame;eauto.
+   + eapply translated_store_pair_preserves_canonical_frame;eauto.
+Qed.
+Print Assumptions compatible_replay_preserves_canonical_frame.
+
+FILE paparazzi/relations/pid_position_translation/attempts/002/NormalReturn.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import BigstepSupport StackCleanup FunctionAllocation.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationProblem Require Import Spec.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreSemantics FlightSemantics ControllerPrefix CoreCall ReturnSemantics.
+From PidPositionSafety Require Import FactoryCall.
+From PidPositionTranslationAttempt002 Require Import ClampSemantics PrefixFields EntryAllocation EntryIntegration EntryReturn CoreInputs.
+Import ListNotations.
+Open Scope Z_scope.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+Definition entry_axis_command m gh(D:core_initial_data m gh)(flight:bool)(r p s v acc i:int):int:=
+ controller_command flight(cid_kp _ _ D)(cid_kd _ _ D)(cid_ki _ _ D)(cid_kv _ _ D)(cid_ka _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608))s acc i(Int.repr 1429)(Int.repr 3216).
+Definition entry_axis_integral m gh(D:core_initial_data m gh)(flight:bool)(r p s v i:int):int:=
+ next_integral flight i(cid_ki _ _ D)
+ (pd_bits(cid_kp _ _ D)(cid_kd _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608)))(Int.repr 1429).
+
+Theorem original_entry_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_reaches_core_call m gh ret flight GOOD)
+ as(e&front&be&bs&sb&rx&ry&px&py&sx&sy&vx&vy&br&bf&bg&temp&
+ SE&SS&STATE&RX&RY&PX&PY&SX&SY&VX&VY&PATH&PEX&PEY&SEX&SEY&
+ LR&LF&LG&LC&RES&GH&FLIGHT&SEP&FRESH&FREE&FRAME&PERM&UNSH).
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid SP)as IP.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_pos_err SE)as IE.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_speed_err SS)as IS.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_trim_att_integrator SI)as II.
+ pose proof(Genv.find_invert_symbol E.ge S._traj_max_bank ST)as IT.
+ pose proof(Genv.find_invert_symbol E.ge S._total_max_bank SU)as IU.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_h SH)as IH.
+ cbv[S._guidance_pid S._guidance_pid_pos_err S._guidance_pid_speed_err S._guidance_pid_trim_att_integrator S._traj_max_bank S._total_max_bank S._guidance_h]in IP,IE,IS,II,IT,IU,IH.
+ assert(GP:gh<>bp)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid bp GOOD SP ltac:(discriminate))).
+ assert(GE:gh<>be)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_pos_err be GOOD SE ltac:(discriminate))).
+ assert(GS:gh<>bs)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_speed_err bs GOOD SS ltac:(discriminate))).
+ assert(GI:gh<>bi)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_trim_att_integrator bi GOOD SI ltac:(discriminate))).
+ assert(GT:gh<>bt)by(exact(inputgood_guidance_separate m gh ret S._traj_max_bank bt GOOD ST ltac:(discriminate))).
+ assert(GU:gh<>bu)by(exact(inputgood_guidance_separate m gh ret S._total_max_bank bu GOOD SU ltac:(discriminate))).
+ assert(ND:NoDup[bp;be;bs;gh;bi;bt;bu]).
+ { let rec distinct := lazymatch goal with
+   | |-NoDup []=>apply NoDup_nil
+   | |-NoDup(_::_)=>apply NoDup_cons;[cbn;intuition congruence|distinct]
+   end in distinct. }
+ assert(VP:Mem.valid_block m bp)by(eapply loaded_block;exact KP).
+ assert(VI:Mem.valid_block m bi)by(eapply loaded_block;exact IX).
+ assert(TP:temp<>bp)by(intro EQ;subst temp;exact(FRESH S.__res__1 bp sp_type LC VP)).
+ assert(TI:temp<>bi)by(intro EQ;subst temp;exact(FRESH S.__res__1 bi sp_type LC VI)).
+ assert(BRP:br<>bp)by(intro EQ;subst br;exact(FRESH S.__res bp(tptr sp_type)LR VP)).
+ assert(BRI:br<>bi)by(intro EQ;subst br;exact(FRESH S.__res bi(tptr sp_type)LR VI)).
+ assert(BRT:br<>temp)by(eapply environment_distinct;[exact SEP| |exact LR|exact LC];discriminate).
+ assert(WPF:Mem.range_perm front bp 0 48 Cur Writable)by(intros ofs R;apply PERM;apply WP;exact R).
+ assert(WIF:Mem.range_perm front bi 0 8 Cur Writable)by(intros ofs R;apply PERM;apply WI;exact R).
+ assert(WTEMP:Mem.range_perm front temp 0 36 Cur Writable).
+ { pose proof(FREE S.__res__1 temp sp_type LC)as W.
+   rewrite PrefixFields.prefix_ge_ce in W;change(Mem.range_perm front temp 0 36 Cur Freeable)in W.
+   intros ofs R;eapply Mem.perm_implies;[apply W;exact R|constructor]. }
+ assert(WRET0:Mem.range_perm m ret 0 36 Cur Writable).
+ { destruct GOOD as[LEG _];assert(W:Mem.range_perm m ret 0(sizeof ce sp_type)Cur Writable)by(unfold InputGoodLegacy in LEG;tauto);exact W. }
+ assert(WRET:Mem.range_perm front ret 0 36 Cur Writable)by(intros ofs R;apply PERM;apply WRET0;exact R).
+ assert(VRET:Mem.valid_block m ret)by(exact(range_block m ret 0 36 Writable ltac:(lia)WRET0)).
+ assert(TR:temp<>ret)by(intro EQ;subst temp;exact(FRESH S.__res__1 ret sp_type LC VRET)).
+ assert(RETGLOBAL:forall id,Genv.find_symbol E.ge id<>Some ret)
+ by(destruct GOOD as[LEG _];unfold InputGoodLegacy in LEG;tauto).
+ assert(PR:bp<>ret)by(intro EQ;subst bp;apply(RETGLOBAL S._guidance_pid);exact SP).
+ assert(IR:bi<>ret)by(intro EQ;subst bi;apply(RETGLOBAL S._guidance_pid_trim_att_integrator);exact SI).
+ assert(FRAMED:forall id b ch ofs v,Genv.find_symbol E.ge id=Some b ->
+ id<>S._guidance_pid_pos_err ->id<>S._guidance_pid_speed_err ->
+ Mem.load ch m b ofs=Some v ->Mem.load ch front b ofs=Some v).
+ { intros id b ch ofs v SYMBOL NE NS LOAD;apply FRAME;[exact LOAD| |].
+   - eapply Genv.global_addresses_distinct;[exact NE|exact SYMBOL|exact SE].
+   - eapply Genv.global_addresses_distinct;[exact NS|exact SYMBOL|exact SS]. }
+ assert(AIX:Mem.valid_access front Mint32 bi 0 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|0);try(exists 0;reflexivity);cbn;lia. }
+ assert(AIY:Mem.valid_access front Mint32 bi 4 Writable).
+ { apply scalar_access_inside with(n:=8);try exact WIF;try change(4|4);try(exists 1;reflexivity);cbn;lia. }
+ assert(ACX:Mem.valid_access front Mint32 bp 32 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|32);try(exists 8;reflexivity);cbn;lia. }
+ assert(ACY:Mem.valid_access front Mint32 bp 36 Writable).
+ { apply scalar_access_inside with(n:=48);try exact WPF;try change(4|36);try(exists 9;reflexivity);cbn;lia. }
+ assert(RVEC:Mem.range_perm front bp 32 40 Cur Readable).
+ { intros ofs R;eapply Mem.perm_implies;[apply WPF;lia|constructor]. }
+ destruct(CoreCall.original_h_run_funcall front bp be bs gh bi bt bu bh bfun temp flight
+ kp kd ki kv ka
+ (ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096))(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608))(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608))
+ sx sy ax ay ix iy(Int.repr 1429)(Int.repr 3216)h heading
+ SP SE SS SI ST SU SH SF FF ND TP TI ltac:(congruence)ltac:(congruence)
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact APP])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KP])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KD])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KI])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KV])
+ ltac:(eapply FRAMED;[exact SP|discriminate|discriminate|exact KA])
+ PEX PEY SEX SEY
+ ltac:(apply FRAME;[exact SX|exact GE|exact GS])ltac:(apply FRAME;[exact SY|exact GE|exact GS])
+ ltac:(apply FRAME;[exact AX|exact GE|exact GS])ltac:(apply FRAME;[exact AY|exact GE|exact GS])
+ ltac:(eapply FRAMED;[exact SI|discriminate|discriminate|exact IX])
+ ltac:(eapply FRAMED;[exact SI|discriminate|discriminate|exact IY])
+ ltac:(eapply FRAMED;[exact ST|discriminate|discriminate|exact LT])
+ ltac:(eapply FRAMED;[exact SU|discriminate|discriminate|exact LU])
+ ltac:(eapply FRAMED;[exact SH|discriminate|discriminate|exact HEAD])
+ (CAST front)RVEC WTEMP AIX AIY ACX ACY)
+ as(coreout&CALL&ACTIVE&IXC&IYC&CMDX&CMDY&KEEP&CFRAME&CBFRAME).
+ assert(VBR:Mem.valid_block front br)by(eapply loaded_block;exact RES).
+ assert(RESC:Mem.load Mint64 coreout br 0=Some(Vptr ret Ptrofs.zero)).
+ { rewrite CFRAME;try assumption;exact RES. }
+ destruct actual_core_target as[funb[SFUN FFUN]].
+ assert(NCORE:e!S._guidance_pid_h_run=None)by(apply UNSH;unfold entry_declarations;cbn;intuition discriminate).
+ destruct(original_entry_return_tail e front coreout br bf bg temp funb gh ret flight _ _ heading
+ LR LF LG LC NCORE SFUN FFUN TR RES RESC FLIGHT GH CALL ACTIVE KEEP WTEMP WRET)
+ as(bodym&bytes&TAIL&ACTRET&TAILKEEP&BYTES&COPY).
+ assert(FREEBODY:forall id b ty,e!id=Some(b,ty)->Mem.range_perm bodym b 0(sizeof E.ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply access_preserved_byte_range;[exact TAILKEEP|exact(FREE id b ty LOOK)]. }
+ destruct(free_environment E.ge e bodym SEP FREEBODY)as[mf[FREEFINAL[FREEFRAME FREEACCESS]]].
+ assert(OUT:forall b,Mem.valid_block m b ->forall id ty,e!id=Some(b,ty)->False)
+ by(intros b VB id ty LOOK;exact(FRESH id b ty LOOK VB)).
+ lazymatch type of ACTRET with active_fields _ _ ?cx ?cy _=>assert(FINALRET:active_fields mf ret cx cy heading)end.
+ { unfold active_fields in *;repeat match goal with H:_/\_ |- _=>destruct H end.
+   repeat split;rewrite FREEFRAME by(apply OUT;exact VRET);assumption. }
+ assert(FIX:Mem.load Mint32 mf bi 0=Mem.load Mint32 coreout bi 0).
+ { rewrite FREEFRAME by(apply OUT;exact VI).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact IR]. }
+ assert(FIY:Mem.load Mint32 mf bi 4=Mem.load Mint32 coreout bi 4).
+ { rewrite FREEFRAME by(apply OUT;exact VI).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact IR]. }
+ assert(FCX:Mem.load Mint32 mf bp 32=Mem.load Mint32 coreout bp 32).
+ { rewrite FREEFRAME by(apply OUT;exact VP).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact PR]. }
+ assert(FCY:Mem.load Mint32 mf bp 36=Mem.load Mint32 coreout bp 36).
+ { rewrite FREEFRAME by(apply OUT;exact VP).
+   eapply Mem.load_storebytes_other;[exact COPY|left;exact PR]. }
+ cbv beta iota zeta delta[entry_axis_command entry_axis_integral cid_i cid_pid cid_ax cid_ay cid_ix cid_iy cid_hbits cid_kp cid_kd cid_ki cid_kv cid_ka].
+ exists mf,rx,ry,px,py,sx,sy,vx,vy,sb;split.
+ - exists E0,Vundef;eapply star_trans with(t1:=E0)(t2:=E0);[exact PATH| |reflexivity].
+   eapply returning_statement_original_path;[exact TAIL|exact FREEFINAL].
+ - repeat(first[assumption|split]).
+   + rewrite FIX;exact IXC.
+   + rewrite FIY;exact IYC.
+   + rewrite FCX;exact CMDX.
+   + rewrite FCY;exact CMDY.
+Qed.
+Corollary original_entry_normal_return : forall m gh ret flight,
+ InputGood m gh ret ->exists mf,NormalCall gh ret flight m mf.
+Proof.
+ intros m gh ret flight GOOD.
+ destruct(inputgood_core_initial_data m gh ret GOOD)as[D _].
+ destruct(original_entry_normal_result m gh ret flight D GOOD)as(mf&rx&ry&px&py&sx&sy&vx&vy&sb&CALL&REST).
+ exists mf;exact CALL.
+Qed.
+Print Assumptions original_entry_normal_return.
+
+TELEMETRY """FIVE per-invocation evidence and resource accounting (Linux, Python stdlib)."""
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import signal
+import subprocess
+import threading
+import time
+import uuid
+
+SCHEMA = 'five-run/1.0'
+SECTIONS = {'environment.json':'environment','scope.json':'scope','tokens.json':'tokens',
+            'commands.json':'commands','result.json':'result','completeness.json':'completeness'}
+
+
+def utc():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def dump(path, data):
+    path = Path(path)
+    # Store metadata once, rather than scattering the same run facts over files.
+    metadata_path = path.parent/'run.json'
+    key = SECTIONS.get(path.name)
+    if path.name == 'manifest.json' and path.parent.name == 'inputs':
+        metadata_path = path.parent.parent/'run.json'
+        key = 'inputs'
+    if key and metadata_path.exists():
+        metadata = json.loads(metadata_path.read_text())
+        metadata[key] = data
+        return dump(metadata_path,metadata)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix+'.tmp')
+    temporary.write_text(json.dumps(data, indent=2, ensure_ascii=False)+'\n')
+    temporary.replace(path)
+
+
+def sha(path):
+    h = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024*1024), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def tree_rss(root_pid):
+    """Observed resident bytes, summed across a fresh-session command tree."""
+    processes = {}
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            fields = (entry/'stat').read_text().rsplit(')',1)[1].split()
+            processes[int(entry.name)] = (int(fields[1]), int(fields[3]), int((entry/'statm').read_text().split()[1]))
+        except (FileNotFoundError, ProcessLookupError, PermissionError, IndexError, ValueError):
+            pass
+    pids = {pid for pid,(_,session,_) in processes.items() if session == root_pid} | {root_pid}
+    changed = True
+    while changed:
+        old = len(pids)
+        pids.update(pid for pid,(parent,_,_) in processes.items() if parent in pids)
+        changed = len(pids) != old
+    return sum(processes[pid][2] for pid in pids if pid in processes)*os.sysconf('SC_PAGE_SIZE')
+
+
+class Run:
+    @classmethod
+    def start(cls, base, skill, inputs, scope, parent=None, invocation_kind='tool-workflow', usage_session=None):
+        if skill not in {'five-prepare','five-cbmc','five-align','five-rocq','five-verify'}:
+            raise ValueError('Unknown FIVE skill')
+        run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')+'-'+uuid.uuid4().hex[:10]
+        folder = Path(base).resolve()/run_id/skill
+        folder.mkdir(parents=True,exist_ok=False)
+        for name in ['inputs','logs','evidence']:
+            (folder/name).mkdir()
+        dump(folder/'run.json', {'schema':SCHEMA,'run_id':run_id,'skill':skill,'parent':str(parent) if parent else None,
+             'started_at':utc(),'start_epoch':time.time(),'invocation_kind':invocation_kind,'status':'running',
+             'timing_scope':'From start to finish of this invocation; not retroactive authoring time',
+             'children':[]})
+        dump(folder/'environment.json', {'os':platform.platform(),'machine':platform.machine(),'python':platform.python_version(),
+             'cwd':os.getcwd(),'measurement':'GNU time + /proc RSS sampling',
+             'tools':{},'environment_policy':'No full environment dump; secrets excluded'})
+        dump(folder/'scope.json', scope)
+        dump(folder/'tokens.json', {'status':'unavailable','source':None,'events':[],
+             'reason':'The invoking runtime has not supplied per-call model usage receipts. No token estimation is substituted.'})
+        dump(folder/'commands.json', [])
+        dump(folder/'inputs/manifest.json', [])
+        run = cls(folder)
+        for role,path in inputs:
+            try:
+                run.capture(path,role,area='inputs')
+            except FileNotFoundError:
+                manifest = run.read('inputs/manifest.json')
+                manifest.append({'role':role,'source':str(path),'status':'missing','reason':'Input did not exist at invocation start'})
+                dump(folder/'inputs/manifest.json',manifest)
+        if usage_session is not None:
+            from codex_usage import snapshot
+            metadata=run.read('run.json')
+            metadata['codex_usage_boundary']={'session_file':str(Path(usage_session).resolve()),'before':snapshot(usage_session)}
+            dump(folder/'run.json',metadata)
+        run.refresh_metrics()
+        if parent:
+            cls(parent).link_child(run)
+        return run
+
+    def __init__(self, folder):
+        self.folder = Path(folder).resolve()
+        if not (self.folder/'run.json').is_file():
+            raise ValueError('Not a FIVE run directory')
+
+    def read(self,name):
+        key = SECTIONS.get(name,'inputs' if name == 'inputs/manifest.json' else None)
+        if key:
+            return json.loads((self.folder/'run.json').read_text())[key]
+        return json.loads((self.folder/name).read_text())
+
+    def capture(self, path, role, area='evidence'):
+        original = Path(path).resolve()
+        if not original.exists():
+            raise FileNotFoundError(f'Required artifact missing: {original}')
+        safe_role = re.sub(r'[^A-Za-z0-9_.-]+','-',role)
+        target = self.folder/area/f'{safe_role}--{original.name}'
+        if original.is_dir():
+            shutil.copytree(original,target)
+            files = sorted(p for p in target.rglob('*') if p.is_file())
+            value = hashlib.sha256(''.join(str(p.relative_to(target))+':'+sha(p)+'\n' for p in files).encode()).hexdigest()
+            return {'role':role,'source':str(original),'path':str(target.relative_to(self.folder)),
+                    'sha256_tree':value,'bytes':sum(p.stat().st_size for p in files)}
+        shutil.copyfile(original,target)
+        record = {'role':role,'source':str(original),'path':str(target.relative_to(self.folder)),
+                  'sha256':sha(target),'bytes':target.stat().st_size}
+        if area == 'inputs':
+            manifest = self.read('inputs/manifest.json')
+            manifest.append(record)
+            dump(self.folder/'inputs/manifest.json',manifest)
+        return record
+
+    def evidence(self, name, data):
+        dump(self.folder/'evidence'/name,data)
+
+    def command(self,args,label,timeout=180,cwd=None,combined_log=None):
+        if not args or not all(isinstance(a,str) for a in args):
+            raise ValueError('Command must be a nonempty argv string list')
+        commands = self.read('commands.json')
+        seq = len(commands)+1
+        stem = f'{seq:03d}-'+re.sub(r'[^A-Za-z0-9_.-]+','-',label)
+        stdout = self.folder/'logs'/f'{stem}.stdout.log'
+        stderr = self.folder/'logs'/f'{stem}.stderr.log'
+        resources = self.folder/'logs'/f'{stem}.time.log'
+        binary = shutil.which(args[0])
+        started_at, started = utc(), time.monotonic()
+        stop = threading.Event()
+        rss_samples = []
+        sample_errors = []
+        proc = None
+        status = 'failed'
+        exit_code = None
+        error = None
+        time_format = '{"max_process_rss_kib":%M,"user_seconds":%U,"system_seconds":%S,"elapsed_seconds":%e,"exit_code":%x}'
+        try:
+            with stdout.open('wb') as out, stderr.open('wb') as err:
+                proc = subprocess.Popen(['/usr/bin/time','-f',time_format,'-o',str(resources),'--',*args],
+                       cwd=cwd,stdout=out,stderr=err,start_new_session=True)
+                def sample():
+                    while not stop.is_set():
+                        try:
+                            rss_samples.append((time.monotonic(),tree_rss(proc.pid)))
+                        except Exception as exc:
+                            sample_errors.append(str(exc))
+                        stop.wait(0.01)
+                monitor = threading.Thread(target=sample,daemon=True)
+                monitor.start()
+                try:
+                    exit_code = proc.wait(timeout=timeout)
+                    status = 'passed' if exit_code == 0 else 'failed'
+                except subprocess.TimeoutExpired:
+                    status = 'timeout'
+                    # The tool and its workers share this newly created session.
+                    try:
+                        os.killpg(proc.pid,signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        exit_code = proc.wait(timeout=1)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            os.killpg(proc.pid,signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        exit_code = proc.wait()
+                finally:
+                    stop.set()
+                    monitor.join(timeout=2)
+        except Exception as exc:
+            error = str(exc)
+        wall = time.monotonic()-started
+        usage = None
+        if resources.exists():
+            for line in reversed(resources.read_text(errors='replace').splitlines()):
+                try:
+                    usage = json.loads(line)
+                    break
+                except json.JSONDecodeError:
+                    continue
+        record = {'id':stem,'argv':args,'resolved_executable':binary,'cwd':str(Path(cwd or os.getcwd()).resolve()),
+                  'started_at':started_at,'finished_at':utc(),'wall_seconds':wall,'timeout_seconds':timeout,
+                  'status':status,'exit_code':exit_code,'error':error,'gnu_time':usage,
+                  'peak_process_tree_rss_sampled_bytes':max((rss for _,rss in rss_samples),default=None),
+                  'rss_sample_count':len(rss_samples),'rss_requested_interval_seconds':0.01,
+                  'rss_max_observed_sample_gap_seconds':max((b[0]-a[0] for a,b in zip(rss_samples,rss_samples[1:])),default=None),
+                  'rss_sampling_errors':sample_errors,'stdout':str(stdout.relative_to(self.folder)),
+                  'stderr':str(stderr.relative_to(self.folder)),'time_log':str(resources.relative_to(self.folder))}
+        commands.append(record)
+        dump(self.folder/'commands.json',commands)
+        env = self.read('environment.json')
+        if binary and args[0] not in env['tools']:
+            env['tools'][args[0]] = {'path':binary,'binary_sha256':sha(binary)}
+            dump(self.folder/'environment.json',env)
+        if combined_log:
+            combined = Path(combined_log)
+            combined.parent.mkdir(parents=True,exist_ok=True)
+            combined.write_bytes(stdout.read_bytes()+stderr.read_bytes())
+        self.refresh_metrics()
+        if status != 'passed':
+            message = (stderr.read_text(errors='replace')+stdout.read_text(errors='replace'))[-4000:]
+            raise RuntimeError(f'{status}: {args[0]} exit={exit_code}; {error or message}; run={self.folder}')
+        return record
+
+    def link_child(self, child):
+        data = self.read('run.json')
+        path = str(child.folder)
+        if path not in data['children']:
+            data['children'].append(path)
+            dump(self.folder/'run.json',data)
+
+    def import_tokens(self, receipt):
+        data = json.loads(Path(receipt).read_text())
+        if data.get('source',{}).get('kind') not in {'provider-usage','codex-session-event'} or not data.get('source',{}).get('reference'):
+            raise ValueError('Require an identified provider usage or Codex session-event source')
+        if data.get('complete') not in [True,False] or not isinstance(data.get('events'),list):
+            raise ValueError('Require usage event list and explicit complete=true/false')
+        if not data['events'] and not (data['complete'] and data.get('scope')=='explicit event-boundary interval' and data.get('boundaries') and data.get('total_tokens')==0):
+            raise ValueError('Zero usage requires a verified empty event-boundary interval, not missing data')
+        seen = set()
+        for event in data['events']:
+            if not event.get('event_id') or event['event_id'] in seen:
+                raise ValueError('Usage events must have unique event_id')
+            seen.add(event['event_id'])
+            for key in ['input_tokens','output_tokens']:
+                if type(event.get(key)) is not int or event[key] < 0:
+                    raise ValueError(f'Invalid {key}')
+            for key,limit in [('cached_input_tokens','input_tokens'),('reasoning_output_tokens','output_tokens')]:
+                value = event.get(key)
+                if value is not None and (type(value) is not int or not 0 <= value <= event[limit]):
+                    raise ValueError(f'Invalid {key}; it is a subset, not an extra total')
+        self.capture(receipt,'model-usage-receipt')
+        dump(self.folder/'tokens.json', {'status':'available' if data['complete'] else 'partial',**data})
+        self.refresh_metrics()
+
+    def refresh_metrics(self):
+        meta = self.read('run.json')
+        commands = self.read('commands.json')
+        own = self.read('tokens.json')
+        events = {}
+        incomplete = []
+        event_conflicts = []
+        token_sources = []
+        def merge_tokens(tokens, identity):
+            if tokens.get('status') != 'available':
+                incomplete.append(identity)
+            if tokens.get('source'):
+                token_sources.append(tokens['source'])
+            token_sources.extend(tokens.get('sources',[]))
+            for event in tokens.get('events',[]):
+                ident = event['event_id']
+                if ident in events and events[ident] != event:
+                    event_conflicts.append(ident)
+                events[

@@ -1,0 +1,388 @@
+SaturationEntryAccel.v 30
+Proof.
+ intros m ba bc a maximum CONTRACT SYM LC LX LY A0 A4.
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+SaturationEntryAccel.v 31
+ intros m ba bc a maximum CONTRACT SYM LC LX LY A0 A4.
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(FRESH:forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b).
+SaturationEntryAccel.v 32
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(FRESH:forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+SaturationEntryAccel.v 65
+ assert(COPYKEEP:access_preserved ma mb).
+ { unfold access_preserved;intros;eapply Mem.store_valid_access_1;eauto. }
+ assert(FREEB:forall id b ty,e!id=Some(b,ty)->Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact COPYKEEP|eapply FREEA;exact LOOK]. }
+ assert(BIND:bind_parameters ge e ma(fn_params S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]mb).
+ { eapply bind_parameters_cons;[exact LP| |constructor].
+   eapply assign_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact SP|change(0+8<=18446744073709551616);lia]. }
+ assert(PTR:Mem.load Mint64 mb bp 0=Some(Vptr ba Ptrofs.zero)).
+ { erewrite Mem.load_store_same by exact SP;reflexivity. }
+ assert(LXB:Mem.load Mfloat32 mb ba 0=Some(Vsingle(vx a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 0(Vsingle(vx a))LX)as H;rewrite ALLOC in H;exact H. }
+ assert(LYB:Mem.load Mfloat32 mb ba 4=Some(Vsingle(vy a))).
+SaturationEntryAccel.v 66
+ { unfold access_preserved;intros;eapply Mem.store_valid_access_1;eauto. }
+ assert(FREEB:forall id b ty,e!id=Some(b,ty)->Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact COPYKEEP|eapply FREEA;exact LOOK]. }
+ assert(BIND:bind_parameters ge e ma(fn_params S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]mb).
+ { eapply bind_parameters_cons;[exact LP| |constructor].
+   eapply assign_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact SP|change(0+8<=18446744073709551616);lia]. }
+ assert(PTR:Mem.load Mint64 mb bp 0=Some(Vptr ba Ptrofs.zero)).
+ { erewrite Mem.load_store_same by exact SP;reflexivity. }
+ assert(LXB:Mem.load Mfloat32 mb ba 0=Some(Vsingle(vx a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 0(Vsingle(vx a))LX)as H;rewrite ALLOC in H;exact H. }
+ assert(LYB:Mem.load Mfloat32 mb ba 4=Some(Vsingle(vy a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+FunctionAllocation.v 6
+From compcert Require Import Coqlib Maps Values Memory Ctypes Csem Cexec.
+From FiveGuidanceAllocation Require Import StackAllocation.
+Import ListNotations.
+Lemma allocation_binding_origin:forall ge vars e m id b ty,
+ (fst(Cexec.do_alloc_variables ge e m vars))!id=Some(b,ty)->
+ e!id=Some(b,ty) \/In(id,ty)vars.
+Proof.
+ intros ge vars;induction vars as[|[head ht]vars IH];intros e m id b ty LOOK.
+ - left;exact LOOK.
+ - cbn[Cexec.do_alloc_variables]in LOOK.
+   destruct(Mem.alloc m 0(sizeof ge ht))as[ma fresh]eqn:A.
+   destruct(IH _ _ _ _ _ LOOK)as[OLD|IN];[|right;right;exact IN].
+   rewrite PTree.gsspec in OLD;destruct(peq id head).
+   + subst id;injection OLD as EQ T;subst b ht;right;left;reflexivity.
+FunctionAllocation.v 11
+ e!id=Some(b,ty) \/In(id,ty)vars.
+Proof.
+ intros ge vars;induction vars as[|[head ht]vars IH];intros e m id b ty LOOK.
+ - left;exact LOOK.
+ - cbn[Cexec.do_alloc_variables]in LOOK.
+   destruct(Mem.alloc m 0(sizeof ge ht))as[ma fresh]eqn:A.
+   destruct(IH _ _ _ _ _ LOOK)as[OLD|IN];[|right;right;exact IN].
+   rewrite PTree.gsspec in OLD;destruct(peq id head).
+   + subst id;injection OLD as EQ T;subst b ht;right;left;reflexivity.
+   + left;exact OLD.
+Qed.
+Lemma allocated_environment_origin:forall ge vars m e ma,
+ Csem.alloc_variables ge empty_env m vars e ma->
+ forall id b ty,e!id=Some(b,ty)->In(id,ty)vars.
+FunctionAllocation.v 12
+Proof.
+ intros ge vars;induction vars as[|[head ht]vars IH];intros e m id b ty LOOK.
+ - left;exact LOOK.
+ - cbn[Cexec.do_alloc_variables]in LOOK.
+   destruct(Mem.alloc m 0(sizeof ge ht))as[ma fresh]eqn:A.
+   destruct(IH _ _ _ _ _ LOOK)as[OLD|IN];[|right;right;exact IN].
+   rewrite PTree.gsspec in OLD;destruct(peq id head).
+   + subst id;injection OLD as EQ T;subst b ht;right;left;reflexivity.
+   + left;exact OLD.
+Qed.
+Lemma allocated_environment_origin:forall ge vars m e ma,
+ Csem.alloc_variables ge empty_env m vars e ma->
+ forall id b ty,e!id=Some(b,ty)->In(id,ty)vars.
+Proof.
+FunctionAllocation.v 19
+   + subst id;injection OLD as EQ T;subst b ht;right;left;reflexivity.
+   + left;exact OLD.
+Qed.
+Lemma allocated_environment_origin:forall ge vars m e ma,
+ Csem.alloc_variables ge empty_env m vars e ma->
+ forall id b ty,e!id=Some(b,ty)->In(id,ty)vars.
+Proof.
+ intros ge vars m e ma ALLOC id b ty LOOK.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ ALLOC)as DONE.
+ destruct(allocation_binding_origin ge vars empty_env m id b ty)as[OLD|IN].
+ - rewrite DONE;exact LOOK.
+ - discriminate OLD.
+ - exact IN.
+Qed.
+FunctionAllocation.v 23
+ Csem.alloc_variables ge empty_env m vars e ma->
+ forall id b ty,e!id=Some(b,ty)->In(id,ty)vars.
+Proof.
+ intros ge vars m e ma ALLOC id b ty LOOK.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ ALLOC)as DONE.
+ destruct(allocation_binding_origin ge vars empty_env m id b ty)as[OLD|IN].
+ - rewrite DONE;exact LOOK.
+ - discriminate OLD.
+ - exact IN.
+Qed.
+Print Assumptions allocated_environment_origin.
+Lemma allocation_access:forall ge vars e m ch b ofs p,
+ Mem.valid_access m ch b ofs p ->
+ Mem.valid_access(snd(Cexec.do_alloc_variables ge e m vars))ch b ofs p.
+FunctionAllocation.v 32
+Qed.
+Print Assumptions allocated_environment_origin.
+Lemma allocation_access:forall ge vars e m ch b ofs p,
+ Mem.valid_access m ch b ofs p ->
+ Mem.valid_access(snd(Cexec.do_alloc_variables ge e m vars))ch b ofs p.
+Proof.
+ intros ge vars e m ch b ofs p[PERM ALIGN];split;[|exact ALIGN].
+ intros x R;eapply StackAllocation.allocation_perm;apply PERM;exact R.
+Qed.
+Lemma allocation_load_frame:forall ge vars e m ch b ofs,
+ Mem.valid_block m b ->Mem.load ch(snd(Cexec.do_alloc_variables ge e m vars))b ofs=Mem.load ch m b ofs.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m ch b ofs VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+FunctionAllocation.v 38
+ intros ge vars e m ch b ofs p[PERM ALIGN];split;[|exact ALIGN].
+ intros x R;eapply StackAllocation.allocation_perm;apply PERM;exact R.
+Qed.
+Lemma allocation_load_frame:forall ge vars e m ch b ofs,
+ Mem.valid_block m b ->Mem.load ch(snd(Cexec.do_alloc_variables ge e m vars))b ofs=Mem.load ch m b ofs.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m ch b ofs VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.load_alloc_unchanged;eauto.
+Qed.
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+FunctionAllocation.v 40
+Qed.
+Lemma allocation_load_frame:forall ge vars e m ch b ofs,
+ Mem.valid_block m b ->Mem.load ch(snd(Cexec.do_alloc_variables ge e m vars))b ofs=Mem.load ch m b ofs.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m ch b ofs VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.load_alloc_unchanged;eauto.
+Qed.
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m b ofs n VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+FunctionAllocation.v 41
+Lemma allocation_load_frame:forall ge vars e m ch b ofs,
+ Mem.valid_block m b ->Mem.load ch(snd(Cexec.do_alloc_variables ge e m vars))b ofs=Mem.load ch m b ofs.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m ch b ofs VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.load_alloc_unchanged;eauto.
+Qed.
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m b ofs n VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+FunctionAllocation.v 46
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.load_alloc_unchanged;eauto.
+Qed.
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m b ofs n VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.loadbytes_alloc_unchanged;eauto.
+Qed.
+FunctionAllocation.v 48
+Qed.
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m b ofs n VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.loadbytes_alloc_unchanged;eauto.
+Qed.
+FunctionAllocation.v 49
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m b ofs n VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.loadbytes_alloc_unchanged;eauto.
+Qed.
+SaturationEntry.v 30
+Proof.
+ intros m ba bc a maximum CONTRACT SYM LC LX LY A0 A4.
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+SaturationEntry.v 31
+ intros m ba bc a maximum CONTRACT SYM LC LX LY A0 A4.
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(FRESH:forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b).
+SaturationEntry.v 32
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(FRESH:forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+SaturationEntry.v 65
+ assert(COPYKEEP:access_preserved ma mb).
+ { unfold access_preserved;intros;eapply Mem.store_valid_access_1;eauto. }
+ assert(FREEB:forall id b ty,e!id=Some(b,ty)->Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact COPYKEEP|eapply FREEA;exact LOOK]. }
+ assert(BIND:bind_parameters ge e ma(fn_params S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]mb).
+ { eapply bind_parameters_cons;[exact LP| |constructor].
+   eapply assign_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact SP|change(0+8<=18446744073709551616);lia]. }
+ assert(PTR:Mem.load Mint64 mb bp 0=Some(Vptr ba Ptrofs.zero)).
+ { erewrite Mem.load_store_same by exact SP;reflexivity. }
+ assert(LXB:Mem.load Mfloat32 mb ba 0=Some(Vsingle(vx a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 0(Vsingle(vx a))LX)as H;rewrite ALLOC in H;exact H. }
+ assert(LYB:Mem.load Mfloat32 mb ba 4=Some(Vsingle(vy a))).
+SaturationEntry.v 66
+ { unfold access_preserved;intros;eapply Mem.store_valid_access_1;eauto. }
+ assert(FREEB:forall id b ty,e!id=Some(b,ty)->Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact COPYKEEP|eapply FREEA;exact LOOK]. }
+ assert(BIND:bind_parameters ge e ma(fn_params S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]mb).
+ { eapply bind_parameters_cons;[exact LP| |constructor].
+   eapply assign_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact SP|change(0+8<=18446744073709551616);lia]. }
+ assert(PTR:Mem.load Mint64 mb bp 0=Some(Vptr ba Ptrofs.zero)).
+ { erewrite Mem.load_store_same by exact SP;reflexivity. }
+ assert(LXB:Mem.load Mfloat32 mb ba 0=Some(Vsingle(vx a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 0(Vsingle(vx a))LX)as H;rewrite ALLOC in H;exact H. }
+ assert(LYB:Mem.load Mfloat32 mb ba 4=Some(Vsingle(vy a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+/home/yangfp/.opam/five/.opam-switch/sources/coq-compcert.3.18/cfrontend/Csem.v
+  | assign_loc_copy: forall b' ofs' bytes m',
+      access_mode ty = By_copy ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs') ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs) ->
+      b' <> b \/ Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs' + sizeof ge ty <= Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs + sizeof ge ty <= Ptrofs.unsigned ofs' ->
+      Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof ge ty) = Some bytes ->
+      Mem.storebytes m b (Ptrofs.unsigned ofs) bytes = Some m' ->
+      assign_loc ty m b ofs Full (Vptr b' ofs') E0 m' (Vptr b' ofs')
+  | assign_loc_bitfield: forall sz sg pos width v m' v',
+      store_bitfield ty sz sg pos width m (Vptr b ofs) v m' v' ->
+      assign_loc ty m b ofs (Bits sz sg pos width) v E0 m' v'.
+
+(** Allocation of function-local variables.
+  [alloc_variables e1 m1 vars e2 m2] allocates one memory block
+  for each variable declared in [vars], and associates the variable
+  name with this block.  [e1] and [m1] are the initial local environment
+  and memory state.  [e2] and [m2] are the final local environment
+  and memory state. *)
+
+Inductive alloc_variables: env -> mem ->
+                           list (ident * type) ->
+                           env -> mem -> Prop :=
+  | alloc_variables_nil:
+      forall e m,
+      alloc_variables e m nil e m
+  | alloc_variables_cons:
+      forall e m id ty vars m1 b1 m2 e2,
+      Mem.alloc m 0 (sizeof ge ty) = (m1, b1) ->
+      alloc_variables (PTree.set id (b1, ty) e) m1 vars e2 m2 ->
+      alloc_variables e m ((id, ty) :: vars) e2 m2.
+
+(** Initialization of local variables that are parameters to a function.
+  [bind_parameters e m1 params args m2] stores the values [args]
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Csem.v
+  | assign_loc_copy: forall b' ofs' bytes m',
+      access_mode ty = By_copy ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs') ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs) ->
+      b' <> b \/ Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs' + sizeof ge ty <= Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs + sizeof ge ty <= Ptrofs.unsigned ofs' ->
+      Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof ge ty) = Some bytes ->
+      Mem.storebytes m b (Ptrofs.unsigned ofs) bytes = Some m' ->
+      assign_loc ty m b ofs Full (Vptr b' ofs') E0 m' (Vptr b' ofs')
+  | assign_loc_bitfield: forall sz sg pos width v m' v',
+      store_bitfield ty sz sg pos width m (Vptr b ofs) v m' v' ->
+      assign_loc ty m b ofs (Bits sz sg pos width) v E0 m' v'.
+
+(** Allocation of function-local variables.
+  [alloc_variables e1 m1 vars e2 m2] allocates one memory block
+  for each variable declared in [vars], and associates the variable
+  name with this block.  [e1] and [m1] are the initial local environment
+  and memory state.  [e2] and [m2] are the final local environment
+  and memory state. *)
+
+Inductive alloc_variables: env -> mem ->
+                           list (ident * type) ->
+                           env -> mem -> Prop :=
+  | alloc_variables_nil:
+      forall e m,
+      alloc_variables e m nil e m
+  | alloc_variables_cons:
+      forall e m id ty vars m1 b1 m2 e2,
+      Mem.alloc m 0 (sizeof ge ty) = (m1, b1) ->
+      alloc_variables (PTree.set id (b1, ty) e) m1 vars e2 m2 ->
+      alloc_variables e m ((id, ty) :: vars) e2 m2.
+
+(** Initialization of local variables that are parameters to a function.
+  [bind_parameters e m1 params args m2] stores the values [args]

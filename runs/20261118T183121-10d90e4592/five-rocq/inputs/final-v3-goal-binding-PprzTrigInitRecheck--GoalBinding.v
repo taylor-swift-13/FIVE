@@ -1,0 +1,76 @@
+Require Import PprzTrigInitRecheck.Spec.
+Require Import PprzTrigInitRecheckProof.Proof.
+Definition goal_0 : PprzTrigInitRecheck.Spec.Guard_get_nibble_array_bounds_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_get_nibble_array_bounds_1.
+Print Assumptions goal_0.
+Definition goal_1 : PprzTrigInitRecheck.Spec.Guard_get_nibble_array_bounds_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_get_nibble_array_bounds_2.
+Print Assumptions goal_1.
+Definition goal_2 : PprzTrigInitRecheck.Spec.Guard_get_nibble_overflow_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_get_nibble_overflow_1.
+Print Assumptions goal_2.
+Definition goal_3 : PprzTrigInitRecheck.Spec.Guard_get_nibble_undefined_shift_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_get_nibble_undefined_shift_1.
+Print Assumptions goal_3.
+Definition goal_4 : PprzTrigInitRecheck.Spec.Guard_get_nibble_undefined_shift_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_get_nibble_undefined_shift_2.
+Print Assumptions goal_4.
+Definition goal_5 : PprzTrigInitRecheck.Spec.Guard_main_assertion_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_main_assertion_1.
+Print Assumptions goal_5.
+Definition goal_6 : PprzTrigInitRecheck.Spec.Guard_main_array_bounds_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_main_array_bounds_1.
+Print Assumptions goal_6.
+Definition goal_7 : PprzTrigInitRecheck.Spec.Guard_main_array_bounds_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_main_array_bounds_2.
+Print Assumptions goal_7.
+Definition goal_8 : PprzTrigInitRecheck.Spec.Guard_main_assertion_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_main_assertion_2.
+Print Assumptions goal_8.
+Definition goal_9 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_12_overflow_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_12_overflow_1.
+Print Assumptions goal_9.
+Definition goal_10 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_12_array_bounds_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_12_array_bounds_1.
+Print Assumptions goal_10.
+Definition goal_11 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_12_array_bounds_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_12_array_bounds_2.
+Print Assumptions goal_11.
+Definition goal_12 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_12_undefined_shift_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_12_undefined_shift_1.
+Print Assumptions goal_12.
+Definition goal_13 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_12_overflow_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_12_overflow_2.
+Print Assumptions goal_13.
+Definition goal_14 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_12_array_bounds_3 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_12_array_bounds_3.
+Print Assumptions goal_14.
+Definition goal_15 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_12_array_bounds_4 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_12_array_bounds_4.
+Print Assumptions goal_15.
+Definition goal_16 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_1.
+Print Assumptions goal_16.
+Definition goal_17 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_2.
+Print Assumptions goal_17.
+Definition goal_18 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_3 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_3.
+Print Assumptions goal_18.
+Definition goal_19 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_4 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_4.
+Print Assumptions goal_19.
+Definition goal_20 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_5 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_5.
+Print Assumptions goal_20.
+Definition goal_21 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_6 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_6.
+Print Assumptions goal_21.
+Definition goal_22 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_7 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_7.
+Print Assumptions goal_22.
+Definition goal_23 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_undefined_shift_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_undefined_shift_1.
+Print Assumptions goal_23.
+Definition goal_24 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_8 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_8.
+Print Assumptions goal_24.
+Definition goal_25 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_9 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_9.
+Print Assumptions goal_25.
+Definition goal_26 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_10 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_10.
+Print Assumptions goal_26.
+Definition goal_27 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_11 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_11.
+Print Assumptions goal_27.
+Definition goal_28 : PprzTrigInitRecheck.Spec.Guard_pprz_trig_int_init_overflow_12 := PprzTrigInitRecheckProof.Proof.proved_Guard_pprz_trig_int_init_overflow_12.
+Print Assumptions goal_28.
+Definition goal_29 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_array_bounds_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_array_bounds_1.
+Print Assumptions goal_29.
+Definition goal_30 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_array_bounds_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_array_bounds_2.
+Print Assumptions goal_30.
+Definition goal_31 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_overflow_1 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_overflow_1.
+Print Assumptions goal_31.
+Definition goal_32 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_array_bounds_3 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_array_bounds_3.
+Print Assumptions goal_32.
+Definition goal_33 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_array_bounds_4 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_array_bounds_4.
+Print Assumptions goal_33.
+Definition goal_34 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_overflow_2 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_overflow_2.
+Print Assumptions goal_34.
+Definition goal_35 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_array_bounds_5 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_array_bounds_5.
+Print Assumptions goal_35.
+Definition goal_36 : PprzTrigInitRecheck.Spec.Guard_table_encode_12_array_bounds_6 := PprzTrigInitRecheckProof.Proof.proved_Guard_table_encode_12_array_bounds_6.
+Print Assumptions goal_36.

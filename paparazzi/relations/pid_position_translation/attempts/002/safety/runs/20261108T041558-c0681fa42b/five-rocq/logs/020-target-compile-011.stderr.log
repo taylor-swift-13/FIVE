@@ -1,0 +1,39 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/safety/TargetTermination.v", line 298, characters 10-32:
+Error:
+In environment
+ge : genv
+block_cost : block -> nat
+allowed : fundef -> Prop
+allowed_call :
+  forall (v : val) (fd : fundef),
+  Genv.find_funct ge v = Some fd -> allowed fd
+internal_body :
+  forall f : function, allowed (Internal f) -> core_stmt (fn_body f)
+internal_env :
+  forall f : function,
+  allowed (Internal f) ->
+  forall (m : mem) (e : env) (m' : mem),
+  alloc_variables ge empty_env m (fn_params f ++ fn_vars f) e m' ->
+  env_no_functions e
+call_budget :
+  forall (v : val) (fd : fundef),
+  Genv.find_funct ge v = Some fd ->
+  activation_rank fd + 2 < 1 + pointer_cost v
+C : expr -> expr
+f : function
+a : expr
+k : cont
+e : env
+m : mem
+a' : expr
+m' : mem
+STEP : estep ge (ExprState f (C a) k e m) E0 (ExprState f (C a') k e m')
+H1 : core_expr (C a)
+H2 : core_cont k
+H3 : env_no_functions e
+H : lred ge e a m a' m'
+H0 : context LV RV C
+Unable to unify "S (expression_rank (?C ?b)) <= expression_rank (?C ?a)" with
+ "S (expression_rank (C a') + continuation_rank k + 1) <=
+  expression_rank (C a) + continuation_rank k + 1".
+

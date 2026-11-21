@@ -1,0 +1,191 @@
+FILE paparazzi/relations/pid_position_translation/attempts/002/CoreInputs.v
+FILE paparazzi/relations/pid_position_translation/attempts/002/NormalReturn.v
+Local Transparent FactorySemantics.ge.
+Local Opaque E.ge.
+Definition entry_axis_command m gh(D:core_initial_data m gh)(flight:bool)(r p s v acc i:int):int:=
+ controller_command flight(cid_kp _ _ D)(cid_kd _ _ D)(cid_ki _ _ D)(cid_kv _ _ D)(cid_ka _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608))s acc i(Int.repr 1429)(Int.repr 3216).
+Definition entry_axis_integral m gh(D:core_initial_data m gh)(flight:bool)(r p s v i:int):int:=
+ next_integral flight i(cid_ki _ _ D)
+ (pd_bits(cid_kp _ _ D)(cid_kd _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608)))(Int.repr 1429).
+
+Theorem original_entry_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_reaches_core_call m gh ret flight GOOD)
+ as(e&front&be&bs&sb&rx&ry&px&py&sx&sy&vx&vy&br&bf&bg&temp&
+ SE&SS&STATE&RX&RY&PX&PY&SX&SY&VX&VY&PATH&PEX&PEY&SEX&SEY&
+ LR&LF&LG&LC&RES&GH&FLIGHT&SEP&FRESH&FREE&FRAME&PERM&UNSH).
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid SP)as IP.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_pos_err SE)as IE.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_speed_err SS)as IS.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_trim_att_integrator SI)as II.
+ pose proof(Genv.find_invert_symbol E.ge S._traj_max_bank ST)as IT.
+ pose proof(Genv.find_invert_symbol E.ge S._total_max_bank SU)as IU.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_h SH)as IH.
+ cbv[S._guidance_pid S._guidance_pid_pos_err S._guidance_pid_speed_err S._guidance_pid_trim_att_integrator S._traj_max_bank S._total_max_bank S._guidance_h]in IP,IE,IS,II,IT,IU,IH.
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608))s acc i(Int.repr 1429)(Int.repr 3216).
+Definition entry_axis_integral m gh(D:core_initial_data m gh)(flight:bool)(r p s v i:int):int:=
+ next_integral flight i(cid_ki _ _ D)
+ (pd_bits(cid_kp _ _ D)(cid_kd _ _ D)
+ (ClampSemantics.clamp_bits(Int.sub r p)(Int.repr 4096))
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608)))(Int.repr 1429).
+
+Theorem original_entry_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_reaches_core_call m gh ret flight GOOD)
+ as(e&front&be&bs&sb&rx&ry&px&py&sx&sy&vx&vy&br&bf&bg&temp&
+ SE&SS&STATE&RX&RY&PX&PY&SX&SY&VX&VY&PATH&PEX&PEY&SEX&SEY&
+ LR&LF&LG&LC&RES&GH&FLIGHT&SEP&FRESH&FREE&FRAME&PERM&UNSH).
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid SP)as IP.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_pos_err SE)as IE.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_speed_err SS)as IS.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_trim_att_integrator SI)as II.
+ pose proof(Genv.find_invert_symbol E.ge S._traj_max_bank ST)as IT.
+ pose proof(Genv.find_invert_symbol E.ge S._total_max_bank SU)as IU.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_h SH)as IH.
+ cbv[S._guidance_pid S._guidance_pid_pos_err S._guidance_pid_speed_err S._guidance_pid_trim_att_integrator S._traj_max_bank S._total_max_bank S._guidance_h]in IP,IE,IS,II,IT,IU,IH.
+ assert(GP:gh<>bp)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid bp GOOD SP ltac:(discriminate))).
+ assert(GE:gh<>be)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_pos_err be GOOD SE ltac:(discriminate))).
+ assert(GS:gh<>bs)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_speed_err bs GOOD SS ltac:(discriminate))).
+ assert(GI:gh<>bi)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_trim_att_integrator bi GOOD SI ltac:(discriminate))).
+ (ClampSemantics.clamp_bits(Int.sub s v)(Int.repr 8388608)))(Int.repr 1429).
+
+Theorem original_entry_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_reaches_core_call m gh ret flight GOOD)
+ as(e&front&be&bs&sb&rx&ry&px&py&sx&sy&vx&vy&br&bf&bg&temp&
+ SE&SS&STATE&RX&RY&PX&PY&SX&SY&VX&VY&PATH&PEX&PEY&SEX&SEY&
+ LR&LF&LG&LC&RES&GH&FLIGHT&SEP&FRESH&FREE&FRAME&PERM&UNSH).
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid SP)as IP.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_pos_err SE)as IE.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_speed_err SS)as IS.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_pid_trim_att_integrator SI)as II.
+ pose proof(Genv.find_invert_symbol E.ge S._traj_max_bank ST)as IT.
+ pose proof(Genv.find_invert_symbol E.ge S._total_max_bank SU)as IU.
+ pose proof(Genv.find_invert_symbol E.ge S._guidance_h SH)as IH.
+ cbv[S._guidance_pid S._guidance_pid_pos_err S._guidance_pid_speed_err S._guidance_pid_trim_att_integrator S._traj_max_bank S._total_max_bank S._guidance_h]in IP,IE,IS,II,IT,IU,IH.
+ assert(GP:gh<>bp)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid bp GOOD SP ltac:(discriminate))).
+ assert(GE:gh<>be)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_pos_err be GOOD SE ltac:(discriminate))).
+ assert(GS:gh<>bs)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_speed_err bs GOOD SS ltac:(discriminate))).
+ assert(GI:gh<>bi)by(exact(inputgood_guidance_separate m gh ret S._guidance_pid_trim_att_integrator bi GOOD SI ltac:(discriminate))).
+ assert(GT:gh<>bt)by(exact(inputgood_guidance_separate m gh ret S._traj_max_bank bt GOOD ST ltac:(discriminate))).
+ assert(GU:gh<>bu)by(exact(inputgood_guidance_separate m gh ret S._total_max_bank bu GOOD SU ltac:(discriminate))).
+ assert(ND:NoDup[bp;be;bs;gh;bi;bt;bu]).
+ { let rec distinct := lazymatch goal with
+   | |-NoDup []=>apply NoDup_nil
+   | |-NoDup(_::_)=>apply NoDup_cons;[cbn;intuition congruence|distinct]
+FILE paparazzi/relations/pid_position_translation/attempts/002/FramedNormalReturn.v
+From PidPositionTranslationAttempt002 Require Import InputSemantics NormalReturn EntryTraceIntegration CoreCompleteCall FrontBytes.
+From PidPositionTranslationCore Require Import CoreMemory MemoryShape PreciseFrame.
+Theorem original_entry_framed_normal_result : forall m gh ret flight(D:core_initial_data m gh),
+ InputGood m gh ret ->
+ exists mf rx ry px py sx sy vx vy sb be bs,
+ NormalCall gh ret flight m mf /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ active_fields mf ret
+ (entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))
+ (entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))(cid_hbits _ _ D) /\
+ Mem.load Mint32 mf(cid_i _ _ D)0=Some(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_i _ _ D)4=Some(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)32=Some(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D))) /\
+ Mem.load Mint32 mf(cid_pid _ _ D)36=Some(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D))) /\
+ load_global Mint32 mf S._guidance_pid_pos_err vec_type[S._x]=Some(Vint(ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096))) /\
+ load_global Mint32 mf S._guidance_pid_pos_err vec_type[S._y]=Some(Vint(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096))) /\
+ load_global Mint32 mf S._guidance_pid_speed_err vec_type[S._x]=Some(Vint(ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608))) /\
+ load_global Mint32 mf S._guidance_pid_speed_err vec_type[S._y]=Some(Vint(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608))) /\
+ load_path Mint32 mf gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 mf gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some be /\
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some bs /\
+ stack_shape m mf 15%nat /\
+ (forall b ofs n,Mem.valid_block m b ->b<>ret ->
+ (b<>be \/ofs+n<=0 \/8<=ofs) ->(b<>bs \/ofs+n<=0 \/8<=ofs) ->
+ (b<>cid_pid _ _ D \/ofs+n<=32 \/40<=ofs) ->(b<>cid_i _ _ D \/ofs+n<=0 \/8<=ofs) ->
+ 0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n) /\
+ Mem.loadbytes mf (cid_i _ _ D) 0 4=Some(encode_val Mint32(Vint(entry_axis_integral m gh D flight rx px sx vx(cid_ix _ _ D)))) /\
+ Mem.loadbytes mf (cid_i _ _ D) 4 4=Some(encode_val Mint32(Vint(entry_axis_integral m gh D flight ry py sy vy(cid_iy _ _ D)))) /\
+ Mem.loadbytes mf (cid_pid _ _ D) 32 4=Some(encode_val Mint32(Vint(entry_axis_command m gh D flight rx px sx vx(cid_ax _ _ D)(cid_ix _ _ D)))) /\
+ Mem.loadbytes mf (cid_pid _ _ D) 36 4=Some(encode_val Mint32(Vint(entry_axis_command m gh D flight ry py sy vy(cid_ay _ _ D)(cid_iy _ _ D)))) /\
+ Mem.loadbytes mf be 0 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub rx px)(Int.repr 4096)))) /\
+ Mem.loadbytes mf be 4 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub ry py)(Int.repr 4096)))) /\
+ Mem.loadbytes mf bs 0 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub sx vx)(Int.repr 8388608)))) /\
+ Mem.loadbytes mf bs 4 4=Some(encode_val Mint32(Vint(ClampSemantics.clamp_bits(Int.sub sy vy)(Int.repr 8388608)))).
+Proof.
+ intros m gh ret flight D GOOD.
+ destruct D as[bp bi bt bu bh bfun kp kd ki kv ka ax ay ix iy h heading
+ SP SI ST SU SH SF FF APP KP KD KI KV KA AX AY IX IY LT LU HEAD CAST HB WP WI].
+ cbn[entry_axis_command entry_axis_integral].
+ destruct(inputgood_entry_front_trace m gh ret flight GOOD)

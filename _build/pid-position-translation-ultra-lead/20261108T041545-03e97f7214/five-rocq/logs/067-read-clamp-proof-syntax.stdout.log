@@ -1,0 +1,21 @@
+153:    eapply effectful_assignment with(r':=a0')(v:=Vfloat(Float.of_int chosen))(vc:=Vint chosen).
+154:    + exact LV.
+155:    + exact SIMPLE.
+156:    + exact EVAL0.
+157:    + exact VAL.
+158:    + rewrite TY;change(match Float.to_int(Float.of_int chosen)with Some i=>Some(Vint i)|None=>None end=Some(Vint chosen)).
+159:      rewrite signed_int_double_roundtrip;reflexivity.
+160:    + rewrite TY;apply BigstepSupport.assign_scalar with(chunk:=Mint32);try reflexivity;exact STOREV.
+161:    + symmetry;exact TY.
+162:  - split;[exact STOREV|].unfold Mem.loadv;destruct(zle(Ptrofs.unsigned eofs+size_chunk Mint32)Ptrofs.modulus);[|lia].
+163:    erewrite Mem.load_store_same;[reflexivity|exact STORE].
+164: Qed.
+165: 
+166: Lemma original_clamp_prefix_binding :
+167:  match fn_body Source.f_guidance_pid_h_run_pos with
+168:  | Ssequence _ (Ssequence a (Ssequence _ (Ssequence b _))) =>
+169:    a=Ssequence(original_position_clamp Source._x)(original_position_clamp Source._y) /\
+170:    b=Ssequence(original_speed_clamp Source._x)(original_speed_clamp Source._y)
+171:  | _=>False end.
+172: Proof. split;reflexivity. Qed.
+

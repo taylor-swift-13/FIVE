@@ -1,0 +1,731 @@
+paparazzi/relations/pid_position_translation/attempts/002/safety/GetterAssignmentComplete.v
+From Stdlib Require Import Bool List ZArith Classical.
+From compcert Require Import Coqlib Errors Maps Integers Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation BlockExecution PhaseComposition FactorShell.
+From PidPositionSafety Require Import GetterAssignmentShell GetterAssignmentPost AtomicPhase ReadonlyPhases.
+Import ListNotations.
+Module A:=GetterAssignmentShell.
+Module B:=GetterAssignmentPost.
+Lemma type_eq_diagonal:forall(A:Type)ty(x y:A),
+ (if Ctypes.type_eq ty ty then x else y)=x.
+Proof. intros;destruct(Ctypes.type_eq ty ty);auto;contradiction n;reflexivity. Qed.
+
+Section COMPLETE.
+Variable ge:genv.
+Variable caller leaf:function.
+Variable e:env.
+Variable k:cont.
+Variable m mf:mem.
+Variable ghid refid vectid nedid axis iref icomponent ierr igh:AST.ident.
+Variable berr bparam bgh bcache:block.
+Variable dref dcomponent daxis:Z.
+Variable cacheofs:ptrofs.
+Variable reference measured difference:int.
+Definition LRes:=A.lhs_res vectid axis ierr berr daxis.
+Definition RRes:=A.ref_res ghid refid vectid axis iref icomponent igh bparam bgh dref dcomponent daxis reference.
+Definition post_expr(ls:A.lhs_stage)(rs:A.ref_stage):expr:=
+ A.assignment_context nedid axis(LRes ls)(RRes rs)(Eval(Vptr bcache cacheofs)(A.rettype nedid)).
+Hypothesis param_local:e!igh=Some(bparam,tptr(A.ghty ghid)).
+Hypothesis error_global:e!ierr=None.
+Hypothesis error_symbol:Genv.find_symbol ge ierr=Some berr.
+Variable ghco refco vecco nedco:composite.
+Hypothesis gh_lookup:PTree.get ghid(genv_cenv ge)=Some ghco.
+Hypothesis ref_lookup:PTree.get refid(genv_cenv ge)=Some refco.
+Hypothesis vec_lookup:PTree.get vectid(genv_cenv ge)=Some vecco.
+Hypothesis ned_lookup:PTree.get nedid(genv_cenv ge)=Some nedco.
+Hypothesis gh_field:field_offset ge iref(co_members ghco)=OK(dref,Full).
+Hypothesis ref_field:field_offset ge icomponent(co_members refco)=OK(dcomponent,Full).
+Hypothesis axis_field:field_offset ge axis(co_members vecco)=OK(daxis,Full).
+Hypothesis ned_field:field_offset ge axis(co_members nedco)=OK(daxis,Full).
+Hypothesis param_deref:Cexec.do_deref_loc ge quiet_world(tptr(A.ghty ghid))m bparam Ptrofs.zero Full=
+ Some(quiet_world,E0,Vptr bgh Ptrofs.zero).
+Hypothesis scalar_deref:Cexec.do_deref_loc ge quiet_world tint m bgh(A.scalar_offset dref dcomponent daxis)Full=
+ Some(quiet_world,E0,Vint reference).
+Hypothesis cache_deref:Cexec.do_deref_loc ge quiet_world tint m bcache(Ptrofs.add cacheofs(Ptrofs.repr daxis))Full=
+ Some(quiet_world,E0,Vint measured).
+Hypothesis sub_value:sem_binary_operation ge Osub(Vint reference)tint(Vint measured)tint m=Some(Vint difference).
+Hypothesis store_result:Cexec.do_assign_loc ge quiet_world tint m berr(A.axis_offset daxis)Full(Vint difference)=
+ Some(quiet_world,E0,mf,Vint difference).
+
+Variable igetter:AST.ident.
+Variable bgetter:block.
+Hypothesis getter_global:e!igetter=None.
+Hypothesis getter_symbol:Genv.find_symbol ge igetter=Some bgetter.
+Hypothesis leaf_find:Genv.find_funct ge(Vptr bgetter Ptrofs.zero)=Some(Ctypes.Internal leaf).
+Hypothesis leaf_signature:type_of_fundef(Ctypes.Internal leaf)=A.function_type nedid.
+Hypothesis getter_readonly:forall base,is_call_cont base ->
+ exists P,certificate ge P(Returnstate(Vptr bcache cacheofs)base m) /\
+ P(Callstate(Ctypes.Internal leaf)[]base m).
+Definition Pre:=A.pre_state caller e k m ghid refid vectid nedid axis iref icomponent ierr igh igetter
+ berr bparam bgh bgetter dref dcomponent daxis reference.
+Definition Frame:=A.call_frame caller e k ghid refid vectid nedid axis iref icomponent ierr igh
+ berr bparam bgh dref dcomponent daxis reference.
+Definition Call(ls:A.lhs_stage)(rs:A.ref_stage):Csem.state:=
+ Callstate(Ctypes.Internal leaf)[](Frame ls rs)m.
+Definition Post(ls:A.lhs_stage)(rs:A.ref_stage):Csem.state:=
+ ExprState caller(post_expr ls rs)(Kdo k)e m.
+Definition Initial:=State caller
+ (Sdo(A.pre_expr ghid refid vectid nedid axis iref icomponent ierr igh igetter
+ berr bparam bgh bgetter dref dcomponent daxis reference A.L0 A.R0 A.F0))k e m.
+
+Theorem original_getter_assignment_certificate:
+ exists P,certificate ge P(State caller Sskip k e mf) /\P Initial.
+Proof.
+ assert(PP:forall ls rs fs,exists t next,Csem.step ge(Pre ls rs fs)t next /\
+ ReadonlyPhases.pre_or_call A.lhs_stage A.ref_stage A.fn_stage Pre Call next).
+ { intros ls rs fs.
+ exact(A.pre_progress ge caller leaf e k m
+ ghid refid vectid nedid axis iref icomponent ierr igh igetter berr bparam bgh bgetter
+ dref dcomponent daxis reference param_local error_global error_symbol getter_global getter_symbol
+ ghco refco vecco gh_lookup ref_lookup vec_lookup gh_field ref_field axis_field param_deref scalar_deref
+ leaf_find leaf_signature ls rs fs). }
+ assert(PC:forall ls rs fs t next,Csem.step ge(Pre ls rs fs)t next ->
+ ReadonlyPhases.pre_or_call A.lhs_stage A.ref_stage A.fn_stage Pre Call next).
+ { intros ls rs fs t next STEP.
+ exact(proj2(A.pre_all_successors ge caller leaf e k m
+ ghid refid vectid nedid axis iref icomponent ierr igh igetter berr bparam bgh bgetter
+ dref dcomponent daxis reference param_local error_global error_symbol getter_global getter_symbol
+ ghco refco vecco gh_lookup ref_lookup vec_lookup gh_field ref_field axis_field param_deref scalar_deref
+ leaf_find leaf_signature ls rs fs t next STEP)). }
+ assert(CAL:forall ls rs,exists P,
+ certificate ge P(Returnstate(Vptr bcache cacheofs)(Frame ls rs)m) /\P(Call ls rs)).
+ { intros;apply getter_readonly;exact I. }
+ assert(RET:forall ls rs,unique_transition ge
+ (Returnstate(Vptr bcache cacheofs)(Frame ls rs)m)(Post ls rs)).
+ { intros;unfold Frame,Post,A.call_frame,post_expr,LRes,RRes.
+ split;[right;apply Csem.step_returnstate|].
+ intros t next STEP;eapply FactorShell.return_call_step_unique;exact STEP. }
+ assert(POST:forall ls rs,exists Q,certificate ge Q(State caller Sskip k e mf) /\Q(Post ls rs)).
+ { intros ls rs.
+ destruct(B.post_phase_certificate ge caller e k m mf
+ ghid refid vectid nedid axis iref icomponent ierr igh berr bparam bgh bcache
+ dref dcomponent daxis cacheofs reference measured difference
+ param_local error_global error_symbol ghco refco vecco nedco
+ gh_lookup ref_lookup vec_lookup ned_lookup gh_field ref_field axis_field ned_field
+ param_deref scalar_deref cache_deref sub_value store_result ls rs)as[C I].
+ exists(block_context_invariant ge k caller e mf);split;[exact C|exact I]. }
+ eexists;split.
+ - eapply ReadonlyPhases.readonly_assignment_certificate
+ with(pre:=Pre)(call:=Call)(frame:=Frame)(post:=Post)
+ (initial:=Initial)(result:=Vptr bcache cacheofs)(m:=m)
+ (l0:=A.L0)(r0:=A.R0)(f0:=A.F0).
+   + exact PP.
+   + exact PC.
+   + unfold Initial,Pre,A.pre_state;split;[right;apply Csem.step_do_1|].
+     intros t next STEP;eapply FactorShell.do_step_unique;exact STEP.
+   + exact CAL.
+   + exact RET.
+   + exact POST.
+ - left;reflexivity.
+Qed.
+End COMPLETE.
+Print Assumptions original_getter_assignment_certificate.
+
+paparazzi/relations/pid_position_translation/attempts/002/safety/GetterAllOrder.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation CallfreeExecution PhaseComposition.
+From PidPositionRunPos Require Import Source Execution.
+From PidPositionTranslationSupport Require Import GetterSemantics MemoryLayout.
+From PidPositionSafety Require Import PureSound GuardedCallee.
+Import ListNotations.
+Open Scope Z_scope.
+Module G:=GetterSemantics.
+Module S:=PidPositionRunPos.Source.
+Module E:=PidPositionRunPos.Execution.
+Local Opaque E.ge.
+Lemma getter_tail_normal:forall f m field b delta,
+ fn_return f=G.ned_ptr ->
+ eval_simple_rvalue E.ge empty_env m(G.getter_address field)(Vptr b(Ptrofs.repr delta)) ->
+ star Csem.step E.ge(State f(Sreturn(Some(G.getter_address field)))Kstop empty_env m)E0
+ (Returnstate(Vptr b(Ptrofs.repr delta))Kstop m).
+Proof.
+ intros f m field b delta RT EV.
+ eapply star_step with(t1:=E0)(t2:=E0).
+ - right;apply Csem.step_return_1.
+ - eapply star_trans with(t1:=E0)(t2:=E0).
+   + eapply Cstrategy.eval_simple_rvalue_steps with(C:=fun x=>x);[exact EV|constructor].
+   + apply star_one;right;eapply Csem.step_return_2.
+     * rewrite RT;reflexivity.
+     * reflexivity.
+   + reflexivity.
+ - reflexivity.
+Qed.
+Theorem cached_getter_certificate:forall f m b co field flags statusofs nedfield delta,
+ fn_params f=[] ->fn_vars f=[] ->fn_return f=G.ned_ptr ->
+ fn_body f=Ssequence
+ (Sifthenelse(G.cache_expr field)
+ (Sdo(Ecall(Evalof(Evar
+ (if Pos.eqb field S._pos_status then S._stateCalcPositionNed_i else S._stateCalcSpeedNed_i)
+ (Tfunction []tvoid cc_default))(Tfunction []tvoid cc_default))Enil tvoid))Sskip)
+ (Sreturn(Some(G.getter_address nedfield))) ->
+ Genv.find_symbol E.ge S._state=Some b ->
+ PTree.get S._State(genv_cenv E.ge)=Some co ->
+ field_offset E.ge field(co_members co)=OK(statusofs,Full) ->
+ field_offset E.ge nedfield(co_members co)=OK(delta,Full) ->
+ Mem.loadv Mint16unsigned m(Vptr b(Ptrofs.repr statusofs))=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ forall base,is_call_cont base ->
+ exists P,certificate E.ge P(Returnstate(Vptr b(Ptrofs.repr delta))base m) /\
+ P(Callstate(Internal f)[]base m).
+Proof.
+ intros f m b co field flags statusofs nedfield delta PA VA RT BODY SYM CO OFF NED LOAD VALID.
+ assert(CE:eval_simple_rvalue E.ge empty_env m(G.cache_expr field)(Vint Int.zero)).
+ { eapply G.cache_expression_false;eauto. }
+ assert(RE:eval_simple_rvalue E.ge empty_env m(G.getter_address nedfield)(Vptr b(Ptrofs.repr delta))).
+ { eapply G.getter_return_expression;eauto. }
+ assert(SI:simple(G.cache_expr field)=true)by reflexivity.
+ assert(PV:pure_rval E.ge empty_env m(G.cache_expr field)=Some(Vint Int.zero)).
+ { exact(proj1(simple_big_denotation E.ge empty_env m)(G.cache_expr field)(Vint Int.zero)CE SI). }
+ assert(NT:normal_stmt(Sreturn(Some(G.getter_address nedfield)))=true)by reflexivity.
+ assert(TAIL:star Csem.step E.ge
+ (State f(Sreturn(Some(G.getter_address nedfield)))Kstop empty_env m)E0
+ (Returnstate(Vptr b(Ptrofs.repr delta))Kstop m)).
+ { apply getter_tail_normal;[exact RT|exact RE]. }
+ exact(original_guarded_callee_certificate E.ge f m(G.cache_expr field)
+ (Sdo(Ecall(Evalof(Evar
+ (if Pos.eqb field S._pos_status then S._stateCalcPositionNed_i else S._stateCalcSpeedNed_i)
+ (Tfunction []tvoid cc_default))(Tfunction []tvoid cc_default))Enil tvoid))
+ (Sreturn(Some(G.getter_address nedfield)))(Vint Int.zero)(Vptr b(Ptrofs.repr delta))
+ PA VA BODY SI PV eq_refl NT TAIL).
+Qed.
+Theorem original_position_getter_certificate:forall m b co flags delta,
+ Genv.find_symbol E.ge S._state=Some b ->
+ PTree.get S._State(genv_cenv E.ge)=Some co ->
+ field_offset E.ge S._pos_status(co_members co)=OK(2,Full) ->
+ field_offset E.ge S._ned_pos_i(co_members co)=OK(delta,Full) ->
+ Mem.loadv Mint16unsigned m(Vptr b(Ptrofs.repr 2))=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ forall base,is_call_cont base ->
+ exists P,certificate E.ge P(Returnstate(Vptr b(Ptrofs.repr delta))base m) /\
+ P(Callstate(Internal S.f_stateGetPositionNed_i)[]base m).
+Proof.
+ intros;eapply cached_getter_certificate with(field:=S._pos_status)(statusofs:=2)
+ (nedfield:=S._ned_pos_i);eauto;reflexivity.
+Qed.
+Theorem original_speed_getter_certificate:forall m b co flags statusofs delta,
+ Genv.find_symbol E.ge S._state=Some b ->
+ PTree.get S._State(genv_cenv E.ge)=Some co ->
+ field_offset E.ge S._speed_status(co_members co)=OK(statusofs,Full) ->
+ field_offset E.ge S._ned_speed_i(co_members co)=OK(delta,Full) ->
+ Mem.loadv Mint16unsigned m(Vptr b(Ptrofs.repr statusofs))=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ forall base,is_call_cont base ->
+ exists P,certificate E.ge P(Returnstate(Vptr b(Ptrofs.repr delta))base m) /\
+ P(Callstate(Internal S.f_stateGetSpeedNed_i)[]base m).
+Proof.
+ intros;eapply cached_getter_certificate with(field:=S._speed_status)(statusofs:=statusofs)
+ (nedfield:=S._ned_speed_i);eauto;reflexivity.
+Qed.
+Print Assumptions original_position_getter_certificate.
+Print Assumptions original_speed_getter_certificate.
+
+paparazzi/relations/pid_position_translation/attempts/002/PrefixFields.v
+Lemma prefix_ge_ce : genv_cenv E.ge=ce.
+Proof. unfold E.ge,Csem.globalenv,ce. cbv beta iota zeta delta [genv_cenv]. reflexivity. Qed.
+Local Opaque E.ge.
+Ltac p_cenv :=
+ lazymatch goal with |- PTree.get ?id _ = Some ?co =>
+ unify co (FactorySemantics.co_for id);rewrite prefix_ge_ce;
+ apply FactorySemantics.co_for_lookup;vm_compute;reflexivity end.
+Ltac p_field := rewrite prefix_ge_ce;vm_compute;reflexivity.
+Ltac p_rv :=
+ lazymatch goal with
+ | |- eval_simple_rvalue _ _ _ (Eval _ _) _ => constructor
+ | |- eval_simple_rvalue _ _ _ (Evalof ?l ?ty) _ =>
+   let mode := eval hnf in (access_mode ty) in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[p_lv|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [p_lv|reflexivity|reflexivity|reflexivity|
+       lazymatch goal with |- Mem.loadv ?c ?mm (Vptr ?bb ?oo)=Some ?vv =>
+       let ox := eval vm_compute in (Ptrofs.unsigned oo) in
+       change(Mem.load c mm bb ox=Some vv);eassumption end]
+   end
+ | |- eval_simple_rvalue _ _ _ (Eaddrof _ _) _ => apply esr_addrof;p_lv
+Lemma reference_x_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_position_expr S._x)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 44=Some(Vint v))in FIELD.
+ unfold ref_position_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma reference_y_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_position_expr S._y)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 48=Some(Vint v))in FIELD.
+ unfold ref_position_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma cached_measured_x_read : forall e m sb v,
+ Mem.load Mint32 m sb 100=Some(Vint v) ->
+Lemma reference_y_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_position_expr S._y)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 48=Some(Vint v))in FIELD.
+ unfold ref_position_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma cached_measured_x_read : forall e m sb v,
+ Mem.load Mint32 m sb 100=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 100))GetterSemantics.ned_ptr)S._x)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma cached_measured_y_read : forall e m sb v,
+ Mem.load Mint32 m sb 104=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 100))GetterSemantics.ned_ptr)S._y)(Vint v).
+Proof.
+Lemma cached_measured_x_read : forall e m sb v,
+ Mem.load Mint32 m sb 100=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 100))GetterSemantics.ned_ptr)S._x)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma cached_measured_y_read : forall e m sb v,
+ Mem.load Mint32 m sb 104=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 100))GetterSemantics.ned_ptr)S._y)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma position_error_x_lvalue : forall e m pb,
+ e!S._guidance_pid_pos_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_pos_err S._x)pb Ptrofs.zero Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_pos_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._x tint)
+Lemma cached_measured_y_read : forall e m sb v,
+ Mem.load Mint32 m sb 104=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 100))GetterSemantics.ned_ptr)S._y)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma position_error_x_lvalue : forall e m pb,
+ e!S._guidance_pid_pos_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_pos_err S._x)pb Ptrofs.zero Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_pos_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._x tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 0))Full).
+ p_lv.
+Qed.
+Lemma position_error_y_lvalue : forall e m pb,
+ e!S._guidance_pid_pos_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_pos_err S._y)pb(Ptrofs.repr 4)Full.
+Lemma position_error_x_lvalue : forall e m pb,
+ e!S._guidance_pid_pos_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_pos_err S._x)pb Ptrofs.zero Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_pos_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._x tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 0))Full).
+ p_lv.
+Qed.
+Lemma position_error_y_lvalue : forall e m pb,
+ e!S._guidance_pid_pos_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_pos_err S._y)pb(Ptrofs.repr 4)Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_pos_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._y tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 4))Full).
+ p_lv.
+Qed.
+Lemma position_error_y_lvalue : forall e m pb,
+ e!S._guidance_pid_pos_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_pos_err S._y)pb(Ptrofs.repr 4)Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_pos_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._y tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 4))Full).
+ p_lv.
+Qed.
+Print Assumptions reference_x_read.
+
+Local Transparent PidTermination.ge PidTermination.ast_prog.
+Lemma concrete_position_getter_target :
+ exists fb,
+ Genv.find_symbol E.ge S._stateGetPositionNed_i=Some fb /\
+ Genv.find_funct E.ge(Vptr fb Ptrofs.zero)=Some(Internal S.f_stateGetPositionNed_i).
+Proof.
+ exists(PidTermination.symbol_block S._stateGetPositionNed_i);split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._stateGetPositionNed_i=Some(PidTermination.symbol_block S._stateGetPositionNed_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Lemma concrete_position_getter_target :
+ exists fb,
+ Genv.find_symbol E.ge S._stateGetPositionNed_i=Some fb /\
+ Genv.find_funct E.ge(Vptr fb Ptrofs.zero)=Some(Internal S.f_stateGetPositionNed_i).
+Proof.
+ exists(PidTermination.symbol_block S._stateGetPositionNed_i);split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._stateGetPositionNed_i=Some(PidTermination.symbol_block S._stateGetPositionNed_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+ - change(Genv.find_funct_ptr(genv_genv PidTermination.ge)(PidTermination.symbol_block S._stateGetPositionNed_i)=Some(Internal S.f_stateGetPositionNed_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Qed.
+Local Opaque PidTermination.ge.
+
+Lemma actual_cached_position_call : forall e m sb flags,
+ e!S._stateGetPositionNed_i=None ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint16unsigned m sb 2=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Cstrategy.eval_expr E.ge e m RV pos_getter_call E0 m
+ (Eval(Vptr sb(Ptrofs.repr 100))GetterSemantics.ned_ptr).
+Proof.
+ intros e m sb flags LOCAL STATE LOAD VALID.
+Lemma actual_cached_position_call : forall e m sb flags,
+ e!S._stateGetPositionNed_i=None ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint16unsigned m sb 2=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Cstrategy.eval_expr E.ge e m RV pos_getter_call E0 m
+ (Eval(Vptr sb(Ptrofs.repr 100))GetterSemantics.ned_ptr).
+Proof.
+ intros e m sb flags LOCAL STATE LOAD VALID.
+ destruct concrete_position_getter_target as[fb[SYM FUN]].
+ eapply original_position_call_evaluates with(fb:=fb)(co:=FactorySemantics.co_for S._State)(flags:=flags).
+ - exact LOCAL.
+ - exact SYM.
+ - exact FUN.
+ - exact STATE.
+ - p_cenv.
+ - p_field.
+ - p_field.
+ - exact LOAD.
+ - exact VALID.
+Qed.
+
+Theorem original_two_position_assignments : forall e m bg gh pb sb rx ry px py flags,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ e!S._guidance_pid_pos_err=None ->
+ e!S._stateGetPositionNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ bg<>pb -> gh<>pb ->sb<>pb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) ->
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) ->
+ Mem.load Mint32 m sb 100=Some(Vint px) ->
+ Mem.load Mint32 m sb 104=Some(Vint py) ->
+ Mem.load Mint16unsigned m sb 2=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Mem.range_perm m pb 0 8 Cur Writable ->
+ exists mf,
+ Cstrategy.exec_stmt E.ge e m
+ (Ssequence(original_position_assignment S._x)(original_position_assignment S._y))E0 mf Out_normal /\
+ Mem.load Mint32 mf pb 0=Some(Vint(Int.sub rx px)) /\
+ Mem.load Mint32 mf pb 4=Some(Vint(Int.sub ry py)) /\
+ raw_writes(fun b=>b=pb)m mf.
+Proof.
+paparazzi/relations/pid_position_translation/attempts/002/SpeedPrefixFields.v
+Lemma prefix_ge_ce : genv_cenv E.ge=ce.
+Proof. unfold E.ge,Csem.globalenv,ce. cbv beta iota zeta delta [genv_cenv]. reflexivity. Qed.
+Local Opaque E.ge.
+Ltac p_cenv :=
+ lazymatch goal with |- PTree.get ?id _ = Some ?co =>
+ unify co (FactorySemantics.co_for id);rewrite prefix_ge_ce;
+ apply FactorySemantics.co_for_lookup;vm_compute;reflexivity end.
+Ltac p_field := rewrite prefix_ge_ce;vm_compute;reflexivity.
+Ltac p_rv :=
+ lazymatch goal with
+ | |- eval_simple_rvalue _ _ _ (Eval _ _) _ => constructor
+ | |- eval_simple_rvalue _ _ _ (Evalof ?l ?ty) _ =>
+   let mode := eval hnf in (access_mode ty) in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[p_lv|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [p_lv|reflexivity|reflexivity|reflexivity|
+       lazymatch goal with |- Mem.loadv ?c ?mm (Vptr ?bb ?oo)=Some ?vv =>
+       let ox := eval vm_compute in (Ptrofs.unsigned oo) in
+       change(Mem.load c mm bb ox=Some vv);eassumption end]
+   end
+ | |- eval_simple_rvalue _ _ _ (Eaddrof _ _) _ => apply esr_addrof;p_lv
+Lemma speed_reference_x_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_speed_expr S._x)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 52=Some(Vint v))in FIELD.
+ unfold ref_speed_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma speed_reference_y_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_speed_expr S._y)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 56=Some(Vint v))in FIELD.
+ unfold ref_speed_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma speed_cached_measured_x_read : forall e m sb v,
+ Mem.load Mint32 m sb 296=Some(Vint v) ->
+Lemma speed_reference_y_read : forall e m bg gh v,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m(ref_speed_expr S._y)(Vint v).
+Proof.
+ intros e m bg gh v ENV PTR FIELD.
+ change(Mem.load Mint32 m gh 56=Some(Vint v))in FIELD.
+ unfold ref_speed_expr,gh_ref_expr,gh_expr,vec_type,gh_type;p_rv.
+Qed.
+Lemma speed_cached_measured_x_read : forall e m sb v,
+ Mem.load Mint32 m sb 296=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr)S._x)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma speed_cached_measured_y_read : forall e m sb v,
+ Mem.load Mint32 m sb 300=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr)S._y)(Vint v).
+Proof.
+Lemma speed_cached_measured_x_read : forall e m sb v,
+ Mem.load Mint32 m sb 296=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr)S._x)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma speed_cached_measured_y_read : forall e m sb v,
+ Mem.load Mint32 m sb 300=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr)S._y)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma speed_error_x_lvalue : forall e m pb,
+ e!S._guidance_pid_speed_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_speed_err S._x)pb Ptrofs.zero Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_speed_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._x tint)
+Lemma speed_cached_measured_y_read : forall e m sb v,
+ Mem.load Mint32 m sb 300=Some(Vint v) ->
+ eval_simple_rvalue E.ge e m
+ (measured_axis_expr(Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr)S._y)(Vint v).
+Proof.
+ intros;unfold measured_axis_expr,GetterSemantics.ned_ptr;p_rv.
+Qed.
+Lemma speed_error_x_lvalue : forall e m pb,
+ e!S._guidance_pid_speed_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_speed_err S._x)pb Ptrofs.zero Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_speed_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._x tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 0))Full).
+ p_lv.
+Qed.
+Lemma speed_error_y_lvalue : forall e m pb,
+ e!S._guidance_pid_speed_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_speed_err S._y)pb(Ptrofs.repr 4)Full.
+Lemma speed_error_x_lvalue : forall e m pb,
+ e!S._guidance_pid_speed_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_speed_err S._x)pb Ptrofs.zero Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_speed_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._x tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 0))Full).
+ p_lv.
+Qed.
+Lemma speed_error_y_lvalue : forall e m pb,
+ e!S._guidance_pid_speed_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_speed_err S._y)pb(Ptrofs.repr 4)Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_speed_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._y tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 4))Full).
+ p_lv.
+Qed.
+Lemma speed_error_y_lvalue : forall e m pb,
+ e!S._guidance_pid_speed_err=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ eval_simple_lvalue E.ge e m(pid_axis_lvalue S._guidance_pid_speed_err S._y)pb(Ptrofs.repr 4)Full.
+Proof.
+ intros;unfold pid_axis_lvalue,pid_vec_expr,vec_type.
+ change(eval_simple_lvalue E.ge e m
+ (Efield(Evalof(Evar S._guidance_pid_speed_err(Tstruct S._Int32Vect2 noattr))(Tstruct S._Int32Vect2 noattr))S._y tint)
+ pb(Ptrofs.add Ptrofs.zero(Ptrofs.repr 4))Full).
+ p_lv.
+Qed.
+Print Assumptions speed_reference_x_read.
+
+Local Transparent PidTermination.ge PidTermination.ast_prog.
+Lemma concrete_speed_getter_target :
+ exists fb,
+ Genv.find_symbol E.ge S._stateGetSpeedNed_i=Some fb /\
+ Genv.find_funct E.ge(Vptr fb Ptrofs.zero)=Some(Internal S.f_stateGetSpeedNed_i).
+Proof.
+ exists(PidTermination.symbol_block S._stateGetSpeedNed_i);split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._stateGetSpeedNed_i=Some(PidTermination.symbol_block S._stateGetSpeedNed_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Lemma concrete_speed_getter_target :
+ exists fb,
+ Genv.find_symbol E.ge S._stateGetSpeedNed_i=Some fb /\
+ Genv.find_funct E.ge(Vptr fb Ptrofs.zero)=Some(Internal S.f_stateGetSpeedNed_i).
+Proof.
+ exists(PidTermination.symbol_block S._stateGetSpeedNed_i);split.
+ - change(Genv.find_symbol(genv_genv PidTermination.ge)S._stateGetSpeedNed_i=Some(PidTermination.symbol_block S._stateGetSpeedNed_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+ - change(Genv.find_funct_ptr(genv_genv PidTermination.ge)(PidTermination.symbol_block S._stateGetSpeedNed_i)=Some(Internal S.f_stateGetSpeedNed_i)).
+   rewrite PidTermination.ge_base;vm_compute;reflexivity.
+Qed.
+Local Opaque PidTermination.ge.
+
+Lemma actual_cached_speed_call : forall e m sb flags,
+ e!S._stateGetSpeedNed_i=None ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint16unsigned m sb 280=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Cstrategy.eval_expr E.ge e m RV speed_getter_call E0 m
+ (Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr).
+Proof.
+ intros e m sb flags LOCAL STATE LOAD VALID.
+Lemma actual_cached_speed_call : forall e m sb flags,
+ e!S._stateGetSpeedNed_i=None ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ Mem.load Mint16unsigned m sb 280=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Cstrategy.eval_expr E.ge e m RV speed_getter_call E0 m
+ (Eval(Vptr sb(Ptrofs.repr 296))GetterSemantics.ned_ptr).
+Proof.
+ intros e m sb flags LOCAL STATE LOAD VALID.
+ destruct concrete_speed_getter_target as[fb[SYM FUN]].
+ eapply original_speed_call_evaluates with(fb:=fb)(co:=FactorySemantics.co_for S._State)(flags:=flags).
+ - exact LOCAL.
+ - exact SYM.
+ - exact FUN.
+ - exact STATE.
+ - p_cenv.
+ - p_field.
+ - p_field.
+ - exact LOAD.
+ - exact VALID.
+Qed.
+
+Theorem original_two_speed_assignments : forall e m bg gh pb sb rx ry px py flags,
+ e!S._gh=Some(bg,tptr gh_type) ->
+ e!S._guidance_pid_speed_err=None ->
+ e!S._stateGetSpeedNed_i=None ->
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some pb ->
+ Genv.find_symbol E.ge S._state=Some sb ->
+ bg<>pb -> gh<>pb ->sb<>pb ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint rx) ->
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint ry) ->
+ Mem.load Mint32 m sb 296=Some(Vint px) ->
+ Mem.load Mint32 m sb 300=Some(Vint py) ->
+ Mem.load Mint16unsigned m sb 280=Some(Vint flags) ->
+ Int.and flags(Int.repr 2)=Int.repr 2 ->
+ Mem.range_perm m pb 0 8 Cur Writable ->
+ exists mf,
+ Cstrategy.exec_stmt E.ge e m
+ (Ssequence(original_speed_assignment S._x)(original_speed_assignment S._y))E0 mf Out_normal /\
+ Mem.load Mint32 mf pb 0=Some(Vint(Int.sub rx px)) /\
+ Mem.load Mint32 mf pb 4=Some(Vint(Int.sub ry py)) /\
+ raw_writes(fun b=>b=pb)m mf.
+Proof.
+paparazzi/relations/pid_position_translation/attempts/002/EntryIntegration.v
+Lemma entry_environment_unshadowed : forall e m ma id,
+ alloc_variables E.ge empty_env m entry_declarations e ma ->
+ ~In id(map fst entry_declarations) ->e!id=None.
+Proof.
+ intros e m ma id AL NOT;destruct(e!id)as[[b ty]|]eqn:LOOK;auto.
+ exfalso;apply NOT.
+ pose proof(allocated_environment_origin _ _ _ _ _ AL id b ty LOOK)as IN.
+ exact(in_map fst _ _ IN).
+Qed.
+Lemma inputgood_guidance_separate : forall m gh ret id b,
+ InputGood m gh ret ->Genv.find_symbol E.ge id=Some b ->
+ id<>S._guidance_h ->gh<>b.
+Proof.
+ intros m gh ret id b[GOOD _]SYM ID EQ;subst b.
+ assert(U:forall id,Genv.find_symbol E.ge id=Some gh->id=S._guidance_h)
+ by(unfold InputGoodLegacy in GOOD;tauto).
+ apply ID;apply U;exact SYM.
+Qed.
+
+Theorem inputgood_entry_reaches_core_call : forall m gh ret flight,
+ InputGood m gh ret ->
+ exists e mf pb vb sb rx ry px py sx sy vx vy br bf bg bs,
+Lemma inputgood_guidance_separate : forall m gh ret id b,
+ InputGood m gh ret ->Genv.find_symbol E.ge id=Some b ->
+ id<>S._guidance_h ->gh<>b.
+Proof.
+ intros m gh ret id b[GOOD _]SYM ID EQ;subst b.
+ assert(U:forall id,Genv.find_symbol E.ge id=Some gh->id=S._guidance_h)
+ by(unfold InputGoodLegacy in GOOD;tauto).
+ apply ID;apply U;exact SYM.
+Qed.
+
+Theorem inputgood_entry_reaches_core_call : forall m gh ret flight,
+ InputGood m gh ret ->
+ exists e mf pb vb sb rx ry px py sx sy vx vy br bf bg bs,
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb /\
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some vb /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+Theorem inputgood_entry_reaches_core_call : forall m gh ret flight,
+ InputGood m gh ret ->
+ exists e mf pb vb sb rx ry px py sx sy vx vy br bf bg bs,
+ Genv.find_symbol E.ge S._guidance_pid_pos_err=Some pb /\
+ Genv.find_symbol E.ge S._guidance_pid_speed_err=Some vb /\
+ Genv.find_symbol E.ge S._state=Some sb /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._x]=Some(Vint rx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._pos;S._y]=Some(Vint ry) /\
+ Mem.load Mint32 m sb 100=Some(Vint px) /\Mem.load Mint32 m sb 104=Some(Vint py) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._x]=Some(Vint sx) /\
+ load_path Mint32 m gh gh_type[S._ref;S._speed;S._y]=Some(Vint sy) /\
+ Mem.load Mint32 m sb 296=Some(Vint vx) /\Mem.load Mint32 m sb 300=Some(Vint vy) /\
+ star Csem.step E.ge(E.entry(call_args gh ret flight)m)E0
+ (State S.f_guidance_pid_h_run_pos after_front Kstop e mf) /\
+ Mem.load Mint32 mf pb 0=Some(Vint(clamp_bits(Int.sub rx px)(Int.repr 4096))) /\
+ Mem.load Mint32 mf pb 4=Some(Vint(clamp_bits(Int.sub ry py)(Int.repr 4096))) /\
+ Mem.load Mint32 mf vb 0=Some(Vint(clamp_bits(Int.sub sx vx)(Int.repr 8388608))) /\
+ Mem.load Mint32 mf vb 4=Some(Vint(clamp_bits(Int.sub sy vy)(Int.repr 8388608))) /\
+ e!S.__res=Some(br,tptr sp_type) /\e!S._in_flight=Some(bf,tbool) /\
+ e!S._gh=Some(bg,tptr gh_type) /\e!S.__res__1=Some(bs,sp_type) /\
+ Mem.load Mint64 mf br 0=Some(Vptr ret Ptrofs.zero) /\
+ Mem.load Mint64 mf bg 0=Some(Vptr gh Ptrofs.zero) /\

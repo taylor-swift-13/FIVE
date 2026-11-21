@@ -1,0 +1,45 @@
+Fixpoint source_simple (a : expr) : bool :=
+ match a with
+ | Eval _ _ | Evar _ _ | Esizeof _ _ | Ealignof _ _=>true
+ | Ederef r _ | Efield r _ _ | Eaddrof r _ | Eunop _ r _ | Ecast r _=>source_simple r
+ | Evalof l _=>source_simple l && negb(type_is_volatile(typeof l))
+ | Ebinop _ r s _=>source_simple r && source_simple s
+ | _=>false end.
+Lemma simple_eval_expr_refl : forall ge e m,
+ (forall a v, Cstrategy.eval_simple_rvalue ge e m a v -> source_simple a=true ->
+   Cstrategy.eval_expr ge e m RV a E0 m a) /\
+ (forall a b ofs bf, Cstrategy.eval_simple_lvalue ge e m a b ofs bf -> source_simple a=true ->
+   Cstrategy.eval_expr ge e m LV a E0 m a).
+Proof.
+ intros ge e m;apply Cstrategy.eval_simple_rvalue_lvalue_ind;
+ intros; simpl in *;
+ repeat match goal with H : _ && _ =true |- _ => apply andb_true_iff in H;destruct H end;
+ try discriminate;
+ try solve [constructor;auto];
+ try solve [replace E0 with (E0**E0) by reflexivity; eapply Cstrategy.eval_binop;eauto];
+ try solve [eapply Cstrategy.eval_valof;[|eauto];apply negb_true_iff in H0;exact H0].
+ all: eapply Cstrategy.eval_valof;[match goal with H: negb _=true |- _=>apply negb_true_iff in H;exact H end|eauto].
+Qed.
+Lemma simple_expression : forall ge e m a v,
+ Cstrategy.eval_simple_rvalue ge e m a v -> source_simple a=true ->
+ Cstrategy.eval_expression ge e m a E0 m v.
+Proof.
+ intros ge e m a v EV SI;eapply Cstrategy.eval_expression_intro;
+ [eapply(proj1(simple_eval_expr_refl ge e m));eauto|exact EV].
+Qed.
+Lemma atomic_assign : forall ge e m l r ty b ofs bf v vc v' mf,
+ Cstrategy.eval_simple_lvalue ge e m l b ofs bf -> source_simple l=true ->
+ Cstrategy.eval_simple_rvalue ge e m r v -> source_simple r=true ->
+ sem_cast v (typeof r) (typeof l) m=Some vc ->
+ assign_loc ge (typeof l) m b ofs bf vc E0 mf v' -> ty=typeof l ->
+ Cstrategy.exec_stmt ge e m (Sdo(Eassign l r ty)) E0 mf Out_normal.
+Proof.
+ intros ge e m l r ty b ofs bf v vc v' mf LL SL RR SR CAST STORE TY.
+ eapply Cstrategy.exec_Sdo.
+ eapply Cstrategy.eval_expression_intro with (a':=Eval v' ty);[|constructor].
+ replace E0 with (E0**E0**E0) by reflexivity.
+ eapply Cstrategy.eval_assign;
+ [eapply(proj2(simple_eval_expr_refl ge e m));eauto|
+ eapply(proj1(simple_eval_expr_refl ge e m));eauto|exact LL|exact RR|exact CAST|exact STORE|exact TY].
+Qed.
+Lemma atomic_ass

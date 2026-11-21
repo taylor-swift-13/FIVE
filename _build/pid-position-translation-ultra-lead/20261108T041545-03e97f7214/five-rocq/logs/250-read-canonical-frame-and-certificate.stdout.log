@@ -1,0 +1,173 @@
+Definition same_except_positions_and_return (gh ret:block) (a b:mem) : Prop :=
+ Mem.nextblock a=Mem.nextblock b
+ /\ (forall blk ofs k p, Mem.perm a blk ofs k p <-> Mem.perm b blk ofs k p)
+ /\ (forall blk ofs, ~translated_byte gh blk ofs -> blk<>ret -> Mem.loadbytes a blk ofs 1=Mem.loadbytes b blk ofs 1).
+Definition global_bytes_initialized (m:mem) : Prop :=
+ exists init, Genv.init_mem Source.prog=Some init /\ forall b gv, Genv.find_var_info Execution.ge b=Some gv ->
+ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Readable /\ (gvar_readonly gv=true -> forall ofs, 0<=ofs<sizeof ce (gvar_info gv) -> Mem.loadbytes m b ofs 1=Mem.loadbytes init b ofs 1).
+Definition writable_controller_globals (m:mem) : Prop :=
+ forall id, In id [Source._guidance_pid;Source._guidance_pid_pos_err;Source._guidance_pid_speed_err;Source._guidance_pid_trim_att_integrator] ->
+ exists b gv, Genv.find_symbol Execution.ge id=Some b /\ Genv.find_var_info Execution.ge b=Some gv /\ Mem.range_perm m b 0 (sizeof ce (gvar_info gv)) Cur Writable.
+Definition caches_valid (m:mem) : Prop :=
+ exists ps ss, load_global Mint16unsigned m Source._state state_type [Source._pos_status]=Some(Vint ps)
+ /\ load_global Mint16unsigned m Source._state state_type [Source._speed_status]=Some(Vint ss)
+ /\ Int.and ps (Int.repr 2)=Int.repr 2 /\ Int.and ss (Int.repr 2)=Int.repr 2.
+Definition heading_safe (m:mem) : Prop :=
+ exists h, load_global Mfloat32 m Source._guidance_h gh_type [Source._sp;Source._heading]=Some(Vsingle h)
+ /\ Float32.cmp Cle (Float32.of_int(Int.repr(-3))) h=true
+ /\ Float32.cmp Cle h (Float32.of_int(Int.repr 3))=true.
+Definition InputGoodLegacy (m:mem) (gh ret:block) : Prop :=
+ gh<>ret
+ /\ (forall id, Genv.find_symbol Execution.ge id=Some gh -> id=Source._guidance_h) /\ (forall id, Genv.find_symbol Execution.ge id<>Some ret)
+ /\ Mem.range_perm m gh 0 (sizeof ce gh_type) Cur Readable
+ /\ Mem.range_perm m ret 0 (sizeof ce sp_type) Cur Writable
+ /\ global_bytes_initialized m /\ writable_controller_globals m /\ caches_valid m
+ /\ load_global Mint8unsigned m Source._guidance_pid pid_type [Source._approx_force_by_thrust]=Some(Vint Int.zero)
+ /\ heading_safe m
+ /\ (forall gain, In gain [Source._kp;Source._kd;Source._ki;Source._kv;Source._ka] -> bounded_global m Source._guidance_pid pid_type [gain] 0 100)
+ /\ (forall axis, In axis [Source._x;Source._y] ->
+ bounded_global m Source._guidance_pid_trim_att_integrator vec_type [axis] (-100000000) 100000000
+ /\ bounded_path m gh gh_type [Source._ref;Source._speed;axis] (-10000) 10000
+ /\ bounded_path m gh gh_type [Source._ref;Source._accel;axis] (-10000) 10000
+ /\ bounded_global m Source._state state_type [Source._ned_speed_i;axis] (-10000) 10000).
+(** Attempt 002 correction: readability does not imply an initialized integer.
+    These are input facts; neither contains an execution or output premise. *)
+Definition initialized_positions (m:mem) (gh:block) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ exists r p,
+ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
+ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p).
+Definition position_subtractions_safe (m:mem) (gh:block) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ exists r p,
+ load_path Mint32 m gh gh_type (ref_pos axis)=Some(Vint r)
+ /\ load_global Mint32 m Source._state state_type (measured_pos axis)=Some(Vint p)
+ /\ signed32 (Int.signed r-Int.signed p).
+Definition InputGood (m:mem) (gh ret:block) : Prop :=
+ InputGoodLegacy m gh ret /\ initialized_positions m gh /\ position_subtractions_safe m gh.
+Definition AxisTranslation (gh:block) (a b:mem) (axis:ident) (delta:Z) : Prop :=
+ exists ra pa rb pb,
+ load_path Mint32 a gh gh_type (ref_pos axis)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos axis)=Some(Vint pa)
+ /\ load_path Mint32 b gh gh_type (ref_pos axis)=Some(Vint rb)
+ /\ load_global Mint32 b Source._state state_type (measured_pos axis)=Some(Vint pb)
+ /\ physical_translation (Int.signed ra) (Int.signed pa) delta
+ /\ Int.signed rb=Int.signed ra+delta /\ Int.signed pb=Int.signed pa+delta.
+Definition InputPair (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputGood a gh ret /\ InputGood b gh ret
+ /\ same_except_positions_and_return gh ret a b
+ /\ AxisTranslation gh a b Source._x dx /\ AxisTranslation gh a b Source._y dy.
+Definition call_args (gh ret:block) (flight:bool) : list val :=
+ [Vptr ret Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero].
+Definition NormalCall (gh ret:block) (flight:bool) (m mf:mem) : Prop :=
+ exists t v, star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t (Returnstate v Kstop mf).
+Definition same_loaded_int32 (a b:option val) : Prop :=
+ exists v, a=Some(Vint v) /\ b=Some(Vint v).
+Definition ActiveReturnEqual (ret:block) (a b:mem) : Prop :=
+ load_path Mint32 a ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 b ret sp_type [Source._type]=Some(Vint(Int.repr 2))
+ /\ load_path Mint32 a ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ load_path Mint32 b ret sp_type [Source._format]=Some(Vint Int.zero)
+ /\ forall path, In path [[Source._sp;Source._ltp_i;Source._vect;Source._x];[Source._sp;Source._ltp_i;Source._vect;Source._y];[Source._sp;Source._ltp_i;Source._heading]] ->
+ same_loaded_int32 (load_path Mint32 a ret sp_type path) (load_path Mint32 b ret sp_type path).
+Definition ControllerEqual (a b:mem) : Prop :=
+ forall axis, In axis [Source._x;Source._y] ->
+ same_loaded_int32 (load_global Mint32 a Source._guidance_pid pid_type [Source._cmd_earth;axis]) (load_global Mint32 b Source._guidance_pid pid_type [Source._cmd_earth;axis])
+ /\ same_loaded_int32 (load_global Mint32 a Source._guidance_pid_trim_att_integrator vec_type [axis]) (load_global Mint32 b Source._guidance_pid_trim_att_integrator vec_type [axis]).
+Definition FinalRelation (gh ret:block) (a b:mem) : Prop := ControllerEqual a b /\ ActiveReturnEqual ret a b.
+Definition PositionTranslationGoal : Prop :=
+ forall gh ret a b dx dy flight, InputPair gh ret a b dx dy ->
+ (exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf)
+ /\ (forall af bf, NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> FinalRelation gh ret af bf).
+Definition NoErrorGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret -> forall t s,
+ star Csem.step Execution.ge (Execution.entry(call_args gh ret flight)m) t s -> ~Execution.source_error s.
+Definition AllSuccessorTerminationGoal : Prop :=
+ forall gh ret m flight, InputGood m gh ret ->
+ Acc (fun dst src=>exists t,Csem.step Execution.ge src t dst) (Execution.entry(call_args gh ret flight)m).
+Definition NonzeroInput (gh ret:block) (a b:mem) (dx dy:Z) : Prop :=
+ InputPair gh ret a b dx dy /\ dx<>0
+ /\ exists ra pa, load_path Mint32 a gh gh_type (ref_pos Source._x)=Some(Vint ra)
+ /\ load_global Mint32 a Source._state state_type (measured_pos Source._x)=Some(Vint pa)
+ /\ Int.signed ra-Int.signed pa<>0.
+Definition InputNonvacuityGoal : Prop := exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy.
+Definition NonzeroNonvacuityGoal : Prop :=
+ exists gh ret a b dx dy, NonzeroInput gh ret a b dx dy
+ /\ forall flight, exists af bf, NormalCall gh ret flight a af /\ NormalCall gh ret flight b bf /\ FinalRelation gh ret af bf.
+Definition RelationalFrameGoal : Prop :=
+ forall gh ret a b dx dy flight af bf, InputPair gh ret a b dx dy ->
+ NormalCall gh ret flight a af -> NormalCall gh ret flight b bf -> same_except_positions_and_return gh ret af bf.
+
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Csyntax Csem Smallstep.
+Import ListNotations.
+Definition certificate(ge:genv)(P:Csem.state->Prop)(target:Csem.state):Prop :=
+ (forall s,P s ->s=target \/ exists t next,Csem.step ge s t next /\ P next) /\
+ (forall s t next,P s ->s<>target ->Csem.step ge s t next ->P next).
+Definition unique_transition(ge:genv)(from to:Csem.state):Prop :=
+ Csem.step ge from E0 to /\
+ forall t next,Csem.step ge from t next ->t=E0 /\ next=to.
+Theorem chain_certificate:forall ge P Q middle initial target,
+ certificate ge P middle -> certificate ge Q target ->
+ unique_transition ge middle initial ->Q initial ->
+ certificate ge(fun s=>P s \/ Q s)target.
+Proof.
+ intros ge P Q middle initial target[PP PC][QP QC][BRIDGE UNIQUE]QI.
+ split.
+ - intros s[PS|QS].
+   + destruct(PP s PS)as[EQ|[t[next[STEP PN]]]].
+     * subst s;right;exists E0,initial;split;auto.
+     * right;exists t,next;split;auto.
+   + destruct(QP s QS)as[EQ|[t[next[STEP QN]]]].
+     * auto.
+     * right;exists t,next;split;auto.
+ - intros s t next[PS|QS]NF STEP.
+   + destruct(classic(s=middle))as[EQ|NE].
+     * subst;destruct(UNIQUE _ _ STEP);subst;auto.
+     * left;eapply PC;eauto.
+   + right;eapply QC;eauto.
+Qed.
+Theorem singleton_bridge_certificate:forall ge initial target,
+ unique_transition ge initial target ->
+ certificate ge(fun s=>s=initial \/ s=target)target.
+Proof.
+ intros ge initial target[STEP UNIQUE];split.
+ - intros s[EQ|EQ];[subst s;right;exists E0,target;split;auto|auto].
+ - intros s t next[EQ|EQ]NF ST;subst;try contradiction.
+   destruct(UNIQUE _ _ ST);subst;auto.
+Qed.
+Theorem certificate_reachable:forall ge P target initial,
+ certificate ge P target ->P initial ->nostep Csem.step ge target ->
+ forall t reached,star Csem.step ge initial t reached ->P reached.
+Proof.
+ intros ge P target initial[PR CL]PI STOP t reached PATH.
+ revert PI;induction PATH;intros PI;auto.
+ apply IHPATH;destruct(classic(s1=target))as[EQ|NE].
+ - subst;exfalso;eapply STOP;eauto.
+ - eapply CL;eauto.
+Qed.
+Theorem certificate_no_error:forall ge P target initial,
+ certificate ge P target ->P initial ->nostep Csem.step ge target ->
+ forall t reached,star Csem.step ge initial t reached ->
+ reached=target \/ exists tr next,Csem.step ge reached tr next.
+Proof.
+ intros ge P target initial CERT PI STOP t reached PATH.
+ pose proof(certificate_reachable ge P target initial CERT PI STOP t reached PATH)as INV.
+ destruct(proj1 CERT reached INV)as[EQ|[tr[next[STEP PN]]]];[auto|right;eauto].
+Qed.
+Theorem certificate_normal_unique:forall ge P v mf initial,
+ certificate ge P(Returnstate v Kstop mf) ->P initial ->
+ forall t v' mf',star Csem.step ge initial t(Returnstate v' Kstop mf') ->
+ v'=v /\ mf'=mf.
+Proof.
+ intros ge P v mf initial CERT PI t v' mf' PATH.
+ assert(STOP:nostep Csem.step ge(Returnstate v Kstop mf)).
+ { intros tr next[ES|SS];inversion ES||inversion SS. }
+ destruct(certificate_no_error ge P _ initial CERT PI STOP t _ PATH)as[EQ|[tr[next STEP]]].
+ - inversion EQ;auto.
+ - destruct STEP as[ES|SS];inversion ES||inversion SS.
+Qed.
+Print Assumptions chain_certificate.
+Print Assumptions certificate_no_error.
+Print Assumptions certificate_normal_unique.
+

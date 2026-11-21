@@ -1,0 +1,150 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationAttempt002.core.cbmc; it is
+remapped to PidPositionTranslationCore.cbmc
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/__pycache__
+was previously bound to PidPositionTranslationAttempt002.core.__pycache__; it
+is remapped to PidPositionTranslationCore.__pycache__
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/evidence
+was previously bound to PidPositionTranslationAttempt002.safety.evidence; it
+is remapped to PidPositionSafety.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationCore.cbmc; it is remapped to
+CoreCBMC [overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_alternating_bias/attempts/001/Driver.v", line 46, characters 66-85:
+Error:
+In environment
+m : mem
+gh, ret : block
+r, r', kp, ki : Z
+ix : int
+RANGE : -4096 <= r' <= 4096
+GR : gh <> ret
+UNIQ :
+  forall id : ident,
+  Genv.find_symbol Execution.ge id = Some gh -> id = Source._guidance_h
+RET : forall id : ident, Genv.find_symbol Execution.ge id <> Some ret
+GHREAD : Mem.range_perm m gh 0 (sizeof ce gh_type) Cur Readable
+RETWRITE : Mem.range_perm m ret 0 (sizeof ce sp_type) Cur Writable
+GLOBAL : global_bytes_initialized m
+CTRL : writable_controller_globals m
+CACHE : caches_valid m
+APP :
+  load_global Mint8unsigned m Source._guidance_pid pid_type
+    [Source._approx_force_by_thrust] =
+  Some (Vint Int.zero)
+HS : heading_safe m
+GAINS :
+  forall gain : ident,
+  In gain [Source._kp; Source._kd; Source._ki; Source._kv; Source._ka] ->
+  bounded_global m Source._guidance_pid pid_type [gain] 0 100
+BOUNDS :
+  forall axis : ident,
+  In axis [Source._x; Source._y] ->
+  bounded_global m Source._guidance_pid_trim_att_integrator vec_type [axis]
+    (-100000000) 100000000 /\
+  bounded_path m gh gh_type [Source._ref; Source._speed; axis] (-10000) 10000 /\
+  bounded_path m gh gh_type [Source._ref; Source._accel; axis] (-10000) 10000 /\
+  bounded_global m Source._state state_type [Source._ned_speed_i; axis]
+    (-10000) 10000
+INIT : initialized_positions m gh
+SAFE : position_subtractions_safe m gh
+RX :
+  load_path Mint32 m gh gh_type [Spec.P._ref; Spec.P._pos; Spec.P._x] =
+  Some (Vint (Int.repr r))
+RY :
+  load_path Mint32 m gh gh_type [Spec.P._ref; Spec.P._pos; Spec.P._y] =
+  Some (Vint Int.zero)
+PX :
+  load_global Mint32 m Spec.P._state state_type
+    [Spec.P._ned_pos_i; Spec.P._x] =
+  Some (Vint Int.zero)
+PY :
+  load_global Mint32 m Spec.P._state state_type
+    [Spec.P._ned_pos_i; Spec.P._y] =
+  Some (Vint Int.zero)
+AXES :
+  forall axis : ident,
+  In axis [Spec.P._x; Spec.P._y] ->
+  load_path Mint32 m gh gh_type [Spec.P._ref; Spec.P._speed; axis] =
+  Some (Vint Int.zero) /\
+  load_path Mint32 m gh gh_type [Spec.P._ref; Spec.P._accel; axis] =
+  Some (Vint Int.zero) /\
+  load_global Mint32 m Spec.P._state state_type [Spec.P._ned_speed_i; axis] =
+  Some (Vint Int.zero)
+KP :
+  load_global Mint32 m Spec.P._guidance_pid pid_type [Spec.P._kp] =
+  Some (Vint (Int.repr kp))
+KD :
+  load_global Mint32 m Spec.P._guidance_pid pid_type [Spec.P._kd] =
+  Some (Vint Int.zero)
+KI :
+  load_global Mint32 m Spec.P._guidance_pid pid_type [Spec.P._ki] =
+  Some (Vint (Int.repr ki))
+KV :
+  load_global Mint32 m Spec.P._guidance_pid pid_type [Spec.P._kv] =
+  Some (Vint Int.zero)
+KA :
+  load_global Mint32 m Spec.P._guidance_pid pid_type [Spec.P._ka] =
+  Some (Vint Int.zero)
+HEAD :
+  load_global Mfloat32 m Spec.P._guidance_h gh_type
+    [Spec.P._sp; Spec.P._heading] =
+  Some (Vsingle Float32.zero)
+IX : integral_load m ix
+IY :
+  load_global Mint32 m Spec.P._guidance_pid_trim_att_integrator vec_type
+    [Spec.P._y] =
+  Some (Vint Int.zero)
+WG : Mem.range_perm m gh 0 84 Cur Writable
+PRIVATE : PrivateBlocks gh ret
+INPUT0 : AlternatingInput m gh ret r kp ki ix
+GOOD0 : InputGood m gh ret
+ACCESS : Mem.valid_access m Mint32 gh 44 Writable
+q : mem
+STORE : Mem.store Mint32 m gh 44 (Vint (Int.repr r')) = Some q
+KEEP :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (v : val),
+  Mem.load ch m b ofs = Some v ->
+  b <> gh \/ ofs + size_chunk ch <= 44 \/ 48 <= ofs ->
+  Mem.load ch q b ofs = Some v
+GKEEP :
+  forall (id : ident) (ty : type) (path : list ident) 
+    (ch : memory_chunk) (v : val),
+  load_global ch m id ty path = Some v ->
+  load_global ch q id ty path = Some v
+Unable to unify
+ "Mem.load ?chunk ?m2 ?b ?ofs = Some (Val.load_result ?chunk ?v)"
+with "Mem.load Mint32 q gh 44 = Some (Vint (Int.repr r'))".
+

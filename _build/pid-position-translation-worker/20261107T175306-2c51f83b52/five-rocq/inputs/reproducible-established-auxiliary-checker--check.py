@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Recheck established auxiliaries; requested main Csem goals remain pending."""
+from pathlib import Path
+import argparse,hashlib,json,subprocess,sys
+root=Path(__file__).resolve().parents[5]
+attempt=Path(__file__).resolve().parent
+parser=argparse.ArgumentParser();parser.add_argument('--auxiliary',action='store_true');args=parser.parse_args()
+prov=json.loads((attempt/'provenance.json').read_text())
+for relative,expected in prov['inputs'].items():
+ p=root/relative
+ if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest()!=expected:
+  raise SystemExit('Input hash mismatch: '+relative)
+flags=[]
+for path,namespace in [('paparazzi/models/guidance_pid_h_run_pos/align/model','PidPositionRunPos'),('paparazzi/relations/guidance_mode/support/semantics','FiveGuidanceSemantics'),('paparazzi/relations/guidance_mode/support/entry','FiveGuidanceEntry'),('paparazzi/relations/pid_position_translation/support','PidPositionTranslationSupport'),('paparazzi/relations/pid_position_translation/problem','PidPositionTranslationProblem'),('paparazzi/relations/pid_position_translation/attempts/001','PidPositionTranslationAttempt'),('paparazzi/models/guidance_pid_h_run_pos/rocq/no_error/problem','PidPositionNoError'),('paparazzi/models/guidance_pid_h_run_pos/rocq/termination/problem','PidPositionTermination')]:flags+=['-Q',path,namespace]
+files=['paparazzi/models/guidance_pid_h_run_pos/align/model/Source.v','paparazzi/models/guidance_pid_h_run_pos/align/model/Execution.v','paparazzi/relations/guidance_mode/support/semantics/SemanticsSupport.v','paparazzi/relations/guidance_mode/support/entry/BigstepSupport.v']
+files+=['paparazzi/relations/pid_position_translation/support/'+x for x in ['TranslationArithmetic.v','QuietWalk.v','MemoryLayout.v','WitnessSetup.v','RawWitness.v','GetterSemantics.v']]
+files+=['paparazzi/relations/pid_position_translation/problem/Spec.v','paparazzi/relations/pid_position_translation/attempts/001/Proof.v','paparazzi/relations/pid_position_translation/attempts/001/evidence/GetterBinding.v','paparazzi/relations/pid_position_translation/attempts/001/evidence/EstablishedAssumptions.v','paparazzi/models/guidance_pid_h_run_pos/rocq/no_error/problem/Spec.v','paparazzi/models/guidance_pid_h_run_pos/rocq/termination/problem/Spec.v']
+for f in files:subprocess.run(['rocq','compile','-q',*flags,f],cwd=root,check=True)
+subprocess.run(['rocq','check',*flags,'PidPositionTranslationAttempt.Proof','PidPositionTranslationAttempt.evidence.GetterBinding','PidPositionTranslationSupport.QuietWalk'],cwd=root,check=True)
+print(json.dumps({'auxiliary_kernel_checks':'passed','original_getter_normal_returns':'proved under stated symbolic premises','main_requested_goals':'pending','cbmc_independent_rocq_recheck':'0/124 proved'}))
+raise SystemExit(0 if args.auxiliary else 1)

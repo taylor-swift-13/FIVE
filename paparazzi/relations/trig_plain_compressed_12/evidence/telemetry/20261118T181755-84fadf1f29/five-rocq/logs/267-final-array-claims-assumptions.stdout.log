@@ -1,0 +1,63 @@
+init_reachable_array_origins
+     : forall (args : list Values.val) (m : Memory.Mem.mem)
+         (prefix : Events.trace) (s : Csem.state),
+       Smallstep.star Csem.step Execution.ge (Execution.entry args m) prefix
+         s ->
+       ArrayState.array_state Execution.ge Ctypesdefs.tuchar
+         ArrayOwners.low_array_owner s
+low_reachable_array_origins
+     : forall (args : list Values.val) (m : Memory.Mem.mem)
+         (prefix : Events.trace) (s : Csem.state),
+       Smallstep.star Csem.step PprzTrigLow.Execution.ge
+         (PprzTrigLow.Execution.entry args m) prefix s ->
+       ArrayState.array_state PprzTrigLow.Execution.ge Ctypesdefs.tuchar
+         ArrayOwners.low_array_owner s
+plain_reachable_array_origins
+     : forall (args : list Values.val) (m : Memory.Mem.mem)
+         (prefix : Events.trace) (s : Csem.state),
+       Smallstep.star Csem.step PprzTrigPlain.Execution.ge
+         (PprzTrigPlain.Execution.entry args m) prefix s ->
+       ArrayState.array_state PprzTrigPlain.Execution.ge Ctypesdefs.tshort
+         ArrayOwners.plain_array_owner s
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
+Axioms:
+ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+Events.inline_assembly_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Events.external_functions_sem :
+  String.string -> AST.signature -> Events.extcall_sem
+Classical_Prop.classic : forall P : Prop, P \/ ~ P

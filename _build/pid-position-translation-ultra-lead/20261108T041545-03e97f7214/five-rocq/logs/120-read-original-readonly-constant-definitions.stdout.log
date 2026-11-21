@@ -1,0 +1,36 @@
+Definition v_traj_max_bank := {|
+  gvar_info := tint;
+  gvar_init := (Init_int32 (Int.repr 1429) :: nil);
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+Definition v_total_max_bank := {|
+  gvar_info := tint;
+  gvar_init := (Init_int32 (Int.repr 3216) :: nil);
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+Definition v_thrust_cmd_filt := {|
+  gvar_info := tint;
+  gvar_init := (Init_space 4 :: nil);
+  gvar_readonly := false;
+  gvar_volatile := false
+|}.
+
+Definition f_guidance_pid_h_run := {|
+  fn_return := tvoid;
+  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
+  fn_params := ((__res, (tptr (Tstruct _StabilizationSetpoint noattr))) ::
+                (_in_flight, tbool) ::
+                (_gh, (tptr (Tstruct _HorizontalGuidance noattr))) :: nil);
+  fn_vars := ((_pd_x, tint) :: (_pd_y, tint) :: (_vertical_thrust, tint) ::
+              (__res__1, (Tstruct _StabilizationSetpoint noattr)) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign (Evar _pd_x tint)
+         (Ebinop Oadd
+           (Ebinop Oshr
+             (Ebinop Omul
+               (Eva

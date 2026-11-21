@@ -1,0 +1,33 @@
+216 Definition composite_def_eq (x y: composite_definition): {x=y} + {x<>y}.
+227 Global Opaque composite_def_eq. 
+1204   its composite definitions in sequence.  The definitions are assumed
+1395   symmetry; rewrite B. f_equal. apply alignof_composite_stable; auto. 
+1396   symmetry; rewrite C. f_equal. apply sizeof_composite_stable; auto.
+1469     unfold composite_of_def in EQ. destruct (env!id0) eqn:E; try discriminate.
+1551   prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env
+1565   match build_composite_env types with
+1601       if ident_eq (name_composite_def cd') (name_composite_def cd) then composite_def_eq cd cd' else true)
+1606   List.filter (fun cd => negb (In_dec ident_eq (name_composite_def cd) names1)) l2.
+1621   destruct (forallb (check_compat_composite l2) l1) eqn:C; inv H.
+1630   destruct (in_dec ident_eq (name_composite_def x) (map name_composite_def l1)); simpl; auto.
+1664 Lemma composite_eq:
+1677 Lemma composite_of_def_eq:
+1684   destruct co; simpl in *. f_equal. apply composite_eq; auto. rewrite C, B; auto. 
+1696   intros. destruct H, H0. destruct co1, co2; simpl in *. apply composite_eq; congruence.
+1713   apply composite_of_def_eq; auto. 
+1725   (forall id, env2!id = if In_dec ident_eq id (map name_composite_def l0) then env0!id else env1!id) ->
+1734 - destruct a. destruct (composite_of_def env1 id su m a) as [x|e] eqn:EQ; try discriminate.
+1740   simpl. destruct (in_dec ident_eq id (map name_composite_def l0)); simpl.
+1759 * intros. rewrite AGREE2. destruct (in_dec ident_eq id0 (map name_composite_def l0)); auto. 
+1789   intros. destruct (in_dec ident_eq id (map name_composite_def l1)); auto.
+1864           match link_build_composite_env
+ ___compcert_i64_udiv :: ___compcert_i64_sdiv :: ___compcert_i64_utof ::
+ ___compcert_i64_stof :: ___compcert_i64_utod :: ___compcert_i64_stod ::
+ ___compcert_i64_dtou :: ___compcert_i64_dtos :: ___compcert_va_composite ::
+ ___compcert_va_float64 :: ___compcert_va_int64 :: ___compcert_va_int32 ::
+ nil).
+
+Definition prog : Csyntax.program := 
+  mkprogram composites global_definitions public_idents _main Logic.I.
+
+

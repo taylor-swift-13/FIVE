@@ -1,0 +1,23 @@
+{
+  "schema": "five-library-interface-registry/1",
+  "policy": "Reuse concrete official AST operations first. Only required ordinary-library functions receive minimal specs/adapters; do not verify their libc/musl implementations. Direct system interfaces require concrete official support and a compatible world, never guessed stubs.",
+  "ordinary_functions": {
+    "memcpy": {
+      "effects": "memory-only",
+      "ast_form": "EF_external",
+      "adapter_source": "shared/compcert_libc/Library.v",
+      "spec_source": "shared/compcert_libc/Library.v",
+      "conformance_proof_source": "shared/compcert_libc/Library.v",
+      "callback": "FiveShared.compcert_libc.Library.do_external_function",
+      "specification": "FiveShared.compcert_libc.Library.official_memcpy",
+      "conformance_theorem": "FiveShared.compcert_libc.Library.do_external_spec_sound",
+      "completeness_theorem": "FiveShared.compcert_libc.Library.do_external_spec_complete",
+      "behavior_preservation_theorem": "FiveShared.compcert_libc.Library.callback_preserves_legacy",
+      "official_operation": "Cexec.do_ef_memcpy",
+      "signature": "mksignature [Xptr; Xptr; Xlong] Xptr cc_default",
+      "source_behavior": "Original C and AST unchanged; three arguments, destination-pointer return, raw byte copying, byte alignment and original non-overlap requirement preserved",
+      "trusted_library_contract": "Selected libc/musl memcpy is assumed to satisfy the stated C-library interface specification",
+      "library_implementation_verified": false
+    }
+  }
+}

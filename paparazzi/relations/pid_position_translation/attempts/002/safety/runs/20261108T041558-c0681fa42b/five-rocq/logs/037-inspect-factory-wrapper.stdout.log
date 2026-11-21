@@ -1,0 +1,465 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Cexec Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport FunctionAllocation.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory.
+Import ListNotations.
+Open Scope Z_scope.
+Module S := PidPositionRunPos.Source.
+Module E := PidPositionRunPos.Execution.
+Definition ge := E.ge.
+Lemma ge_ce : genv_cenv ge=ce.
+Proof. unfold ge,E.ge,Csem.globalenv,ce. cbv beta iota zeta delta [genv_cenv]. reflexivity. Qed.
+Global Opaque ge E.ge.
+Definition spty := Tstruct S._StabilizationSetpoint noattr.
+Definition vty := Tstruct S._Int32Vect2 noattr.
+
+Definition zero_co : composite.
+Proof.
+ refine {| co_su:=Struct;co_members:=[];co_attr:=noattr;co_sizeof:=0;co_alignof:=1;co_rank:=O |}.
+ - lia.
+ - exists O;reflexivity.
+ - exists 0;reflexivity.
+Defined.
+Definition co_for (id:ident) : composite := match PTree.get id ce with Some co=>co | None=>zero_co end.
+Lemma co_for_lookup : forall id,
+ (match PTree.get id ce with Some _=>true | None=>false end)=true ->
+ PTree.get id ce=Some(co_for id).
+Proof. intros id H;unfold co_for;destruct(PTree.get id ce);[reflexivity|discriminate]. Qed.
+Ltac cenv_lookup := lazymatch goal with |- PTree.get ?id _ = Some ?co =>
+ unify co (co_for id);rewrite ge_ce;apply co_for_lookup;vm_compute;reflexivity end.
+Ltac cfield_lookup := rewrite ge_ce;vm_compute;reflexivity.
+Ltac local_lvalue := eapply esl_var_local; eassumption.
+Ltac simple_rv :=
+ lazymatch goal with
+ | |- eval_simple_rvalue _ _ _ (Eval _ _) _ => constructor
+ | |- eval_simple_rvalue _ _ _ (Evalof ?l ?ty) _ =>
+   let mode := eval hnf in (access_mode ty) in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[simple_lv|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [simple_lv|reflexivity|reflexivity|reflexivity|
+       lazymatch goal with |- Mem.loadv ?c ?mm (Vptr ?bb ?oo)=Some ?vv =>
+       let ox := eval vm_compute in (Ptrofs.unsigned oo) in
+       change(Mem.load c mm bb ox=Some vv);eassumption end]
+   end
+ | |- eval_simple_rvalue _ _ _ (Eaddrof _ _) _ => apply esr_addrof;simple_lv
+ end
+with simple_lv :=
+ lazymatch goal with
+ | |- eval_simple_lvalue _ _ _ (Evar _ _) _ _ _ => local_lvalue
+ | |- eval_simple_lvalue _ _ _ (Ederef _ _) _ _ _ => eapply esl_deref;simple_rv
+ | |- eval_simple_lvalue _ _ _ (Efield ?r _ _) _ _ _ =>
+   let rt := eval cbv beta iota zeta delta [typeof] in (typeof r) in
+   lazymatch rt with
+   | Tstruct _ _=>eapply esl_field_struct;[simple_rv|reflexivity|cenv_lookup|cfield_lookup]
+   | Tunion _ _=>eapply esl_field_union;[simple_rv|reflexivity|idtac|cenv_lookup];cfield_lookup
+   end
+ end.
+Ltac scalar_assignment STORE :=
+ eapply atomic_assign;
+ [simple_lv|reflexivity|simple_rv|reflexivity|reflexivity|
+  eapply assign_loc_value;[reflexivity|reflexivity|exact STORE]|reflexivity].
+
+Theorem original_factory_body : forall e br bv bh bs src ret o h
+ m0 m1 m2 m3 m4 m5 m6 m7 m8 vecbytes spbytes,
+ e!S.__res=Some(br,tptr spty) ->e!S._vect=Some(bv,tptr vty) ->
+ e!S._heading=Some(bh,tint) ->e!S._sp=Some(bs,spty) ->
+ Mem.load Mint64 m2 bv 0=Some(Vptr src o) ->
+ Mem.load Mint32 m3 bh 0=Some(Vint h) ->
+ Mem.load Mint64 m7 br 0=Some(Vptr ret Ptrofs.zero) ->
+ (4 | Ptrofs.unsigned o) ->src<>bs ->ret<>bs ->
+ Mem.store Mint32 m0 bs 0(Vint(Int.repr 2))=Some m1 ->
+ Mem.store Mint32 m1 bs 4(Vint Int.zero)=Some m2 ->
+ Mem.loadbytes m2 src(Ptrofs.unsigned o)8=Some vecbytes ->
+ Mem.storebytes m2 bs 8 vecbytes=Some m3 ->
+ Mem.store Mint32 m3 bs 16(Vint h)=Some m4 ->
+ Mem.store Mint32 m4 bs 24(Vint Int.zero)=Some m5 ->
+ Mem.store Mint32 m5 bs 28(Vint Int.zero)=Some m6 ->
+ Mem.store Mint32 m6 bs 32(Vint Int.zero)=Some m7 ->
+ Mem.loadbytes m7 bs 0 36=Some spbytes ->
+ Mem.storebytes m7 ret 0 spbytes=Some m8 ->
+ Cstrategy.exec_stmt ge e m0(fn_body S.f_stab_sp_from_ltp_i)E0 m8(Out_return None).
+Proof.
+ intros e br bv bh bs src ret o h m0 m1 m2 m3 m4 m5 m6 m7 m8 vecbytes spbytes
+ LR LV LH LS LP PH PR OA DS DR T F V VC H P Q R BY COPY.
+ cbn[S.f_stab_sp_from_ltp_i fn_body].
+ eapply sequence_normal;[scalar_assignment T|].
+ eapply sequence_normal;[scalar_assignment F|].
+ eapply sequence_normal.
+ - eapply atomic_assign.
+   + simple_lv.
+   + reflexivity.
+   + eapply esr_rvalof.
+     * eapply esl_deref.
+       eapply read_scalar with(b:=bv)(ofs:=Ptrofs.zero)(chunk:=Mint64).
+       -- local_lvalue.
+       -- reflexivity.
+       -- reflexivity.
+       -- reflexivity.
+       -- unfold Mem.loadv;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact LP|change(0+8<=18446744073709551616);lia].
+     * reflexivity.
+     * reflexivity.
+     * apply deref_loc_copy;reflexivity.
+   + reflexivity.
+   + reflexivity.
+   +
+   eapply assign_loc_copy with(bytes:=vecbytes).
+     * reflexivity.
+     * exact OA.
+     * rewrite ge_ce;change(4|8);exists 2;reflexivity.
+     * left;exact DS.
+     * rewrite ge_ce;exact V.
+     * exact VC.
+   + reflexivity.
+ - eapply sequence_normal;[scalar_assignment H|].
+   eapply sequence_normal;[scalar_assignment P|].
+   eapply sequence_normal;[scalar_assignment Q|].
+   eapply sequence_normal;[scalar_assignment R|].
+   eapply sequence_normal.
+   + eapply atomic_assign;
+     [simple_lv|reflexivity|simple_rv|reflexivity|reflexivity| |reflexivity].
+     eapply assign_loc_copy with(bytes:=spbytes).
+     * reflexivity.
+     * rewrite ge_ce;change(4|0);exists 0;reflexivity.
+     * rewrite ge_ce;change(4|0);exists 0;reflexivity.
+     * left;congruence.
+     * rewrite ge_ce;exact BY.
+     * exact COPY.
+   + constructor.
+Qed.
+Print Assumptions original_factory_body.
+
+Theorem original_factory_body_normal:forall e m br bv bh bs src ret o h x y,
+ e!S.__res=Some(br,tptr spty) ->e!S._vect=Some(bv,tptr vty) ->
+ e!S._heading=Some(bh,tint) ->e!S._sp=Some(bs,spty) ->
+ br<>bs ->bv<>bs ->bh<>bs ->src<>bs ->ret<>bs ->
+ Mem.load Mint64 m bv 0=Some(Vptr src o) ->
+ Mem.load Mint32 m bh 0=Some(Vint h) ->
+ Mem.load Mint64 m br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mint32 m src(Ptrofs.unsigned o)=Some(Vint x) ->
+ Mem.load Mint32 m src(Ptrofs.unsigned o+4)=Some(Vint y) ->
+ (4|Ptrofs.unsigned o) ->
+ Mem.range_perm m bs 0 36 Cur Writable ->
+ Mem.range_perm m src(Ptrofs.unsigned o)(Ptrofs.unsigned o+8)Cur Readable ->
+ Mem.range_perm m ret 0 36 Cur Writable ->
+ exists mf,
+ Cstrategy.exec_stmt ge e m(fn_body S.f_stab_sp_from_ltp_i)E0 mf(Out_return None) /\
+ factory_trace m bs src ret o h mf /\ active_fields mf ret x y h /\
+ raw_writes(fun b=>b=bs\/b=ret)m mf.
+Proof.
+ intros e m br bv bh bs src ret o h x y LR LV LH LS DR DV DH DS DRET LP PH PR LX LY OA WSP RV WR.
+ destruct(factory_trace_exists m bs src ret o h WSP RV WR)as[mf TRACE].
+ pose proof TRACE as TRACE0;destruct TRACE as(m1&m2&m3&m4&m5&m6&m7&vb&sb&T&F&V&VC&H&P&Q&R&BY&COPY).
+ exists mf;split.
+ - eapply original_factory_body with(src:=src)(ret:=ret)(o:=o)(h:=h)(br:=br)(bv:=bv)(bh:=bh)(bs:=bs)(m1:=m1)(m2:=m2)(m3:=m3)(m4:=m4)(m5:=m5)(m6:=m6)(m7:=m7)(vecbytes:=vb)(spbytes:=sb);eauto;
+   scalar_frame;assumption.
+ - split;[exact TRACE0|]. split.
+   + eapply factory_trace_active;eauto.
+   + eapply factory_trace_writes;exact TRACE0.
+Qed.
+Print Assumptions original_factory_body_normal.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import Entry SoftwareSqrt BigstepSupport SymbolicPrefix SaturationBody StackCleanup FunctionAllocation.
+Require FiveGhSpeed.Source FiveGhSpeed.Execution.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module S:=FiveGhSpeed.Source.
+Lemma freeable_at_zero:forall m ch b,
+ Mem.range_perm m b 0(size_chunk ch)Cur Freeable ->Mem.valid_access m ch b 0 Freeable.
+Proof. intros;split;[exact H|exists 0;lia]. Qed.
+Lemma environment_distinct:forall e id1 id2 b1 b2 t1 t2,
+ env_separated e ->id1<>id2 ->e!id1=Some(b1,t1) ->e!id2=Some(b2,t2) ->b1<>b2.
+Proof. intros e id1 id2 b1 b2 t1 t2 SEP D L1 L2 EQ;subst b2;apply D;eapply SEP;eauto. Qed.
+Theorem saturation_funcall_normal:forall m ba bc a maximum,
+ sqrt_call_contract ->Genv.find_symbol ge S._gh_max_accel=Some bc ->
+ Mem.load Mfloat32 m bc 0=Some(Vsingle maximum) ->
+ Mem.load Mfloat32 m ba 0=Some(Vsingle(vx a)) ->Mem.load Mfloat32 m ba 4=Some(Vsingle(vy a)) ->
+ Mem.valid_access m Mfloat32 ba 0 Writable ->Mem.valid_access m Mfloat32 ba 4 Writable ->
+ exists mf,Cstrategy.eval_funcall ge m(Internal S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]E0 mf Vundef /\
+ Mem.load Mfloat32 mf ba 0=Some(Vsingle(vx(saturate maximum a))) /\
+ Mem.load Mfloat32 mf ba 4=Some(Vsingle(vy(saturate maximum a))) /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>ba ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs nbytes,Mem.valid_block m b ->b<>ba ->Mem.loadbytes mf b ofs nbytes=Mem.loadbytes m b ofs nbytes).
+Proof.
+ intros m ba bc a maximum CONTRACT SYM LC LX LY A0 A4.
+ set(decl:=fn_params S.f_gh_saturate_accel++fn_vars S.f_gh_saturate_accel).
+ assert(ND:NoDup(map fst decl))by(unfold decl;repeat constructor;simpl;intuition discriminate).
+ destruct(Cexec.do_alloc_variables ge empty_env m decl)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables ge empty_env m decl e ma).
+ { pose proof(Cexec.do_alloc_variables_sound ge decl empty_env m)as H;rewrite ALLOC in H;exact H. }
+ assert(ALL:forall id ty,In(id,ty)decl ->exists b,e!id=Some(b,ty) /\~Mem.valid_block m b /\Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id ty IN;pose proof(allocated_variable ge decl empty_env m id ty ND IN)as H;rewrite ALLOC in H;destruct H as(b&L&F&V&P);exists b;auto. }
+ destruct(ALL S._accel_sp(tptr vt)ltac:(unfold decl;simpl;intuition congruence))as(bp&LP&FP&PP).
+ destruct(ALL S._a_norm2 tfloat ltac:(unfold decl;simpl;intuition congruence))as(bn&LN&FN&PN).
+ destruct(ALL S._factor tfloat ltac:(unfold decl;simpl;intuition congruence))as(bf&LF&FF&PF).
+ assert(SEP:env_separated e).
+ { pose proof(allocation_env_separated ge decl empty_env m ltac:(intros id b ty H;discriminate H)ltac:(intros id1 id2 b t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H. }
+ assert(FRESH:forall id b ty,e!id=Some(b,ty)->~Mem.valid_block m b).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+   destruct(ALL id ty IN)as(bx&LOOKX&FX&PERM);rewrite LOOK in LOOKX;injection LOOKX as EQ;subst bx;exact FX. }
+ assert(FREEA:forall id b ty,e!id=Some(b,ty)->Mem.range_perm ma b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;pose proof(allocated_environment_origin ge decl m e ma AV id b ty LOOK)as IN.
+   destruct(ALL id ty IN)as(bx&LOOKX&FX&PERM);rewrite LOOK in LOOKX;injection LOOKX as EQ;subst bx;exact PERM. }
+ assert(ENV_S:e!S._five_sqrtf=None).
+ { pose proof(allocation_keeps_binding ge decl empty_env m S._five_sqrtf ltac:(unfold decl;simpl;intuition discriminate))as H;rewrite ALLOC in H;exact H. }
+ assert(ENV_M:e!S._gh_max_accel=None).
+ { pose proof(allocation_keeps_binding ge decl empty_env m S._gh_max_accel ltac:(unfold decl;simpl;intuition discriminate))as H;rewrite ALLOC in H;exact H. }
+ assert(VA:Mem.valid_block m ba)by(eapply loaded_valid_block;exact LX).
+ assert(VC:Mem.valid_block m bc)by(eapply loaded_valid_block;exact LC).
+ assert(DAP:ba<>bp)by(intro EQ;subst bp;apply FP;exact VA).
+ assert(DNA:bn<>ba)by(intro EQ;subst bn;apply FN;exact VA).
+ assert(DNC:bn<>bc)by(intro EQ;subst bn;apply FN;exact VC).
+ assert(DFA:bf<>ba)by(intro EQ;subst bf;apply FF;exact VA).
+ assert(DNP:bn<>bp)by(eapply environment_distinct;[exact SEP| |exact LN|exact LP];discriminate).
+ assert(DFP:bf<>bp)by(eapply environment_distinct;[exact SEP| |exact LF|exact LP];discriminate).
+ assert(PACCESS:Mem.valid_access ma Mint64 bp 0 Writable).
+ { apply Mem.valid_access_freeable_any;apply freeable_at_zero;exact PP. }
+ destruct(Mem.valid_access_store ma Mint64 bp 0(Vptr ba Ptrofs.zero)PACCESS)as[mb SP].
+ assert(COPYKEEP:access_preserved ma mb).
+ { unfold access_preserved;intros;eapply Mem.store_valid_access_1;eauto. }
+ assert(FREEB:forall id b ty,e!id=Some(b,ty)->Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact COPYKEEP|eapply FREEA;exact LOOK]. }
+ assert(BIND:bind_parameters ge e ma(fn_params S.f_gh_saturate_accel)[Vptr ba Ptrofs.zero]mb).
+ { eapply bind_parameters_cons;[exact LP| |constructor].
+   eapply assign_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact SP|change(0+8<=18446744073709551616);lia]. }
+ assert(PTR:Mem.load Mint64 mb bp 0=Some(Vptr ba Ptrofs.zero)).
+ { erewrite Mem.load_store_same by exact SP;reflexivity. }
+ assert(LXB:Mem.load Mfloat32 mb ba 0=Some(Vsingle(vx a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 0(Vsingle(vx a))LX)as H;rewrite ALLOC in H;exact H. }
+ assert(LYB:Mem.load Mfloat32 mb ba 4=Some(Vsingle(vy a))).
+ { erewrite Mem.load_store_other by(exact SP||(left;exact DAP)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 ba 4(Vsingle(vy a))LY)as H;rewrite ALLOC in H;exact H. }
+ assert(LCB:Mem.load Mfloat32 mb bc 0=Some(Vsingle maximum)).
+ { erewrite Mem.load_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VC)).
+   pose proof(allocation_load ge decl empty_env m Mfloat32 bc 0(Vsingle maximum)LC)as H;rewrite ALLOC in H;exact H. }
+ assert(AA0:Mem.valid_access mb Mfloat32 ba 0 Writable).
+ { apply COPYKEEP;pose proof(allocation_access ge decl empty_env m Mfloat32 ba 0 Writable A0)as H;rewrite ALLOC in H;exact H. }
+ assert(AA4:Mem.valid_access mb Mfloat32 ba 4 Writable).
+ { apply COPYKEEP;pose proof(allocation_access ge decl empty_env m Mfloat32 ba 4 Writable A4)as H;rewrite ALLOC in H;exact H. }
+ assert(AN:Mem.valid_access mb Mfloat32 bn 0 Writable).
+ { apply Mem.valid_access_freeable_any;apply freeable_at_zero;exact(FREEB _ _ _ LN). }
+ assert(AF:Mem.valid_access mb Mfloat32 bf 0 Writable).
+ { apply Mem.valid_access_freeable_any;apply freeable_at_zero;exact(FREEB _ _ _ LF). }
+ destruct(saturation_body_exec e mb bp bn bf ba bc a maximum CONTRACT ENV_S ENV_M SYM LP LN LF
+ DAP DNP DNA DNC DFP DFA PTR LXB LYB LCB AN AF AA0 AA4)as[bodym[BODY[AX[AY[KEEP[FRAME BFRAME]]]]]].
+ assert(FREEBODY:forall id b ty,e!id=Some(b,ty)->Mem.range_perm bodym b 0(sizeof ge ty)Cur Freeable).
+ { intros id b ty LOOK;eapply range_perm_access_preserved;[exact KEEP|eapply FREEB;exact LOOK]. }
+ destruct(free_environment ge e bodym SEP FREEBODY)as[mf[FREE[FRAMEFREE ACCESSFREE]]].
+ assert(OUT:forall b,Mem.valid_block m b->forall id ty,e!id=Some(b,ty)->False).
+ { intros b VB id ty LOOK;exact(FRESH id b ty LOOK VB). }
+ exists mf;split.
+ - eapply Cstrategy.eval_funcall_internal with(e:=e)(m1:=ma)(m2:=mb)(m3:=bodym)(out:=Out_normal).
+   + repeat constructor;simpl;intuition discriminate.
+   + exact AV.
+   + exact BIND.
+   + exact BODY.
+   + reflexivity.
+   + exact FREE.
+ - split;[rewrite FRAMEFREE by(apply OUT;exact VA);exact AX|].
+   split;[rewrite FRAMEFREE by(apply OUT;exact VA);exact AY|]. split.
+   + unfold access_preserved;intros ch b ofs p ACCESS.
+     assert(VB:Mem.valid_block m b).
+     { eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact ACCESS|constructor]. }
+     apply ACCESSFREE;[apply OUT;exact VB|]. apply KEEP;apply COPYKEEP.
+     pose proof(allocation_access ge decl empty_env m ch b ofs p ACCESS)as H;rewrite ALLOC in H;exact H.
+   + split.
+     { intros ch b ofs VB DBA;rewrite FRAMEFREE by(apply OUT;exact VB).
+     rewrite FRAME.
+     * erewrite Mem.load_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VB)).
+       pose proof(allocation_load_frame ge decl empty_env m ch b ofs VB)as H;rewrite ALLOC in H;exact H.
+     * eapply Mem.store_valid_block_1;[exact SP|].
+       pose proof(allocation_valid_block ge decl empty_env m b VB)as H;rewrite ALLOC in H;exact H.
+     * intro EQ;subst bn;apply FN;exact VB.
+     * intro EQ;subst bf;apply FF;exact VB.
+     * exact DBA. }
+     intros b ofs nbytes VB DBA.
+     rewrite(free_environment_bytes_frame ge e bodym mf FREE b ofs nbytes)by(apply OUT;exact VB).
+     rewrite BFRAME.
+     * erewrite Mem.loadbytes_store_other by(exact SP||(left;intro EQ;subst bp;apply FP;exact VB)).
+       pose proof(allocation_bytes_frame ge decl empty_env m b ofs nbytes VB)as H;rewrite ALLOC in H;exact H.
+     * eapply Mem.store_valid_block_1;[exact SP|].
+       pose proof(allocation_valid_block ge decl empty_env m b VB)as H;rewrite ALLOC in H;exact H.
+     * intro EQ;subst bn;apply FN;exact VB.
+     * intro EQ;subst bf;apply FF;exact VB.
+     * exact DBA.
+Qed.
+Print Assumptions saturation_funcall_normal.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Maps AST Values Memory Ctypes Csem.
+From FiveGuidanceAllocation Require Import StackAllocation.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition region_block(r:block*Z*Z):block:=let '(b,_,_):=r in b.
+Lemma map_norepet_inv:forall(A B:Type)(f:A->B)xs,list_norepet(map f xs)->list_norepet xs.
+Proof.
+ intros A B f xs;induction xs as[|x xs IH];intros ND;[constructor|].
+ inversion ND;subst;constructor.
+ - intro IN;match goal with H:~In(f x)(map f xs)|-_=>apply H;apply in_map;exact IN end.
+ - apply IH;assumption.
+Qed.
+Lemma env_blocks_norepet:forall(ge:Csem.genv)e,env_separated e ->list_norepet(map region_block(blocks_of_env ge e)).
+Proof.
+ intros ge e SEP;unfold blocks_of_env;rewrite map_map.
+ apply list_map_norepet.
+ - eapply map_norepet_inv;apply PTree.elements_keys_norepet.
+ - intros[id1[b1 ty1]][id2[b2 ty2]]IN1 IN2 NE;cbn.
+   intro EQ;subst b2;apply NE.
+   pose proof(PTree.elements_complete _ _ _ IN1)as L1.
+   pose proof(PTree.elements_complete _ _ _ IN2)as L2.
+   assert(ID:id1=id2)by(eapply SEP;eauto);subst id2.
+   rewrite L1 in L2;injection L2 as TY;subst ty2;reflexivity.
+Qed.
+Lemma free_regions:forall regions m,
+ list_norepet(map region_block regions) ->
+ (forall b lo hi,In(b,lo,hi)regions ->Mem.range_perm m b lo hi Cur Freeable) ->
+ exists mf,Mem.free_list m regions=Some mf /\
+ (forall ch b ofs,~In b(map region_block regions)->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall ch b ofs p,~In b(map region_block regions)->Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p).
+Proof.
+ intros regions;induction regions as[|[[b lo]hi]regions IH];intros m ND FREE.
+ - exists m;split;[reflexivity|split;auto].
+ - cbn in ND;inversion ND as[|? ? NOT NDREST];subst.
+   destruct(Mem.range_perm_free m b lo hi(FREE b lo hi(or_introl eq_refl)))as[ma F].
+   assert(REST:forall bx lox hix,In(bx,lox,hix)regions->Mem.range_perm ma bx lox hix Cur Freeable).
+   { intros bx lox hix IN ofs RANGE;eapply Mem.perm_free_1;[exact F| |].
+     - left;intro EQ;subst bx;apply NOT;apply in_map with(f:=region_block)in IN;exact IN.
+     - apply(FREE bx lox hix);[right;exact IN|exact RANGE]. }
+   destruct(IH ma NDREST REST)as[mf[FF[LOAD ACCESS]]].
+   exists mf;split;[cbn[Mem.free_list];rewrite F;exact FF|]. split.
+   + intros ch bx ofs NP;rewrite LOAD by(cbn in NP;tauto).
+     erewrite Mem.load_free by(exact F||(left;cbn in NP;intuition congruence));reflexivity.
+   + intros ch bx ofs p NP VA;apply ACCESS;[cbn in NP;tauto|].
+     eapply Mem.valid_access_free_1;[exact F|exact VA|left;cbn in NP;intuition congruence].
+Qed.
+Lemma free_environment:forall(ge:Csem.genv)e m,
+ env_separated e ->
+ (forall id b ty,e!id=Some(b,ty)->Mem.range_perm m b 0(sizeof ge ty)Cur Freeable) ->
+ exists mf,Mem.free_list m(blocks_of_env ge e)=Some mf /\
+ (forall ch b ofs,(forall id ty,e!id=Some(b,ty)->False)->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall ch b ofs p,(forall id ty,e!id=Some(b,ty)->False)->Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p).
+Proof.
+ intros ge e m SEP FREE.
+ destruct(free_regions(blocks_of_env ge e)m(env_blocks_norepet ge e SEP))as[mf[FF[LOAD ACCESS]]].
+ - intros b lo hi IN;unfold blocks_of_env in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+   cbn in EQ;injection EQ as EB EL EH;subst bx lo hi.
+   eapply FREE;eapply PTree.elements_complete;exact IN.
+ - exists mf;split;[exact FF|]. split.
+   + intros ch b ofs OUT;apply LOAD;intro IN.
+     unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+     cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+   + intros ch b ofs p OUT VA;apply ACCESS;[|exact VA];intro IN.
+     unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+     cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+Qed.
+Print Assumptions free_environment.
+Lemma range_perm_access_preserved:forall m mf,
+ (forall ch b ofs p,Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p)->
+ forall b lo hi p,Mem.range_perm m b lo hi Cur p->Mem.range_perm mf b lo hi Cur p.
+Proof.
+ intros m mf KEEP b lo hi p RANGE ofs BOUNDS.
+ assert(VA:Mem.valid_access m Mint8unsigned b ofs p).
+ { unfold Mem.valid_access;split.
+   - intros x X;apply RANGE;cbn in X;lia.
+   - change(1|ofs);exists ofs;lia. }
+ pose proof(KEEP _ _ _ _ VA)as VF;apply(proj1 VF);cbn;lia.
+Qed.
+Lemma free_list_bytes_frame:forall regions m mf,
+ Mem.free_list m regions=Some mf ->
+ forall b ofs n,~In b(map region_block regions)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros regions;induction regions as[|[[head lo]hi]regions IH];intros m mf FREE b ofs n OUT.
+ - cbn[Mem.free_list]in FREE;injection FREE as<-;reflexivity.
+ - cbn[Mem.free_list]in FREE;destruct(Mem.free m head lo hi)as[ma|]eqn:F;try discriminate.
+   rewrite(IH ma mf FREE b ofs n)by(cbn in OUT;tauto).
+   eapply Mem.loadbytes_free;[exact F|left;cbn in OUT;intuition congruence].
+Qed.
+Lemma free_environment_bytes_frame:forall ge e m mf,
+ Mem.free_list m(blocks_of_env ge e)=Some mf ->
+ forall b ofs n,(forall id ty,e!id=Some(b,ty)->False)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge e m mf FREE b ofs n OUT;apply(free_list_bytes_frame _ _ _ FREE);intro IN.
+ unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+ cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+Qed.
+Lemma range_perm_access_preserved_block:forall m mf b,
+ (forall ch ofs p,Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p)->
+ forall lo hi p,Mem.range_perm m b lo hi Cur p->Mem.range_perm mf b lo hi Cur p.
+Proof.
+ intros m mf b KEEP lo hi p RANGE ofs BOUNDS.
+ assert(VA:Mem.valid_access m Mint8unsigned b ofs p).
+ { unfold Mem.valid_access;split;[intros x X;apply RANGE;cbn in X;lia|change(1|ofs);exists ofs;lia]. }
+ pose proof(KEEP _ _ _ VA)as VF;apply(proj1 VF);cbn;lia.
+Qed.
+From Stdlib Require Import List.
+From compcert Require Import Coqlib Maps Values Memory Ctypes Csem Cexec.
+From FiveGuidanceAllocation Require Import StackAllocation.
+Import ListNotations.
+Lemma allocation_binding_origin:forall ge vars e m id b ty,
+ (fst(Cexec.do_alloc_variables ge e m vars))!id=Some(b,ty)->
+ e!id=Some(b,ty) \/In(id,ty)vars.
+Proof.
+ intros ge vars;induction vars as[|[head ht]vars IH];intros e m id b ty LOOK.
+ - left;exact LOOK.
+ - cbn[Cexec.do_alloc_variables]in LOOK.
+   destruct(Mem.alloc m 0(sizeof ge ht))as[ma fresh]eqn:A.
+   destruct(IH _ _ _ _ _ LOOK)as[OLD|IN];[|right;right;exact IN].
+   rewrite PTree.gsspec in OLD;destruct(peq id head).
+   + subst id;injection OLD as EQ T;subst b ht;right;left;reflexivity.
+   + left;exact OLD.
+Qed.
+Lemma allocated_environment_origin:forall ge vars m e ma,
+ Csem.alloc_variables ge empty_env m vars e ma->
+ forall id b ty,e!id=Some(b,ty)->In(id,ty)vars.
+Proof.
+ intros ge vars m e ma ALLOC id b ty LOOK.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ ALLOC)as DONE.
+ destruct(allocation_binding_origin ge vars empty_env m id b ty)as[OLD|IN].
+ - rewrite DONE;exact LOOK.
+ - discriminate OLD.
+ - exact IN.
+Qed.
+Print Assumptions allocated_environment_origin.
+Lemma allocation_access:forall ge vars e m ch b ofs p,
+ Mem.valid_access m ch b ofs p ->
+ Mem.valid_access(snd(Cexec.do_alloc_variables ge e m vars))ch b ofs p.
+Proof.
+ intros ge vars e m ch b ofs p[PERM ALIGN];split;[|exact ALIGN].
+ intros x R;eapply StackAllocation.allocation_perm;apply PERM;exact R.
+Qed.
+Lemma allocation_load_frame:forall ge vars e m ch b ofs,
+ Mem.valid_block m b ->Mem.load ch(snd(Cexec.do_alloc_variables ge e m vars))b ofs=Mem.load ch m b ofs.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m ch b ofs VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.load_alloc_unchanged;eauto.
+Qed.
+Lemma allocation_bytes_frame:forall ge vars e m b ofs n,
+ Mem.valid_block m b ->Mem.loadbytes(snd(Cexec.do_alloc_variables ge e m vars))b ofs n=Mem.loadbytes m b ofs n.
+Proof.
+ intros ge vars;induction vars as[|[id ty]vars IH];intros e m b ofs n VB;cbn[Cexec.do_alloc_variables];[reflexivity|].
+ destruct(Mem.alloc m 0(sizeof ge ty))as[ma fresh]eqn:A.
+ rewrite IH by(eapply Mem.valid_block_alloc;eauto).
+ eapply Mem.loadbytes_alloc_unchanged;eauto.
+Qed.
+10:Lemma raw_writes_perm:forall P m mf,raw_writes P m mf ->forall b o k p,Mem.perm m b o k p<->Mem.perm mf b o k p.
+17:Lemma raw_writes_load_frame:forall P m mf,raw_writes P m mf ->forall ch b ofs,~P b ->Mem.load ch mf b ofs=Mem.load ch m b ofs.
+22:Lemma raw_writes_bytes_frame:forall P m mf,raw_writes P m mf ->forall b ofs n,~P b ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+27:Lemma raw_writes_range:forall P m mf,raw_writes P m mf ->forall b lo hi k p,Mem.range_perm m b lo hi k p ->Mem.range_perm mf b lo hi k p.
+29:Lemma scalar_access_inside:forall m ch b n ofs p,Mem.range_perm m b 0 n Cur p ->0<=ofs ->ofs+size_chunk ch<=n ->(align_chunk ch|ofs) ->Mem.valid_access m ch b ofs p.
+31:Lemma same_prefix_length:forall(A:Type)(p q r s:list A),length p=length r ->p++q=r++s ->p=r /\ q=s.
+36:Lemma loadbytes_equal_subrange:forall a b ba bb oa ob n bytes delta len,
+55:Lemma copy_typed_load:forall m mf src dst so dofs n bytes ch delta v,
+73:Lemma raw_writes_trans:forall P m ma mf,raw_writes P m ma ->raw_writes P ma mf ->raw_writes P m mf.
+75:Definition factory_trace (m:mem)(bs src ret:block)(o:ptrofs)(h:int)(mf:mem):Prop:=
+87:Theorem factory_trace_exists:forall m bs src ret o h,
+154:Definition active_fields(m:mem)(ret:block)(x y h:int):Prop:=
+163:Theorem factory_trace_active:forall m bs src ret o h mf x y,
+192:Theorem factory_trace_writes:forall m bs src ret o h mf,factory_trace m bs src ret o h mf ->raw_writes(fun b=>b=bs\/b=ret)m mf.

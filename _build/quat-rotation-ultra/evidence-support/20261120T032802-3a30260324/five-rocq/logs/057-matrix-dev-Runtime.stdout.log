@@ -1,0 +1,25 @@
+1 goal
+  
+  ge : genv
+  initial : Csem.state
+  t : trace
+  f : function
+  k : cont
+  e : env
+  m : mem
+  C : expr -> expr
+  b : block
+  p : Integers.Ptrofs.int
+  INV : execution_invariant ge initial
+  PATH :
+    star Csem.step ge initial t
+      (ExprState f (C (Evalof (Eloc b p Full tfloat) tfloat)) k e m)
+  CT : context RV RV C
+  value : val
+  D : deref_loc ge tfloat m b p Full E0 value
+  chunk : memory_chunk
+  H : access_mode tfloat = By_value chunk
+  H0 : type_is_volatile tfloat = false
+  H1 : Mem.loadv chunk m (Vptr b p) = Some value
+  ============================
+  exists value0 : val, Mem.loadv Mfloat32 m (Vptr b p) = Some value0

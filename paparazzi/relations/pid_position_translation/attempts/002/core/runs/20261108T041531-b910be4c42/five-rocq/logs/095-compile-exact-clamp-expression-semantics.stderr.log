@@ -1,0 +1,20 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/core/ClampSemantics.v", line 48, characters 21-32:
+Error:
+In environment
+ge : genv
+e : env
+m : mem
+r, mx : expr
+v, maximum : int
+RT : typeof r = tint
+MT : typeof mx = tint
+RS : source_simple r = true
+MS : source_simple mx = true
+RV : eval_simple_rvalue ge e m r (Vint v)
+MV : eval_simple_rvalue ge e m mx (Vint maximum)
+NEG : eval_simple_rvalue ge e m (Eunop Oneg mx tint) (Vint (Int.neg maximum))
+LOW : Int.lt v (Int.neg maximum) = false
+HIGH : Int.lt maximum v = false
+Unable to unify "Some (Vint (cast_int_int I32 Signed maximum))" with
+ "sem_cast (Vint v) tint tint m".
+

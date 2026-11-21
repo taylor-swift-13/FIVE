@@ -1,0 +1,116 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/__pycache__
+was previously bound to PidPositionTranslationAttempt002.core.__pycache__; it
+is remapped to PidPositionTranslationCore.__pycache__
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/NonemptyInput.v", line 51, characters 71-73:
+Error:
+In environment
+base : mem
+gh, ret, bp, be, bv, bi, bh, sb : block
+CONTRACT : global_bytes_initialized base
+GHR : gh <> ret
+GSYM : forall id : ident, Genv.find_symbol WitnessBase.E.ge id <> Some gh
+RSYM : forall id : ident, Genv.find_symbol WitnessBase.E.ge id <> Some ret
+GVAR :
+  forall (b : block) (gv : globvar type),
+  Genv.find_var_info WitnessBase.E.ge b = Some gv -> b <> gh
+WG : Mem.range_perm base gh 0 84 Cur Writable
+WR : Mem.range_perm base ret 0 36 Cur Writable
+SP : Genv.find_symbol WitnessBase.E.ge WitnessBase.S._guidance_pid = Some bp
+VP :
+  Genv.find_var_info WitnessBase.E.ge bp = Some WitnessBase.S.v_guidance_pid
+SE :
+  Genv.find_symbol WitnessBase.E.ge WitnessBase.S._guidance_pid_pos_err =
+  Some be
+VE :
+  Genv.find_var_info WitnessBase.E.ge be =
+  Some WitnessBase.S.v_guidance_pid_pos_err
+SV :
+  Genv.find_symbol WitnessBase.E.ge WitnessBase.S._guidance_pid_speed_err =
+  Some bv
+VV :
+  Genv.find_var_info WitnessBase.E.ge bv =
+  Some WitnessBase.S.v_guidance_pid_speed_err
+SI :
+  Genv.find_symbol WitnessBase.E.ge
+    WitnessBase.S._guidance_pid_trim_att_integrator =
+  Some bi
+VI :
+  Genv.find_var_info WitnessBase.E.ge bi =
+  Some WitnessBase.S.v_guidance_pid_trim_att_integrator
+SH : Genv.find_symbol WitnessBase.E.ge WitnessBase.S._guidance_h = Some bh
+SS : Genv.find_symbol WitnessBase.E.ge WitnessBase.S._state = Some sb
+VS : Genv.find_var_info WitnessBase.E.ge sb = Some WitnessBase.S.v_state
+WP : Mem.range_perm base bp 0 48 Cur Writable
+WE : Mem.range_perm base be 0 8 Cur Writable
+WV : Mem.range_perm base bv 0 8 Cur Writable
+WI : Mem.range_perm base bi 0 8 Cur Writable
+WS : Mem.range_perm base sb 0 656 Cur Writable
+ZP : Genv.read_as_zero base bp 0 48
+ZI : Genv.read_as_zero base bi 0 8
+ZH : Genv.read_as_zero base bh 0 84
+ZS : Genv.read_as_zero base sb 0 656
+GS : gh <> sb
+PG : bp <> gh
+IG : bi <> gh
+HG : bh <> gh
+PS : bp <> sb
+IS : bi <> sb
+HS : bh <> sb
+ROS :
+  forall (b : block) (gv : globvar type),
+  Genv.find_var_info E.ge b = Some gv -> gvar_readonly gv = true -> b <> sb
+shift : Z
+mf : mem
+RANGE : 0 <= shift <= 25600
+RUN : replay_stores base (witness_updates gh sb shift) = Some mf
+CP : Mem.load Mint16unsigned mf sb 2 = Some (Vint (Int.repr 2))
+CS : Mem.load Mint16unsigned mf sb 280 = Some (Vint (Int.repr 2))
+RX : Mem.load Mint32 mf gh 44 = Some (Vint (Int.repr (512 + shift)))
+RY : Mem.load Mint32 mf gh 48 = Some (Vint Int.zero)
+SX : Mem.load Mint32 mf gh 52 = Some (Vint Int.zero)
+SY : Mem.load Mint32 mf gh 56 = Some (Vint Int.zero)
+AX : Mem.load Mint32 mf gh 60 = Some (Vint Int.zero)
+AY : Mem.load Mint32 mf gh 64 = Some (Vint Int.zero)
+PX : Mem.load Mint32 mf sb 100 = Some (Vint (Int.repr shift))
+PY : Mem.load Mint32 mf sb 104 = Some (Vint Int.zero)
+VX : Mem.load Mint32 mf sb 296 = Some (Vint Int.zero)
+VY : Mem.load Mint32 mf sb 300 = Some (Vint Int.zero)
+RAW : raw_writes (fun _ : block => True) base mf
+PZERO : Genv.read_as_zero mf bp 0 48
+IZERO : Genv.read_as_zero mf bi 0 8
+HZERO : Genv.read_as_zero mf bh 0 84
+GLOBAL : global_bytes_initialized mf
+UNIQUE :
+  forall id : ident, Genv.find_symbol E.ge id = Some gh -> id = S._guidance_h
+ofs : Z
+R : 0 <= ofs < 84
+Unable to unify "Mem.range_perm base gh 0 84 Cur Writable" with
+ "0 <= ofs < 84".
+

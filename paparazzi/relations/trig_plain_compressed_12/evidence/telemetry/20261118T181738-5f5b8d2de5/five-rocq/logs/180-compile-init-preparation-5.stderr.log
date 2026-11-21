@@ -1,0 +1,40 @@
+File "./paparazzi/relations/trig_plain_compressed_12/support/InitPreparation.v", line 119, characters 85-96:
+Error:
+In environment
+Q : val -> mem -> Prop
+k : cont
+e : env
+base : mem
+input, buffer : block
+c : chunk
+m : mem
+C : protocol_core e base input buffer m
+P : packed_prefix (count_before c) m buffer
+F : fixed_inner_cells e m c
+CNT : short_cell e m PprzTrigInit.Source._cnt (count_before c)
+VAL : short_cell e m PprzTrigInit.Source._val (value_before c)
+PREV :
+  short_cell e m PprzTrigInit.Source._val_prev (previous_at (count_before c))
+END :
+  forall mf : mem,
+  iteration_inv e base input buffer c 0 BeforeEncode mf ->
+  total PprzTrigInit.Execution.ge Q
+    (State PprzTrigInit.Source.f_pprz_trig_int_init (inner_loop c) k e mf)
+Unable to unify
+ "Sfor
+    (Sdo
+       (Eassign (Evar PprzTrigInit.Source._j tshort)
+          (Eval (Vint (Int.repr 0)) tint) tshort))
+    match inner_with_init c with
+    | Sfor _ x _ _ => x
+    | _ => Eval Vundef tint
+    end match inner_with_init c with
+        | Sfor _ _ x _ => x
+        | _ => Sskip
+        end
+    match inner_with_init c with
+    | Sfor _ _ _ x => x
+    | _ => Sskip
+    end"
+with "multi_with_init".
+

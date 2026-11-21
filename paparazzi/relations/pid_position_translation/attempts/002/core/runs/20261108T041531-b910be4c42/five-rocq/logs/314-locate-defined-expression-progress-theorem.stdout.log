@@ -1,0 +1,9 @@
+paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v Lemma immediate_has_step: forall ge f a k e m,
+ literal RV a=false -> imm_safe ge e RV a m ->
+ exists t next,Csem.step ge(ExprState f a k e m)t next.
+Proof.
+ intros ge f a k e m NL IS;inversion IS;subst;try discriminate.
+ - eexists;eexists;left;eapply step_lred;eauto.
+ - eexists;eexists;left;eapply step_rred;eauto.
+ - eexists;eexists;left;eapply Csem.step_call;eauto.
+Qed.

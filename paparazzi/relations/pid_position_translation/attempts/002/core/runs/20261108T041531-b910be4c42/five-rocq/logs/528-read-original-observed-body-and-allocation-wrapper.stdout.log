@@ -1,0 +1,402 @@
+
+FILE safety/CoreBodyAllOrder.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp FlightSemantics CoreTail ControllerPrefix ReturnSemantics.
+From PidPositionSafety Require Import FactoryCall CoreFactoryTail CoreFront ConditionalBlock.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+Import ListNotations.
+Open Scope Z_scope.
+Ltac each_block_update := lazymatch goal with|-Forall _ []=>constructor| |-Forall _ (_::_)=>constructor;[cbn;first[assumption|apply not_eq_sym;assumption]|each_block_update]end.
+Ltac controller_block_misses :=
+ cbv beta iota zeta delta[controller_updates first_four_updates clamp_updates flight_updates app];
+ repeat match goal with|-context[if ?f then _ else _]=>destruct f end;each_block_update.
+Ltac controller_misses :=
+ cbv beta iota zeta delta[controller_updates first_four_updates clamp_updates flight_updates app];
+ repeat match goal with|-context[if ?f then _ else _]=>destruct f end;each_update.
+Theorem original_h_run_body_certificate:forall e m bp be bs gh bg bx bpy bi bt bu bf
+ (flight:bool)kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total br temp bh bfun ret(h:float32)(heading:int),
+ e!S._pd_x=Some(bx,tint) ->e!S._pd_y=Some(bpy,tint) ->e!S._gh=Some(bg,tptr gh_type) ->e!S._in_flight=Some(bf,tbool) ->
+ e!S._guidance_pid=None ->e!S._guidance_pid_pos_err=None ->e!S._guidance_pid_speed_err=None ->
+ e!S._guidance_pid_trim_att_integrator=None ->e!S._traj_max_bank=None ->e!S._total_max_bank=None ->
+ Genv.find_symbol ge S._guidance_pid=Some bp ->
+ Genv.find_symbol ge S._guidance_pid_pos_err=Some be ->
+ Genv.find_symbol ge S._guidance_pid_speed_err=Some bs ->
+ Genv.find_symbol ge S._guidance_pid_trim_att_integrator=Some bi ->
+ Genv.find_symbol ge S._traj_max_bank=Some bt ->Genv.find_symbol ge S._total_max_bank=Some bu ->
+ NoDup[bx;bpy;bg;bf;bp;be;bs;gh;bi;bt;bu] ->
+ Mem.load Mint64 m bg 0=Some(Vptr gh Ptrofs.zero) ->
+ Mem.load Mint8unsigned m bf 0=Some(Vint(if flight then Int.one else Int.zero)) ->
+ Mem.load Mint8unsigned m bp 44=Some(Vint Int.zero) ->
+ Mem.load Mint32 m bp 0=Some(Vint kp) ->
+ Mem.load Mint32 m bp 4=Some(Vint kd) ->
+ Mem.load Mint32 m bp 8=Some(Vint ki) ->
+ Mem.load Mint32 m bp 12=Some(Vint kv) ->
+ Mem.load Mint32 m bp 16=Some(Vint ka) ->
+ Mem.load Mint32 m be 0=Some(Vint pex) ->
+ Mem.load Mint32 m be 4=Some(Vint pey) ->
+ Mem.load Mint32 m bs 0=Some(Vint sex) ->
+ Mem.load Mint32 m bs 4=Some(Vint sey) ->
+ Mem.load Mint32 m gh 52=Some(Vint rsx) ->
+ Mem.load Mint32 m gh 56=Some(Vint rsy) ->
+ Mem.load Mint32 m gh 60=Some(Vint rax) ->
+ Mem.load Mint32 m gh 64=Some(Vint ray) ->
+ Mem.load Mint32 m bi 0=Some(Vint ix) ->
+ Mem.load Mint32 m bi 4=Some(Vint iy) ->
+ Mem.load Mint32 m bt 0=Some(Vint traj) ->
+ Mem.load Mint32 m bu 0=Some(Vint total) ->
+ Mem.valid_access m Mint32 bx 0 Writable ->
+ Mem.valid_access m Mint32 bpy 0 Writable ->
+ Mem.valid_access m Mint32 bi 0 Writable ->
+ Mem.valid_access m Mint32 bi 4 Writable ->
+ Mem.valid_access m Mint32 bp 32 Writable ->
+ Mem.valid_access m Mint32 bp 36 Writable ->
+ e!S.__res=Some(br,tptr spty) ->e!S.__res__1=Some(temp,spty) ->
+ e!S._guidance_h=None ->Genv.find_symbol ge S._guidance_h=Some bh ->
+ e!S._stab_sp_from_ltp_i=None ->Genv.find_symbol ge S._stab_sp_from_ltp_i=Some bfun ->
+ Genv.find_funct ge(Vptr bfun Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i) ->
+ br<>bx ->br<>bpy ->br<>bp ->br<>bi ->br<>temp ->
+ temp<>bp ->temp<>bi ->temp<>ret ->ret<>bp ->ret<>bi ->
+ bh<>bx ->bh<>bpy ->bh<>bp ->bh<>bi ->
+ Mem.load Mint64 m br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mfloat32 m bh 28=Some(Vsingle h) ->
+ sem_cast(Vsingle(Float32.mul h(Float32.of_int(Int.repr 4096))))tfloat tint m=Some(Vint heading) ->
+ Mem.range_perm m bp 32 40 Cur Readable ->
+ Mem.range_perm m temp 0 36 Cur Writable ->Mem.range_perm m ret 0 36 Cur Writable ->
+ exists mf,
+ (forall k,exists P,certificate ge P(State S.f_guidance_pid_h_run(Sreturn None)k e mf)/\
+ P(State S.f_guidance_pid_h_run(fn_body S.f_guidance_pid_h_run)k e m)) /\
+ active_fields mf ret
+ (controller_command flight kp kd ki kv ka pex sex rsx rax ix traj total)
+ (controller_command flight kp kd ki kv ka pey sey rsy ray iy traj total)heading /\
+ Mem.load Mint32 mf bi 0=Some(Vint(next_integral flight ix ki(pd_bits kp kd pex sex)traj)) /\
+ Mem.load Mint32 mf bi 4=Some(Vint(next_integral flight iy ki(pd_bits kp kd pey sey)traj)) /\
+ Mem.load Mint32 mf bp 32=Some(Vint(controller_command flight kp kd ki kv ka pex sex rsx rax ix traj total)) /\
+ Mem.load Mint32 mf bp 36=Some(Vint(controller_command flight kp kd ki kv ka pey sey rsy ray iy traj total)) /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>bx ->b<>bpy ->b<>bp ->b<>bi ->b<>temp ->b<>ret ->
+ Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs n,Mem.valid_block m b ->b<>bx ->b<>bpy ->b<>bp ->b<>bi ->b<>temp ->b<>ret ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+Proof.
+ intros e m bp be bs gh bg bx bpy bi bt bu bf flight kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total br temp bh bfun ret h heading
+ EX EY EG EF NP NE NS NI NT NU SP SE SS SI ST SU SEP GP LF APPROX
+ LKP LKD LKI LKV LKA LPEX LPEY LSEX LSEY LRSX LRSY LRAX LRAY LIX LIY LT LU AX AY AIX AIY ACX ACY
+ LR LC NH SH NF SF FF BRX BRY BRP BRI BRT TP TI TR RP RI HHX HHY HHP HHI RES HEAD CAST RVS WT WR.
+ destruct(original_controller_front_certificate e m bp be bs gh bg bx bpy bi bt bu bf flight kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total
+ EX EY EG EF NP NE NS NI NT NU SP SE SS SI ST SU SEP GP LF APPROX
+ LKP LKD LKI LKV LKA LPEX LPEY LSEX LSEY LRSX LRSY LRAX LRAY LIX LIY LT LU AX AY AIX AIY ACX ACY)
+ as[c[CTRL[IX[IY[CX[CY RUN]]]]]].
+ assert(KEEP:access_preserved m c).
+ { intros ch b ofs p ACCESS;eapply replay_stores_access;[exact RUN|exact ACCESS]. }
+ assert(RESC:Mem.load Mint64 c br 0=Some(Vptr ret Ptrofs.zero)).
+ { rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN)by(controller_misses);exact RES. }
+ assert(HEADC:Mem.load Mfloat32 c bh 28=Some(Vsingle h)).
+ { rewrite(replay_stores_load_frame _ _ _ _ _ _ RUN)by(controller_misses);exact HEAD. }
+ assert(RVC:Mem.range_perm c bp 32 40 Cur Readable)by(eapply access_preserved_byte_range;eauto).
+ assert(WTC:Mem.range_perm c temp 0 36 Cur Writable)by(eapply access_preserved_byte_range;eauto).
+ assert(WRC:Mem.range_perm c ret 0 36 Cur Writable)by(eapply access_preserved_byte_range;eauto).
+ destruct(original_factory_tail_assignment_certificate e c br temp bp bh bfun ret h heading
+ (controller_command flight kp kd ki kv ka pex sex rsx rax ix traj total)
+ (controller_command flight kp kd ki kv ka pey sey rsy ray iy traj total)
+ LR LC NP SP NH SH NF SF FF BRT TR RESC HEADC CAST CX CY RVC WTC WRC)
+ as[mf[TAIL[ACTIVE[TAILKEEP[FRAME BFRAME]]]]].
+ assert(VBP:Mem.valid_block c bp)by(eapply loaded_block;exact CX).
+ assert(VBI:Mem.valid_block c bi)by(eapply loaded_block;exact IX).
+ exists mf;split.
+ - intros k.
+   destruct(TAIL(Kseq(Sreturn None)k))as[PT[CT IT]].
+   assert(CR:certificate ge(fun s=>s=State S.f_guidance_pid_h_run(Sreturn None)k e mf)
+    (State S.f_guidance_pid_h_run(Sreturn None)k e mf))by apply singleton_certificate.
+   destruct(sequence_certificate ge S.f_guidance_pid_h_run e k c mf
+    CoreFactoryTail.return_assignment(Sreturn None)PT
+    (fun s=>s=State S.f_guidance_pid_h_run(Sreturn None)k e mf)_
+    CT IT CR eq_refl)as[QT[CQT IQT]].
+   destruct(CTRL k)as[PC[CC IC]].
+   eexists;split;[eapply join_certificate;[exact CC|exact CQT|exact IQT]|left;exact IC].
+ - split;[exact ACTIVE|].
+   split;[rewrite FRAME by(assumption||congruence);exact IX|].
+   split;[rewrite FRAME by(assumption||congruence);exact IY|].
+   split;[rewrite FRAME by(assumption||congruence);exact CX|].
+   split;[rewrite FRAME by(assumption||congruence);exact CY|].
+   split.
+   + intros ch b ofs p ACCESS;apply TAILKEEP;apply KEEP;exact ACCESS.
+   + split.
+     * intros ch b ofs VB BX BY BP BI BT BR.
+       rewrite FRAME by(first[assumption|eapply replay_stores_valid_block;[exact RUN|exact VB]]).
+       apply(replay_stores_load_frame _ _ _ _ _ _ RUN);controller_misses.
+     * intros b ofs n VB BX BY BP BI BT BR N.
+       rewrite BFRAME by(first[assumption|eapply replay_stores_valid_block;[exact RUN|exact VB]]).
+       eapply replay_stores_bytes_frame_block;[exact RUN|controller_block_misses|exact N].
+Qed.
+
+Print Assumptions original_h_run_body_certificate.
+
+
+FILE safety/FunctionPhases.v
+From Stdlib Require Import List Bool Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PhaseComposition.
+From PidPositionSafety Require Import ConditionalBlock.
+Definition phase_world:world:=World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Lemma allocation_deterministic:forall ge env m vars e1 ma1 e2 ma2,
+ alloc_variables ge env m vars e1 ma1 ->alloc_variables ge env m vars e2 ma2 ->e1=e2 /\ma1=ma2.
+Proof.
+ intros ge env m vars e1 ma1 e2 ma2 A1 A2.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A1)as D1.
+ pose proof(Cexec.do_alloc_variables_complete _ _ _ _ _ _ A2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma parameters_deterministic:forall ge e m params args mf1 mf2,
+ bind_parameters ge e m params args mf1 ->bind_parameters ge e m params args mf2 ->mf1=mf2.
+Proof.
+ intros ge e m params args mf1 mf2 B1 B2.
+ pose proof(Cexec.sem_bind_parameters_complete ge phase_world e m params args mf1 B1)as D1.
+ pose proof(Cexec.sem_bind_parameters_complete ge phase_world e m params args mf2 B2)as D2.
+ rewrite D1 in D2;injection D2;auto.
+Qed.
+Lemma internal_dispatch_transition:forall ge f args m e ma mb k,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f)) ->
+ alloc_variables ge empty_env m(fn_params f++fn_vars f)e ma ->
+ bind_parameters ge e ma(fn_params f)args mb ->
+ unique_transition ge(Callstate(Internal f)args k m)(State f(fn_body f)k e mb).
+Proof.
+ intros ge f args m e ma mb k NAMES ALLOC BIND;split.
+ - right;eapply step_internal_function;[exact NAMES|exact ALLOC|exact BIND].
+ - intros t next[ES|SS];[inversion ES|].
+   inversion SS;subst;split;[reflexivity|].
+   match goal with
+   |A:alloc_variables ge empty_env m(fn_params f++fn_vars f)?ee ?mx
+    |-State _ _ _ ?ee _=_ =>
+     destruct(allocation_deterministic ge empty_env m _ e ma ee mx ALLOC A)as[EE MM];subst ee mx end.
+   match goal with
+   |B:bind_parameters ge e ma(fn_params f)args ?mx |-State _ _ _ _ ?mx=_=>
+    pose proof(parameters_deterministic ge e ma(fn_params f)args mb mx BIND B)as EQ;subst mx;reflexivity end.
+Qed.
+Lemma return_void_transition:forall ge f k e m mf,
+ is_call_cont k ->Mem.free_list m(blocks_of_env ge e)=Some mf ->
+ unique_transition ge(State f(Sreturn None)k e m)(Returnstate Vundef k mf).
+Proof.
+ intros ge f k e m mf CALL FREE.
+ assert(CC:call_cont k=k)by(destruct k;cbn in CALL|-*;try contradiction;reflexivity).
+ split.
+ - pose proof(Csem.step_return_0 ge f k e m mf FREE)as STEP;rewrite CC in STEP;right;exact STEP.
+ - intros t next[ES|SS];[inversion ES|inversion SS;subst].
+   all:cbn in CALL;try contradiction;repeat match goal with H:_\/_|-_=>destruct H end;try discriminate.
+   split;[reflexivity|].
+   match goal with F:Mem.free_list _ _=Some ?mx|-_=>rewrite FREE in F;injection F as EQ;subst mx end.
+   rewrite CC;reflexivity.
+Qed.
+Theorem allocated_void_call_certificate:forall ge f args m e ma mb bodym mf,
+ list_norepet(var_names(fn_params f)++var_names(fn_vars f)) ->
+ alloc_variables ge empty_env m(fn_params f++fn_vars f)e ma ->
+ bind_parameters ge e ma(fn_params f)args mb ->
+ Mem.free_list bodym(blocks_of_env ge e)=Some mf ->
+ (forall k,exists P,certificate ge P(State f(Sreturn None)k e bodym)/\
+   P(State f(fn_body f)k e mb)) ->
+ forall k,is_call_cont k ->exists Q,certificate ge Q(Returnstate Vundef k mf)/\
+ Q(Callstate(Internal f)args k m).
+Proof.
+ intros ge f args m e ma mb bodym mf NAMES AV BIND FREE BODY k BASE.
+ destruct(BODY k)as[P[CP IP]].
+ pose proof(return_void_transition ge f k e bodym mf BASE FREE)as CLEAN.
+ pose proof(singleton_bridge_certificate ge _ _ CLEAN)as CC.
+ pose proof(ConditionalBlock.join_certificate ge P _ _ _ CP CC ltac:(left;reflexivity))as JOIN.
+ eapply ConditionalBlock.prepend_transition.
+ - exact(internal_dispatch_transition ge f args m e ma mb k NAMES AV BIND).
+ - exact JOIN.
+ - left;exact IP.
+Qed.
+Print Assumptions allocated_void_call_certificate.
+
+
+FILE safety/CoreCallAllOrder.v
+12 Lemma nodup_app_separated:forall(A:Type)(xs ys:list A),NoDup xs ->NoDup ys ->
+19 Theorem original_h_run_funcall_certificate:forall m bp be bs gh bi bt bu bh bfun ret(flight:bool)
+314  destruct(original_h_run_body_certificate e mb bp be bs gh bg bx bpy bi bt bu bf flight kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total br temp bh bfun ret h heading
+328    exact(allocated_void_call_certificate ge S.f_guidance_pid_h_run
+ assert(LRAXB:Mem.load Mint32 mb gh 60=Some(Vint rax)).
+ {rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact V_gh).
+ pose proof(allocation_load ge decl empty_env m _ _ _ _ LRAX)as A;rewrite ALLOC in A;exact A. }
+ assert(LRAYB:Mem.load Mint32 mb gh 64=Some(Vint ray)).
+ {rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact V_gh).
+ pose proof(allocation_load ge decl empty_env m _ _ _ _ LRAY)as A;rewrite ALLOC in A;exact A. }
+ assert(LIXB:Mem.load Mint32 mb bi 0=Some(Vint ix)).
+ {rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact V_bi).
+ pose proof(allocation_load ge decl empty_env m _ _ _ _ LIX)as A;rewrite ALLOC in A;exact A. }
+ assert(LIYB:Mem.load Mint32 mb bi 4=Some(Vint iy)).
+ {rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact V_bi).
+ pose proof(allocation_load ge decl empty_env m _ _ _ _ LIY)as A;rewrite ALLOC in A;exact A. }
+ assert(LTB:Mem.load Mint32 mb bt 0=Some(Vint traj)).
+ {rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact V_bt).
+ pose proof(allocation_load ge decl empty_env m _ _ _ _ LT)as A;rewrite ALLOC in A;exact A. }
+ assert(LUB:Mem.load Mint32 mb bu 0=Some(Vint total)).
+ {rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact V_bu).
+ pose proof(allocation_load ge decl empty_env m _ _ _ _ LU)as A;rewrite ALLOC in A;exact A. }
+ assert(HEADB:Mem.load Mfloat32 mb bh 28=Some(Vsingle h)).
+ {rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact V_bh).
+ pose proof(allocation_load ge decl empty_env m _ _ _ _ HEAD)as A;rewrite ALLOC in A;exact A. }
+ assert(FREEB:forall id b ty,e!id=Some(b,ty)->Mem.range_perm mb b 0(sizeof ge ty)Cur Freeable).
+ {intros;apply(raw_writes_range _ _ _ BW);eapply FREEA;eauto. }
+ assert(AX:Mem.valid_access mb Mint32 bx 0 Writable).
+ {apply zero_freeable_access;exact(FREEB _ _ _ LXENV). }
+ assert(AY:Mem.valid_access mb Mint32 bpy 0 Writable).
+ {apply zero_freeable_access;exact(FREEB _ _ _ LYENV). }
+ assert(WTEMP:Mem.range_perm mb temp 0 36 Cur Writable).
+ {pose proof(FREEB _ _ _ LC)as RP;rewrite ge_ce in RP;change(Mem.range_perm mb temp 0 36 Cur Freeable)in RP.
+ intros z ZR;eapply Mem.perm_implies;[apply RP;exact ZR|constructor]. }
+ assert(RVB:Mem.range_perm mb bp 32 40 Cur Readable).
+ {apply(raw_writes_range _ _ _ BW);intros z ZR;pose proof(allocation_perm ge decl empty_env m bp z Cur Readable(RVS z ZR))as A;rewrite ALLOC in A;exact A. }
+ assert(WRB:Mem.range_perm mb ret 0 36 Cur Writable).
+ {apply(raw_writes_range _ _ _ BW);intros z ZR;pose proof(allocation_perm ge decl empty_env m ret z Cur Writable(WR z ZR))as A;rewrite ALLOC in A;exact A. }
+ assert(AIXB:Mem.valid_access mb Mint32 bi 0 Writable).
+ {apply(raw_writes_access _ _ _ BW);pose proof(allocation_access ge decl empty_env m _ _ _ _ AIX)as A;rewrite ALLOC in A;exact A. }
+ assert(AIYB:Mem.valid_access mb Mint32 bi 4 Writable).
+ {apply(raw_writes_access _ _ _ BW);pose proof(allocation_access ge decl empty_env m _ _ _ _ AIY)as A;rewrite ALLOC in A;exact A. }
+ assert(ACXB:Mem.valid_access mb Mint32 bp 32 Writable).
+ {apply(raw_writes_access _ _ _ BW);pose proof(allocation_access ge decl empty_env m _ _ _ _ ACX)as A;rewrite ALLOC in A;exact A. }
+ assert(ACYB:Mem.valid_access mb Mint32 bp 36 Writable).
+ {apply(raw_writes_access _ _ _ BW);pose proof(allocation_access ge decl empty_env m _ _ _ _ ACY)as A;rewrite ALLOC in A;exact A. }
+ destruct(original_h_run_body_certificate e mb bp be bs gh bg bx bpy bi bt bu bf flight kp kd ki kv ka pex pey sex sey rsx rsy rax ray ix iy traj total br temp bh bfun ret h heading
+ LXENV LYENV LG LFENV NP NE NS NI NT NU SP SE SS SI ST SU NDCORE LGH LFLIGHT APPROXB
+ LKPB LKDB LKIB LKVB LKAB LPEXB LPEYB LSEXB LSEYB LRSXB LRSYB LRAXB LRAYB LIXB LIYB LTB LUB AX AY AIXB AIYB ACXB ACYB
+ LR LC NH SH NF SF FF D_br_bx D_br_bpy D_br_bp D_br_bi D_br_temp
+ D_temp_bp D_temp_bi D_temp_ret RETP RETI ltac:(congruence)ltac:(congruence)HP HI
+ LRES HEADB CAST RVB WTEMP WRB)
+ as[bodym[BODY[ACTIVE[IX[IY[CX[CY[BODYKEEP[FRAME BFRAME]]]]]]]]].
+ assert(FREEBODY:forall id b ty,e!id=Some(b,ty)->Mem.range_perm bodym b 0(sizeof ge ty)Cur Freeable).
+ {intros;eapply access_preserved_byte_range;[exact BODYKEEP|eapply FREEB;eauto]. }
+ destruct(free_environment ge e bodym SEP FREEBODY)as[mf[FREE[FRAMEFREE ACCESSFREE]]].
+ assert(OUT:forall b,Mem.valid_block m b ->forall id ty,e!id=Some(b,ty)->False).
+ {intros b VB id ty LOOK;exact(FRESH id b ty LOOK VB). }
+ exists mf;split.
+ - intros base BASE.
+   exact(allocated_void_call_certificate ge S.f_guidance_pid_h_run
+    [Vptr ret Ptrofs.zero;Vint(if flight then Int.one else Int.zero);Vptr gh Ptrofs.zero]
+    m e ma mb bodym mf ltac:(repeat constructor;simpl;intuition discriminate)AV BIND FREE BODY base BASE).
+ - split.
+   + unfold active_fields in*;destruct ACTIVE as[L0[L4[L8[L12[L16[L24[L28 L32]]]]]]].
+     repeat split;rewrite FRAMEFREE by(apply OUT;exact V_ret);assumption.
+   + split;[rewrite FRAMEFREE by(apply OUT;exact V_bi);exact IX|].
+     split;[rewrite FRAMEFREE by(apply OUT;exact V_bi);exact IY|].
+     split;[rewrite FRAMEFREE by(apply OUT;exact V_bp);exact CX|].
+     split;[rewrite FRAMEFREE by(apply OUT;exact V_bp);exact CY|].
+     split.
+     * intros ch b ofs p VA;apply ACCESSFREE.
+       -- apply OUT;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|constructor].
+       -- apply BODYKEEP;apply(raw_writes_access _ _ _ BW).
+          pose proof(allocation_access ge decl empty_env m ch b ofs p VA)as A;rewrite ALLOC in A;exact A.
+     * split.
+       -- intros ch b ofs VB DBP DBI DRET.
+          rewrite FRAMEFREE by(apply OUT;exact VB).
+          rewrite FRAME by(first[assumption|apply OLDMB;exact VB|intro EQ;subst;contradiction]).
+          rewrite(raw_writes_load_frame _ _ _ BW)by(apply OLDOUT;exact VB).
+          pose proof(allocation_load_frame ge decl empty_env m ch b ofs VB)as A;rewrite ALLOC in A;exact A.
+       -- intros b ofs n VB DBP DBI DRET NN.
+          rewrite(free_environment_bytes_frame ge e bodym mf FREE b ofs n)by(apply OUT;exact VB).
+          rewrite BFRAME by(first[assumption|apply OLDMB;exact VB|intro EQ;subst;contradiction]).
+          rewrite(raw_writes_bytes_frame _ _ _ BW)by(first[assumption|apply OLDOUT;exact VB]).
+          pose proof(allocation_bytes_frame ge decl empty_env m b ofs n VB)as A;rewrite ALLOC in A;exact A.
+Qed.
+
+Print Assumptions original_h_run_funcall_certificate.
+
+FILE CoreTailObserved.v
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps AST Integers Floats Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From PidPositionRunPos Require Import Source Execution.
+From FiveGuidanceEntry Require Import BigstepSupport EffectfulSupport.
+From PidPositionTranslationSupport Require Import MemoryLayout.
+From PidPositionTranslationCore Require Import FactoryMemory FactorySemantics CoreMemory CoreSemantics ClampSemantics CoreClamp FlightSemantics CoreTail ControllerPrefix.
+From PidPositionSafety Require Import FactoryCall FactoryAllOrder PureSound HiddenResultPre HiddenResultComplete.
+From FiveGuidanceAllOrder Require Import PureDenotation PhaseComposition ContinuationLift.
+From PidPositionTranslationAttempt002 Require Import HiddenResultObserved HiddenResultScope.
+From PidPositionSafety Require Import TaggedCallee.
+Import ListNotations.
+Open Scope Z_scope.
+Definition core_return_tail:=drop_statements 8(fn_body S.f_guidance_pid_h_run).
+Definition return_assignment:=match core_return_tail with Ssequence a _=>a|_=>Sskip end.
+Definition return_lvalue:=match return_assignment with Sdo(Eassign l _ _)=>l|_=>Eval Vundef tvoid end.
+Definition return_rvalue:=match return_assignment with Sdo(Eassign _ r _)=>r|_=>Eval Vundef tvoid end.
+Definition factory_call_expr:=match return_rvalue with Ecomma a _ _=>a|_=>Eval Vundef tvoid end.
+Definition factory_function_expr:=match factory_call_expr with Ecall f _ _=>f|_=>Eval Vundef tvoid end.
+Definition factory_args_expr:=match factory_call_expr with Ecall _ args _=>args|_=>Enil end.
+Definition factory_result_expr:=match return_rvalue with Ecomma _ a _=>a|_=>Eval Vundef tvoid end.
+Ltac tail_rv LR LC NP SP NH SH NF SF :=
+ lazymatch goal with
+ | |-eval_simple_rvalue _ _ _(Eval _ _)_=>constructor
+ | |-eval_simple_rvalue _ _ _(Ebinop _ _ _ _)_=>eapply esr_binop;[tail_rv LR LC NP SP NH SH NF SF|tail_rv LR LC NP SP NH SH NF SF|reflexivity]
+ | |-eval_simple_rvalue _ _ _(Eaddrof _ _)_=>apply esr_addrof;tail_lv LR LC NP SP NH SH NF SF
+ | |-eval_simple_rvalue _ _ _(Evalof ?l ?ty)_=>
+   let mode:=eval hnf in(access_mode ty)in
+   lazymatch mode with
+   | By_copy=>eapply esr_rvalof;[tail_lv LR LC NP SP NH SH NF SF|reflexivity|reflexivity|apply deref_loc_copy;reflexivity]
+   | By_reference=>eapply esr_rvalof;[tail_lv LR LC NP SP NH SH NF SF|reflexivity|reflexivity|apply deref_loc_reference;reflexivity]
+   | By_value ?ch=>eapply read_scalar with(chunk:=ch);
+      [tail_lv LR LC NP SP NH SH NF SF|reflexivity|reflexivity|reflexivity|raw_scalar_load]
+   end
+ end
+with tail_lv LR LC NP SP NH SH NF SF :=
+ lazymatch goal with
+ | |-eval_simple_lvalue _ _ _(Evar ?id _)_ _ _=>
+   lazymatch id with
+   | S.__res=>eapply esl_var_local;exact LR
+   | S.__res__1=>eapply esl_var_local;exact LC
+   | S._guidance_pid=>eapply esl_var_global;[exact NP|exact SP]
+   | S._guidance_h=>eapply esl_var_global;[exact NH|exact SH]
+   | S._stab_sp_from_ltp_i=>eapply esl_var_global;[exact NF|exact SF]
+   end
+ | |-eval_simple_lvalue _ _ _(Ederef _ _)_ _ _=>eapply esl_deref;tail_rv LR LC NP SP NH SH NF SF
+ | |-eval_simple_lvalue _ _ _(Efield ?r _ _)_ _ _=>
+   let rt:=eval cbv beta iota zeta delta[typeof]in(typeof r)in
+   lazymatch rt with
+   | Tstruct _ _=>eapply esl_field_struct;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|cenv_lookup|cfield_lookup]
+   | Tunion _ _=>eapply esl_field_union;[tail_rv LR LC NP SP NH SH NF SF|reflexivity|idtac|cenv_lookup];cfield_lookup
+   end
+ end.
+Lemma access_preserved_byte_range:forall m mf b lo hi p,
+ access_preserved m mf ->Mem.range_perm m b lo hi Cur p ->Mem.range_perm mf b lo hi Cur p.
+Proof.
+ intros m mf b lo hi p KEEP RANGE x X.
+ assert(VA:Mem.valid_access m Mint8unsigned b x p).
+ { split;[intros z ZR;apply RANGE;change(x<=z<x+1)in ZR;lia|change(1|x);exists x;lia]. }
+ pose proof(KEEP _ _ _ _ VA)as[RP _];apply RP;change(x<=x<x+1);lia.
+Qed.
+Theorem original_factory_tail_scope_certificate:forall e m br temp bp bh bf ret h heading x y,
+ e!S.__res=Some(br,tptr spty) ->e!S.__res__1=Some(temp,spty) ->
+ e!S._guidance_pid=None ->Genv.find_symbol ge S._guidance_pid=Some bp ->
+ e!S._guidance_h=None ->Genv.find_symbol ge S._guidance_h=Some bh ->
+ e!S._stab_sp_from_ltp_i=None ->Genv.find_symbol ge S._stab_sp_from_ltp_i=Some bf ->
+ Genv.find_funct ge(Vptr bf Ptrofs.zero)=Some(Internal S.f_stab_sp_from_ltp_i) ->
+ br<>temp ->temp<>ret ->
+ Mem.load Mint64 m br 0=Some(Vptr ret Ptrofs.zero) ->
+ Mem.load Mfloat32 m bh 28=Some(Vsingle h) ->
+ sem_cast(Vsingle(Float32.mul h(Float32.of_int(Int.repr 4096))))tfloat tint m=Some(Vint heading) ->
+ Mem.load Mint32 m bp 32=Some(Vint x) ->Mem.load Mint32 m bp 36=Some(Vint y) ->
+ Mem.range_perm m bp 32 40 Cur Readable ->
+ Mem.range_perm m temp 0 36 Cur Writable ->Mem.range_perm m ret 0 36 Cur Writable ->
+ exists mf,(forall k,exists P,certificate ge P(State S.f_guidance_pid_h_run Sskip k e mf) /\
+ P(State S.f_guidance_pid_h_run return_assignment k e m) /\
+ (forall s,P s->function_scope S.f_guidance_pid_h_run s \/function_scope S.f_stab_sp_from_ltp_i s)) /\
+ active_fields mf ret x y heading /\
+ access_preserved m mf /\
+ (forall ch b ofs,Mem.valid_block m b ->b<>temp ->b<>ret ->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+ (forall b ofs n,Mem.valid_block m b ->b<>temp ->b<>ret ->0<=n ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n).
+Proof.
+ intros e m br temp bp bh bf ret h heading x y LR LC NP SP NH SH NF SF FF DRT DTR RES HEAD CAST LX LY RVS WT WR.
+ destruct(original_factory_funcall m bp temp(Ptrofs.repr 32)heading x y LX LY ltac:(change(4|32);exists 8;reflexivity)RVS WT)
+ as[mc[CALL[ACTIVE[KEEP[FRAME BFRAME]]]]].
+ assert(VBR:Mem.valid_block m br)by(eapply loaded_block;exact RES).
+ assert(RESC:Mem.load Mint64 mc br 0=Some(Vptr ret Ptrofs.zero))by(rewrite FRAME;auto).
+ assert(READTEMP:Mem.range_perm mc temp 0 36 Cur Readable).
+ { eapply access_preserved_byte_range;[exact KEEP|].
+   intros z ZR;eapply Mem.perm_implies;[apply WT;exact ZR|constructor]. }
+ destruct(Mem.range_perm_loadbytes mc temp 0 36 READTEMP)as[bytes BYTES].
+ assert(LEN:Z.of_nat(length bytes)=36).
+ { pose proof(Mem.loadbytes_length _ _ _ _ _ BYTES)as L;rewrite L;reflexivity. }
+ assert(WRMC:Mem.range_perm mc ret 0 36 Cur Writable)by(eapply access_preserved_byte_range;eauto).
+ destruct(Mem.range_perm_storebytes mc ret 0 bytes ltac:(rewrite LEN;exact WRMC))as[mf COPY].
+ assert(RF:eval_simple_rvalue ge e m factory_function_expr(Vptr bf Ptrofs.zero)).
+ { unfold factory_function_expr,factory_cal

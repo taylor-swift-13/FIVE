@@ -1,0 +1,78 @@
+        if status=='FAILURE':
+            if not row.get('counterexample_replay'):
+                raise RuntimeError('Real CBMC failure requires bit/byte/prefix counterexample replay')
+            replay_path=root/row['counterexample_replay'];replay=json.loads(replay_path.read_text())
+            trace=next(r for r in properties if r['property']==ident).get('trace')
+            if not trace or replay.get('status')!='reproduced' or replay.get('property_id')!=ident or replay.get('request_sha256')!=request_sha or replay.get('backend_manifest_sha256')!=manifest_sha or replay.get('cbmc_json_sha256')!=sha(cb):
+                raise RuntimeError('Counterexample replay is missing, stale or unbound to real trace')
+            if not {'input_state','fault_operation','memory_prefix','bit_observations'}.issubset(replay):
+                raise RuntimeError('Counterexample replay omits input/operation/bytes/bits')
+            result[str(replay_path)]=sha(replay_path)
+        for ref in row['evidence']:
+            evidence=json.loads((root/ref).read_text())
+            if row['theorem'] not in evidence.get('theorems',[]):raise RuntimeError('Claimed recheck theorem not kernel-bound')
+            for name,h in (execution_bindings or {}).items():
+                if evidence.get('dependency_sha256',{}).get(name)!=h:raise RuntimeError('Recheck theorem is not bound to the actual execution model')
+            result.update(kernel_record(root,ref))
+    failed=sum(v=='FAILURE' for v in statuses.values())
+    if cmds[0]['exit_code']!=(10 if failed else 0):raise RuntimeError('CBMC result and exit status disagree')
+    return {'bindings':result,'proved':len(statuses)-failed,'refuted':failed}
+
+def check_external_support(root,manifest,contract):
+    from ast_library_audit import audit_source
+    root=Path(root).resolve()
+    registry_path=root/'shared/compcert_libc/registry.json'
+    registry=json.loads(registry_path.read_text())
+    inventory=audit_source(root/manifest['files']['Source.v']['path'],[manifest['function']],registry,root)
+    if not inventory['support_inventory_complete']:
+        raise RuntimeError('AST contains unresolved calls, unsupported system interfaces, builtins or worlds')
+    ordinary={r['support']['name']:r['support'] for r in inventory['static_calls']
+              if r.get('support',{}).get('status')=='ordinary-adapter-available'}
+    sources=contract.get('source_semantics',{}).get('source_sha256',{})
+    for name,row in ordinary.items():
+        needed={str(registry_path.relative_to(root)):sha(registry_path),**row['dependency_sha256']}
+        for path,digest in needed.items():
+            if sources.get(path)!=digest:
+                raise RuntimeError('Ordinary library adapter/spec/proof/registry not bound: '+path)
+        binding=contract.get('external_library_bindings',{}).get(name,{})
+        if binding.get('callback')!=row['adapter']['callback'] or binding.get('specification')!=row['adapter']['specification'] or not binding.get('assumption'):
+            raise RuntimeError('Missing explicit callback, specification or trusted library-contract assumption: '+name)
+    return inventory
+
+def accept_compcert_delivery(root,*,request_path,contract_path,expected_request_sha256,
+                            manifest_path,spec_recheck_path):
+    root=Path(root).resolve();manifest_path=root/manifest_path
+    m=json.loads(manifest_path.read_text());req=json.loads((root/request_path).read_text())
+    if req.get('execution_backend')!='compcert-csyntax-cexec':
+        raise RuntimeError('Current delivery requires a frozen CompCert-backed request; historical approval is not migrated')
+    if not m.get('request') or m['request']['sha256']!=expected_request_sha256:
+        raise RuntimeError('CompCert export is not bound to the frozen request')
+    if m['target']!=req.get('target'):raise RuntimeError('CompCert target differs from request')
+    provenance=audit(manifest_path)
+    contract=json.loads((root/contract_path).read_text())
+    if contract.get('execution_backend')!='compcert-csyntax-cexec' or contract.get('backend_manifest_sha256')!=sha(manifest_path):
+        raise RuntimeError('Execution proof contract is not bound to this CompCert export')
+    external_inventory=check_external_support(root,m,contract)
+    issues=contract.get('alignment_issues')
+    if not isinstance(issues,list) or len({x.get('issue_id') for x in issues})!=len(issues) or any(x.get('status')!='resolved' for x in issues):
+        raise RuntimeError('Missing or unresolved alignment issues')
+    hashes=_execution_contract(root,request_path,contract_path,expected_request_sha256=expected_request_sha256)
+    for row in contract['obligations']:
+        for ref in row['evidence']:kernel_record(root,ref)
+    entry=contract['execution_entry'];wrapper=m['files']['Execution.v']
+    if entry['source']!=wrapper['path'] or entry['sha256']!=wrapper['sha256'] or entry['symbol']!='entry' or entry['module']!=m['namespace']+'.Execution':
+        raise RuntimeError('Contract execution entry is not the generated original-Cexec wrapper')
+    dependencies=contract['source_semantics']['source_sha256']
+    for row in [m['source'],m['files']['Source.v'],wrapper]:
+        if dependencies.get(row['path'])!=row['sha256']:raise RuntimeError('Proof contract does not bind original C/AST/wrapper')
+    spec=check_spec_recheck(root,spec_recheck_path,expected_request_sha256,sha(manifest_path),m['source']['path'],
+      {row['path']:row['sha256'] for row in [m['source'],m['files']['Source.v'],wrapper]})
+    return {'status':'accepted','workflow':'compcert-single-agent','execution_layer_accepted':True,
+      'external_support_inventory_complete':external_inventory['support_inventory_complete'],
+      'library_implementation_verified':False,
+      'cbmc_method':'traditional-bounded-model-checking','cbmc_specifications_rechecked_in_rocq':True,
+      'issues_found':len(issues),'resolved':len(issues),'open':0,
+      'cbmc_properties_proved':spec['proved'],'cbmc_properties_refuted':spec['refuted'],
+      'implementation_properties_all_proved':spec['refuted']==0,
+      'checked_bindings':len({**hashes,**provenance['bindings'],**spec['bindings']}),
+      'trust_note':'Metadata binds real exports/proofs; proposition adequacy and frontend/FFI assumptions remain explicit.'}

@@ -1,0 +1,13 @@
+Lemma sequence_transition:forall ge f st tail k e m,
+ unique_transition ge(State f(Ssequence st tail)k e m)(State f st(Kseq tail k)e m).
+Proof.
+ intros;split;[right;constructor|].
+ intros t next[ES|SS];[inversion ES|inversion SS;subst;auto].
+ all:repeat match goal with H:_ \/ _|-_=>destruct H end;discriminate.
+Qed.
+Lemma skip_sequence_transition:forall ge f tail k e m,
+ unique_transition ge(State f Sskip(Kseq tail k)e m)(State f tail k e m).
+Proof.
+ intros;split;[right;constructor|].
+ intros t next[ES|SS];[inversion ES|inversion SS;subst;cbn in *;try contradiction;auto].
+Qed.

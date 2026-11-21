@@ -1,0 +1,139 @@
+File "./paparazzi/relations/pid_position_translation/attempts/002/safety/GetterAssignmentPost.v", line 68, characters 34-45:
+Error:
+In environment
+ge : genv
+caller : function
+e : env
+k : cont
+m, mf : mem
+ghid, refid, vectid, nedid, axis, iref, icomponent, ierr, igh : AST.ident
+berr, bparam, bgh, bcache : block
+dref, dcomponent, daxis : Z
+cacheofs : ptrofs
+reference, measured, difference : int
+param_local : e ! igh = Some (bparam, tptr (A.ghty ghid))
+error_global : e ! ierr = None
+error_symbol : Genv.find_symbol ge ierr = Some berr
+ghco, refco, vecco, nedco : composite
+gh_lookup : ge ! ghid = Some ghco
+ref_lookup : ge ! refid = Some refco
+vec_lookup : ge ! vectid = Some vecco
+ned_lookup : ge ! nedid = Some nedco
+gh_field : field_offset ge iref (co_members ghco) = OK (dref, Full)
+ref_field :
+  field_offset ge icomponent (co_members refco) = OK (dcomponent, Full)
+axis_field : field_offset ge axis (co_members vecco) = OK (daxis, Full)
+ned_field : field_offset ge axis (co_members nedco) = OK (daxis, Full)
+param_deref :
+  do_deref_loc ge quiet_world (tptr (A.ghty ghid)) m bparam Ptrofs.zero Full =
+  Some (quiet_world, E0, Vptr bgh Ptrofs.zero)
+scalar_deref :
+  do_deref_loc ge quiet_world tint m bgh
+    (A.scalar_offset dref dcomponent daxis) Full =
+  Some (quiet_world, E0, Vint reference)
+cache_deref :
+  do_deref_loc ge quiet_world tint m bcache
+    (Ptrofs.add cacheofs (Ptrofs.repr daxis)) Full =
+  Some (quiet_world, E0, Vint measured)
+sub_value :
+  sem_binary_operation ge Osub (Vint reference) tint (Vint measured) tint m =
+  Some (Vint difference)
+store_result :
+  do_assign_loc ge quiet_world tint m berr (A.axis_offset daxis) Full
+    (Vint difference) =
+  Some (quiet_world, E0, mf, Vint difference)
+TE : tint = tint
+Unable to unify "Some (Vint reference)" with
+ "match
+    match
+      (if type_eq (A.vty vectid) (A.vty vectid)
+       then
+        match
+          match
+            (if type_eq (A.refty refid) (A.refty refid)
+             then
+              match
+                match
+                  (if type_eq (A.ghty ghid) (A.ghty ghid)
+                   then
+                    match
+                      match
+                        (if type_eq (tptr (A.ghty ghid)) (tptr (A.ghty ghid))
+                         then
+                          match
+                            (if
+                              type_eq (tptr (A.ghty ghid))
+                                (tptr (A.ghty ghid))
+                             then Some (bparam, Ptrofs.zero, Full)
+                             else None)
+                          with
+                          | Some (b, ofs, bf) =>
+                              match
+                                do_deref_loc ge quiet_world
+                                  (tptr (A.ghty ghid)) m b ofs bf
+                              with
+                              | Some (_, _, v) => Some v
+                              | None => None
+                              end
+                          | None => None
+                          end
+                         else None)
+                      with
+                      | Some (Vptr b ofs) => Some (b, ofs, Full)
+                      | _ => None
+                      end
+                    with
+                    | Some (b, ofs, bf) =>
+                        match
+                          do_deref_loc ge quiet_world 
+                            (A.ghty ghid) m b ofs bf
+                        with
+                        | Some (_, _, v) => Some v
+                        | None => None
+                        end
+                    | None => None
+                    end
+                   else None)
+                with
+                | Some (Vptr b ofs) =>
+                    Some (b, Ptrofs.add ofs (Ptrofs.repr dref), Full)
+                | _ => None
+                end
+              with
+              | Some (b, ofs, bf) =>
+                  match
+                    do_deref_loc ge quiet_world (A.refty refid) m b ofs bf
+                  with
+                  | Some (_, _, v) => Some v
+                  | None => None
+                  end
+              | None => None
+              end
+             else None)
+          with
+          | Some (Vptr b ofs) =>
+              Some (b, Ptrofs.add ofs (Ptrofs.repr dcomponent), Full)
+          | _ => None
+          end
+        with
+        | Some (b, ofs, bf) =>
+            match do_deref_loc ge quiet_world (A.vty vectid) m b ofs bf with
+            | Some (_, _, v) => Some v
+            | None => None
+            end
+        | None => None
+        end
+       else None)
+    with
+    | Some (Vptr b ofs) => Some (b, Ptrofs.add ofs (Ptrofs.repr daxis), Full)
+    | _ => None
+    end
+  with
+  | Some (b, ofs, bf) =>
+      match do_deref_loc ge quiet_world tint m b ofs bf with
+      | Some (_, _, v) => Some v
+      | None => None
+      end
+  | None => None
+  end".
+

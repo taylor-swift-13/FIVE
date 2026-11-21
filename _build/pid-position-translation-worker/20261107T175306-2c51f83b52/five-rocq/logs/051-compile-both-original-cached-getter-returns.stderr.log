@@ -1,0 +1,23 @@
+File "./paparazzi/relations/pid_position_translation/support/GetterSemantics.v", line 62, characters 16-20:
+Error:
+In environment
+m : mem
+b : block
+co : composite
+SYM : Genv.find_symbol Execution.ge Source._state = Some b
+CO : Execution.ge ! Source._State = Some co
+field : ident
+flags : int
+statusofs : Z
+OFF : field_offset Execution.ge field (co_members co) = OK (statusofs, Full)
+LOAD :
+  Mem.load Mint16unsigned m b (Ptrofs.unsigned (Ptrofs.repr statusofs)) =
+  Some (Vint flags)
+VALID : Int.and flags (Int.repr 2) = Int.repr 2
+The term "LOAD" has type
+ "Mem.load Mint16unsigned m b (Ptrofs.unsigned (Ptrofs.repr statusofs)) =
+  Some (Vint flags)"
+while it is expected to have type
+ "Mem.loadv Mint16unsigned m (Vptr b (Ptrofs.repr statusofs)) =
+  Some (Vint flags)".
+

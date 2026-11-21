@@ -1,0 +1,87 @@
+17 goals
+  
+  ge : genv
+  allowed : function -> Prop
+  ids : list ident
+  allowed_locals :
+    forall f : function,
+    allowed f ->
+    Forall (fun p : ident * type => ~ In (fst p) ids)
+      (fn_params f ++ fn_vars f)
+  allowed_bodies :
+    forall f : function,
+    allowed f -> forall e : env, unshadowed e -> closed_stmt e (fn_body f)
+  f : function
+  x : expr
+  k : cont
+  e : env
+  m : mem
+  STEP : sstep ge (State f (Sdo x) k e m) E0 (ExprState f x (Kdo k) e m)
+  H : allowed f
+  H0 : unshadowed e
+  H1 : closed_expr e x
+  H2 : closed_cont e k
+  ============================
+  allowed f /\ unshadowed e /\ closed_expr e x /\ closed_cont e k
+
+goal 2 is:
+ allowed f /\
+ unshadowed e /\
+ closed_expr e a /\ closed_stmt e s1 /\ closed_stmt e s2 /\ closed_cont e k
+goal 3 is:
+ allowed f /\
+ unshadowed e /\
+ closed_expr e x /\ closed_expr e x /\ closed_stmt e s /\ closed_cont e k
+goal 4 is:
+ allowed f /\
+ unshadowed e /\
+ closed_stmt e s /\ closed_expr e x /\ closed_stmt e s /\ closed_cont e k
+goal 5 is:
+ allowed f /\
+ unshadowed e /\ (closed_expr e x /\ closed_stmt e s) /\ closed_cont e k
+goal 6 is:
+ allowed f /\
+ unshadowed e /\
+ closed_stmt e s /\ closed_expr e a /\ closed_stmt e s /\ closed_cont e k
+goal 7 is:
+ allowed f /\
+ unshadowed e /\
+ closed_expr e x /\ closed_expr e x /\ closed_stmt e s /\ closed_cont e k
+goal 8 is:
+ allowed f /\
+ unshadowed e /\ (closed_expr e x /\ closed_stmt e s) /\ closed_cont e k
+goal 9 is:
+ allowed f /\
+ unshadowed e /\
+ closed_stmt e a1 /\
+ (True /\ closed_expr e a2 /\ closed_stmt e a3 /\ closed_stmt e s) /\
+ closed_cont e k
+goal 10 is:
+ allowed f /\
+ unshadowed e /\
+ closed_expr e a2 /\
+ closed_expr e a2 /\ closed_stmt e a3 /\ closed_stmt e s /\ closed_cont e k
+goal 11 is:
+ allowed f /\
+ unshadowed e /\
+ closed_stmt e s /\
+ closed_expr e a2 /\ closed_stmt e a3 /\ closed_stmt e s /\ closed_cont e k
+goal 12 is:
+ allowed f /\
+ unshadowed e /\
+ closed_stmt e a3 /\
+ closed_expr e a2 /\ closed_stmt e a3 /\ closed_stmt e s /\ closed_cont e k
+goal 13 is:
+ allowed f /\
+ unshadowed e /\
+ (True /\ closed_expr e a2 /\ closed_stmt e a3 /\ closed_stmt e s) /\
+ closed_cont e k
+goal 14 is:
+ allowed f /\ unshadowed e /\ closed_expr e x /\ closed_cont e k
+goal 15 is:
+ exists e0 : env, closed_cont e0 k
+goal 16 is:
+ allowed f /\ unshadowed e /\ closed_stmt e (fn_body f) /\ closed_cont e k
+goal 17 is:
+ allowed f /\
+ unshadowed e /\ closed_expr e (C (Eval v ty)) /\ closed_cont e k

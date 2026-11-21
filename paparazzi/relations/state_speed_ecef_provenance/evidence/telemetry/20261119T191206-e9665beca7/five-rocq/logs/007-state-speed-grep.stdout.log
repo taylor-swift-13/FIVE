@@ -1,0 +1,39 @@
+29-                                (WF: wf_composites types)
+30-                             : { ce | build_composite_env types  = OK ce }.
+31-Proof.
+32-  revert WF. unfold wf_composites. case (build_composite_env types); intros.
+33-- exists c; reflexivity.
+34-- contradiction.
+35-Defined.
+36-
+37:Definition mkprogram (types: list composite_definition)
+38-                     (defs: list (ident * globdef fundef type))
+39-                     (public: list ident)
+40-                     (main: ident)
+41-                     (WF: wf_composites types) : Csyntax.program :=
+42-  let (ce, EQ) := build_composite_env' types WF in
+43-  {| prog_defs := defs;
+44-     prog_public := public;
+45-     prog_main := main;
+46-     prog_types := types;
+47:     prog_comp_env := ce;
+48:     prog_comp_env_eq := EQ |}.
+49-
+50-(** ** Notations *)
+51-
+52-Declare Scope csyntax_scope.
+53-
+54-Module CsyntaxNotations.
+55-
+56-(** A convenient notation [$ "ident"] to force evaluation of
+57-    [ident_of_string "ident"] *)
+58-
+59-Ltac ident_of_string s :=
+60-  let x := constr:(ident_of_string s) in
+61-  let y := eval compute in x in
+62-  exact y.
+63-
+64-Notation "$ s" := (ltac:(ident_of_string s))
+65-                  (at level 1, only parsing) : csyntax_scope.
+66-
+67-End CsyntaxNotations.

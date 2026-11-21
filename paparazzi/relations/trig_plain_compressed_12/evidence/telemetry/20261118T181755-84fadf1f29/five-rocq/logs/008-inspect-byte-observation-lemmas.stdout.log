@@ -1,0 +1,139 @@
+759:Theorem loadbytes_range_perm:
+768:Theorem loadbytes_load:
+781:Theorem load_loadbytes:
+800:Theorem loadbytes_length:
+810:Theorem loadbytes_empty:
+829:Theorem loadbytes_concat:
+847:Theorem loadbytes_split:
+1106:Theorem loadbytes_store_same:
+1119:Theorem loadbytes_store_other:
+1508:Theorem loadbytes_storebytes_same:
+1520:Theorem loadbytes_storebytes_disjoint:
+1538:Theorem loadbytes_storebytes_other:
+1550:Theorem load_storebytes_other:
+1835:Theorem loadbytes_alloc_unchanged:
+1850:Theorem loadbytes_alloc_same:
+2039:Theorem loadbytes_free:
+2054:Theorem loadbytes_free_2:
+2195:Theorem loadbytes_drop:
+2326:Lemma loadbytes_inj:
+2880:Theorem loadbytes_extends:
+3514:Theorem loadbytes_inject:
+4431:Lemma loadbytes_unchanged_on_1:
+4451:Lemma loadbytes_unchanged_on:
+  exploit load_store_overlap; eauto.
+  generalize (size_chunk_pos chunk'); lia.
+  generalize (size_chunk_pos chunk); lia.
+  intros (mv1 & mvl & mv1' & mvl' & ENC & DEC & CASES).
+  destruct CASES as [(A & B) | [(A & B) | (A & B)]]; try extlia.
+  inv ENC; inv DEC; auto.
+- elim H1. apply compat_pointer_chunks_true; auto.
+- contradiction.
+Qed.
+
+Lemma store_similar_chunks:
+  forall chunk1 chunk2 v1 v2 m b ofs,
+  encode_val chunk1 v1 = encode_val chunk2 v2 ->
+  align_chunk chunk1 = align_chunk chunk2 ->
+  store chunk1 m b ofs v1 = store chunk2 m b ofs v2.
+Proof.
+  intros. unfold store.
+  assert (size_chunk chunk1 = size_chunk chunk2).
+    repeat rewrite size_chunk_conv.
+    rewrite <- (encode_val_length chunk1 v1).
+    rewrite <- (encode_val_length chunk2 v2).
+    congruence.
+  unfold store.
+  destruct (valid_access_dec m chunk1 b ofs Writable);
+  destruct (valid_access_dec m chunk2 b ofs Writable); auto.
+  f_equal. apply mkmem_ext; auto. congruence.
+  elim n. apply valid_access_compat with chunk1; auto. lia.
+  elim n. apply valid_access_compat with chunk2; auto. lia.
+Qed.
+
+Theorem store_bool_unsigned_8:
+  forall m b ofs v,
+  store Mbool m b ofs v = store Mint8unsigned m b ofs v.
+Proof. intros. apply store_similar_chunks; auto. Qed.
+
+Theorem store_signed_unsigned_8:
+  forall m b ofs v,
+  store Mint8signed m b ofs v = store Mint8unsigned m b ofs v.
+Proof. intros. apply store_similar_chunks. apply encode_val_int8_signed_unsigned. auto. Qed.
+
+Theorem store_signed_unsigned_16:
+  forall m b ofs v,
+  store Mint16signed m b ofs v = store Mint16unsigned m b ofs v.
+Proof. intros. apply store_similar_chunks. apply encode_val_int16_signed_unsigned. auto. Qed.
+
+Theorem store_int8_zero_ext:
+  forall m b ofs n,
+  store Mint8unsigned m b ofs (Vint (Int.zero_ext 8 n)) =
+  store Mint8unsigned m b ofs (Vint n).
+Proof. intros. apply store_similar_chunks. apply encode_val_int8_zero_ext. auto. Qed.
+
+Theorem store_int8_sign_ext:
+  forall m b ofs n,
+  store Mint8signed m b ofs (Vint (Int.sign_ext 8 n)) =
+  store Mint8signed m b ofs (Vint n).
+Proof. intros. apply store_similar_chunks. apply encode_val_int8_sign_ext. auto. Qed.
+
+Theorem store_int16_zero_ext:
+  forall m b ofs n,
+  store Mint16unsigned m b ofs (Vint (Int.zero_ext 16 n)) =
+  store Mint16unsigned m b ofs (Vint n).
+Proof. intros. apply store_similar_chunks. apply encode_val_int16_zero_ext. auto. Qed.
+
+Theorem store_int16_sign_ext:
+  forall m b ofs n,
+  store Mint16signed m b ofs (Vint (Int.sign_ext 16 n)) =
+  store Mint16signed m b ofs (Vint n).
+Proof. intros. apply store_similar_chunks. apply encode_val_int16_sign_ext. auto. Qed.
+
+(** ** Properties related to [storebytes]. *)
+
+Theorem range_perm_storebytes:
+  forall m1 b ofs bytes,
+  range_perm m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable ->
+  { m2 : mem | storebytes m1 b ofs bytes = Some m2 }.
+Proof.
+  intros. unfold storebytes.
+  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable).
+  econstructor; reflexivity.
+  contradiction.
+Defined.
+
+Theorem storebytes_store:
+  forall m1 b ofs chunk v m2,
+  storebytes m1 b ofs (encode_val chunk v) = Some m2 ->
+  (align_chunk chunk | ofs) ->
+  store chunk m1 b ofs v = Some m2.
+Proof.
+  unfold storebytes, store. intros.
+  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length (encode_val chunk v))) Cur Writable); inv H.
+  destruct (valid_access_dec m1 chunk b ofs Writable).
+  f_equal. apply mkmem_ext; auto.
+  elim n. constructor; auto.
+  rewrite encode_val_length in r. rewrite size_chunk_conv. auto.
+Qed.
+
+Theorem store_storebytes:
+  forall m1 b ofs chunk v m2,
+  store chunk m1 b ofs v = Some m2 ->
+  storebytes m1 b ofs (encode_val chunk v) = Some m2.
+Proof.
+  unfold storebytes, store. intros.
+  destruct (valid_access_dec m1 chunk b ofs Writable); inv H.
+  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length (encode_val chunk v))) Cur Writable).
+  f_equal. apply mkmem_ext; auto.
+  destruct v0.  elim n.
+  rewrite encode_val_length. rewrite <- size_chunk_conv. auto.
+Qed.
+
+Section STOREBYTES.
+Variable m1: mem.
+Variable b: block.
+Variable ofs: Z.
+Variable bytes: list memval.
+Variable m2: mem.
+Hypothesis STORE: storebytes m1 b ofs bytes = Some m2.

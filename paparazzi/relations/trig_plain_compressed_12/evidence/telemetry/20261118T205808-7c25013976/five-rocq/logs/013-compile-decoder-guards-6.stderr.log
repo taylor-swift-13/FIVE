@@ -1,0 +1,340 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/DecoderGuards.v", line 26, characters 0-86:
+Warning: To avoid stack overflow, large numbers in nat are interpreted as
+applications of Init.Nat.of_num_uint. [abstract-large-number,numbers,default]
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/DecoderGuards.v", line 67, characters 82-93:
+Error:
+In environment
+ge : genv
+e : PTree.tree (block * type)
+m : mem
+bv : block
+a : int
+E : e ! PprzTrigLow.Source._val = Some (bv, tshort)
+L : Mem.load Mint16signed m bv 0 = Some (Vint a)
+READ : branch_rval ge e m read_val = Some (Vint a)
+E20 : Int.eq (Int.repr 2) Int.zero = false
+E2M : Int.eq (Int.repr 2) Int.mone = false
+Unable to unify "Some (Vint (Int.repr 8))" with
+ "match
+    (if false || false then None else Some (Vint (Int.mods a (Int.repr 2))))
+  with
+  | Some v =>
+      match
+        match
+          match remove_attributes (Tint I32 Signed noattr) with
+          | Tint _ _ _ => bool_case_i
+          | Tfloat F32 _ => bool_case_s
+          | Tfloat F64 _ => bool_case_f
+          | Tlong _ _ | Tpointer _ _ => bool_case_l
+          | _ => bool_default
+          end
+        with
+        | bool_case_i =>
+            match v with
+            | Vint n => Some (negb (Int.eq n Int.zero))
+            | _ => None
+            end
+        | bool_case_l =>
+            match v with
+            | Vlong n => Some (negb (Int64.eq n Int64.zero))
+            | Vptr b ofs =>
+                if negb true
+                then None
+                else
+                 if Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)
+                 then Some true
+                 else None
+            | _ => None
+            end
+        | bool_case_f =>
+            match v with
+            | Vfloat f =>
+                Some (negb (Floats.Float.cmp Ceq f Floats.Float.zero))
+            | _ => None
+            end
+        | bool_case_s =>
+            match v with
+            | Vsingle f =>
+                Some (negb (Floats.Float32.cmp Ceq f Floats.Float32.zero))
+            | _ => None
+            end
+        | bool_default => None
+        end
+      with
+      | Some choice =>
+          match
+            branch_rval ge e m
+              (if choice
+               then Eval (Vint (Int.repr 4)) (Tint I32 Signed noattr)
+               else Eval (Vint (Int.repr 8)) (Tint I32 Signed noattr))
+          with
+          | Some w =>
+              match
+                match
+                  typeof
+                    (if choice
+                     then Eval (Vint (Int.repr 4)) (Tint I32 Signed noattr)
+                     else Eval (Vint (Int.repr 8)) (Tint I32 Signed noattr))
+                with
+                | Tint _ _ _ => cast_case_i2i I32 Signed
+                | Tfloat F32 _ =>
+                    if intsize_eq I32 IBool
+                    then cast_case_s2bool
+                    else cast_case_s2i I32 Signed
+                | Tfloat F64 _ =>
+                    if intsize_eq I32 IBool
+                    then cast_case_f2bool
+                    else cast_case_f2i I32 Signed
+                | Tvoid | Tstruct _ _ | Tunion _ _ => cast_case_default
+                | _ =>
+                    if intsize_eq I32 IBool
+                    then cast_case_l2bool
+                    else cast_case_l2i I32 Signed
+                end
+              with
+              | cast_case_pointer =>
+                  match w with
+                  | Vlong _ | Vptr _ _ => Some w
+                  | _ => None
+                  end
+              | cast_case_i2i sz2 si2 =>
+                  match w with
+                  | Vint i =>
+                      Some
+                        (Vint
+                           match sz2 with
+                           | I8 =>
+                               match si2 with
+                               | Signed => Int.sign_ext 8 i
+                               | Unsigned => Int.zero_ext 8 i
+                               end
+                           | I16 =>
+                               match si2 with
+                               | Signed => Int.sign_ext 16 i
+                               | Unsigned => Int.zero_ext 16 i
+                               end
+                           | I32 => i
+                           | IBool =>
+                               if Int.eq i Int.zero
+                               then Int.zero
+                               else Int.one
+                           end)
+                  | _ => None
+                  end
+              | cast_case_f2f =>
+                  match w with
+                  | Vfloat f => Some (Vfloat f)
+                  | _ => None
+                  end
+              | cast_case_s2s =>
+                  match w with
+                  | Vsingle f => Some (Vsingle f)
+                  | _ => None
+                  end
+              | cast_case_f2s =>
+                  match w with
+                  | Vfloat f => Some (Vsingle (Floats.Float.to_single f))
+                  | _ => None
+                  end
+              | cast_case_s2f =>
+                  match w with
+                  | Vsingle f => Some (Vfloat (Floats.Float.of_single f))
+                  | _ => None
+                  end
+              | cast_case_i2f si1 =>
+                  match w with
+                  | Vint i => Some (Vfloat (cast_int_float si1 i))
+                  | _ => None
+                  end
+              | cast_case_i2s si1 =>
+                  match w with
+                  | Vint i => Some (Vsingle (cast_int_single si1 i))
+                  | _ => None
+                  end
+              | cast_case_f2i sz2 si2 =>
+                  match w with
+                  | Vfloat f =>
+                      match cast_float_int si2 f with
+                      | Some i =>
+                          Some
+                            (Vint
+                               match sz2 with
+                               | I8 =>
+                                   match si2 with
+                                   | Signed => Int.sign_ext 8 i
+                                   | Unsigned => Int.zero_ext 8 i
+                                   end
+                               | I16 =>
+                                   match si2 with
+                                   | Signed => Int.sign_ext 16 i
+                                   | Unsigned => Int.zero_ext 16 i
+                                   end
+                               | I32 => i
+                               | IBool =>
+                                   if Int.eq i Int.zero
+                                   then Int.zero
+                                   else Int.one
+                               end)
+                      | None => None
+                      end
+                  | _ => None
+                  end
+              | cast_case_s2i sz2 si2 =>
+                  match w with
+                  | Vsingle f =>
+                      match cast_single_int si2 f with
+                      | Some i =>
+                          Some
+                            (Vint
+                               match sz2 with
+                               | I8 =>
+                                   match si2 with
+                                   | Signed => Int.sign_ext 8 i
+                                   | Unsigned => Int.zero_ext 8 i
+                                   end
+                               | I16 =>
+                                   match si2 with
+                                   | Signed => Int.sign_ext 16 i
+                                   | Unsigned => Int.zero_ext 16 i
+                                   end
+                               | I32 => i
+                               | IBool =>
+                                   if Int.eq i Int.zero
+                                   then Int.zero
+                                   else Int.one
+                               end)
+                      | None => None
+                      end
+                  | _ => None
+                  end
+              | cast_case_l2l =>
+                  match w with
+                  | Vlong n => Some (Vlong n)
+                  | _ => None
+                  end
+              | cast_case_i2l si =>
+                  match w with
+                  | Vint n => Some (Vlong (cast_int_long si n))
+                  | _ => None
+                  end
+              | cast_case_l2i sz si =>
+                  match w with
+                  | Vlong n =>
+                      Some
+                        (Vint
+                           match sz with
+                           | I8 =>
+                               match si with
+                               | Signed =>
+                                   Int.sign_ext 8
+                                     (Int.repr (Int64.unsigned n))
+                               | Unsigned =>
+                                   Int.zero_ext 8
+                                     (Int.repr (Int64.unsigned n))
+                               end
+                           | I16 =>
+                               match si with
+                               | Signed =>
+                                   Int.sign_ext 16
+                                     (Int.repr (Int64.unsigned n))
+                               | Unsigned =>
+                                   Int.zero_ext 16
+                                     (Int.repr (Int64.unsigned n))
+                               end
+                           | I32 => Int.repr (Int64.unsigned n)
+                           | IBool =>
+                               if
+                                Int.eq (Int.repr (Int64.unsigned n)) Int.zero
+                               then Int.zero
+                               else Int.one
+                           end)
+                  | _ => None
+                  end
+              | cast_case_l2f si1 =>
+                  match w with
+                  | Vlong i => Some (Vfloat (cast_long_float si1 i))
+                  | _ => None
+                  end
+              | cast_case_l2s si1 =>
+                  match w with
+                  | Vlong i => Some (Vsingle (cast_long_single si1 i))
+                  | _ => None
+                  end
+              | cast_case_f2l si2 =>
+                  match w with
+                  | Vfloat f =>
+                      match cast_float_long si2 f with
+                      | Some i => Some (Vlong i)
+                      | None => None
+                      end
+                  | _ => None
+                  end
+              | cast_case_s2l si2 =>
+                  match w with
+                  | Vsingle f =>
+                      match cast_single_long si2 f with
+                      | Some i => Some (Vlong i)
+                      | None => None
+                      end
+                  | _ => None
+                  end
+              | cast_case_i2bool =>
+                  match w with
+                  | Vint n =>
+                      Some
+                        (Vint
+                           (if Int.eq n Int.zero then Int.zero else Int.one))
+                  | _ => None
+                  end
+              | cast_case_l2bool =>
+                  match w with
+                  | Vlong n =>
+                      Some
+                        (Vint
+                           (if Int64.eq n Int64.zero
+                            then Int.zero
+                            else Int.one))
+                  | Vptr b ofs =>
+                      if negb true
+                      then None
+                      else
+                       if Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)
+                       then Some Vone
+                       else None
+                  | _ => None
+                  end
+              | cast_case_f2bool =>
+                  match w with
+                  | Vfloat f =>
+                      Some
+                        (Vint
+                           (if Floats.Float.cmp Ceq f Floats.Float.zero
+                            then Int.zero
+                            else Int.one))
+                  | _ => None
+                  end
+              | cast_case_s2bool =>
+                  match w with
+                  | Vsingle f =>
+                      Some
+                        (Vint
+                           (if Floats.Float32.cmp Ceq f Floats.Float32.zero
+                            then Int.zero
+                            else Int.one))
+                  | _ => None
+                  end
+              | cast_case_struct id1 id2 | cast_case_union id1 id2 =>
+                  match w with
+                  | Vptr _ _ => if ident_eq id1 id2 then Some w else None
+                  | _ => None
+                  end
+              | cast_case_void => Some w
+              | cast_case_default => None
+              end
+          | None => None
+          end
+      | None => None
+      end
+  | None => None
+  end".
+

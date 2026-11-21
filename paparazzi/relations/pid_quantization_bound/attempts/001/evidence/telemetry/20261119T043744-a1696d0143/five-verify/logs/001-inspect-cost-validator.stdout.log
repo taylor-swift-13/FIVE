@@ -1,0 +1,51 @@
+                    self.require(value is None or (isinstance(value, (int, float)) and value >= 0),
+                                 f'invalid cost {group}.{key}: {path}')
+            token = row.get('token', {})
+            if all(isinstance(token.get(k), int) for k in ('input', 'output', 'total')):
+                self.require(token['total'] == token['input'] + token['output'], f'token sum: {path}')
+            refs = list(row.get('evidence', []))
+            case_base = path.parents[2] if path.parent.name == 'report' else None
+            def reference(ref):
+                # Stage evidence is case-relative in the reference handoff;
+                # proof-attempt evidence is relative to its costs.json.
+                if case_base and ref.split('/', 1)[0] in ('prepare', 'cbmc', 'align', 'rocq'):
+                    return case_base / ref
+                return path.parent / ref
+            if row.get('shared_costs'):
+                refs.append(row['shared_costs'])
+            if proof:
+                agent = row.get('agent', {})
+                requested_effort = agent.get('requested_reasoning_effort')
+                self.require(agent.get('model') == 'gpt-6.1-sol' and
+                             requested_effort in self.allowed_proof_efforts and
+                             agent.get('actual_reasoning_effort') == requested_effort, f'proof runtime model/effort: {path}')
+                runtime_ref = agent.get('evidence') or agent.get('runtime_evidence') or next(
+                    (ref for ref in refs if Path(ref).name in ('runtime-metadata.json', 'runtime-config.json')), None)
+                self.require(bool(runtime_ref), f'missing runtime receipt: {path}')
+                if runtime_ref:
+                    runtime = self.read(reference(runtime_ref))
+                    events = runtime if isinstance(runtime, list) else runtime.get('selected_runtime_metadata')
+                    if isinstance(events, list):
+                        actual = next((r for r in events if r.get('type') == 'turn_context'), {})
+                    else:
+                        actual = runtime.get('actual', runtime)
+                    self.require(actual.get('model') == 'gpt-6.1-sol' and
+                                 (actual.get('effort') or actual.get('actual_reasoning_effort')) == requested_effort,
+                                 f'actual runtime receipt mismatch: {reference(runtime_ref)}')
+            if row.get('status') == 'not_measured':
+                self.require(all(value is None for group in ('time', 'token', 'memory')
+                                 for value in row.get(group, {}).values()) and
+                             bool(row.get('measurement_scope') or row.get('missing_reason')),
+                             f'unexplained historical measurement absence: {path}')
+            elif row.get('status') not in ('not_run', 'not_applicable'):
+                self.require(bool(refs), f'missing cost evidence: {path}')
+            for ref in refs:
+                self.file(reference(ref))
+
+    def proof_problem(self, problem):
+        problem = Path(problem)
+        self.links(problem / 'report.md')
+        status = self.read(problem / 'status.json')
+        self.require(status.get('schema') == 'five-proof-problem/1', f'problem status schema: {problem}')
+        self.require(bool(status.get('requested_goals')), f'missing requested goals: {problem}')
+        self.require(status.get('specification') == 'Spec.v', f'canonical problem specification must be Spec.v: {problem}')

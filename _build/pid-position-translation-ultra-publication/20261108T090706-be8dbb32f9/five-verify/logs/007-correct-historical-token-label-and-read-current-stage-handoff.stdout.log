@@ -1,0 +1,431 @@
+FILE paparazzi/models/guidance_pid_h_run_pos/rocq/handoff.json
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "guidance_pid_h_run_pos",
+  "stage": "rocq",
+  "status": "pending",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case",
+  "outputs": [
+    {
+      "role": "align-handoff",
+      "path": "align/handoff.json",
+      "sha256": "4d04e2a27c88b7c958c59cb85b2be27f143205c1f1ccdf9f5e90a8e0418646a9"
+    },
+    {
+      "role": "Source.v",
+      "path": "align/model/Source.v",
+      "sha256": "f33d6cd38506ff1e080cda6d2261f873a6f269ccb8be1b924ca56c2fa8c4e26f"
+    },
+    {
+      "role": "Execution.v",
+      "path": "align/model/Execution.v",
+      "sha256": "92b467146447e6b549f6224440049979e58911b55b9418defd3b28c10cf8fea1"
+    },
+    {
+      "role": "spec-recheck",
+      "path": "rocq/spec-recheck.json",
+      "sha256": "7f18f915fb8653c8f251847bf6a4969f05af28e5a17b3930f2fba3e89569df54"
+    },
+    {
+      "role": "report",
+      "path": "rocq/report/report.md",
+      "sha256": "8c283f9dd62d243550ef7f9a9129e1da3a090c5258bb77bc062e226954c1c154"
+    },
+    {
+      "role": "costs",
+      "path": "rocq/report/costs.json",
+      "sha256": "3ffa53f9438e16c088b28dc0c1f52dda910546d17f651e3ac87a3b37e9a78fe9"
+    },
+    {
+      "role": "relation-question",
+      "path": "../../relations/pid_position_translation/problem/Spec.v",
+      "sha256": "19ab086cf8d218c40c69f84f2aa3f985258358f36fe69c10253b411e5f4491fe"
+    },
+    {
+      "role": "relation-proof-attempt",
+      "path": "../../relations/pid_position_translation/attempts/001/Proof.v",
+      "sha256": "346e3c368a01c674fd0dad4bef20d5c6b6775bd35495e9735626700ccf283b96"
+    },
+    {
+      "role": "getter-subproof",
+      "path": "../../relations/pid_position_translation/support/GetterSemantics.v",
+      "sha256": "0200601c2d5344540316c415b5a9e2da2a7b4ed83b538c9e79290d622289990b"
+    },
+    {
+      "role": "auxiliary-validation",
+      "path": "../../relations/pid_position_translation/attempts/001/evidence/auxiliary-validation.json",
+      "sha256": "f9e3fe5bb24afbc20bb07b794ad8ea3ec122d6415d488d694941f1a7c7392f41"
+    },
+    {
+      "role": "no-error-question",
+      "path": "rocq/no_error/problem/Spec.v",
+      "sha256": "5d6b59c44486f9d02ef80ac553e32d7649cfe49bcac083961c8759a36a5635da"
+    },
+    {
+      "role": "termination-question",
+      "path": "rocq/termination/problem/Spec.v",
+      "sha256": "6bc1324b2780b07cf805fe8c07fb72977494f8f48fd2ce1ab96a2a7202fd3d63"
+    }
+  ],
+  "limitations": [
+    "All main source Csem goals, all124 independent Rocq rechecks and full external-environment correspondence remain pending.",
+    "Only the explicitly scoped arithmetic/path/getter auxiliary theorems are independently kernel-checked.",
+    "Concrete initial-memory computation hit the stated resource cap before function execution; not a refutation or impossibility theorem."
+  ]
+}
+
+FILE paparazzi/models/guidance_pid_h_run_pos/rocq/report/report.md
+# Rocq attempt outcome
+
+原入口主目标 pending。精确问题与尝试在 paparazzi/relations/pid_position_translation/。
+
+实际已证：四个算术引理、原 Cexec→Csem quiet 路径桥、原 Source 两个 cached getter 同内存正常返回子定理，含精确类型绑定和独立 kernel。局部前提、继承假设、失败与复现见关系 attempt 报告。
+
+主关系、全可达无错误、全后继 Acc、主入口正常返回、非空性、frame、精确控制过渡和全部124个独立 Rocq 重验仍 pending；完整环境覆盖也 pending。没有实际主入口正常返回证明。3GB初始化求值失败不表示语义不可能。
+
+FILE paparazzi/models/guidance_pid_h_run_pos/rocq/report/costs.json
+{
+  "schema": "five-stage-costs/1",
+  "records": [
+    {
+      "stage": "rocq",
+      "run": "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq",
+      "status": "recorded",
+      "evidence": [
+        "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq/run.json",
+        "_build/pid-position-translation-worker/20261107T175306-2c51f83b52/five-rocq/metrics.json"
+      ],
+      "time": {
+        "wall_seconds": 2834.5283963680267,
+        "tool_cpu_seconds": null
+      },
+      "token": {
+        "input": 18952951,
+        "output": 83947,
+        "total": 19036898,
+        "cached_input": 18870400,
+        "reasoning_output": 46726
+      },
+      "memory": {
+        "tool_peak_rss_bytes": 11108077568
+      },
+      "scope": "Actual worker phase session; GNU time and sampled process-tree RSS; model server memory unavailable.",
+      "agent": {
+        "session_id": "01a1b709-ae78-7392-95be-439d969f4adc",
+        "model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "medium",
+        "actual_reasoning_effort": "medium",
+        "timestamp": "2026-11-07T17:23:49.703Z",
+        "source": "own Codex session turn_context; no conversation or reasoning content archived",
+        "evidence": "paparazzi/relations/pid_position_translation/attempts/001/evidence/runtime-config.json"
+      },
+      "unobserved_reason": "Timeout process-group termination prevented complete GNU-time CPU receipts; complete tool CPU is null. Recorded RSS is sampled launched-tool memory only, excludes model-server/desktop memory."
+    }
+  ]
+}
+
+PROBLEM no_error
+{
+  "schema": "five-proof-problem/1",
+  "status": "proved",
+  "active_attempt": "../attempts/002",
+  "specification": "Spec.v",
+  "requested_goals": [
+    "NoErrorGoal"
+  ],
+  "goal_status": {
+    "NoErrorGoal": "proved"
+  }
+}
+
+ATTEMPT_FILES ['attempts/002/provenance.json', 'attempts/002/check.py', 'attempts/002/.Proof.aux', 'attempts/002/costs.json', 'attempts/002/Proof.v', 'attempts/002/Proof.glob', 'attempts/002/Proof.vo', 'attempts/002/report.md']
+PROBLEM termination
+{
+  "schema": "five-proof-problem/1",
+  "status": "proved",
+  "active_attempt": "../attempts/002",
+  "specification": "Spec.v",
+  "requested_goals": [
+    "AllSuccessorTerminationGoal"
+  ],
+  "goal_status": {
+    "AllSuccessorTerminationGoal": "proved"
+  }
+}
+
+ATTEMPT_FILES ['attempts/002/provenance.json', 'attempts/002/check.py', 'attempts/002/.Proof.aux', 'attempts/002/costs.json', 'attempts/002/Proof.v', 'attempts/002/Proof.glob', 'attempts/002/Proof.vo', 'attempts/002/report.md']
+PROBLEM cbmc_recheck
+{
+  "schema": "five-proof-problem/1",
+  "status": "pending",
+  "active_attempt": "../attempts/002",
+  "specification": "Spec.v",
+  "requested_goals": [
+    "guidance_pid_h_run_overflow_1_Goal",
+    "guidance_pid_h_run_overflow_2_Goal",
+    "guidance_pid_h_run_overflow_3_Goal",
+    "guidance_pid_h_run_overflow_4_Goal",
+    "guidance_pid_h_run_overflow_5_Goal",
+    "guidance_pid_h_run_overflow_6_Goal",
+    "guidance_pid_h_run_pointer_dereference_1_Goal",
+    "guidance_pid_h_run_pointer_dereference_2_Goal",
+    "guidance_pid_h_run_pointer_dereference_3_Goal",
+    "guidance_pid_h_run_pointer_dereference_4_Goal",
+    "guidance_pid_h_run_pointer_dereference_5_Goal",
+    "guidance_pid_h_run_pointer_dereference_6_Goal",
+    "guidance_pid_h_run_overflow_7_Goal",
+    "guidance_pid_h_run_overflow_8_Goal",
+    "guidance_pid_h_run_overflow_9_Goal",
+    "guidance_pid_h_run_overflow_10_Goal",
+    "guidance_pid_h_run_overflow_11_Goal",
+    "guidance_pid_h_run_overflow_12_Goal",
+    "guidance_pid_h_run_overflow_13_Goal",
+    "guidance_pid_h_run_overflow_14_Goal",
+    "guidance_pid_h_run_overflow_15_Goal",
+    "guidance_pid_h_run_overflow_16_Goal",
+    "guidance_pid_h_run_overflow_17_Goal",
+    "guidance_pid_h_run_overflow_18_Goal",
+    "guidance_pid_h_run_overflow_19_Goal",
+    "guidance_pid_h_run_overflow_20_Goal",
+    "guidance_pid_h_run_overflow_21_Goal",
+    "guidance_pid_h_run_undefined_shift_1_Goal",
+    "guidance_pid_h_run_overflow_22_Goal",
+    "guidance_pid_h_run_overflow_23_Goal",
+    "guidance_pid_h_run_undefined_shift_2_Goal",
+    "guidance_pid_h_run_overflow_24_Goal",
+    "guidance_pid_h_run_overflow_25_Goal",
+    "guidance_pid_h_run_undefined_shift_3_Goal",
+    "guidance_pid_h_run_overflow_26_Goal",
+    "guidance_pid_h_run_undefined_shift_4_Goal",
+    "guidance_pid_h_run_overflow_27_Goal",
+    "guidance_pid_h_run_undefined_shift_5_Goal",
+    "guidance_pid_h_run_overflow_28_Goal",
+    "guidance_pid_h_run_overflow_29_Goal",
+    "guidance_pid_h_run_undefined_shift_6_Goal",
+    "guidance_pid_h_run_overflow_30_Goal",
+    "guidance_pid_h_run_undefined_shift_7_Goal",
+    "guidance_pid_h_run_overflow_31_Goal",
+    "guidance_pid_h_run_overflow_32_Goal",
+    "guidance_pid_h_run_overflow_33_Goal",
+    "guidance_pid_h_run_overflow_34_Goal",
+    "guidance_pid_h_run_overflow_35_Goal",
+    "guidance_pid_h_run_overflow_36_Goal",
+    "guidance_pid_h_run_overflow_37_Goal",
+    "guidance_pid_h_run_overflow_38_Goal",
+    "guidance_pid_h_run_overflow_39_Goal",
+    "guidance_pid_h_run_overflow_40_Goal",
+    "guidance_pid_h_run_overflow_41_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_1_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_2_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_3_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_4_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_5_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_6_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_7_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_8_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_9_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_10_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_11_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_12_Goal",
+    "guidance_pid_h_run_pos_overflow_1_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_13_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_14_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_15_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_16_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_17_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_18_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_19_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_20_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_21_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_22_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_23_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_24_Goal",
+    "guidance_pid_h_run_pos_overflow_2_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_25_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_26_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_27_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_28_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_29_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_30_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_31_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_32_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_33_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_34_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_35_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_36_Goal",
+    "guidance_pid_h_run_pos_overflow_3_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_37_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_38_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_39_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_40_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_41_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_42_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_43_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_44_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_45_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_46_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_47_Goal",
+    "guidance_pid_h_run_pos_pointer_dereference_48_Goal",
+    "guidance_pid_h_run_pos_overflow_4_Goal",
+    "main_overflow_1_Goal",
+    "main_overflow_2_Goal",
+    "main_overflow_3_Goal",
+    "main_overflow_4_Goal",
+    "main_assertion_1_Goal",
+    "main_assertion_2_Goal",
+    "main_assertion_3_Goal",
+    "main_assertion_4_Goal",
+    "main_assertion_5_Goal",
+    "main_overflow_5_Goal",
+    "main_overflow_6_Goal",
+    "main_assertion_6_Goal",
+    "stab_sp_from_ltp_i_pointer_dereference_1_Goal",
+    "stab_sp_from_ltp_i_pointer_dereference_2_Goal",
+    "stab_sp_from_ltp_i_pointer_dereference_3_Goal",
+    "stab_sp_from_ltp_i_pointer_dereference_4_Goal",
+    "stab_sp_from_ltp_i_pointer_dereference_5_Goal",
+    "stab_sp_from_ltp_i_pointer_dereference_6_Goal"
+  ],
+  "goal_status": {
+    "guidance_pid_h_run_overflow_1_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_2_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_3_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_4_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_5_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_6_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pointer_dereference_1_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pointer_dereference_2_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pointer_dereference_3_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pointer_dereference_4_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pointer_dereference_5_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pointer_dereference_6_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_7_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_8_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_9_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_10_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_11_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_12_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_13_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_14_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_15_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_16_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_17_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_18_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_19_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_20_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_21_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_undefined_shift_1_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_22_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_23_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_undefined_shift_2_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_24_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_25_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_undefined_shift_3_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_26_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_undefined_shift_4_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_27_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_undefined_shift_5_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_28_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_29_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_undefined_shift_6_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_30_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_undefined_shift_7_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_31_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_32_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_33_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_34_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_35_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_36_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_37_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_38_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_39_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_40_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_overflow_41_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_1_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_2_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_3_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_4_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_5_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_6_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_7_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_8_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_9_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_10_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_11_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_12_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_overflow_1_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_13_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_14_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_15_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_16_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_17_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_18_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_19_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_20_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_21_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_22_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_23_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_24_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_overflow_2_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_25_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_26_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_27_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_28_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_29_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_30_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_31_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_32_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_33_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_34_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_35_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_36_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_overflow_3_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_37_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_38_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_39_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_40_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_41_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_42_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_43_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_44_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_45_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_46_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_47_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_pointer_dereference_48_Goal": "pending-independent-kernel",
+    "guidance_pid_h_run_pos_overflow_4_Goal": "pending-independent-kernel",
+    "main_overflow_1_Goal": "pending-independent-kernel",
+    "main_overflow_2_Goal": "pending-independent-kernel",
+    "main_overflow_3_Goal": "pending-independent-kernel",
+    "main_overflow_4_Goal": "pending-independent-kernel",
+    "main_assertion_1_Goal": "pending-independent-kernel",
+    "main_assertion_2_Goal": "pending-independent-kernel",
+    "main_assertion_3_Goal": "pending-independent-kernel",
+    "main_assertion_4_Goal": "pending-independent-kernel",
+    "main_assertion_5_Goal": "pending-independent-kernel",
+    "main_overflow_5_Goal": "pending-independent-kernel",
+    "main_overflow_6_Goal": "pending-independent-kernel",
+    "main_assertion_6_Goal": "pending-independent-kernel",
+    "stab_sp_from_ltp_i_pointer_dereference_1_Goal": "pending-independent-kernel",
+    "stab_sp_from_ltp_i_pointer_dereference_2_Goal": "pending-independent-kernel",
+    "stab_sp_from_ltp_i_pointer_dereference_3_Goal": "pending-independent-kernel",
+    "stab_sp_from_ltp_i_pointer_dereference_4_Goal": "pending-independent-kernel",
+    "stab_sp_from_ltp_i_pointer_dereference_5_Goal": "pending-independent-kernel",
+    "stab_sp_from_ltp_i_pointer_dereference_6_Goal": "pending-independent-kernel"
+  }
+}
+
+ATTEMPT_FILES ['attempts/002/check.py', 'attempts/002/.Proof.aux', 'attempts/002/costs.json', 'attempts/002/Proof.v', 'attempts/002/Proof.glob', 'attempts/002/spec-recheck.json', 'attempts/002/Proof.vo', 'attempts/002/report.md']

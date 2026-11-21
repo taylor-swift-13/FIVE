@@ -1,0 +1,18 @@
+File "./paparazzi/relations/trig_plain_compressed_12/cbmc_support/ArrayPropertyClaims.v", line 47, characters 20-37:
+Error: Unable to unify
+ "Genv.find_symbol PprzTrigPlain.Execution.ge Source._pprz_trig_int = Some ?b /\
+  (exists index : int,
+     ?ofs = Ptrofs.repr (2 * Int.signed index) /\
+     0 <= Int.signed index < 6434)"
+with
+ "forall (initial : mem) (input : int) (prefix : trace) 
+    (a : expr) (k : cont) (e : env) (m : mem) (b : block) 
+    (ofs : ptrofs),
+  initial_plain initial ->
+  normalized_angle input ->
+  star Csem.step PprzTrigPlain.Execution.ge
+    (PprzTrigPlain.Execution.entry (Vint input :: nil) initial) prefix
+    (ExprState PprzTrigPlain.Source.f_pprz_itrig_sin a k e m) ->
+  ArrayEvent tshort a b ofs ->
+  NamedBound PprzTrigPlain.Execution.ge Source._pprz_trig_int 6434 2 b ofs".
+

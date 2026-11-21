@@ -1,0 +1,253 @@
+"""Strict current proof receipt validation; historical attempts remain immutable."""
+import hashlib
+import json
+from pathlib import Path
+import re
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def certificate_source(imports, bindings):
+    return ''.join(f'Require Import {name}.\n' for name in imports) + ''.join(
+        f'Definition goal_{i} : {row["type"]} := {row["theorem"]}.\nPrint Assumptions goal_{i}.\n'
+        for i, row in enumerate(bindings))
+
+
+def input_index(root, active):
+    """Explicit adapters for retained index formats, never a default empty list."""
+    choices = [p for p in (active / 'inputs.json', active / 'provenance.json') if p.is_file()]
+    if len(choices) != 1:
+        raise ValueError('exactly one input index is required: ' + str(active))
+    path = choices[0]
+    data = json.loads(path.read_text())
+    schema = data.get('schema')
+    if schema == 'five-proof-attempt-provenance/1':
+        groups = [(root, data.get('files'))]
+    elif schema == 'five-proof-provenance/1':
+        stages = [p for p in active.parents if p.name == 'rocq']
+        if len(stages) != 1 or not data.get('model_configuration'):
+            raise ValueError('invalid case provenance context: ' + str(path))
+        groups = [(stages[0].parent, data.get('inputs')), (root, data.get('shared_inputs'))]
+    elif schema == 'five-proof-inputs/1':
+        hashes = data.get('dependency_sha256')
+        semantics = data.get('semantic_dependencies')
+        if not isinstance(hashes, dict) or not hashes or not isinstance(semantics, dict) or not semantics:
+            raise ValueError('missing dependency/semantic hash maps: ' + str(path))
+        for name, value in semantics.items():
+            source = Path(name)
+            if not source.is_absolute() or not source.is_file() or digest(source) != value:
+                raise ValueError('stale external semantic dependency: ' + str(source))
+        groups = [(root, [{'path': name, 'sha256': value} for name, value in hashes.items()])]
+    elif path.name == 'inputs.json' and schema is None:
+        # The two published pre-versioned layouts have distinct path bases.
+        keys = [key for key in ('inputs', 'artifacts') if key in data]
+        if len(keys) != 1:
+            raise ValueError('ambiguous/missing legacy input rows: ' + str(path))
+        key = keys[0]
+        groups = [(active if key == 'artifacts' else root, data.get(key))]
+    else:
+        raise ValueError('unsupported input index schema: ' + str(path))
+    rows = []
+    for base, entries in groups:
+        if not isinstance(entries, list) or not entries:
+            raise ValueError('empty/malformed input index: ' + str(path))
+        rows.extend((base, row) for row in entries)
+    resolved = {}
+    for base, row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str) or not row['path'] or not re.fullmatch('[0-9a-f]{64}', str(row.get('sha256', ''))):
+            raise ValueError('malformed input row: ' + str(path))
+        source = (base / row['path']).resolve()
+        if source in resolved or not source.is_file():
+            raise ValueError('duplicate/missing indexed input: ' + str(source))
+        resolved[source] = row['sha256']
+    return path, resolved
+
+
+def validate_current(root, problem, active, status):
+    from compcert_gate import kernel_record
+    root = Path(root).resolve()
+    path = active / 'evidence/goal-validation.json'
+    data = json.loads(path.read_text())
+    if data.get('schema') != 'five-proof-validation/1':
+        raise ValueError('unsupported current proof validation schema')
+    def checked(row):
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str):
+            raise ValueError('malformed current binding')
+        source = (root / row['path']).resolve()
+        if not source.is_relative_to(root) or not source.is_file() or digest(source) != row.get('sha256'):
+            raise ValueError('stale/missing current binding: ' + str(source))
+        return source
+    index, historical = input_index(root, active)
+    if checked(data.get('index')) != index:
+        raise ValueError('wrong input index binding')
+    rows = data.get('inputs')
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('missing current input bindings')
+    current, snapshots = {}, {}
+    for row in rows:
+        source = checked(row)
+        if source in current:
+            raise ValueError('duplicate current input')
+        current[source] = row['sha256']
+        if row.get('snapshot'):
+            snapshot = (root / row['snapshot']).resolve()
+            if not snapshot.is_relative_to(root) or not snapshot.is_file() or digest(snapshot) != row['sha256']:
+                raise ValueError('current source differs from compiled snapshot: ' + str(source))
+            if snapshot in snapshots:
+                raise ValueError('ambiguous compiled snapshot')
+            snapshots[snapshot] = source
+    required = set(historical) | {problem / 'Spec.v', active / 'Proof.v', active / 'check.py'}
+    if not required.issubset(current):
+        raise ValueError('current bindings omit indexed/proof/spec/checker inputs')
+    # Old manifest histories are immutable, but current executable sources must
+    # still match their original index as well as their fresh compiled snapshot.
+    for source, old_hash in historical.items():
+        if source.suffix in ('.v', '.c') and current[source] != old_hash:
+            raise ValueError('source differs from retained input index: ' + str(source))
+    if not {problem / 'Spec.v', active / 'Proof.v'}.issubset(set(snapshots.values())):
+        raise ValueError('current Proof/Spec missing compiled snapshots')
+#!/usr/bin/env python3
+"""Validate FIVE reference artifact links/receipts, without proving propositions.
+
+Run from any directory. Default checks retained metadata and active attempts;
+--compile additionally invokes active checkers (and can take several minutes).
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+
+class Validator:
+    def __init__(self, root, allowed_proof_efforts=None):
+        self.root = Path(root).resolve()
+        self.allowed_proof_efforts = frozenset(allowed_proof_efforts or ("medium",))
+        if not self.allowed_proof_efforts <= {"low", "medium", "high", "xhigh", "max", "ultra"}:
+            raise ValueError("Unsupported allowed proof reasoning effort")
+        self.errors = []
+        self.active = []
+
+    def require(self, ok, message):
+        if not ok:
+            self.errors.append(message)
+        return bool(ok)
+
+    def read(self, path):
+        path = Path(path)
+        try:
+            return json.loads(path.read_text())
+        except (OSError, ValueError) as exc:
+            self.errors.append(f'{path}: {exc}')
+            return {}
+
+    def file(self, path):
+        return self.require(Path(path).is_file(), f'missing file: {path}')
+
+    def bound(self, base, rows):
+        for row in rows:
+            path = Path(base) / row.get('path', '')
+            if self.file(path):
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                self.require(digest == row.get('sha256'), f'stale hash: {path}')
+
+    def links(self, report):
+        if not self.file(report):
+            return
+        for ref in re.findall(r'\[[^\]]*\]\(([^)]+)\)', report.read_text()):
+            if re.match(r'^[a-z]+:', ref) or ref.startswith('#'):
+                continue
+            dest = ref.split('#', 1)[0].strip('<>')
+            if dest:
+                self.require((report.parent / dest).exists(), f'broken report link: {report}: {ref}')
+
+    def costs(self, path, proof=False):
+        costs = self.read(path)
+        self.require(costs.get('schema') == 'five-stage-costs/1', f'cost schema: {path}')
+        rows = costs.get('records', [])
+        self.require(bool(rows), f'empty cost records: {path}')
+        for row in rows:
+            for group, keys in [('time', ['wall_seconds', 'tool_cpu_seconds']),
+                                ('token', ['input', 'output', 'total', 'cached_input', 'reasoning_output']),
+                                ('memory', ['tool_peak_rss_bytes'])]:
+                for key in keys:
+                    self.require(key in row.get(group, {}), f'missing cost {group}.{key}: {path}')
+                    value = row.get(group, {}).get(key)
+                    self.require(value is None or (isinstance(value, (int, float)) and value >= 0),
+                                 f'invalid cost {group}.{key}: {path}')
+            token = row.get('token', {})
+            if all(isinstance(token.get(k), int) for k in ('input', 'output', 'total')):
+                self.require(token['total'] == token['input'] + token['output'], f'token sum: {path}')
+            refs = list(row.get('evidence', []))
+            case_base = path.parents[2] if path.parent.name == 'report' else None
+            def reference(ref):
+                # Stage evidence is case-relative in the reference handoff;
+                # proof-attempt evidence is relative to its costs.json.
+                if case_base and ref.split('/', 1)[0] in ('prepare', 'cbmc', 'align', 'rocq'):
+                    return case_base / ref
+                return path.parent / ref
+            if row.get('shared_costs'):
+                refs.append(row['shared_costs'])
+            if proof:
+                agent = row.get('agent', {})
+                requested_effort = agent.get('requested_reasoning_effort')
+                self.require(agent.get('model') == 'gpt-6.1-sol' and
+                             requested_effort in self.allowed_proof_efforts and
+                             agent.get('actual_reasoning_effort') == requested_effort, f'proof runtime model/effort: {path}')
+                runtime_ref = agent.get('evidence') or agent.get('runtime_evidence') or next(
+                    (ref for ref in refs if Path(ref).name in ('runtime-metadata.json', 'runtime-config.json')), None)
+                self.require(bool(runtime_ref), f'missing runtime receipt: {path}')
+                if runtime_ref:
+                    runtime = self.read(reference(runtime_ref))
+                    events = runtime if isinstance(runtime, list) else runtime.get('selected_runtime_metadata')
+                    if isinstance(events, list):
+                        actual = next((r for r in events if r.get('type') == 'turn_context'), {})
+                    else:
+                        actual = runtime.get('actual', runtime)
+{
+  "schema": "five-run/1.0",
+  "run_id": "20261121T014239-1dca5ac2ba",
+  "skill": "five-rocq",
+  "time": {
+    "wall_seconds": 867.8849301338196,
+    "cpu_tool_seconds": null,
+    "cpu_recorded_tool_seconds": 103.81,
+    "own_tool_wall_seconds": 151.7012910079992,
+    "scope": "From start to finish of this invocation; not retroactive authoring time",
+    "aggregation": "wrapper wall is direct elapsed time, not sum of children"
+  },
+  "memory": {
+    "peak_process_tree_rss_sampled_bytes": 1017954304,
+    "max_individual_process_rss_bytes": 1015312384,
+    "max_child_tree_rss_sampled_bytes": 1017954304,
+    "method": "10ms requested /proc process-tree RSS sampling; GNU time max RSS per command",
+    "scope": "Launched tool processes plus time launcher; excludes model-serving/desktop agent memory",
+    "limitations": "RSS sum may count shared pages more than once; sampling may miss brief peaks. GNU max RSS is an individual-process maximum, not summed concurrent memory.",
+    "aggregation": "max over sequential tools/children; overlapping child runs have no combined peak estimate",
+    "parallel_children": false,
+    "tree_sampling_complete": true,
+    "commands_without_sampled_tree_peak": []
+  },
+  "tokens": {
+    "status": "unavailable",
+    "input_tokens": null,
+    "output_tokens": null,
+    "total_tokens": null,
+    "cached_input_tokens": null,
+    "reasoning_output_tokens": null,
+    "events": [],
+    "sources": [],
+    "unmeasured_invocations": [
+      "20261121T014239-1dca5ac2ba"
+    ],
+    "conflicting_event_ids": [],
+    "counting_rule": "total=input+output; cache/reasoning are subsets; event_id union across wrapper and children",
+    "scope": "Model invocations only. Tool log bytes and source-code size are not token usage."
+  },
+  "command_count": 69,
+  "measurement_status": "partial"
+}

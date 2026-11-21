@@ -1,0 +1,121 @@
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/runs
+was previously bound to PidPositionTranslationAttempt002.core.runs; it is
+remapped to PidPositionTranslationCore.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence/unused
+was previously bound to
+PidPositionTranslationAttempt002.core.evidence.unused; it is remapped to
+PidPositionTranslationCore.evidence.unused
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/evidence
+was previously bound to PidPositionTranslationAttempt002.core.evidence; it is
+remapped to PidPositionTranslationCore.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationAttempt002.core.cbmc; it is
+remapped to PidPositionTranslationCore.cbmc
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/__pycache__
+was previously bound to PidPositionTranslationAttempt002.core.__pycache__; it
+is remapped to PidPositionTranslationCore.__pycache__
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core
+was previously bound to PidPositionTranslationAttempt002.core; it is remapped
+to PidPositionTranslationCore
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/runs
+was previously bound to PidPositionTranslationAttempt002.safety.runs; it is
+remapped to PidPositionSafety.runs
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/evidence/exploratory
+was previously bound to
+PidPositionTranslationAttempt002.safety.evidence.exploratory; it is remapped
+to PidPositionSafety.evidence.exploratory
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety/evidence
+was previously bound to PidPositionTranslationAttempt002.safety.evidence; it
+is remapped to PidPositionSafety.evidence
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/safety
+was previously bound to PidPositionTranslationAttempt002.safety; it is
+remapped to PidPositionSafety
+[overriding-logical-loadpath,filesystem,default]
+Warning:
+/home/yangfp/five/paparazzi/relations/pid_position_translation/attempts/002/core/cbmc
+was previously bound to PidPositionTranslationCore.cbmc; it is remapped to
+CoreCBMC [overriding-logical-loadpath,filesystem,default]
+File "./paparazzi/relations/pid_position_translation/attempts/002/ControllerAnnotations.v", line 84, characters 1-47:
+Error:
+In environment
+e : env
+m : mem
+bp, be, bs, gh, bg, bx, bpy : block
+kp, kd, ki, kv, ka, pex, pey, sex, sey, rsx, rsy, rax, ray, ix : int
+EX : e ! S._pd_x = Some (bx, tint)
+EY : e ! S._pd_y = Some (bpy, tint)
+EG : e ! S._gh = Some (bg, tptr gh_type)
+NP : e ! S._guidance_pid = None
+NE : e ! S._guidance_pid_pos_err = None
+NS : e ! S._guidance_pid_speed_err = None
+SP : Genv.find_symbol ge S._guidance_pid = Some bp
+SE : Genv.find_symbol ge S._guidance_pid_pos_err = Some be
+SS : Genv.find_symbol ge S._guidance_pid_speed_err = Some bs
+GP : Mem.load Mint64 m bg 0 = Some (Vptr gh Ptrofs.zero)
+LKP : Mem.load Mint32 m bp 0 = Some (Vint kp)
+LKD : Mem.load Mint32 m bp 4 = Some (Vint kd)
+LKV : Mem.load Mint32 m bp 12 = Some (Vint kv)
+LKA : Mem.load Mint32 m bp 16 = Some (Vint ka)
+LPEX : Mem.load Mint32 m be 0 = Some (Vint pex)
+LPEY : Mem.load Mint32 m be 4 = Some (Vint pey)
+LSEX : Mem.load Mint32 m bs 0 = Some (Vint sex)
+LSEY : Mem.load Mint32 m bs 4 = Some (Vint sey)
+LRSX : Mem.load Mint32 m gh 52 = Some (Vint rsx)
+LRSY : Mem.load Mint32 m gh 56 = Some (Vint rsy)
+LRAX : Mem.load Mint32 m gh 60 = Some (Vint rax)
+LRAY : Mem.load Mint32 m gh 64 = Some (Vint ray)
+BOUNDS : axis_bounds kp kd ki kv ka pex sex rsx rax ix
+PM : signed32 (Int.signed kp * Int.signed pex)
+DM : signed32 (Int.signed kd * Int.signed (Int.shr sex (Int.repr 2)))
+PD :
+  signed32
+    (Int.signed (Int.shr (Int.mul kp pex) (Int.repr 6)) +
+     Int.signed
+       (Int.shr (Int.mul kd (Int.shr sex (Int.repr 2))) (Int.repr 15)))
+VM : signed32 (Int.signed kv * Int.signed rsx)
+PV :
+  signed32
+    (Int.signed (pd_bits kp kd pex sex) +
+     Int.signed (Int.shr (Int.mul kv rsx) (Int.repr 17)))
+AM : signed32 (Int.signed ka * Int.signed rax)
+FF :
+  signed32
+    (Int.signed
+       (Int.add (pd_stage kp kd pex sex)
+          (Int.shr (Int.mul kv rsx) (Int.repr 17))) +
+     Int.signed (Int.shr (Int.mul ka rax) (Int.repr 8)))
+IM : signed32 (Int.signed ki * Int.signed (pd_bits kp kd pex sex))
+IS :
+  signed32 (Int.signed ix + Int.signed (Int.mul ki (pd_bits kp kd pex sex)))
+OUT :
+  signed32
+    (Int.signed
+       (ClampSemantics.clip_bits
+          (feedforward_stage kp kd kv ka pex sex rsx rax) 
+          (Int.repr 1429)) +
+     Int.signed (Int.shr (integral_trim kp kd ki pex sex ix) (Int.repr 16)))
+av := ?av : val
+Unable to unify
+ "eval_simple_rvalue ?ge ?e ?m (Ealignof ?ty1 ?ty)
+    (Vptrofs (Ptrofs.repr (alignof ?ge ?ty1)))"
+with "eval_simple_rvalue ge e m (Eval (Vint (Int.repr 8)) tint) ?av".
+

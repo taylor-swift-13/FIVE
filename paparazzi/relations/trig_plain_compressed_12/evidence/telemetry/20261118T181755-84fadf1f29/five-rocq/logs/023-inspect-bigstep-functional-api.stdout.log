@@ -1,0 +1,211 @@
+1650:      eval_expr e m RV a t m' a' -> eval_simple_rvalue ge e m' a' v ->
+1688:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1690:      eval_expr e m' RV a2 t2 m'' a2' -> eval_simple_rvalue ge e m'' a2' v2 ->
+1694:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1698:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1700:      eval_expr e m' RV a2 t2 m'' a2' -> eval_simple_rvalue ge e m'' a2' v2 ->
+1704:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1708:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1710:      eval_expr e m' RV (if b then a2 else a3) t2 m'' a' -> eval_simple_rvalue ge e m'' a' v' ->
+1945:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1953:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1961:      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+1984:      eval_expr e m RV a1 t1 m1 a1' -> eval_simple_rvalue ge e m1 a1' v1 ->
+  load chunk m b ofs = Some v ->
+  load chunk m' b ofs = Some v.
+Proof.
+  intros. rewrite <- H1. eapply load_unchanged_on_1; eauto with mem.
+Qed.
+
+Lemma store_unchanged_on:
+  forall chunk m b ofs v m',
+  store chunk m b ofs v = Some m' ->
+  (forall i, ofs <= i < ofs + size_chunk chunk -> ~ P b i) ->
+  unchanged_on m m'.
+Proof.
+  intros; constructor; intros.
+- rewrite (nextblock_store _ _ _ _ _ _ H). apply Ple_refl.
+- split; intros; eauto with mem.
+- erewrite store_mem_contents; eauto. rewrite PMap.gsspec.
+  destruct (peq b0 b); auto. subst b0. apply setN_outside.
+  rewrite encode_val_length. rewrite <- size_chunk_conv.
+  destruct (zlt ofs0 ofs); auto.
+  destruct (zlt ofs0 (ofs + size_chunk chunk)); auto.
+  elim (H0 ofs0). lia. auto.
+Qed.
+
+Lemma storev_unchanged_on:
+  forall chunk m b ofs v m',
+  storev chunk m (Vptr b ofs) v = Some m' ->
+  (forall i, Ptrofs.unsigned ofs <= i < Ptrofs.unsigned ofs + size_chunk chunk -> ~ P b i) ->
+  unchanged_on m m'.
+Proof.
+  intros. simpl in H; destruct zle; try discriminate.
+  eapply store_unchanged_on; eauto.
+Qed.
+
+Lemma storebytes_unchanged_on:
+  forall m b ofs bytes m',
+  storebytes m b ofs bytes = Some m' ->
+  (forall i, ofs <= i < ofs + Z.of_nat (length bytes) -> ~ P b i) ->
+  unchanged_on m m'.
+Proof.
+  intros; constructor; intros.
+- rewrite (nextblock_storebytes _ _ _ _ _ H). apply Ple_refl.
+- split; intros. eapply perm_storebytes_1; eauto. eapply perm_storebytes_2; eauto.
+- erewrite storebytes_mem_contents; eauto. rewrite PMap.gsspec.
+  destruct (peq b0 b); auto. subst b0. apply setN_outside.
+  destruct (zlt ofs0 ofs); auto.
+  destruct (zlt ofs0 (ofs + Z.of_nat (length bytes))); auto.
+  elim (H0 ofs0). lia. auto.
+Qed.
+
+Lemma alloc_unchanged_on:
+  forall m lo hi m' b,
+  alloc m lo hi = (m', b) ->
+  unchanged_on m m'.
+Proof.
+  intros; constructor; intros.
+- rewrite (nextblock_alloc _ _ _ _ _ H). apply Ple_succ.
+- split; intros.
+  eapply perm_alloc_1; eauto.
+  eapply perm_alloc_4; eauto.
+  eapply valid_not_valid_diff; eauto with mem.
+- injection H; intros A B. rewrite <- B; simpl.
+  rewrite PMap.gso; auto. rewrite A.  eapply valid_not_valid_diff; eauto with mem.
+Qed.
+
+Lemma free_unchanged_on:
+  forall m b lo hi m',
+  free m b lo hi = Some m' ->
+  (forall i, lo <= i < hi -> ~ P b i) ->
+  unchanged_on m m'.
+Proof.
+  intros; constructor; intros.
+- rewrite (nextblock_free _ _ _ _ _ H). apply Ple_refl.
+- split; intros.
+  eapply perm_free_1; eauto.
+  destruct (eq_block b0 b); auto. destruct (zlt ofs lo); auto. destruct (zle hi ofs); auto.
+  subst b0. elim (H0 ofs). lia. auto.
+  eapply perm_free_3; eauto.
+- unfold free in H. destruct (range_perm_dec m b lo hi Cur Freeable); inv H.
+  simpl. auto.
+Qed.
+
+Lemma drop_perm_unchanged_on:
+  forall m b lo hi p m',
+  drop_perm m b lo hi p = Some m' ->
+      eval_expression e m a t m' v ->
+      exec_stmt e m (Sdo a)
+                t m' Out_normal
+  | exec_Sseq_1:   forall e m s1 s2 t1 m1 t2 m2 out,
+      exec_stmt e m s1 t1 m1 Out_normal ->
+      exec_stmt e m1 s2 t2 m2 out ->
+      exec_stmt e m (Ssequence s1 s2)
+                (t1 ** t2) m2 out
+  | exec_Sseq_2:   forall e m s1 s2 t1 m1 out,
+      exec_stmt e m s1 t1 m1 out ->
+      out <> Out_normal ->
+      exec_stmt e m (Ssequence s1 s2)
+                t1 m1 out
+  | exec_Sifthenelse: forall e m a s1 s2 t1 m1 v1 t2 m2 b out,
+      eval_expression e m a t1 m1 v1 ->
+      bool_val v1 (typeof a) m1 = Some b ->
+      exec_stmt e m1 (if b then s1 else s2) t2 m2 out ->
+      exec_stmt e m (Sifthenelse a s1 s2)
+                (t1**t2) m2 out
+  | exec_Sreturn_none:   forall e m,
+      exec_stmt e m (Sreturn None)
+               E0 m (Out_return None)
+  | exec_Sreturn_some: forall e m a t m' v,
+      eval_expression e m a t m' v ->
+      exec_stmt e m (Sreturn (Some a))
+                t m' (Out_return (Some(v, typeof a)))
+  | exec_Sbreak:   forall e m,
+      exec_stmt e m Sbreak
+               E0 m Out_break
+  | exec_Scontinue:   forall e m,
+      exec_stmt e m Scontinue
+               E0 m Out_continue
+  | exec_Swhile_false: forall e m a s t m' v,
+      eval_expression e m a t m' v ->
+      bool_val v (typeof a) m' = Some false ->
+      exec_stmt e m (Swhile a s)
+                t m' Out_normal
+  | exec_Swhile_stop: forall e m a s t1 m1 v t2 m2 out' out,
+      eval_expression e m a t1 m1 v ->
+      bool_val v (typeof a) m1 = Some true ->
+      exec_stmt e m1 s t2 m2 out' ->
+      out_break_or_return out' out ->
+      exec_stmt e m (Swhile a s)
+                (t1**t2) m2 out
+  | exec_Swhile_loop: forall e m a s t1 m1 v t2 m2 out1 t3 m3 out,
+      eval_expression e m a t1 m1 v ->
+      bool_val v (typeof a) m1 = Some true ->
+      exec_stmt e m1 s t2 m2 out1 ->
+      out_normal_or_continue out1 ->
+      exec_stmt e m2 (Swhile a s) t3 m3 out ->
+      exec_stmt e m (Swhile a s)
+                (t1 ** t2 ** t3) m3 out
+  | exec_Sdowhile_false: forall e m s a t1 m1 out1 t2 m2 v,
+      exec_stmt e m s t1 m1 out1 ->
+      out_normal_or_continue out1 ->
+      eval_expression e m1 a t2 m2 v ->
+      bool_val v (typeof a) m2 = Some false ->
+      exec_stmt e m (Sdowhile a s)
+                (t1 ** t2) m2 Out_normal
+  | exec_Sdowhile_stop: forall e m s a t m1 out1 out,
+      exec_stmt e m s t m1 out1 ->
+      out_break_or_return out1 out ->
+      exec_stmt e m (Sdowhile a s)
+                t m1 out
+  | exec_Sdowhile_loop: forall e m s a t1 m1 out1 t2 m2 v t3 m3 out,
+      exec_stmt e m s t1 m1 out1 ->
+      out_normal_or_continue out1 ->
+      eval_expression e m1 a t2 m2 v ->
+      bool_val v (typeof a) m2 = Some true ->
+      exec_stmt e m2 (Sdowhile a s) t3 m3 out ->
+      exec_stmt e m (Sdowhile a s)
+                (t1 ** t2 ** t3) m3 out
+  | exec_Sfor_start: forall e m s a1 a2 a3 out m1 m2 t1 t2,
+      exec_stmt e m a1 t1 m1 Out_normal ->
+      exec_stmt e m1 (Sfor Sskip a2 a3 s) t2 m2 out ->
+      exec_stmt e m (Sfor a1 a2 a3 s)
+      evalinf_expr e m LV (Ederef a ty) t
+  | evalinf_addrof: forall e m a t ty,
+      evalinf_expr e m LV a t ->
+      evalinf_expr e m RV (Eaddrof a ty) t
+  | evalinf_unop: forall e m a t op ty,
+      evalinf_expr e m RV a t ->
+      evalinf_expr e m RV (Eunop op a ty) t
+  | evalinf_binop_left: forall e m a1 t1 a2 op ty,
+      evalinf_expr e m RV a1 t1 ->
+      evalinf_expr e m RV (Ebinop op a1 a2 ty) t1
+  | evalinf_binop_right: forall e m a1 t1 m' a1' a2 t2 op ty,
+      eval_expr e m RV a1 t1 m' a1' -> evalinf_expr e m' RV a2 t2 ->
+      evalinf_expr e m RV (Ebinop op a1 a2 ty) (t1 *** t2)
+  | evalinf_cast: forall e m a t ty,
+      evalinf_expr e m RV a t ->
+      evalinf_expr e m RV (Ecast a ty) t
+  | evalinf_seqand: forall e m a1 a2 ty t1,
+      evalinf_expr e m RV a1 t1 ->
+      evalinf_expr e m RV (Eseqand a1 a2 ty) t1
+  | evalinf_seqand_2: forall e m a1 a2 ty t1 m' a1' v1 t2,
+      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+      bool_val v1 (typeof a1) m' = Some true ->
+      evalinf_expr e m' RV a2 t2 ->
+      evalinf_expr e m RV (Eseqand a1 a2 ty) (t1***t2)
+  | evalinf_seqor: forall e m a1 a2 ty t1,
+      evalinf_expr e m RV a1 t1 ->
+      evalinf_expr e m RV (Eseqor a1 a2 ty) t1
+  | evalinf_seqor_2: forall e m a1 a2 ty t1 m' a1' v1 t2,
+      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+      bool_val v1 (typeof a1) m' = Some false ->
+      evalinf_expr e m' RV a2 t2 ->
+      evalinf_expr e m RV (Eseqor a1 a2 ty) (t1***t2)
+  | evalinf_condition: forall e m a1 a2 a3 ty t1,
+      evalinf_expr e m RV a1 t1 ->
+      evalinf_expr e m RV (Econdition a1 a2 a3 ty) t1
+  | evalinf_condition_2: forall e m a1 a2 a3 ty t1 m' a1' v1 t2 b,
+      eval_expr e m RV a1 t1 m' a1' -> eval_simple_rvalue ge e m' a1' v1 ->
+      bool_val v1 (typeof a1) m' = Some b ->

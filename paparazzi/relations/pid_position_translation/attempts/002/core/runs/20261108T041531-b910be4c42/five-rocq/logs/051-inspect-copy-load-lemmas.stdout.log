@@ -1,0 +1,256 @@
+Theorem loadbytes_load:
+  forall chunk m b ofs bytes,
+  loadbytes m b ofs (size_chunk chunk) = Some bytes ->
+  (align_chunk chunk | ofs) ->
+  load chunk m b ofs = Some(decode_val chunk bytes).
+Proof.
+  unfold loadbytes, load; intros.
+  destruct (range_perm_dec m b ofs (ofs + size_chunk chunk) Cur Readable);
+  try congruence.
+  inv H. rewrite pred_dec_true. auto.
+  split; auto.
+Qed.
+
+Theorem load_loadbytes:
+  forall chunk m b ofs v,
+  load chunk m b ofs = Some v ->
+Theorem loadbytes_split:
+  forall m b ofs n1 n2 bytes,
+  loadbytes m b ofs (n1 + n2) = Some bytes ->
+  n1 >= 0 -> n2 >= 0 ->
+  exists bytes1, exists bytes2,
+     loadbytes m b ofs n1 = Some bytes1
+  /\ loadbytes m b (ofs + n1) n2 = Some bytes2
+  /\ bytes = bytes1 ++ bytes2.
+Proof.
+  unfold loadbytes; intros.
+  destruct (range_perm_dec m b ofs (ofs + (n1 + n2)) Cur Readable);
+  try congruence.
+  rewrite Z2Nat.inj_add in H by lia. rewrite getN_concat in H.
+  rewrite Z2Nat.id in H by lia.
+  repeat rewrite pred_dec_true.
+  econstructor; econstructor.
+  exploit loadbytes_split. eexact LB. lia. lia.
+  intros (bytes1 & bytes2 & LB1 & LB2 & APP).
+  change 4 with (size_chunk Mint32) in LB1.
+  exploit loadbytes_load. eexact LB1. eauto with divide.
+  intros L1.
+  change 4 with (size_chunk Mint32) in LB2.
+  exploit loadbytes_load. eexact LB2. eauto with divide.
+  intros L2.
+  exists (decode_val Mint32 (if Archi.big_endian then bytes1 else bytes2));
+  exists (decode_val Mint32 (if Archi.big_endian then bytes2 else bytes1)).
+  split. destruct Archi.big_endian; auto.
+  split. destruct Archi.big_endian; auto.
+  rewrite EQ. rewrite APP. apply decode_val_int64; auto.
+  erewrite loadbytes_length; eauto. reflexivity.
+  erewrite loadbytes_length; eauto. reflexivity.
+Qed.
+  exploit loadbytes_load. eexact LB1. eauto with divide.
+  intros L1.
+  change 4 with (size_chunk Mint32) in LB2.
+  exploit loadbytes_load. eexact LB2. eauto with divide.
+  intros L2.
+  exists (decode_val Mint32 (if Archi.big_endian then bytes1 else bytes2));
+  exists (decode_val Mint32 (if Archi.big_endian then bytes2 else bytes1)).
+  split. destruct Archi.big_endian; auto.
+  split. destruct Archi.big_endian; auto.
+  rewrite EQ. rewrite APP. apply decode_val_int64; auto.
+  erewrite loadbytes_length; eauto. reflexivity.
+  erewrite loadbytes_length; eauto. reflexivity.
+Qed.
+
+Theorem loadv_int64_split:
+  forall m a v,
+  exploit loadbytes_load. eexact LB2. eauto with divide.
+  intros L2.
+  exists (decode_val Mint32 (if Archi.big_endian then bytes1 else bytes2));
+  exists (decode_val Mint32 (if Archi.big_endian then bytes2 else bytes1)).
+  split. destruct Archi.big_endian; auto.
+  split. destruct Archi.big_endian; auto.
+  rewrite EQ. rewrite APP. apply decode_val_int64; auto.
+  erewrite loadbytes_length; eauto. reflexivity.
+  erewrite loadbytes_length; eauto. reflexivity.
+Qed.
+
+Theorem loadv_int64_split:
+  forall m a v,
+  loadv Mint64 m a = Some v -> Archi.ptr64 = false ->
+  exists v1 v2,
+     loadv Mint32 m a = Some (if Archi.big_endian then v1 else v2)
+Theorem range_perm_storebytes:
+  forall m1 b ofs bytes,
+  range_perm m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable ->
+  { m2 : mem | storebytes m1 b ofs bytes = Some m2 }.
+Proof.
+  intros. unfold storebytes.
+  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable).
+  econstructor; reflexivity.
+  contradiction.
+Defined.
+
+Theorem storebytes_store:
+  forall m1 b ofs chunk v m2,
+  storebytes m1 b ofs (encode_val chunk v) = Some m2 ->
+  (align_chunk chunk | ofs) ->
+  store chunk m1 b ofs v = Some m2.
+Theorem storebytes_range_perm:
+  range_perm m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable.
+Proof.
+  intros.
+  unfold storebytes in STORE.
+  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable);
+  inv STORE.
+  auto.
+Qed.
+
+Theorem loadbytes_storebytes_same:
+  loadbytes m2 b ofs (Z.of_nat (length bytes)) = Some bytes.
+Proof.
+  intros. assert (STORE2:=STORE). unfold storebytes in STORE2. unfold loadbytes.
+  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable);
+  try discriminate.
+Theorem load_storebytes_other:
+  forall chunk b' ofs',
+  b' <> b
+  \/ ofs' + size_chunk chunk <= ofs
+  \/ ofs + Z.of_nat (length bytes) <= ofs' ->
+  load chunk m2 b' ofs' = load chunk m1 b' ofs'.
+Proof.
+  intros. unfold load.
+  destruct (valid_access_dec m1 chunk b' ofs' Readable).
+  rewrite pred_dec_true.
+  rewrite storebytes_mem_contents. decEq.
+  rewrite PMap.gsspec. destruct (peq b' b). subst b'.
+  rewrite getN_setN_outside. auto. rewrite <- size_chunk_conv. intuition congruence.
+  auto.
+  destruct v; split; auto. red; auto with mem.
+  apply pred_dec_false.
+  destruct (range_perm_storebytes m b ofs bytes1) as [m1 ST1].
+  red; intros. exploit storebytes_range_perm; eauto. rewrite app_length.
+  rewrite Nat2Z.inj_add. lia.
+  destruct (range_perm_storebytes m1 b (ofs + Z.of_nat (length bytes1)) bytes2) as [m2' ST2].
+  red; intros. eapply perm_storebytes_1; eauto. exploit storebytes_range_perm.
+  eexact H. instantiate (1 := ofs0). rewrite app_length. rewrite Nat2Z.inj_add. lia.
+  auto.
+  assert (Some m2 = Some m2').
+  rewrite <- H. eapply storebytes_concat; eauto.
+  inv H0.
+  exists m1; split; auto.
+Qed.
+
+Theorem store_int64_split:
+  forall m b ofs v m',
+  store Mint64 m b ofs v = Some m' -> Archi.ptr64 = false ->
+  red; intros. exploit storebytes_range_perm; eauto. rewrite app_length.
+  rewrite Nat2Z.inj_add. lia.
+  destruct (range_perm_storebytes m1 b (ofs + Z.of_nat (length bytes1)) bytes2) as [m2' ST2].
+  red; intros. eapply perm_storebytes_1; eauto. exploit storebytes_range_perm.
+  eexact H. instantiate (1 := ofs0). rewrite app_length. rewrite Nat2Z.inj_add. lia.
+  auto.
+  assert (Some m2 = Some m2').
+  rewrite <- H. eapply storebytes_concat; eauto.
+  inv H0.
+  exists m1; split; auto.
+Qed.
+
+Theorem store_int64_split:
+  forall m b ofs v m',
+  store Mint64 m b ofs v = Some m' -> Archi.ptr64 = false ->
+  exists m1,
+  destruct (range_perm_storebytes m1 b (ofs + Z.of_nat (length bytes1)) bytes2) as [m2' ST2].
+  red; intros. eapply perm_storebytes_1; eauto. exploit storebytes_range_perm.
+  eexact H. instantiate (1 := ofs0). rewrite app_length. rewrite Nat2Z.inj_add. lia.
+  auto.
+  assert (Some m2 = Some m2').
+  rewrite <- H. eapply storebytes_concat; eauto.
+  inv H0.
+  exists m1; split; auto.
+Qed.
+
+Theorem store_int64_split:
+  forall m b ofs v m',
+  store Mint64 m b ofs v = Some m' -> Archi.ptr64 = false ->
+  exists m1,
+     store Mint32 m b ofs (if Archi.big_endian then Val.hiword v else Val.loword v) = Some m1
+  /\ store Mint32 m1 b (ofs + 4) (if Archi.big_endian then Val.loword v else Val.hiword v) = Some m'.
+  red; intros. eapply perm_storebytes_1; eauto. exploit storebytes_range_perm.
+  eexact H. instantiate (1 := ofs0). rewrite app_length. rewrite Nat2Z.inj_add. lia.
+  auto.
+  assert (Some m2 = Some m2').
+  rewrite <- H. eapply storebytes_concat; eauto.
+  inv H0.
+  exists m1; split; auto.
+Qed.
+
+Theorem store_int64_split:
+  forall m b ofs v m',
+  store Mint64 m b ofs v = Some m' -> Archi.ptr64 = false ->
+  exists m1,
+     store Mint32 m b ofs (if Archi.big_endian then Val.hiword v else Val.loword v) = Some m1
+  /\ store Mint32 m1 b (ofs + 4) (if Archi.big_endian then Val.loword v else Val.hiword v) = Some m'.
+Proof.
+    eapply storebytes_range_perm; eauto.
+    rewrite (list_forall2_length H3). lia.
+  destruct (range_perm_storebytes _ _ _ _ H4) as [n2 STORE].
+  exists n2; split. eauto.
+  constructor.
+(* perm *)
+  intros.
+  eapply perm_storebytes_1; [apply STORE |].
+  eapply mi_perm0; eauto.
+  eapply perm_storebytes_2; eauto.
+(* align *)
+  intros. eapply mi_align with (ofs := ofs0) (p := p); eauto.
+  red; intros. eapply perm_storebytes_2; eauto.
+(* mem_contents *)
+  intros.
+  assert (perm m1 b0 ofs0 Cur Readable). eapply perm_storebytes_2; eauto.
+  destruct (range_perm_storebytes _ _ _ _ H4) as [n2 STORE].
+  exists n2; split. eauto.
+  constructor.
+(* perm *)
+  intros.
+  eapply perm_storebytes_1; [apply STORE |].
+  eapply mi_perm0; eauto.
+  eapply perm_storebytes_2; eauto.
+(* align *)
+  intros. eapply mi_align with (ofs := ofs0) (p := p); eauto.
+  red; intros. eapply perm_storebytes_2; eauto.
+(* mem_contents *)
+  intros.
+  assert (perm m1 b0 ofs0 Cur Readable). eapply perm_storebytes_2; eauto.
+  rewrite (storebytes_mem_contents _ _ _ _ _ H0).
+  rewrite (storebytes_mem_contents _ _ _ _ _ STORE).
+    exploit storebytes_range_perm. eexact H0.
+    instantiate (1 := r - delta).
+    rewrite (list_forall2_length H3). lia.
+    eauto 6 with mem.
+  destruct H9. congruence. lia.
+  (* block <> b1, block <> b2 *)
+  eauto.
+Qed.
+
+Lemma storebytes_unmapped_inj:
+  forall f m1 b1 ofs bytes1 n1 m2,
+  mem_inj f m1 m2 ->
+  storebytes m1 b1 ofs bytes1 = Some n1 ->
+  f b1 = None ->
+  mem_inj f n1 m2.
+Proof.
+  Mem.storebytes_range_perm
+  Mem.perm_storebytes_1
+  Mem.perm_storebytes_2
+  Mem.storebytes_valid_access_1
+  Mem.storebytes_valid_access_2
+  Mem.nextblock_storebytes
+  Mem.storebytes_valid_block_1
+  Mem.storebytes_valid_block_2
+  Mem.nextblock_alloc
+  Mem.alloc_result
+  Mem.valid_block_alloc
+  Mem.fresh_block_alloc
+  Mem.valid_new_block
+  Mem.perm_alloc_1
+  Mem.perm_alloc_2
+  Mem.perm_alloc_3

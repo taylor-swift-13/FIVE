@@ -1,0 +1,30 @@
+5 goals
+  
+  ge : genv
+  f : function
+  e : env
+  m, mf : mem
+  x : expr
+  s : statement
+  k0 : cont
+  CALL : is_call_cont (Kwhile2 x s k0)
+  FREE : Mem.free_list m (blocks_of_env ge e) = Some mf
+  CC : call_cont (Kwhile2 x s k0) = Kwhile2 x s k0
+  SS :
+    sstep ge (State f (Sreturn None) (Kwhile2 x s k0) e m) E0
+      (State f (Swhile x s) k0 e m)
+  H6 : Sreturn None = Sskip \/ Sreturn None = Scontinue
+  ============================
+  State f (Swhile x s) k0 e m = Returnstate Vundef (Kwhile2 x s k0) mf
+
+goal 2 is:
+ E0 = E0 /\
+ ExprState f x (Kdowhile2 x s k0) e m =
+ Returnstate Vundef (Kdowhile1 x s k0) mf
+goal 3 is:
+ E0 = E0 /\
+ State f a3 (Kfor4 a2 a3 s k0) e m = Returnstate Vundef (Kfor3 a2 a3 s k0) mf
+goal 4 is:
+ E0 = E0 /\ Returnstate Vundef (call_cont k) m' = Returnstate Vundef k mf
+goal 5 is:
+ E0 = E0 /\ State f Sskip k0 e m = Returnstate Vundef (Kswitch2 k0) mf

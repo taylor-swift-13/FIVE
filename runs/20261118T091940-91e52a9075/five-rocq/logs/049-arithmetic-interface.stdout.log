@@ -1,0 +1,65 @@
+  intros kp ki A n A_RANGE KP KI.
+  assert (P_RANGE : 0 <= kp*A <= 409600) by nia.
+  rewrite (positive_half_exact (kp*A) kp ki A n eq_refl P_RANGE KI).
+  unfold alternating_step.
+  replace (kp * -A) with (-(kp*A)) by ring.
+  rewrite negative_floor_exact.
+  replace (drift_even (kp*A) ki n + ki*(kp*A/64) +
+    ki * -(kp*A/64 + residue_bit (kp*A)))
+    with (drift_even (kp*A) ki n - ki*residue_bit (kp*A)) by ring.
+  unfold drift_even.
+  rewrite clamp_negative_decrement.
+  - rewrite Nat2Z.inj_succ.
+    f_equal; f_equal; ring.
+  - unfold drift_limit; lia.
+  - pose proof (Nat2Z.is_nonneg n).
+    pose proof (residue_bit_bounds (kp*A)); nia.
+  - pose proof (residue_bit_bounds (kp*A)); nia.
+Qed.
+
+Lemma drift_even_zero : forall p ki, drift_even p ki O = 0.
+Proof.
+  intros p ki; unfold drift_even,drift_limit; cbn.
+  reflexivity.
+Qed.
+
+Theorem drift_divisible_split : forall p ki n,
+  drift_even p ki n =
+  if Z.eqb (p mod 64) 0 then 0
+  else - Z.min (Z.of_nat n * ki) drift_limit.
+Proof.
+  intros p ki n; unfold drift_even,residue_bit.
+  destruct (Z.eqb (p mod 64) 0).
+  - rewrite Z.mul_0_r; reflexivity.
+  - rewrite Z.mul_1_r; reflexivity.
+Qed.
+
+Lemma residue_bit_zero_iff : forall p,
+  residue_bit p = 0 <-> (64 | p).
+Proof.
+  intro p; unfold residue_bit.
+  rewrite <- (Z.mod_divide p 64 ltac:(lia)).
+  destruct (Z.eqb (p mod 64) 0) eqn:R.
+  - apply Z.eqb_eq in R; tauto.
+  - apply Z.eqb_neq in R; split; [discriminate|congruence].
+Qed.
+
+Theorem drift_divisible_cases : forall p ki n,
+  ((64 | p) -> drift_even p ki n = 0) /\
+  (~(64 | p) -> drift_even p ki n =
+    -Z.min (Z.of_nat n*ki) drift_limit).
+Proof.
+  intros p ki n; rewrite drift_divisible_split.
+  destruct (Z.eqb (p mod 64) 0) eqn:R.
+  - apply Z.eqb_eq in R.
+    assert (D : (64|p)) by (apply (proj1 (Z.mod_divide p 64 ltac:(lia))); exact R).
+    split; [reflexivity|contradiction].
+  - apply Z.eqb_neq in R.
+    assert (D : ~(64|p)).
+    { intro D; apply R; apply (proj2 (Z.mod_divide p 64 ltac:(lia))); exact D. }
+    split; [contradiction|reflexivity].
+Qed.
+
+Print Assumptions pair_drift_step.
+Print Assumptions drift_divisible_cases.
+

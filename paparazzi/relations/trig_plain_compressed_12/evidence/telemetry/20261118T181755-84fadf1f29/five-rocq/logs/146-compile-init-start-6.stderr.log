@@ -1,0 +1,39 @@
+File "./paparazzi/relations/trig_plain_compressed_12/init_support/InitStart.v", line 115, characters 3-56:
+Error:
+In environment
+Q : val -> mem -> Prop
+k : cont
+base : mem
+input, buffer : block
+INPUT : Mem.valid_block base input
+BUFFER : Mem.valid_block base buffer
+DISTINCT : input <> buffer
+READ :
+  forall i : Z,
+  0 <= i < 1690 ->
+  Mem.load Mint8unsigned base input i =
+  Some (Vint (Int.repr (nth (Z.to_nat i) compressed_bytes 0)))
+PREFIX : packed_prefix 0 base buffer
+LOOP :
+  forall (e : env) (m : mem),
+  outer_inv e base input buffer literal_chunks m ->
+  total Execution.ge Q
+    (State Source.f_pprz_trig_int_init outer_loop
+       (Kseq init_finish_statement k) e m)
+e : env
+mp : mem
+ALLOC :
+  do_alloc_variables (globalenv PprzTrigInit.Source.prog) empty_env base
+    (fn_params Source.f_pprz_trig_int_init ++
+     fn_vars Source.f_pprz_trig_int_init) =
+  (e, mp)
+BIND :
+  sem_bind_parameters (globalenv PprzTrigInit.Source.prog) quiet e mp
+    (fn_params Source.f_pprz_trig_int_init) [] =
+  Some mp
+SHAPE : init_shape e base input buffer
+CORE : protocol_core e base input buffer mp
+P : packed_prefix 0 mp buffer
+EMPTY : allocated_env init_local_ids base e mp
+Unable to unify "list_norepet (?hd :: ?tl)" with "list_norepet []".
+

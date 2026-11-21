@@ -1,0 +1,21 @@
+1 goal
+  
+  ge : genv
+  e : env
+  m : mem
+  f : function
+  k : cont
+  t : trace
+  v : val
+  C : expr -> expr
+  a0, a' : expr
+  m' : mem
+  STEP :
+    Csem.estep ge (ExprState f (C a0) k e m) t (ExprState f (C a') k e m')
+  CV : conditional_value (C a0) v
+  H6 : rred ge a0 m t a' m'
+  H7 : context RV RV C
+  ============================
+  exists a'0 : expr,
+    ExprState f (C a') k e m' = ExprState f a'0 k e m /\
+    t = E0 /\ typeof a'0 = typeof (C a0) /\ conditional_value a'0 v

@@ -1,0 +1,217 @@
+84 goals
+  
+  ge : genv
+  caller, leaf : function
+  e : env
+  k : cont
+  m : mem
+  ghid, refid, vectid, nedid, axis, iref, icomponent, ierr, igh, igetter :
+    ident
+  berr, bparam, bgh, bgetter : block
+  dref, dcomponent, daxis : Z
+  reference : int
+  param_local : e ! igh = Some (bparam, tptr ghty)
+  error_global : e ! ierr = None
+  error_symbol : Genv.find_symbol ge ierr = Some berr
+  getter_global : e ! igetter = None
+  getter_symbol : Genv.find_symbol ge igetter = Some bgetter
+  ghco, refco, vecco : composite
+  gh_lookup : ge ! ghid = Some ghco
+  ref_lookup : ge ! refid = Some refco
+  vec_lookup : ge ! vectid = Some vecco
+  gh_field : field_offset ge iref (co_members ghco) = OK (dref, Full)
+  ref_field :
+    field_offset ge icomponent (co_members refco) = OK (dcomponent, Full)
+  axis_field : field_offset ge axis (co_members vecco) = OK (daxis, Full)
+  param_deref :
+    do_deref_loc ge quiet_world (tptr ghty) m bparam Ptrofs.zero Full =
+    Some (quiet_world, E0, Vptr bgh Ptrofs.zero)
+  scalar_deref :
+    do_deref_loc ge quiet_world tint m bgh scalar_offset Full =
+    Some (quiet_world, E0, Vint reference)
+  leaf_find :
+    Genv.find_funct ge (Vptr bgetter Ptrofs.zero) =
+    Some (Ctypes.Internal leaf)
+  leaf_signature : type_of_fundef (Ctypes.Internal leaf) = function_type
+  rule : string
+  t : trace
+  next : Csem.state
+  IN :
+    In (TR rule t next)
+      (map (expr_final_state caller (Kdo k) e)
+         (map
+            (fun z : (expr -> expr) * reduction =>
+             (fun x : expr => Eassign (Efield (...) axis tint) (fst z x) tint,
+              snd z))
+            (incontext (fun x : expr => Ebinop Osub (axis_load (...)) x tint)
+               (incontext (fun x : expr => Evalof x tint)
+                  (incontext (... => ...) (incontext ... ...))))))
+  ============================
+  t = E0 /\ pre_or_call next
+
+goal 2 is:
+ t = E0 /\ pre_or_call next
+goal 3 is:
+ t = E0 /\ pre_or_call next
+goal 4 is:
+ t = E0 /\ pre_or_call next
+goal 5 is:
+ t = E0 /\ pre_or_call next
+goal 6 is:
+ t = E0 /\ pre_or_call next
+goal 7 is:
+ t = E0 /\ pre_or_call next
+goal 8 is:
+ t = E0 /\ pre_or_call next
+goal 9 is:
+ t = E0 /\ pre_or_call next
+goal 10 is:
+ t = E0 /\ pre_or_call next
+goal 11 is:
+ t = E0 /\ pre_or_call next
+goal 12 is:
+ t = E0 /\ pre_or_call next
+goal 13 is:
+ t = E0 /\ pre_or_call next
+goal 14 is:
+ t = E0 /\ pre_or_call next
+goal 15 is:
+ t = E0 /\ pre_or_call next
+goal 16 is:
+ t = E0 /\ pre_or_call next
+goal 17 is:
+ t = E0 /\ pre_or_call next
+goal 18 is:
+ t = E0 /\ pre_or_call next
+goal 19 is:
+ t = E0 /\ pre_or_call next
+goal 20 is:
+ t = E0 /\ pre_or_call next
+goal 21 is:
+ t = E0 /\ pre_or_call next
+goal 22 is:
+ t = E0 /\ pre_or_call next
+goal 23 is:
+ t = E0 /\ pre_or_call next
+goal 24 is:
+ t = E0 /\ pre_or_call next
+goal 25 is:
+ t = E0 /\ pre_or_call next
+goal 26 is:
+ t = E0 /\ pre_or_call next
+goal 27 is:
+ t = E0 /\ pre_or_call next
+goal 28 is:
+ t = E0 /\ pre_or_call next
+goal 29 is:
+ t = E0 /\ pre_or_call next
+goal 30 is:
+ t = E0 /\ pre_or_call next
+goal 31 is:
+ t = E0 /\ pre_or_call next
+goal 32 is:
+ t = E0 /\ pre_or_call next
+goal 33 is:
+ t = E0 /\ pre_or_call next
+goal 34 is:
+ t = E0 /\ pre_or_call next
+goal 35 is:
+ t = E0 /\ pre_or_call next
+goal 36 is:
+ t = E0 /\ pre_or_call next
+goal 37 is:
+ t = E0 /\ pre_or_call next
+goal 38 is:
+ t = E0 /\ pre_or_call next
+goal 39 is:
+ t = E0 /\ pre_or_call next
+goal 40 is:
+ t = E0 /\ pre_or_call next
+goal 41 is:
+ t = E0 /\ pre_or_call next
+goal 42 is:
+ t = E0 /\ pre_or_call next
+goal 43 is:
+ t = E0 /\ pre_or_call next
+goal 44 is:
+ t = E0 /\ pre_or_call next
+goal 45 is:
+ t = E0 /\ pre_or_call next
+goal 46 is:
+ t = E0 /\ pre_or_call next
+goal 47 is:
+ t = E0 /\ pre_or_call next
+goal 48 is:
+ t = E0 /\ pre_or_call next
+goal 49 is:
+ t = E0 /\ pre_or_call next
+goal 50 is:
+ t = E0 /\ pre_or_call next
+goal 51 is:
+ t = E0 /\ pre_or_call next
+goal 52 is:
+ t = E0 /\ pre_or_call next
+goal 53 is:
+ t = E0 /\ pre_or_call next
+goal 54 is:
+ t = E0 /\ pre_or_call next
+goal 55 is:
+ t = E0 /\ pre_or_call next
+goal 56 is:
+ t = E0 /\ pre_or_call next
+goal 57 is:
+ t = E0 /\ pre_or_call next
+goal 58 is:
+ t = E0 /\ pre_or_call next
+goal 59 is:
+ t = E0 /\ pre_or_call next
+goal 60 is:
+ t = E0 /\ pre_or_call next
+goal 61 is:
+ t = E0 /\ pre_or_call next
+goal 62 is:
+ t = E0 /\ pre_or_call next
+goal 63 is:
+ t = E0 /\ pre_or_call next
+goal 64 is:
+ t = E0 /\ pre_or_call next
+goal 65 is:
+ t = E0 /\ pre_or_call next
+goal 66 is:
+ t = E0 /\ pre_or_call next
+goal 67 is:
+ t = E0 /\ pre_or_call next
+goal 68 is:
+ t = E0 /\ pre_or_call next
+goal 69 is:
+ t = E0 /\ pre_or_call next
+goal 70 is:
+ t = E0 /\ pre_or_call next
+goal 71 is:
+ t = E0 /\ pre_or_call next
+goal 72 is:
+ t = E0 /\ pre_or_call next
+goal 73 is:
+ t = E0 /\ pre_or_call next
+goal 74 is:
+ t = E0 /\ pre_or_call next
+goal 75 is:
+ t = E0 /\ pre_or_call next
+goal 76 is:
+ t = E0 /\ pre_or_call next
+goal 77 is:
+ t = E0 /\ pre_or_call next
+goal 78 is:
+ t = E0 /\ pre_or_call next
+goal 79 is:
+ t = E0 /\ pre_or_call next
+goal 80 is:
+ t = E0 /\ pre_or_call next
+goal 81 is:
+ t = E0 /\ pre_or_call next
+goal 82 is:
+ t = E0 /\ pre_or_call next
+goal 83 is:
+ t = E0 /\ pre_or_call next
+goal 84 is:
+ t = E0 /\ pre_or_call next

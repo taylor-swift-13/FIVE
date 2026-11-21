@@ -1,0 +1,20 @@
+  intros. subst v. apply decode_val_cast.
+Qed.
+
+Theorem load_bool_int8_unsigned:
+  forall m b ofs,
+  load Mbool m b ofs = option_map Val.norm_bool (load Mint8unsigned m b ofs).
+Proof.
+  intros. unfold load.
+  change (size_chunk_nat Mbool) with (size_chunk_nat Mint8unsigned).
+  set (cl := getN (size_chunk_nat Mint8unsigned) ofs m.(mem_contents)#b).
+  destruct (valid_access_dec m Mbool b ofs Readable).
+  rewrite pred_dec_true; auto. unfold decode_val.
+  destruct (proj_bytes cl); auto.
+  rewrite pred_dec_false; auto.
+Qed.
+
+Theorem load_int8_signed_unsigned:
+  forall m b ofs,
+  load Mint8signed m b ofs = option_map (Val.sign_ext 8) (load Mint8unsigned m b ofs).
+Proof.

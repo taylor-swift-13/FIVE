@@ -1,0 +1,123 @@
+205:Lemma leftcontext_context:
+371:Definition step (S: state) (t: trace) (S': state) : Prop :=
+376:Lemma context_compose:
+398:Definition safe (s: Csem.state) : Prop :=
+402:Lemma safe_steps:
+410:Lemma star_safe:
+418:Lemma plus_safe:
+426:Lemma safe_imm_safe:
+441:Definition expr_kind (a: expr) : kind :=
+450:Lemma lred_kind:
+456:Lemma rred_kind:
+462:Lemma callred_kind:
+468:Lemma context_kind:
+474:Lemma imm_safe_kind:
+485:Lemma safe_expr_kind:
+507:Definition invert_expr_prop (a: expr) (m: mem) : Prop :=
+570:Lemma lred_invert:
+581:Lemma rred_invert:
+599:Lemma callred_invert:
+612:Lemma invert_expr_context:
+649:Lemma imm_safe_inv:
+673:Lemma safe_inv:
+697:Lemma eval_simple_steps:
+745:Lemma eval_simple_rvalue_steps:
+752:Lemma eval_simple_lvalue_steps:
+759:Corollary eval_simple_rvalue_safe:
+768:Corollary eval_simple_lvalue_safe:
+777:Lemma simple_can_eval:
+850:Lemma simple_can_eval_rval:
+860:Lemma simple_can_eval_lval:
+884:Lemma eval_simple_list_implies:
+895:Lemma can_eval_simple_list:
+913:Lemma exprlist_app_assoc:
+929:Lemma exprlist_app_context:
+938:Lemma contextlist'_head:
+954:Lemma contextlist'_tail:
+972:Lemma eval_simple_list_steps:
+988:Lemma simple_list_can_eval:
+1006:Lemma rval_list_all_values:
+1024:Definition simple_side_effect (r: expr) : Prop :=
+1046:Lemma decompose_expr:
+1122:Lemma decompose_topexpr:
+1135:Lemma estep_simulation:
+1270:Lemma can_estep:
+1388:Theorem step_simulation:
+1397:Theorem progress:
+1427:Definition semantics (p: program) :=
+1472:Lemma semantics_strongly_receptive:
+1585:Theorem strategy_simulation:
+1629:Definition outcome_switch (out: outcome) : outcome :=
+1635:Definition outcome_result_value (out: outcome) (t: type) (v: val) (m: mem) : Prop :=
+2138:Lemma is_call_cont_call_cont:
+2144:Lemma leftcontext_compose:
+2158:Lemma exprlist_app_leftcontext:
+2167:Lemma exprlist_app_simple:
+2174:Lemma bigstep_to_steps:
+2608:Lemma eval_expression_to_steps:
+2615:Lemma eval_expr_to_steps:
+2623:Lemma eval_exprlist_to_steps:
+2632:Lemma exec_stmt_to_steps:
+2640:Lemma eval_funcall_to_steps:
+2680:Lemma leftcontext_size:
+2700:Lemma evalinf_funcall_steps:
+3036:Definition bigstep_semantics (p: program) :=
+3039:Theorem bigstep_semantics_sound:
+  eapply plus_left. right; constructor.
+  eapply star_right. eapply eval_expression_to_steps; eauto.
+  right; constructor. eauto.
+  reflexivity. reflexivity.
+  eapply COS; eauto. traceEq.
+
+(* funcalls *)
+  intros. inv H.
+  eapply forever_N_plus. apply plus_one. right; econstructor; eauto.
+  eapply COS; eauto. traceEq.
+Qed.
+
+End BIGSTEP.
+
+(** ** Whole-program behaviors, big-step style. *)
+
+Inductive bigstep_program_terminates (p: program): trace -> int -> Prop :=
+  | bigstep_program_terminates_intro: forall b f m0 m1 t r,
+      let ge := globalenv p in
+      Genv.init_mem p = Some m0 ->
+      Genv.find_symbol ge p.(prog_main) = Some b ->
+      Genv.find_funct_ptr ge b = Some f ->
+      type_of_fundef f = Tfunction nil type_int32s cc_default ->
+      eval_funcall ge m0 f nil t m1 (Vint r) ->
+      bigstep_program_terminates p t r.
+
+Inductive bigstep_program_diverges (p: program): traceinf -> Prop :=
+  | bigstep_program_diverges_intro: forall b f m0 t,
+      let ge := globalenv p in
+      Genv.init_mem p = Some m0 ->
+      Genv.find_symbol ge p.(prog_main) = Some b ->
+      Genv.find_funct_ptr ge b = Some f ->
+      type_of_fundef f = Tfunction nil type_int32s cc_default ->
+      evalinf_funcall ge m0 f nil t ->
+      bigstep_program_diverges p t.
+
+Definition bigstep_semantics (p: program) :=
+  Bigstep_semantics (bigstep_program_terminates p) (bigstep_program_diverges p).
+
+Theorem bigstep_semantics_sound:
+  forall p, bigstep_sound (bigstep_semantics p) (semantics p).
+Proof.
+  intros; constructor; intros.
+(* termination *)
+  inv H. econstructor; econstructor.
+  split. econstructor; eauto.
+  split. apply eval_funcall_to_steps. eauto. red; auto.
+  econstructor.
+(* divergence *)
+  inv H. econstructor.
+  split. econstructor; eauto.
+  eapply forever_N_forever with (order := lt).
+  apply lt_wf.
+  eapply evalinf_funcall_steps; eauto.
+Qed.
+52:Inductive star (ge: genv): state -> trace -> state -> Prop :=
+99:Lemma star_left:
+274:Inductive starN (ge: genv): nat -> state -> trace -> state -> Prop :=

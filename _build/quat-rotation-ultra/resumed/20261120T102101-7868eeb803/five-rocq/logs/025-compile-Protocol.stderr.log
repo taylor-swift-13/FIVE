@@ -1,0 +1,97 @@
+File "/home/yangfp/five/paparazzi/relations/quat_rotation_paths/support/Protocol.v", line 102, characters 3-182:
+Error:
+In environment
+m : mem
+q, v, a, r, b, anchor : block
+qi, qx, qy, qz, vx, vy, vz : float32
+SEP : NoDup [q; v; a; r; b]
+INPUT : D.Inputs m q v a qi qx qy qz vx vy vz
+WR : WCells m r 9
+WB : WCells m b 3
+WAN : WCells m anchor 3
+ANCHOR : Anchor m anchor
+QV : q <> v
+QA : q <> a
+QR : q <> r
+QB : q <> b
+VA : v <> a
+VR : v <> r
+VB : v <> b
+AR : a <> r
+AB : a <> b
+RB : r <> b
+R_VALID : Mem.valid_block m r
+B_VALID : Mem.valid_block m b
+Q_VALID : Mem.valid_block m q
+V_VALID : Mem.valid_block m v
+A_VALID : Mem.valid_block m a
+md : mem
+ED :
+  state_eval FiveQuatVmult.Execution.ge
+    (FiveQuatVmult.Execution.entry (FiveQuatVmultCase.Contract.Args a q v) m) =
+  Some (Vundef, md)
+FD :
+  forall (b : block) (z n : Z),
+  Mem.valid_block m b ->
+  b <> a \/ z + n <= 0 \/ 12 <= z ->
+  Mem.loadbytes md b z n = Mem.loadbytes m b z n
+BD :
+  Mem.loadbytes md a 0 12 =
+  Some
+    (encode_val Mfloat32 (Vsingle (Body.output_x qi qx qy qz vx vy vz)) ++
+     encode_val Mfloat32 (Vsingle (Body.output_y qi qx qy qz vx vy vz)) ++
+     encode_val Mfloat32 (Vsingle (Body.output_z qi qx qy qz vx vy vz)))
+AD : FiveQuatVmultCase.Contract.access_kept m md
+LD :
+  forall (ch : memory_chunk) (b : block) (z : Z),
+  Mem.valid_block m b -> b <> a -> Mem.load ch md b z = Mem.load ch m b z
+WBD : WCells md b 3
+WAND : WCells md anchor 3
+VALID_D : forall old : block, Mem.valid_block m old -> Mem.valid_block md old
+IM : M.Inputs md q r qi qx qy qz
+mr : mem
+EM :
+  state_eval FiveRmatOfQuat.Execution.ge
+    (FiveRmatOfQuat.Execution.entry (FiveRmatOfQuatCase.Contract.Args r q) md) =
+  Some (Vundef, mr)
+FM :
+  forall (b : block) (z n : Z),
+  Mem.valid_block md b ->
+  b <> r \/ z + n <= 0 \/ 36 <= z ->
+  Mem.loadbytes mr b z n = Mem.loadbytes md b z n
+BM :
+  Mem.loadbytes mr r 0 36 =
+  Some (Output.matrix_bytes (Output.matrix_values qi qx qy qz))
+LM :
+  forall i : nat,
+  (i < 9)%nat ->
+  Mem.load Mfloat32 mr r (Z.of_nat i * 4) =
+  Some (Vsingle (nth i (Output.matrix_values qi qx qy qz) Float32.zero))
+AM :
+  forall (ch : memory_chunk) (b : block) (ofs : Z) (p : permission),
+  Mem.valid_block md b ->
+  Mem.valid_access md ch b ofs p -> Mem.valid_access mr ch b ofs p
+WBR : WCells mr b 3
+WANR : WCells mr anchor 3
+VALID_R : forall old : block, Mem.valid_block m old -> Mem.valid_block mr old
+RM : R.Reads mr r Ptrofs.zero 9 (Mat qi qx qy qz)
+RV : R.Reads mr v Ptrofs.zero 3 (Vec vx vy vz)
+mf : mem
+ER :
+  state_eval Execution.ge
+    (Execution.entry
+       (Contract.Args b r v Ptrofs.zero Ptrofs.zero Ptrofs.zero) mr) =
+  Some (Vundef, mf)
+BR :
+  Mem.loadbytes mf b (Ptrofs.unsigned Ptrofs.zero) 12 =
+  Some
+    (encode_val Mfloat32
+       (Vsingle (Contract.Row (Mat qi qx qy qz) (Vec vx vy vz) 0)) ++
+     encode_val Mfloat32
+       (Vsingle (Contract.Row (Mat qi qx qy qz) (Vec vx vy vz) 3)) ++
+     encode_val Mfloat32
+       (Vsingle (Contract.Row (Mat qi qx qy qz) (Vec vx vy vz) 6)))
+FR : Contract.Frame mr mf b Ptrofs.zero
+WBF : writable12 mf b Ptrofs.zero
+Unable to unify "list_norepet (?hd :: ?tl)" with "list_norepet []".
+

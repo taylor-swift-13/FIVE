@@ -1,0 +1,51 @@
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v:759:Theorem loadbytes_range_perm:
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v:1855:  unfold loadbytes; intros. destruct (range_perm_dec m2 b ofs (ofs + n) Cur Readable); inv H.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v:4462:  exploit loadbytes_range_perm; eauto. instantiate (1 := ofs). lia.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v:4620:  Mem.loadbytes_range_perm
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cop.v:1210:  unfold sem_cast; intros; destruct (classify_cast ty1 ty); inv H0; TrivialInject.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cop.v:1500:  unfold sem_cast, classify_cast; remember Archi.ptr64 as ptr64; destruct t; simpl; auto; destruct v; auto.
+
+(** Symmetrically, [assign_loc ty m b ofs bf v t m' v'] returns the
+  memory state after storing the value [v] in the datum
+  of type [ty] residing in memory [m] at block [b], offset [ofs],
+  and bitfield designation [bf].
+  This is allowed only if [ty] indicates an access by value or by copy.
+  [m'] is the updated memory state and [t] the trace of observables
+  (nonempty if this is a volatile store).
+  [v'] is the result value of the assignment.  It is equal to [v]
+  if [bf] is [Full], and to [v] normalized to the width and signedness
+  of the bitfield [bf] otherwise.
+*)
+
+Inductive assign_loc (ty: type) (m: mem) (b: block) (ofs: ptrofs):
+                              bitfield -> val -> trace -> mem -> val -> Prop :=
+  | assign_loc_value: forall v chunk m',
+      access_mode ty = By_value chunk ->
+      type_is_volatile ty = false ->
+      Mem.storev chunk m (Vptr b ofs) v = Some m' ->
+      assign_loc ty m b ofs Full v E0 m' v
+  | assign_loc_volatile: forall v chunk t m',
+      access_mode ty = By_value chunk -> type_is_volatile ty = true ->
+      volatile_store ge chunk m b ofs v t m' ->
+      assign_loc ty m b ofs Full v t m' v
+  | assign_loc_copy: forall b' ofs' bytes m',
+      access_mode ty = By_copy ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs') ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs) ->
+      b' <> b \/ Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs' + sizeof ge ty <= Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs + sizeof ge ty <= Ptrofs.unsigned ofs' ->
+      Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof ge ty) = Some bytes ->
+      Mem.storebytes m b (Ptrofs.unsigned ofs) bytes = Some m' ->
+      assign_loc ty m b ofs Full (Vptr b' ofs') E0 m' (Vptr b' ofs')
+  | assign_loc_bitfield: forall sz sg pos width v m' v',
+      store_bitfield ty sz sg pos width m (Vptr b ofs) v m' v' ->
+      assign_loc ty m b ofs (Bits sz sg pos width) v E0 m' v'.
+
+(** Allocation of function-local variables.
+  [alloc_variables e1 m1 vars e2 m2] allocates one memory block
+  for each variable declared in [vars], and associates the variable
+  name with this block.  [e1] and [m1] are the initial local environment
+  and memory state.  [e2] and [m2] are the final local environment
+  and memory state. *)
+

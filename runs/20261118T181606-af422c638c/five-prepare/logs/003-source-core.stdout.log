@@ -1,0 +1,354 @@
+uint8_t data_buf_12[(TRIG_INT_SIZE * 3) / 2];
+#if USE_REAL_TABLE_12_USE
+uint16_t tree_buf_12[(1 << TREE_SIZE_12)];
+#endif
+
+void table_encode_12(int16_t val, int16_t val_prev, int16_t cnt, int16_t *tab)
+{
+
+  /* build 12 bit table */
+  data_buf_12[cnt] = val % 0x100;
+  if ((cnt % 2) == 0) {
+    data_buf_12[TRIG_INT_SIZE + (cnt / 2)] = (val & 0xF00) >> 8 ;
+  } else {
+    data_buf_12[TRIG_INT_SIZE + (cnt / 2)] |= (val & 0xF00) >> 4;
+  }
+#if USE_REAL_TABLE_12_USE
+  /* USE_REAL_TABLE_12_USE uses the original table instead of unrolled "if".
+   * Unrolling makes it faster but uses slightly more code.
+   * For the higher compressions it is not faster/creates more code.
+   * The option is for debugging/understanding only.
+   */
+  /* build tree for 12 bit */
+  if (cnt == 0) {
+    tree_buf_12[(*tab)++] = cnt;
+  } else if ((val / 0x1000) != (val_prev / 0x1000)) {
+    tree_buf_12[(*tab)++] = cnt;
+  }
+#else
+  // suppress unused-parameter warning
+  (void)val_prev;
+  (void)tab;
+#endif
+}
+
+int16_t pprz_trig_int_12(int16_t val)
+{
+#if USE_REAL_TABLE_12_USE
+  int8_t k;
+
+  /* search tree for the 12 bit data */
+  k = 1 << (TREE_SIZE_12 - 1);
+  if (val < tree_buf_12[k]) {
+    k -= 1;
+  } else {
+    k += 1;
+  }
+  if (val < tree_buf_12[k]) {
+    k -= 1;
+  }
+  return (k << 12) | ((data_buf_12[TRIG_INT_SIZE + (val / 2)] << ((val % 2) ? 4 : 8)) & 0xF00) | (data_buf_12[val]);
+#else
+  int16_t k;
+
+  /* search tree for the 12 bit data */
+  if (val < TREE_BUF_12_2) {
+    if (val < TREE_BUF_12_1) {
+      k = (0 << 12);
+    } else {
+      k = (1 << 12);
+    }
+  } else {
+    if (val < TREE_BUF_12_3) {
+      k = (2 << 12);
+    } else {
+      k = (3 << 12);
+    }
+  }
+
+  return k | ((data_buf_12[TRIG_INT_SIZE + (val >> 1)] << ((val % 2) ? 4 : 8)) & 0xF00) | (data_buf_12[val]);
+#endif
+}
+#endif
+
+#if defined(PPRZ_TRIG_INT_COMPR_NONE)
+int16_t data_buf_16[TRIG_INT_SIZE];
+
+inline int16_t pprz_trig_int_16(int32_t val)
+{
+  return data_buf_16[val];
+}
+
+void table_encode_16(int16_t val, int16_t cnt)
+{
+  data_buf_16[cnt] = val;
+}
+#endif
+
+uint8_t get_nibble(uint16_t pos)
+{
+  return (pprz_trig_int_compr[pos / 2] >> (4 * (pos % 2))) & 0xF;
+}
+
+int pprz_trig_int_init(void)
+{
+  int16_t i, j, k, cnt, temp, val, val_prev;
+
+#if defined(PPRZ_TRIG_INT_COMPR_HIGHEST)
+  int16_t tab_4 = 0;
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_HIGH)
+  int16_t tab_8 = 0;
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_LOW)
+  int16_t tab_12 = 0;
+#endif
+
+  cnt = 0;
+  val = 0;
+  val_prev = 0;
+  /* decode run length encoding */
+  for (i = 0; i < TRIG_INT_RLE_LEN;) {
+    temp = get_nibble(i++);
+    if (temp < 0xF) {
+      /* single */
+      for (j = 0; j < (temp / 5) + 1; j++) {
+#if defined(PPRZ_TRIG_INT_COMPR_HIGHEST)
+        table_encode_4(val, val_prev, cnt, &tab_4);
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_HIGH)
+        table_encode_8(val, val_prev, cnt, &tab_8);
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_LOW)
+        table_encode_12(val, val_prev, cnt, &tab_12);
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_NONE)
+        table_encode_16(val, cnt);
+#endif
+        val_prev = val;
+        cnt++;
+        val += temp % 5;
+        if (cnt > TRIG_INT_SIZE) {
+          return -1;
+        }
+      }
+    } else {
+      /* multi */
+      k = get_nibble(i++);
+      if (i > TRIG_INT_RLE_LEN) {
+        return -1;
+      }
+      temp = get_nibble(i++);
+      if (i > TRIG_INT_RLE_LEN) {
+        return -1;
+      }
+      k |= (temp & 0x8) << 1;
+      for (j = 0; j < k + ONE_MIN; j++) {
+#if defined(PPRZ_TRIG_INT_COMPR_HIGHEST)
+        table_encode_4(val, val_prev, cnt, &tab_4);
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_HIGH)
+        table_encode_8(val, val_prev, cnt, &tab_8);
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_LOW)
+        table_encode_12(val, val_prev, cnt, &tab_12);
+#endif
+#if defined(PPRZ_TRIG_INT_COMPR_NONE)
+        table_encode_16(val, cnt);
+#endif
+        val_prev = val;
+        cnt++;
+        val += temp & 7;
+        if (cnt > TRIG_INT_SIZE) {
+          return -1;
+        }
+      }
+    }
+  }
+  if (cnt != TRIG_INT_SIZE) {
+    return -1;
+  }
+
+  return 0;
+}
+
+inline int16_t pprz_trig_int_f(int32_t angle)
+{
+#if defined(PPRZ_TRIG_INT_COMPR_HIGHEST)
+  return pprz_trig_int_4(angle);
+#elif defined(PPRZ_TRIG_INT_COMPR_HIGH)
+  return pprz_trig_int_8(angle);
+#elif defined(PPRZ_TRIG_INT_COMPR_LOW)
+  return pprz_trig_int_12(angle);
+#elif defined(PPRZ_TRIG_INT_COMPR_NONE)
+  return pprz_trig_int_16(angle);
+#endif
+}
+
+#else
+
+// dummy init
+int pprz_trig_int_init(void) { return 0; }
+
+#endif // PPRZ_TRIG_INT_COMPR_FLASH
+
+
+int32_t pprz_itrig_sin(int32_t angle)
+{
+#if defined(PPRZ_TRIG_INT_USE_FLOAT)
+  float tmp;
+  tmp = ANGLE_FLOAT_OF_BFP(angle);
+  tmp = sinf(tmp);
+  angle = ANGLE_BFP_OF_REAL(tmp);
+  return angle;
+#else
+  INT32_ANGLE_NORMALIZE(angle);
+  if (angle > INT32_ANGLE_PI_2) {
+    angle = INT32_ANGLE_PI - angle;
+  } else if (angle < -INT32_ANGLE_PI_2) {
+    angle = -INT32_ANGLE_PI - angle;
+  }
+  if (angle >= 0) {
+#if defined(PPRZ_TRIG_INT_COMPR_FLASH)
+    return pprz_trig_int_f(angle);
+  } else {
+    return -pprz_trig_int_f(-angle);
+#else
+    return pprz_trig_int[angle];
+  } else {
+    return -pprz_trig_int[-angle];
+#endif
+  }
+#endif
+}
+
+int32_t pprz_itrig_cos(int32_t angle)
+{
+  return pprz_itrig_sin(angle + INT32_ANGLE_PI_2);
+}
+
+
+/* http://jet.ro/files/The_neglected_art_of_Fixed_Point_arithmetic_20060913.pdf */
+/*
+ * Copyright (C) 2008-2009 Antoine Drouin <poinix@gmail.com>
+ *
+ * This file is part of paparazzi.
+ *
+ * paparazzi is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * paparazzi is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with paparazzi; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @file pprz_trig_int.c
+ * @brief Paparazzi fixed point trig functions.
+ *
+ */
+
+#include "pprz_trig_int.h"
+#include "pprz_algebra_int.h"
+#if !defined(PPRZ_TRIG_INT_USE_FLOAT)
+#if !defined(PPRZ_TRIG_INT_COMPR_FLASH) || defined(PPRZ_TRIG_INT_TEST)
+PPRZ_TRIG_CONST int16_t pprz_trig_int[6434] = {    0,
+                                                   3,     7,    11,    15,    19,    23,    27,    31,    35,    39,    43,    47,    51,    55,    59,    63,
+                                                   67,    71,    75,    79,    83,    87,    91,    95,    99,   103,   107,   111,   115,   119,   123,   127,
+                                                   131,   135,   139,   143,   147,   151,   155,   159,   163,   167,   171,   175,   179,   183,   187,   191,
+                                                   195,   199,   203,   207,   211,   215,   219,   223,   227,   231,   235,   239,   243,   247,   251,   255,
+                                                   259,   263,   267,   271,   275,   279,   283,   287,   291,   295,   299,   303,   307,   311,   315,   319,
+                                                   323,   327,   331,   335,   339,   343,   347,   351,   355,   359,   363,   367,   371,   375,   379,   383,
+                                                   387,   391,   395,   399,   403,   407,   411,   415,   419,   423,   427,   431,   435,   439,   443,   447,
+                                                   451,   455,   459,   463,   467,   471,   475,   479,   483,   487,   491,   495,   499,   503,   507,   511,
+                                                   515,   519,   523,   527,   531,   535,   539,   543,   547,   551,   555,   559,   563,   567,   571,   575,
+                                                   579,   583,   587,   591,   595,   599,   603,   607,   611,   615,   619,   623,   627,   631,   635,   639,
+                                                   643,   647,   651,   655,   659,   663,   667,   671,   675,   679,   683,   687,   691,   695,   699,   703,
+                                                   707,   711,   715,   719,   723,   727,   731,   735,   739,   743,   747,   751,   755,   759,   763,   767,
+                                                   771,   775,   779,   783,   787,   791,   795,   799,   803,   807,   811,   815,   819,   823,   827,   831,
+                                                   835,   839,   843,   847,   851,   855,   859,   863,   867,   871,   875,   879,   883,   887,   891,   895,
+                                                   899,   903,   907,   911,   915,   919,   923,   927,   931,   935,   939,   943,   947,   951,   955,   959,
+                                                   963,   967,   971,   975,   979,   983,   987,   991,   995,   999,  1003,  1007,  1011,  1015,  1019,  1023,
+                                                   1027,  1031,  1035,  1039,  1043,  1047,  1051,  1055,  1059,  1063,  1067,  1071,  1075,  1079,  1083,  1087,
+                                                   1091,  1095,  1099,  1103,  1107,  1111,  1115,  1119,  1123,  1127,  1131,  1135,  1139,  1143,  1147,  1151,
+                                                   1155,  1159,  1163,  1167,  1171,  1174,  1178,  1182,  1186,  1190,  1194,  1198,  1202,  1206,  1210,  1214,
+Entry.v
+Invariant.v
+NormalCorrespondence.v
+PureProgress.v
+SourceInvariant.v
+evidence
+{
+  "schema": "five-verification-request/1",
+  "authorization": "User requested complete sum2 noerror, termination, full actual CBMC recheck; concrete arithmetic observation plus unrestricted binary32 safety.",
+  "entry": "main",
+  "implementation": "prepare/source/sum2.c",
+  "assumptions": [],
+  "domain": "all binary32 a,b including NaNs, infinities and signed zeros for the first implementation call",
+  "properties": [
+    "automatic bounds/pointer/overflow/shift checks emitted by CBMC",
+    "concrete ties-to-even result for sum2(16777216.0f,1.0f), IEEE equality to positive finite 16777216.0f, equivalent to result bits 0x4b800000"
+  ],
+  "not_claimed": [
+    "universal cross-tool NaN payload bit equivalence"
+  ],
+  "bounds": {
+    "loops": "none",
+    "recursion": "none",
+    "unwind": 1
+  },
+  "target": {
+    "arch": "x86_64",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "harness": "cbmc/harness.c",
+  "memory_observation": "No pointers, unions, memcpy, byte observations, or user-visible writes; ordinary C automatic scalar objects only."
+}
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "sum2",
+  "stage": "five-align",
+  "status": "generated",
+  "input_handoff": "prepare/handoff.json",
+  "outputs": [
+    {
+      "path": "align/model/Source.v",
+      "sha256": "6605d81b08d60d60936c479f46b11deabc6dacade4e1446ce2f10cd63734fb0e"
+    },
+    {
+      "path": "align/model/Execution.v",
+      "sha256": "ae470887faa2ed9168348b51ab9e00cf65778cd4481e50b8c1f46e657c01fa07"
+    },
+    {
+      "path": "align/model/proof/Obligations.v",
+      "sha256": "e043ebc30aa13c02e159ab9be071d3ed1a0a950ccdf77df7139f7f766283a2e8"
+    },
+    {
+      "path": "align/model/compcert-manifest.json",
+      "sha256": "db3cc28f99b371b0b758e378381e11380e341a817763dd401d988a5be46c5780"
+    },
+    {
+      "path": "align/report/costs.json",
+      "sha256": "2e27a6206d870cfddb5cfd2c0ba741d1c31f25d1dd09c8a095041f9785d64af1"
+    },
+    {
+      "path": "align/model/spec-map.json",
+      "sha256": "58aaa361ee2adb70561498bcadf996c70f390c3ea02a059a890b51c9e6501b4a"
+    }
+  ],
+  "limitations": [
+    "Original standalone model export is unchanged; subsequently mapped real scalar-only CBMC harness property. See spec-map for exact observation and scope."
+  ],
+  "cbmc_handoff": "cbmc/handoff.json",
+  "cbmc_handoff_sha256": "a9de26b4ee425ff58c68199e3df99b173c2146a3b9c93c6378afa6517a90f56f",
+  "cbmc_mapping_status": "mapped"
+}
