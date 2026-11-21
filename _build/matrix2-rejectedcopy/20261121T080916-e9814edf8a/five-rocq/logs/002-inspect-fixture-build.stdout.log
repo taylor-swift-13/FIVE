@@ -1,0 +1,308 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceAllOrder Require Import PureDenotation CallfreeExecution PhaseComposition.
+From FiveGuidanceAllocation Require Import StackAllocation.
+From FiveGuidanceEntry Require Import StackCleanup FunctionAllocation.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FivePprzFloatMatInv2d Require Import Source Execution.
+From FiveInv2Case Require Import Contract Expressions Body MemoryEffects Certificates Closure.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition declares:=fn_params Source.f_float_mat_inv_2d++fn_vars Source.f_float_mat_inv_2d.
+Lemma declares_nodup:NoDup(map fst declares).
+Proof. vm_compute;repeat constructor;simpl;intuition discriminate. Qed.
+Theorem call_certificate:forall m bo bi po pi f,Inputs m bo bi po pi f->
+ exists mf P,certificate Execution.ge P(Returnstate(Result f)Kstop mf)/\P(Execution.entry(Args bo bi po pi)m)/\Post m mf bo bi po pi f.
+Proof. intros m bo bi po pi f[OI[W RD]].
+ pose proof(writable_valid m bo po 4 ltac:(lia)W)as VO.
+ pose proof(reads_valid m bi pi 4 f ltac:(lia)RD)as VI.
+ destruct(Cexec.do_alloc_variables Execution.ge empty_env m declares)as[e ma]eqn:ALLOC.
+ assert(AV:alloc_variables Execution.ge empty_env m declares e ma)by(pose proof(Cexec.do_alloc_variables_sound Execution.ge declares empty_env m)as H;rewrite ALLOC in H;exact H).
+ assert(ALL:forall id ty,In(id,ty)declares->exists bx,e!id=Some(bx,ty)/\~Mem.valid_block m bx/\Mem.range_perm ma bx 0(sizeof Execution.ge ty)Cur Freeable).
+ { intros id ty IX;pose proof(allocated_variable Execution.ge declares empty_env m id ty declares_nodup IX)as H;rewrite ALLOC in H;destruct H as(bx&L&F&V&P);exists bx;auto. }
+ destruct(ALL Source._inv_out(tptr tfloat)ltac:(left;reflexivity))as[bpo[EO[FO PO]]].
+ destruct(ALL Source._mat_in(tptr tfloat)ltac:(right;left;reflexivity))as[bpi[EI[FI PI]]].
+ destruct(ALL Source._det tfloat ltac:(right;right;left;reflexivity))as[bd[ED[FD PD]]].
+ assert(SEP:env_separated e)by(pose proof(allocation_env_separated Execution.ge declares empty_env m ltac:(intros id bx ty H;discriminate H)ltac:(intros id1 id2 bx t1 t2 H;discriminate H))as H;rewrite ALLOC in H;exact H).
+ assert(OUTENV:forall q,Mem.valid_block m q->forall id ty,e!id=Some(q,ty)->False).
+ { intros q V id ty LOOK;destruct(ALL id ty(allocated_environment_origin Execution.ge declares m e ma AV id q ty LOOK))as(bx&LOOK'&F&Q);rewrite LOOK in LOOK';injection LOOK' as EQ;subst bx;exact(F V). }
+ assert(OP:bpo<>bpi)by(intro EQ;subst bpo;pose proof(SEP _ _ _ _ _ EO EI);discriminate).
+ assert(OD:bpo<>bd)by(intro EQ;subst bpo;pose proof(SEP _ _ _ _ _ EO ED);discriminate).
+ assert(ID:bpi<>bd)by(intro EQ;subst bpi;pose proof(SEP _ _ _ _ _ EI ED);discriminate).
+ assert(EG:e!Source.___builtin_fabsf=None).
+ { destruct(e!Source.___builtin_fabsf)as[[bx ty]|]eqn:LOOK;auto;exfalso.
+ pose proof(allocated_environment_origin Execution.ge declares m e ma AV Source.___builtin_fabsf bx ty LOOK)as IN.
+ cbn[declares fn_params fn_vars Source.f_float_mat_inv_2d]in IN;repeat destruct IN as[EQ|IN];try contradiction;inversion EQ. }
+ assert(WO:Mem.valid_access ma Mptr bpo 0 Writable).
+ { apply Mem.valid_access_freeable_any;split;[intros ofs Q;apply PO;change(0<=ofs<8);exact Q|exists 0;lia]. }
+ destruct(Mem.valid_access_store ma Mptr bpo 0(Vptr bo po)WO)as[mb SO].
+ assert(WI:Mem.valid_access mb Mptr bpi 0 Writable).
+ { eapply Mem.store_valid_access_1;[exact SO|];apply Mem.valid_access_freeable_any;split;[intros ofs Q;apply PI;change(0<=ofs<8);exact Q|exists 0;lia]. }
+ destruct(Mem.valid_access_store mb Mptr bpi 0(Vptr bi pi)WI)as[mc SI].
+ assert(BIND:bind_parameters Execution.ge e ma(fn_params Source.f_float_mat_inv_2d)(Args bo bi po pi)mc).
+ { eapply bind_parameters_cons;[exact EO| |].
+ - eapply assign_loc_value;[reflexivity|reflexivity|];unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true by(change(8<=18446744073709551616);lia);exact SO.
+ - eapply bind_parameters_cons;[exact EI| |constructor].
+   eapply assign_loc_value;[reflexivity|reflexivity|];unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true by(change(8<=18446744073709551616);lia);exact SI. }
+ assert(LO:Mem.load Mptr mc bpo 0=Some(Vptr bo po))by(erewrite Mem.load_store_other by(exact SI||(left;exact OP));erewrite Mem.load_store_same by exact SO;reflexivity).
+ assert(LI:Mem.load Mptr mc bpi 0=Some(Vptr bi pi))by(erewrite Mem.load_store_same by exact SI;reflexivity).
+ assert(WA:WriteRegion ma bo po 4).
+ { destruct W as[AL[NW RP]];repeat split;auto;intros z B;pose proof(allocation_perm Execution.ge declares empty_env m bo z Cur Writable(RP z B))as H;rewrite ALLOC in H;exact H. }
+ assert(WC:WriteRegion mc bo po 4)by(eapply writable_store_preserved;[|exact SI];eapply writable_store_preserved;[exact WA|exact SO]).
+ assert(RA:Reads ma bi pi 4 f).
+ { destruct RD as[AL[NW L]];repeat split;auto;intros i B;pose proof(allocation_load Execution.ge declares empty_env m Mfloat32 bi(Ptrofs.unsigned pi+4*i)(Vsingle(f i))(L i B))as H;rewrite ALLOC in H;exact H. }
+ assert(RC:Reads mc bi pi 4 f).
+ { eapply reads_store_preserved;[| |exact SI];[|intro EQ;subst bpi;exact(FI VI)].
+ eapply reads_store_preserved;[exact RA| |exact SO];intro EQ;subst bpo;exact(FO VI). }
+ assert(WD:Mem.valid_access mc Mfloat32 bd 0 Writable).
+ { eapply Mem.store_valid_access_1;[exact SI|];eapply Mem.store_valid_access_1;[exact SO|];apply Mem.valid_access_freeable_any;split;[intros ofs Q;apply PD;change(0<=ofs<4);exact Q|exists 0;lia]. }
+ destruct(Mem.valid_access_store mc Mfloat32 bd 0(Vsingle(Det f))WD)as[md SD].
+ assert(WDD:WriteRegion md bo po 4)by(eapply writable_store_preserved;eauto).
+ assert(EX:exists me,Branch md bo po f me).
+ { unfold Branch;destruct(Reject f);[exists md;reflexivity|destruct(writes_exist(Outputs f)md bo po 4 WDD(output_bounds f))as[me ST];exists me;exact ST]. }
+ destruct EX as[me BR].
+ assert(FREER:forall id bx ty,e!id=Some(bx,ty)->Mem.range_perm me bx 0(sizeof Execution.ge ty)Cur Freeable).
+ { intros id bx ty LOOK;destruct(ALL id ty(allocated_environment_origin Execution.ge declares m e ma AV id bx ty LOOK))as(bx'&LOOK'&F&Q);rewrite LOOK in LOOK';injection LOOK' as EQ;subst bx'.
+ intros ofs RANGE;eapply branch_permissions;[exact BR|];eapply Mem.perm_store_1;[exact SD|];eapply Mem.perm_store_1;[exact SI|];eapply Mem.perm_store_1;[exact SO|];apply Q;exact RANGE. }
+ destruct(free_environment Execution.ge e me SEP FREER)as[mf[FREE[KEEP ACCESS]]].
+ destruct(body_certificate e mc bpo bpi bd bo bi po pi f md me mf EO EI ED EG LO LI WC RC OI ltac:(intro EQ;subst bpo;exact(FO VO))ltac:(intro EQ;subst bpi;exact(FI VO))ltac:(intro EQ;subst bd;exact(FD VO))ltac:(intro EQ;subst bd;exact(FD VI))OD ID SD BR FREE)as[P[PC PE]].
+ assert(SB:Cexec.sem_bind_parameters Execution.ge quiet_world e ma(fn_params Source.f_float_mat_inv_2d)(Args bo bi po pi)=Some mc)by(apply Cexec.sem_bind_parameters_complete;exact BIND).
+ assert(ND:list_norepet(var_names(fn_params Source.f_float_mat_inv_2d)++var_names(fn_vars Source.f_float_mat_inv_2d)))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ pose proof(internal_unique Execution.ge Source.f_float_mat_inv_2d(Args bo bi po pi)m e ma mc ND ALLOC SB)as ENTRY.
+ pose proof(prepend_certificate _ _ _ _ _ ENTRY PC PE)as CERT.
+ assert(PREBYTES:forall q z n,Mem.valid_block m q->Mem.loadbytes md q z n=Mem.loadbytes m q z n).
+ { intros q z n VQ;erewrite Mem.loadbytes_store_other by(exact SD||(left;intro EQ;subst q;exact(FD VQ))).
+ erewrite Mem.loadbytes_store_other by(exact SI||(left;intro EQ;subst q;exact(FI VQ))).
+ erewrite Mem.loadbytes_store_other by(exact SO||(left;intro EQ;subst q;exact(FO VQ))).
+ pose proof(allocation_bytes_frame Execution.ge declares empty_env m q z n VQ)as H;rewrite ALLOC in H;exact H. }
+ assert(RDD:Reads md bi pi 4 f)by(eapply reads_store_preserved;[exact RC| |exact SD];intro EQ;subst bd;exact(FD VI)).
+ assert(RME:Reads me bi pi 4 f)by(eapply branch_reads;[exact BR|exact RDD|congruence]).
+ exists mf; eexists;split;[exact CERT|];split;[left;reflexivity|].
+ unfold Post;split.
+ - pose proof(branch_writable md bo po f me BR WDD)as[AL[NW RP]];split;[exact AL|];split;[exact NW|].
+ eapply range_perm_access_preserved_block;[|exact RP];intros ch ofs perm VA;apply(ACCESS ch bo ofs perm(OUTENV bo VO));exact VA.
+ - split.
+ + destruct RME as[AL[NW L]];repeat split;auto;intros i B;rewrite(KEEP Mfloat32 bi(Ptrofs.unsigned pi+4*i)(OUTENV bi VI));apply L;exact B.
+ + split.
+ * intros q z n VQ OUT;erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV q VQ));rewrite(branch_frame md bo po f me BR q z n OUT);apply PREBYTES;exact VQ.
+ * split.
+ -- intros q VQ;eapply free_list_valid;[exact FREE|];eapply branch_valid;[exact BR|];eapply Mem.store_valid_block_1;[exact SD|];eapply Mem.store_valid_block_1;[exact SI|];eapply Mem.store_valid_block_1;[exact SO|].
+ pose proof(allocation_valid_block Execution.ge declares empty_env m q VQ)as H;rewrite ALLOC in H;exact H.
+ -- split.
+ ++ erewrite free_environment_bytes_frame by(exact FREE||exact(OUTENV bo VO));rewrite(branch_bytes md bo po f me BR);destruct(Reject f);[apply PREBYTES;exact VO|reflexivity].
+ ++ intros ch q z perm VQ VA;apply(ACCESS ch q z perm(OUTENV q VQ));eapply branch_access;[exact BR|];eapply Mem.store_valid_access_1;[exact SD|];eapply Mem.store_valid_access_1;[exact SI|];eapply Mem.store_valid_access_1;[exact SO|].
+ pose proof(allocation_access Execution.ge declares empty_env m ch q z perm VA)as H;rewrite ALLOC in H;exact H.
+Qed.
+Theorem call_summary:forall m bo bi po pi f,Inputs m bo bi po pi f->exists mf,
+ (exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Result f)Kstop mf))/\Post m mf bo bi po pi f/\
+ no_error Execution.ge(Execution.entry(Args bo bi po pi)m)/\
+ (forall t result after,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop after)->result=Result f/\after=mf).
+Proof. intros m bo bi po pi f IN;destruct(call_certificate m bo bi po pi f IN)as[mf[P[CERT[PI POST]]]].
+ exists mf;split;[eapply accessible_certificate_reaches;[exact CERT|exact PI|apply Closure.all_successor_termination]|].
+ split;[exact POST|];split;[eapply certificate_safety;eauto|eapply certificate_normal_unique;eauto]. Qed.
+Print Assumptions call_certificate.
+Print Assumptions call_summary.
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats Values.
+From FiveInv2Case Require Import Contract.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition trace_input_words:list Z := [4272023241;1066696119;15406124;1877109524].
+Definition trace_input(i:Z):float32:=Float32.of_bits(Int.repr(nth(Z.to_nat i)trace_input_words 0)).
+Definition trace_output_words:list Z := [2147483648;0;0;0].
+Definition initial_fixture(i:Z):float32:=Float32.of_bits(Int.repr(if Z.eq_dec i 0 then 1099431936 else if Z.eq_dec i 3 then 1099431936 else 0)).
+Definition initial_guarded(_:Z):float32:=Float32.of_bits Int.zero.
+Theorem original_arbitrary_trace_kernel:Result trace_input=Vint Int.zero /\Float32.to_bits(Det trace_input)=Int.repr 4286578688 /\
+ map(fun i=>Float32.to_bits(Output trace_input i))[0;1;2;3]=map Int.repr trace_output_words.
+Proof. vm_compute;repeat split;reflexivity. Qed.
+Theorem original_initial_fixture_words:map(fun i=>Float32.to_bits(initial_fixture i))[0;1;2;3]=map Int.repr[1099431936;0;0;1099431936].
+Proof. vm_compute;reflexivity. Qed.
+Print Assumptions original_arbitrary_trace_kernel.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Integers Floats AST Values Memory Events Csem Smallstep.
+From FiveGuidanceEntry Require Import StackCleanup.
+From FiveMatInv3Case Require Import MatrixMemory GuardWitness PairExtend.
+From FiveInv2Case Require Import Contract Replay TraceInputs.
+From FiveMatrixInverseSupport Require Import Kernels.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma extension_reads:forall m0 m,LoadPreserved m0 m->forall b p n f,0<n->Reads m0 b p n f->Reads m b p n f.
+Proof. intros m0 m KEEP b p n f N RD;pose proof(reads_valid m0 b p n f N RD)as V;destruct RD as[AL[NW L]];repeat split;auto;intros i B;rewrite KEEP by exact V;apply L;exact B. Qed.
+Lemma extension_writable:forall m0 m,AccessPreserved m0 m->forall b p n,WriteRegion m0 b p n->WriteRegion m b p n.
+Proof. intros m0 m KEEP b p n[AL[NW RP]];split;[exact AL|];split;[exact NW|];eapply range_perm_access_preserved_block;[intros ch ofs perm VA;exact(KEEP ch b ofs perm VA)|exact RP]. Qed.
+Lemma extension_inputs:forall m0 m,LoadPreserved m0 m->AccessPreserved m0 m->forall bo bi po pi f,Inputs m0 bo bi po pi f->Inputs m bo bi po pi f.
+Proof. intros m0 m L A bo bi po pi f[NE[W RD]];split;[exact NE|];split;[eapply extension_writable;eauto|eapply extension_reads;eauto;lia]. Qed.
+Lemma extension_guarded:forall m0 m,LoadPreserved m0 m->AccessPreserved m0 m->forall bo bi f,Guarded 4 m0 bo bi f->Guarded 4 m bo bi f.
+Proof. intros m0 m L A bo bi f[NE[W[RD[OLD[BE AF]]]]].
+ pose proof(writable_valid m0 bo(Ptrofs.repr 4)4 ltac:(lia)W)as V.
+ split;[exact NE|];split;[eapply extension_writable;eauto|];split;[eapply extension_reads;eauto;lia|];split;[eapply extension_reads;eauto;lia|].
+ split;[rewrite L by exact V;exact BE|rewrite L by exact V;exact AF]. Qed.
+Definition InitializedLayout(m:mem)(og ig ob ib os is0 ol il:block):Prop:=
+ Guarded 4 m og ig trace_input /\Inputs m ob ib Ptrofs.zero Ptrofs.zero base2 /\Inputs m os is0 Ptrofs.zero Ptrofs.zero small2 /\Inputs m ol il Ptrofs.zero Ptrofs.zero large2 /\
+ Reads m ob Ptrofs.zero 4 initial_fixture /\Reads m os Ptrofs.zero 4 initial_fixture /\Reads m ol Ptrofs.zero 4 initial_fixture /\Separate og ig ob ib os is0 ol il.
+Theorem initialized_layout_inhabited:exists m og ig ob ib os is0 ol il,InitializedLayout m og ig ob ib os is0 ol il.
+Proof.
+ destruct(matrix4_guarded trace_input)as[m0[og[ig GG]]].
+ pose proof GG as[NG[WG[RG RESTG]]].
+ pose proof(writable_valid m0 og(Ptrofs.repr 4)4 ltac:(lia)WG)as VG0.
+ destruct(pair4_extend m0 base2 initial_fixture)as[m1[ob[ib[NB[WB[RB[OB[FOB[FIB[B1[L1[A1 V1]]]]]]]]]]]].
+ assert(IB1:Inputs m1 ob ib Ptrofs.zero Ptrofs.zero base2)by(split;[exact NB|];split;[exact WB|exact RB]).
+ pose proof(writable_valid m1 ob Ptrofs.zero 4 ltac:(lia)WB)as VB1.
+ pose proof(V1 og VG0)as VG1.
+ destruct(pair4_extend m1 small2 initial_fixture)as[m2[os[is0[NS[WS[RS[OS[FOS[FIS[B2[L2[A2 V2]]]]]]]]]]]].
+ assert(IS2:Inputs m2 os is0 Ptrofs.zero Ptrofs.zero small2)by(split;[exact NS|];split;[exact WS|exact RS]).
+ pose proof(writable_valid m2 os Ptrofs.zero 4 ltac:(lia)WS)as VS2.
+ pose proof(V2 og VG1)as VG2;pose proof(V2 ob VB1)as VB2.
+ destruct(pair4_extend m2 large2 initial_fixture)as[m3[ol[il[NL[WL[RL[OL[FOL[FIL[B3[L3[A3 V3]]]]]]]]]]]].
+ assert(IL3:Inputs m3 ol il Ptrofs.zero Ptrofs.zero large2)by(split;[exact NL|];split;[exact WL|exact RL]).
+ exists m3,og,ig,ob,ib,os,is0,ol,il;unfold InitializedLayout;split.
+ - eapply extension_guarded;[exact L3|exact A3|];eapply extension_guarded;[exact L2|exact A2|];eapply extension_guarded;eauto.
+ - split.
+ + eapply extension_inputs;[exact L3|exact A3|];eapply extension_inputs;eauto.
+ + split.
+ * eapply extension_inputs;eauto.
+ * split;[exact IL3|];split.
+ -- eapply extension_reads;[exact L3|lia|];eapply extension_reads;eauto;lia.
+ -- split;[eapply extension_reads;eauto;lia|];split;[exact OL|].
+ constructor;intro EQ;subst;first[exact(FOB VG0)|exact(FIB VG0)|exact(FOS VG1)|exact(FIS VG1)|exact(FOL VG2)|exact(FIL VG2)|exact(FOS VB1)|exact(FIS VB1)|exact(FOL VB2)|exact(FIL VB2)|exact(FOL VS2)|exact(FIL VS2)].
+Qed.
+Definition TraceNonempty:Prop:=exists m og ig ob ib os is0 ol il ma mb mc md,
+ InitializedLayout m og ig ob ib os is0 ol il /\
+ NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+ NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+ NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+ NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+Theorem original_trace_nonempty:TraceNonempty.
+Proof. destruct initialized_layout_inhabited as[m[og[ig[ob[ib[os[is0[ol[il LAYOUT]]]]]]]]].
+ pose proof LAYOUT as[GG[IB[IS[IL[OB[OS[OL SEP]]]]]]].
+ pose proof GG as[NE[W[RD OTHER]]];assert(IG:Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input)by(split;[exact NE|];split;[exact W|exact RD]).
+ destruct(original_trace_four_calls m og ig ob ib os is0 ol il IG IB IS IL SEP)as[ma[mb[mc[md CALLS]]]].
+ exists m,og,ig,ob,ib,os,is0,ol,il,ma,mb,mc,md;split;assumption. Qed.
+Print Assumptions initialized_layout_inhabited.
+Print Assumptions original_trace_nonempty.
+import sys,pathlib,json,shlex
+root=pathlib.Path('/home/yangfp/five');sys.path.insert(0,str(root/'scripts'))
+from five_telemetry import Run
+r=Run(root/'_build/matrix-inv2-csem/20261121T053400-bcb2c9a12c/five-rocq')
+prepare=r"""
+import sys,pathlib,json,shutil,datetime,importlib.util
+root=pathlib.Path('/home/yangfp/five')
+s=importlib.util.spec_from_file_location('e',root/'paparazzi/report/quat_rotation_paths/evidence_tools.py');e=importlib.util.module_from_spec(s);s.loader.exec_module(e)
+maps={'FiveShared':'shared','FiveGuidanceSemantics':'paparazzi/relations/guidance_mode/support/semantics','FiveGuidanceAllOrder':'paparazzi/relations/guidance_mode/support/allorder','FiveGuidanceAllocation':'paparazzi/relations/guidance_mode/support/allocation','FiveGuidanceEntry':'paparazzi/relations/guidance_mode/support/entry','FiveLowpassSupport':'paparazzi/relations/lowpass_recovery/support','FiveMatInv3Case':'paparazzi/models/float_mat_inv_3d/rocq/support','FiveInv2Case':'paparazzi/models/float_mat_inv_2d/rocq/support','FivePprzFloatMatInv2d':'paparazzi/models/float_mat_inv_2d/align/model','FiveInv2Correspondence':'paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem','FiveInv2Termination':'paparazzi/models/float_mat_inv_2d/rocq/termination/problem','FiveInv2NoError':'paparazzi/models/float_mat_inv_2d/rocq/no_error/problem','FiveInv2Functional':'paparazzi/models/float_mat_inv_2d/rocq/functional/problem','FiveInv2Recheck':'paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem','FiveMatrixInverseSupport':'paparazzi/relations/matrix_inverse_scale/support','FivePprzFloatMatInv3d':'paparazzi/models/float_mat_inv_3d/align/model'}
+roots=sys.argv[1:];modules={}
+for kind,ns in [('termination','FiveInv2Termination'),('execution_correspondence','FiveInv2Correspondence'),('no_error','FiveInv2NoError'),('functional','FiveInv2Functional'),('cbmc_recheck','FiveInv2Recheck')]:modules[ns+'.Proof']='paparazzi/models/float_mat_inv_2d/rocq/'+kind+'/attempts/001/Proof.v'
+order=e.dependency_order(root,maps,modules,roots)
+build=root/'_build/matrix-inv2-csem/development/current';build.mkdir(parents=True,exist_ok=True)
+history=root/'_build/matrix-inv2-csem/development/history'/datetime.datetime.now().strftime('%Y%m%dT%H%M%S%f');history.mkdir(parents=True)
+flags=[]
+for name in maps:
+ d=build/name;d.mkdir(exist_ok=True);flags+=['-Q',str(d),name]
+rows=[];dirty={}
+for name,src in order:
+ prefix=max([n for n in maps if name.startswith(n+'.')],key=len);dst=build/prefix/pathlib.Path(*name[len(prefix)+1:].split('.')).with_suffix('.v');dst.parent.mkdir(parents=True,exist_ok=True)
+ dependency_newer=False
+ for child in e.imports(src):
+  prefixes=[n for n in maps if child.startswith(n+'.')]
+  if prefixes and dst.with_suffix('.vo').exists():
+   cp=max(prefixes,key=len);cv=(build/cp/pathlib.Path(*child[len(cp)+1:].split('.'))).with_suffix('.vo')
+   if cv.exists() and cv.stat().st_mtime_ns>dst.with_suffix('.vo').stat().st_mtime_ns:dependency_newer=True
+ changed=dependency_newer or not dst.exists() or dst.read_bytes()!=src.read_bytes() or not dst.with_suffix('.vo').exists() or any(dirty.get(child,False) for child in e.imports(src))
+ snapshot=history/dst.relative_to(build);snapshot.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(src,snapshot)
+ if changed:shutil.copyfile(src,dst);rows.append((name,str(dst)))
+ dirty[name]=changed
+print(json.dumps({'flags':flags,'rows':rows,'build':str(build)}))
+"""
+try:
+ c=r.command(['python3','-c',prepare,*sys.argv[1:]],'stage-development-closure',60,cwd=root)
+ plan=json.loads((r.folder/c['stdout']).read_text());print(plan['build'],flush=True)
+ for name,path in plan['rows']:
+  command='source scripts/env.sh && rocq compile '+shlex.join(plan['flags']+[path])
+  c=r.command(['bash','-lc',command],'development-'+name.replace('.','-'),150,cwd=root)
+  print(name+': passed',flush=True)
+
+except Exception as exc:
+ print(str(exc),flush=True);sys.exit(1)
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition WriteRegion (m:mem)(b:block)(p:ptrofs)(n:Z):Prop :=
+ (4 | Ptrofs.unsigned p) /\ Ptrofs.unsigned p+4*n<=Ptrofs.modulus /\
+ Mem.range_perm m b(Ptrofs.unsigned p)(Ptrofs.unsigned p+4*n)Cur Writable.
+Definition Reads(m:mem)(b:block)(p:ptrofs)(n:Z)(f:Z->float32):Prop :=
+ (4|Ptrofs.unsigned p) /\ Ptrofs.unsigned p+4*n<=Ptrofs.modulus /\
+ (forall i,0<=i<n->Mem.load Mfloat32 m b(Ptrofs.unsigned p+4*i)=Some(Vsingle(f i))).
+Lemma index_pointer:forall p n i,
+ Ptrofs.unsigned p+4*n<=Ptrofs.modulus->0<=i<n->
+ Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr(4*i)))=Ptrofs.unsigned p+4*i.
+Proof. intros p n i NW B;rewrite Ptrofs.add_unsigned.
+ rewrite(Ptrofs.unsigned_repr(4*i)) by(pose proof(Ptrofs.unsigned_range p);change Ptrofs.max_unsigned with 18446744073709551615;change Ptrofs.modulus with 18446744073709551616 in NW;lia).
+ apply Ptrofs.unsigned_repr;pose proof(Ptrofs.unsigned_range p);change Ptrofs.max_unsigned with 18446744073709551615;change Ptrofs.modulus with 18446744073709551616 in NW;lia. Qed.
+Lemma writable_access:forall m b p n i,WriteRegion m b p n->0<=i<n->
+ Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+4*i)Writable.
+Proof. intros m b p n i[AL[NW RP]]B;split.
+ - intros z R;apply RP;cbn[size_chunk]in R;lia.
+ - change(4|Ptrofs.unsigned p+4*i);destruct AL as[k K];exists(k+i);lia. Qed.
+Lemma writable_store:forall m b p n i x,WriteRegion m b p n->0<=i<n->
+ exists mf,Mem.store Mfloat32 m b(Ptrofs.unsigned p+4*i)(Vsingle x)=Some mf.
+Proof. intros m b p n i x W B;destruct(Mem.valid_access_store m Mfloat32 b(Ptrofs.unsigned p+4*i)(Vsingle x)(writable_access m b p n i W B))as[mf ST];exists mf;exact ST. Qed.
+Lemma writable_store_preserved:forall m b p n ch q z v mf,
+ WriteRegion m b p n->Mem.store ch m q z v=Some mf->WriteRegion mf b p n.
+Proof. intros m b p n ch q z v mf[AL[NW RP]]ST;repeat split;auto;intros z' B;eapply Mem.perm_store_1;[exact ST|apply RP;exact B]. Qed.
+Lemma reads_store_preserved:forall m b p n f ch q z v mf,
+ Reads m b p n f->b<>q->Mem.store ch m q z v=Some mf->Reads mf b p n f.
+Proof. intros m b p n f ch q z v mf[AL[NW RD]]NE ST;repeat split;auto;intros i B;erewrite Mem.load_store_other by(exact ST||(left;congruence));apply RD;exact B. Qed.
+Lemma reads_valid:forall m b p n f,0<n->Reads m b p n f->Mem.valid_block m b.
+Proof. intros m b p n f N[_[_ RD]];eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact(RD 0 ltac:(lia))|constructor]. Qed.
+Lemma writable_valid:forall m b p n,0<n->WriteRegion m b p n->Mem.valid_block m b.
+Proof. intros m b p n N W;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact(writable_access m b p n 0 W ltac:(lia))|constructor]. Qed.
+Fixpoint Writes(m:mem)(b:block)(base:Z)(xs:list(Z*float32))(mf:mem):Prop :=
+ match xs with []=>mf=m|(i,x)::tail=>exists m1,Mem.store Mfloat32 m b(base+4*i)(Vsingle x)=Some m1 /\ Writes m1 b base tail mf end.
+Lemma writes_exist:forall xs m b p n,WriteRegion m b p n->(forall i x,In(i,x)xs->0<=i<n)->exists mf,Writes m b(Ptrofs.unsigned p)xs mf.
+Proof. induction xs as[|[i x]xs IH];intros m b p n W B;[exists m;reflexivity|].
+ destruct(writable_store m b p n i x W(B i x(or_introl eq_refl)))as[m1 ST].
+ destruct(IH m1 b p n(writable_store_preserved _ _ _ _ _ _ _ _ _ W ST)ltac:(intros j y IN;apply B with y;right;exact IN))as[mf REST].
+ exists mf,m1;auto.
+Qed.
+
+Lemma writes_permissions:forall xs m b base mf,Writes m b base xs mf->
+ forall q z k perm,Mem.perm m q z k perm->Mem.perm mf q z k perm.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q z k perm P;cbn[Writes]in WR;[subst mf;exact P|].
+ destruct WR as[m1[ST REST]];eapply IH;[exact REST|];eapply Mem.perm_store_1;eauto. Qed.
+Lemma writes_access:forall xs m b base mf,Writes m b base xs mf->
+ forall ch q z perm,Mem.valid_access m ch q z perm->Mem.valid_access mf ch q z perm.
+Proof. intros xs m b base mf WR ch q z perm[P AL];split;auto;intros off B;eapply writes_permissions;[exact WR|];apply P;exact B. Qed.
+Lemma writes_writable:forall xs m b base mf p n,Writes m b base xs mf->
+ WriteRegion m b p n->WriteRegion mf b p n.
+Proof. intros xs m b base mf p n WR[AL[NW RP]];repeat split;auto;intros z B;eapply writes_permissions;[exact WR|apply RP;exact B]. Qed.
+Lemma writes_unaffected:forall xs m b base mf,Writes m b base xs mf->
+ forall q z n,(forall i x,In(i,x)xs->q<>b \/ z+n<=base+4*i \/ base+4*i+4<=z)->
+ Mem.loadbytes mf q z n=Mem.loadbytes m q z n.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q z n OUT;cbn[Writes]in WR;[subst mf;reflexivity|].
+ destruct WR as[m1[ST REST]].
+ rewrite(IH m1 b base mf REST q z n ltac:(intros j y IN;apply OUT with y;right;exact IN)).
+ eapply Mem.loadbytes_store_other;[exact ST|];pose proof(OUT i x(or_introl eq_refl));cbn[size_chunk];tauto. Qed.
+Lemma writes_frame:forall xs m b p n mf,Writes m b(Ptrofs.unsigned p)xs mf->
+ (forall i x,In(i,x)xs->0<=i<n)->forall q z count,
+ q<>b \/ z+count<=Ptrofs.unsigned p \/ Ptrofs.unsigned p+4*n<=z->
+ Mem.loadbytes mf q z count=Mem.loadbytes m q z count.
+Proof. intros xs m b p n mf WR B q z count OUT;eapply writes_unaffected;[exact WR|].
+ intros i x IN;specialize(B i x IN);destruct OUT as[NE|[L|R]];[left;exact NE|right;left;lia|right;right;lia]. Qed.
+Lemma writes_bytes:forall xs m b base mf,Writes m b base xs mf->NoDup(map fst xs)->
+ forall i x,In(i,x)xs->Mem.loadbytes mf b(base+4*i)4=Some(encode_val Mfloat32(Vsingle x)).
+Proof. induction xs as[|[j y]xs IH];intros m b base mf WR ND i x IN;[contradiction|].
+ destruct WR as[m1[ST REST]];inversion ND as[|head tail NIN ND'];subst;destruct IN as[EQ|IN].
+ - inversion EQ;subst j y.
+   rewrite(writes_unaffected xs m1 b base mf REST b(base+4*i)4).
+   + exact(Mem.loadbytes_store_same _ _ _ _ _ _ ST).
+   + intros j y IN;assert(j<>i)by(intro EJI;subst j;apply NIN;apply in_map with (f:=@fst Z float32) in IN;exact IN).
+     right;destruct(Z_lt_ge_dec i j);[left|right];lia.
+ - eapply IH;eauto.
+Qed.
+Lemma writes_reads_other:forall xs m b base mf,Writes m b base xs mf->
+ forall q p n f,Reads m q p n f->q<>b->Reads mf q p n f.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q p n f RD NE;cbn[Writes]in WR;[subst mf;exact RD|].
+ destruct WR as[m1[ST REST]];eapply IH;[exact REST|eapply reads_store_preserved;eauto|exact NE]. Qed.
+Print Assumptions writes_bytes.
+Print Assumptions writes_frame.

@@ -1,0 +1,70 @@
+Proof.
+intros x Hx.
+rewrite Hx.
+eexists.
+apply (conj eq_refl).
+unfold canonical.
+now rewrite <- Hx.
+Qed.
+
+Theorem generic_format_bpow :
+  forall e, (fexp (e + 1) <= e)%Z ->
+  generic_format (bpow e).
+Proof.
+intros e H.
+unfold generic_format, scaled_mantissa, cexp.
+rewrite mag_bpow.
+rewrite <- bpow_plus.
+(* UP *)
+split.
+apply Rle_trans with (1 := proj1 Hx).
+apply Rmult_le_reg_r with (bpow (- fexp ex)).
+apply bpow_gt_0.
+rewrite Rmult_assoc, <- bpow_plus, Zplus_opp_r, Rmult_1_r.
+apply Zceil_ub.
+pattern ex at 3 ; replace ex with (ex - fexp ex + fexp ex)%Z by ring.
+rewrite bpow_plus.
+apply Rmult_le_compat_r.
+apply bpow_ge_0.
+assert (Hf: IZR (Zpower beta (ex - fexp ex)) = bpow (ex - fexp ex)).
+apply IZR_Zpower.
+lia.
+rewrite <- Hf.
+apply IZR_le.
+apply Zceil_glb.
+rewrite Hf.
+unfold Zminus.
+rewrite bpow_plus.
+apply Rmult_le_compat_r.
+92-  destruct H as [Hr [Hf Hs]]. split; assumption.
+93-Qed.
+94-
+95-Lemma mul_finite_real : forall x y, finite x -> finite y ->
+96-  Rabs (r32 x * r32 y) <= 8 ->
+97-  finite (Float32.mul x y) /\ r32 (Float32.mul x y) = RN (r32 x * r32 y).
+98-Proof.
+99-  intros x y Fx Fy Hxy.
+100:  pose proof (Bmult_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y) as H.
+101-  pose proof (RN_safe _ Hxy) as Hb.
+102-  unfold RN, r32 in Hb.
+103-  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+104-  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+105-  rewrite Hb in H.
+106-  destruct H as [Hr [Hf Hs]]. split; [|exact Hr].
+107-  unfold finite in Fx,Fy. rewrite Fx,Fy in Hf. exact Hf.
+108-Qed.
+109-
+110-Lemma div_finite_real : forall x y, finite x -> finite y -> r32 y <> 0 ->
+111-  Rabs (r32 x / r32 y) <= 8 ->
+112-  finite (Float32.div x y) /\ r32 (Float32.div x y) = RN (r32 x / r32 y).
+113-Proof.
+114-  intros x y Fx Fy Hy Hxy.
+115-  pose proof (Bdiv_correct 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE x y Hy) as H.
+116-  pose proof (RN_safe _ Hxy) as Hb.
+117-  unfold RN, r32 in Hb.
+118-  change (FLT_exp (-149) 24) with (SpecFloat.fexp 24 128) in Hb.
+119-  change ZnearestE with (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE) in Hb.
+120-  rewrite Hb in H.
+121-  destruct H as [Hr [Hf Hs]]. split; [|exact Hr].
+122-  unfold finite in Fx. rewrite Fx in Hf. exact Hf.
+123-Qed.

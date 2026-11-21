@@ -1,0 +1,21 @@
+330:Definition of_bits (b: int64): float := b64_of_bits (Int64.unsigned b).
+443:  forall f, of_bits (to_bits f) = f.
+445:  intros; unfold of_bits, to_bits, bits_of_b64, b64_of_bits.
+452:  forall b, to_bits (of_bits b) = b.
+454:  intros; unfold of_bits, to_bits, bits_of_b64, b64_of_bits.
+455:  rewrite bits_of_binary_float_of_bits. apply Int64.repr_unsigned.
+624:  intros; unfold from_words, of_bits, b64_of_bits, binary_float_of_bits.
+626:  unfold binary_float_of_bits_aux; rewrite split_bits_or; simpl; pose proof (Int.unsigned_range x).
+706:  intros; unfold from_words, of_bits, b64_of_bits, binary_float_of_bits.
+708:  unfold binary_float_of_bits_aux; rewrite split_bits_or'; simpl; pose proof (Int.unsigned_range x).
+1105:Definition of_bits (b: int): float32 := b32_of_bits (Int.unsigned b).
+1205:  forall f, of_bits (to_bits f) = f.
+1207:  intros; unfold of_bits, to_bits, bits_of_b32, b32_of_bits.
+1214:  forall b, to_bits (of_bits b) = b.
+1216:  intros; unfold of_bits, to_bits, bits_of_b32, b32_of_bits.
+1217:  rewrite bits_of_binary_float_of_bits. apply Int.repr_unsigned.
+1457:  Float.to_bits Float.of_bits Float.from_words.
+1464:  Float32.to_bits Float32.of_bits.
+562:Ltac solve_decode_encode_val_general :=
+578:Lemma decode_encode_val_general:
+586:  repeat solve_decode_encode_val_general.

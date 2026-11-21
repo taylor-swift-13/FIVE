@@ -1,0 +1,51 @@
+File "/home/yangfp/five/paparazzi/relations/matrix_inverse_scale/support/Dyadic.v", line 43, characters 38-50:
+Error:
+In environment
+a, b : Z
+A : -126 <= a <= 127
+B : -126 <= b <= 127
+C : -126 <= a + b <= 127
+H :
+  if
+   Rlt_bool
+     (Rabs
+        (round radix2 (SpecFloat.fexp 24 128)
+           (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)
+           (bpow radix2 (a + b))))
+     (bpow radix2 128)
+  then
+   B2R 24 128
+     (Bmult 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+        (power32 a) (power32 b)) =
+   round radix2 (SpecFloat.fexp 24 128)
+     (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)
+     (bpow radix2 (a + b)) /\
+   is_finite 24 128
+     (Bmult 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+        (power32 a) (power32 b)) =
+   (is_finite 24 128 (power32 a) && is_finite 24 128 (power32 b))%bool /\
+   (is_nan 24 128
+      (Bmult 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+         (power32 a) (power32 b)) =
+    false ->
+    Bsign 24 128
+      (Bmult 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+         (power32 a) (power32 b)) =
+    xorb (Bsign 24 128 (power32 a)) (Bsign 24 128 (power32 b)))
+  else
+   B2FF 24 128
+     (Bmult 24 128 eq_refl eq_refl Float32.binop_nan BinarySingleNaN.mode_NE
+        (power32 a) (power32 b)) =
+   binary_overflow 24 128 BinarySingleNaN.mode_NE
+     (xorb (Bsign 24 128 (power32 a)) (Bsign 24 128 (power32 b)))
+Unable to unify
+ "bpow radix2 ?k =
+  F2R
+    {|
+      Fnum :=
+        Ztrunc
+          (scaled_mantissa radix2 (SpecFloat.fexp 24 128) (bpow radix2 ?k));
+      Fexp := cexp radix2 (SpecFloat.fexp 24 128) (bpow radix2 ?k)
+    |}"
+with "Valid_rnd (BinarySingleNaN.round_mode BinarySingleNaN.mode_NE)".
+

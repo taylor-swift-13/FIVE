@@ -1,0 +1,75 @@
+File "/home/yangfp/five/_build/matrix-inv2-csem/development/20261121T140138901751/FiveInv2Case/Body.v", line 53, characters 124-125:
+Error: Cannot infer this placeholder of type "Prop" in
+environment:
+e : PTree.tree (block * type)
+m : mem
+bpo, bpi, bd, bo, bi : block
+po, pi : ptrofs
+f : Z -> float32
+md, me, mf : mem
+EO : e ! _inv_out = Some (bpo, tptr tfloat)
+EI : e ! _mat_in = Some (bpi, tptr tfloat)
+ED : e ! _det = Some (bd, tfloat)
+EG : e ! ___builtin_fabsf = None
+LO : Mem.load Mptr m bpo 0 = Some (Vptr bo po)
+LI : Mem.load Mptr m bpi 0 = Some (Vptr bi pi)
+W : WriteRegion m bo po 4
+RD : Reads m bi pi 4 f
+OI : bo <> bi
+OP : bo <> bpo
+OPI : bo <> bpi
+OD : bo <> bd
+ID : bi <> bd
+PD : bpo <> bd
+PID : bpi <> bd
+SD : Mem.store Mfloat32 m bd 0 (Vsingle (Det f)) = Some md
+BR : Branch md bo po f me
+FREE : Mem.free_list me (blocks_of_env ge e) = Some mf
+LOD : Mem.load Mptr md bpo 0 = Some (Vptr bo po)
+LID : Mem.load Mptr md bpi 0 = Some (Vptr bi pi)
+LDD : Mem.load Mfloat32 md bd 0 = Some (Vsingle (Det f))
+WD : WriteRegion md bo po 4
+RDD : Reads md bi pi 4 f
+DA : atomic_eval ge e m DetAssign = Some (Vsingle (Det f), md)
+QI :
+  Defined ge (Result f) mf
+    (ExprState f_float_mat_inv_2d (PureGuard f)
+       (Kifthenelse Return1 Sskip (Kseq Suffix Kstop)) e md)
+QC :
+  certificate ge (Defined ge (Result f) mf) (Returnstate (Result f) Kstop mf)
+FC :
+  certificate ge
+    (phase e f_float_mat_inv_2d (Kseq Suffix Kstop) Return1 Sskip
+       ___builtin_fabsf _det fabs_block bd (Det f) md)
+    (target e f_float_mat_inv_2d (Kseq Suffix Kstop) Return1 Sskip (Det f) md)
+FQ :
+  Defined ge (Result f) mf
+    (target e f_float_mat_inv_2d (Kseq Suffix Kstop) Return1 Sskip (Det f) md)
+JC :
+  certificate ge
+    (fun s : Csem.state =>
+     phase e f_float_mat_inv_2d (Kseq Suffix Kstop) Return1 Sskip
+       ___builtin_fabsf _det fabs_block bd (Det f) md s \/
+     Defined ge (Result f) mf s)
+    (Returnstate (Result f) Kstop mf)
+PRE :
+  (fun s : Csem.state =>
+   phase e f_float_mat_inv_2d (Kseq Suffix Kstop) Return1 Sskip
+     ___builtin_fabsf _det fabs_block bd (Det f) md s \/
+   Defined ge (Result f) mf s)
+    (ExprState f_float_mat_inv_2d (compare_abs CallAbs)
+       (Kifthenelse Return1 Sskip (Kseq Suffix Kstop)) e md)
+IC :
+  certificate ge
+    (fun s : Csem.state =>
+     s =
+     State f_float_mat_inv_2d
+       (Sifthenelse (compare_abs CallAbs) Return1 Sskip) 
+       (Kseq Suffix Kstop) e md \/
+     (fun s0 : Csem.state =>
+      phase e f_float_mat_inv_2d (Kseq Suffix Kstop) Return1 Sskip
+        ___builtin_fabsf _det fabs_block bd (Det f) md s0 \/
+      Defined ge (Result f) mf s0) s)
+    (Returnstate (Result f) Kstop mf)
+s : Csem.state
+

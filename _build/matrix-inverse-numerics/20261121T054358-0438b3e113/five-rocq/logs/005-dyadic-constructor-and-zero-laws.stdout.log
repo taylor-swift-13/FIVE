@@ -1,0 +1,171 @@
+Lemma is_finite_strict_B2BSN :
+  forall x, BinarySingleNaN.is_finite_strict (B2BSN x) = is_finite_strict x.
+Proof.
+intros x.
+now destruct x.
+Qed.
+
+Theorem B2R_inj:
+  forall x y : binary_float,
+  is_finite_strict x = true ->
+  is_finite_strict y = true ->
+  B2R x = B2R y ->
+  x = y.
+Proof.
+intros [sx|sx| |sx mx ex Hx] [sy|sy| |sy my ey Hy] ; try easy.
+simpl.
+intros _ _ Heq.
+assert (Hs: sx = sy).
+(* *)
+revert Heq. clear.
+case sx ; case sy ; try easy ;
+  intros Heq ; apply False_ind ; revert Heq.
+apply Rlt_not_eq.
+apply Rlt_trans with R0.
+now apply F2R_lt_0.
+now apply F2R_gt_0.
+apply Rgt_not_eq.
+apply Rgt_trans with R0.
+now apply F2R_gt_0.
+now apply F2R_lt_0.
+assert (mx = my /\ ex = ey).
+
+[Some c] means ordered as per [c]; [None] means unordered. *)
+
+Definition Bcompare (f1 f2 : binary_float) : option comparison :=
+  BinarySingleNaN.Bcompare (B2BSN f1) (B2BSN f2).
+
+Theorem Bcompare_correct :
+  forall f1 f2,
+  is_finite f1 = true -> is_finite f2 = true ->
+  Bcompare f1 f2 = Some (Rcompare (B2R f1) (B2R f2)).
+Proof.
+  intros f1 f2 H1 H2.
+  unfold Bcompare.
+  rewrite BinarySingleNaN.Bcompare_correct.
+  now rewrite 2!B2R_B2BSN.
+  now rewrite is_finite_B2BSN.
+  now rewrite is_finite_B2BSN.
+Qed.
+
+Theorem Bcompare_swap :
+  forall x y,
+  Bcompare y x = match Bcompare x y with Some c => Some (CompOpp c) | None => None end.
+Proof.
+  intros.
+  apply BinarySingleNaN.Bcompare_swap.
+Qed.
+
+Theorem bounded_le_emax_minus_prec :
+  forall mx ex,
+  bounded mx ex = true ->
+  (F2R (Float radix2 (Zpos mx) ex)
+
+Definition fma_nan_1 (x y z: float32) : {x : float32 | is_nan _ _ x = true} :=
+  let '(a, b, c) := Archi.fma_order x y z in
+  quiet_nan_32 (Archi.choose_nan_32 (cons_pl a (cons_pl b (cons_pl c [])))).
+
+Definition fma_nan (x y z: float32) : {x : float32 | is_nan _ _ x = true} :=
+  match x, y with
+  | B754_infinity _, B754_zero _ | B754_zero _, B754_infinity _ =>
+      if Archi.fma_invalid_mul_is_nan
+      then quiet_nan_32 (Archi.choose_nan_32 (Archi.default_nan_32 :: cons_pl z []))
+      else fma_nan_1 x y z
+  | _, _ =>
+      fma_nan_1 x y z
+  end.
+
+(** ** Operations over single-precision floats *)
+
+Definition zero: float32 := B754_zero _ _ false. (**r the float [+0.0] *)
+
+Definition eq_dec: forall (f1 f2: float32), {f1 = f2} + {f1 <> f2} := Beq_dec _ _.
+
+(** Arithmetic operations *)
+
+Definition neg: float32 -> float32 := Bopp _ _ neg_nan. (**r opposite (change sign) *)
+Definition abs: float32 -> float32 := Babs _ _ abs_nan. (**r absolute value (set sign to [+]) *)
+Definition sqrt: float32 -> float32 :=
+  Bsqrt 24 128 __ __ unop_nan mode_NE.  (**r square root *)
+Definition add: float32 -> float32 -> float32 :=
+  Bplus 24 128 __ __ binop_nan mode_NE. (**r addition *)
+Definition sub: float32 -> float32 -> float32 :=
+  Bminus 24 128 __ __ binop_nan mode_NE. (**r subtraction *)
+Definition mul: float32 -> float32 -> float32 :=
+  Bmult 24 128 __ __ binop_nan mode_NE. (**r multiplication *)
+Definition div: float32 -> float32 -> float32 :=
+  Bdiv 24 128 __ __ binop_nan mode_NE. (**r division *)
+Definition fma: float32 -> float32 -> float32 -> float32 :=
+  Bfma 24 128 __ __ fma_nan mode_NE. (**r fused multiply-add [x * y + z] *)
+Definition compare (f1 f2: float32) : option Datatypes.comparison := (**r general comparison *)
+  Bcompare 24 128 f1 f2.
+Definition cmp (c:comparison) (f1 f2: float32) : bool := (**r comparison *)
+  cmp_of_comparison c (compare f1 f2).
+Definition ordered (f1 f2: float32) : bool :=
+  ordered_of_comparison (compare f1 f2).
+
+(** Conversions *)
+
+Definition of_double : float -> float32 := Float.to_single.
+Definition to_double : float32 -> float := Float.of_single.
+
+Definition to_int (f:float32): option int := (**r conversion to signed 32-bit int *)
+  option_map Int.repr (ZofB_range _ _ f Int.min_signed Int.max_signed).
+Definition to_intu (f:float32): option int := (**r conversion to unsigned 32-bit int *)
+  option_map Int.repr (ZofB_range _ _ f 0 Int.max_unsigned).
+Definition to_long (f:float32): option int64 := (**r conversion to signed 64-bit int *)
+  option_map Int64.repr (ZofB_range _ _ f Int64.min_signed Int64.max_signed).
+Definition to_longu (f:float32): option int64 := (**r conversion to unsigned 64-bit int *)
+  option_map Int64.repr (ZofB_range _ _ f 0 Int64.max_unsigned).
+
+Definition of_int (n:int): float32 := (**r conversion from signed 32-bit int to single-precision float *)
+  BofZ 24 128 __ __ (Int.signed n).
+Definition of_intu (n:int): float32 := (**r conversion from unsigned 32-bit int to single-precision float *)
+  BofZ 24 128 __ __ (Int.unsigned n).
+
+Definition of_long (n:int64): float32 := (**r conversion from signed 64-bit int to single-precision float *)
+  BofZ 24 128 __ __ (Int64.signed n).
+Definition of_longu (n:int64): float32 := (**r conversion from unsigned 64-bit int to single-precision float *)
+  BofZ 24 128 __ __ (Int64.unsigned n).
+
+Definition from_parsed (base:positive) (intPart:positive) (expPart:Z) : float32 :=
+  Bparse 24 128 __ __ base intPart expPart.
+
+(** Conversions between floats and their concrete in-memory representation
+    as a sequence of 32 bits. *)
+
+Definition to_bits (f: float32) : int := Int.repr (bits_of_b32 f).
+Definition of_bits (b: int): float32 := b32_of_bits (Int.unsigned b).
+
+(** ** Properties *)
+
+(** Commutativity properties of addition and multiplication. *)
+
+Theorem add_commut:
+  forall x y, is_nan _ _ x = false \/ is_nan _ _ y = false -> add x y = add y x.
+Proof.
+  intros. apply Bplus_commut. 
+  destruct x, y; try reflexivity; now destruct H.
+Qed.
+
+Theorem mul_commut:
+  forall x y, is_nan _ _ x = false \/ is_nan _ _ y = false -> mul x y = mul y x.
+Proof.
+  intros. apply Bmult_commut.
+  destruct x, y; try reflexivity; now destruct H.
+Qed.
+
+(** Multiplication by 2 is diagonal addition. *)
+
+Theorem mul2_add:
+  forall f, add f f = mul f (of_int (Int.repr 2%Z)).
+Proof.
+  intros. apply Bmult2_Bplus.
+  intros x y Hx Hy. unfold binop_nan.
+  destruct x; try discriminate. simpl. rewrite Archi.choose_nan_32_idem. 
+  destruct y; reflexivity || discriminate.
+Qed.
+
+(** Divisions that can be turned into multiplication by an inverse. *)
+
+Definition exact_inverse : float32 -> option float32 := Bexact_inverse 24 128 __ __.

@@ -1,0 +1,278 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Integers Floats AST Values Memory Memdata Events Csem Smallstep.
+From FiveInv2Recheck Require Import Spec.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FiveInv2Case Require Import Contract Call RecheckSupport Memcpy16 Replay TraceInputs ExactReplay.
+From FiveMatrixInverseSupport Require Import Kernels.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma call_post:forall m bo bi po pi f,Inputs m bo bi po pi f->forall t result mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->result=Result f/\Post m mf bo bi po pi f.
+Proof. intros m bo bi po pi f IN t result mf PATH;destruct(call_summary m bo bi po pi f IN)as[after[EX[POST[SAFE ALL]]]];destruct(ALL t result mf PATH)as[R M];subst result mf;auto. Qed.
+Lemma copy_guard_proved:forall k,CopyGuard k.
+Proof. intros k m src dst PRE;pose proof(copy_pre_safety m src dst PRE)as[NE A B EN C D SEP RD WR].
+ destruct k as[|[|[|[|[|[|[|[|k]]]]]]]];simpl;auto;intros order[EQ Q];congruence. Qed.
+Lemma case_status:forall f expected,Result f=expected->CaseStatus f expected.
+Proof. intros f expected EQ m bo bi po pi IN t result mf PATH;rewrite(proj1(call_post m bo bi po pi f IN t result mf PATH));exact EQ. Qed.
+Lemma case_words:forall f words,Reject f=false->map(fun i=>Float32.to_bits(Output f i))[0;1;2;3]=map Int.repr words->CaseWords f words.
+Proof. intros f words REJ WORD m bo bi pi IN t result mf PATH dst bytes obs READ STORE.
+ pose proof(proj2(call_post m bo bi Ptrofs.zero pi f IN t result mf PATH))as POST.
+ transitivity(map(fun i=>Some(Vint(Float32.to_bits(Output f i))))[0;1;2;3]).
+ - apply map_ext_in;intros i INDEX;eapply successful_copy_words;[exact POST|exact REJ|exact READ|exact STORE|];simpl in INDEX;repeat destruct INDEX as[EQ|INDEX];try contradiction;subst i;lia.
+ - change(map(fun w=>Some(Vint w))(map(fun i=>Float32.to_bits(Output f i))[0;1;2;3])=map(fun w=>Some(Vint(Int.repr w)))words);rewrite WORD,map_map;reflexivity. Qed.
+Lemma case_preserves:forall f,Reject f=true->CasePreserves f.
+Proof. intros f REJ m bo bi po pi IN t result mf PATH;destruct(proj2(call_post m bo bi po pi f IN t result mf PATH))as[W[RD[FR[VB[BY AC]]]]];rewrite REJ in BY;exact BY. Qed.
+Lemma assertion_1:Assertion1.
+Proof. intros m bo bi po pi f IN t result mf PATH;rewrite(proj1(call_post m bo bi po pi f IN t result mf PATH));unfold Result;destruct(Reject f);auto. Qed.
+Lemma assertion_2:Assertion2.
+Proof. intros m bo bi pi f before after IN BEFORE AFTER t result mf PATH.
+ destruct(proj2(call_post m bo bi(Ptrofs.repr 4)pi f IN t result mf PATH))as[W[RD[FR REST]]].
+ assert(VO:Mem.valid_block m bo)by(destruct IN as[NE[WO RI]];exact(writable_valid m bo(Ptrofs.repr 4)4 ltac:(lia)WO)).
+ split;[exact FR|];split.
+ - eapply(frame_load_kept m mf bo(Ptrofs.repr 4)bo 0 Mint32(Vint before));[exact FR|exact VO|right;left;change(0+4<=4);lia|exact BEFORE].
+ - eapply(frame_load_kept m mf bo(Ptrofs.repr 4)bo 20 Mint32(Vint after));[exact FR|exact VO|right;right;change(4+16<=20);lia|exact AFTER]. Qed.
+Lemma assertion_3:CaseStatus base2(Vint Int.zero).
+Proof. apply case_status;exact(proj1 base2_kernel). Qed.
+Lemma assertion_4:CaseWords base2[1065353216;2147483648;2147483648;1065353216].
+Proof. apply case_words;[vm_compute;reflexivity|exact(proj2(proj2 base2_kernel))]. Qed.
+Lemma assertion_5:CaseStatus small2(Vint Int.one).
+Proof. apply case_status;exact(proj1 small2_kernel). Qed.
+Lemma assertion_6:CasePreserves small2.
+Proof. apply case_preserves;vm_compute;reflexivity. Qed.
+Lemma assertion_7:CaseStatus large2(Vint Int.zero).
+Proof. apply case_status;exact(proj1 large2_kernel). Qed.
+Lemma assertion_8:CaseWords large2[0;2147483648;2147483648;0].
+Proof. apply case_words;[vm_compute;reflexivity|exact(proj2(proj2 large2_kernel))]. Qed.
+Lemma assertion_9:OriginalReplay /\ Result base2<>Result small2 /\ TraceNonempty.
+Proof. split;[exact original_trace_four_calls|];split;[exact RefuteScaleStatus2|exact original_trace_nonempty]. Qed.
+Lemma assertion_10:OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864 /\ TraceNonempty.
+Proof. destruct original_trace_residual_failure as[REPLAY[STATUS[BAD BITS]]];split;[exact REPLAY|];split;[exact STATUS|];split;[exact BAD|];split;[exact BITS|exact original_trace_nonempty]. Qed.
+Theorem property_001:Spec.P001.
+Proof. apply source_guards. Qed.
+Print Assumptions property_001.
+Theorem property_002:Spec.P002.
+Proof. apply source_guards. Qed.
+Print Assumptions property_002.
+Theorem property_003:Spec.P003.
+Proof. apply source_guards. Qed.
+Print Assumptions property_003.
+Theorem property_004:Spec.P004.
+Proof. apply source_guards. Qed.
+Print Assumptions property_004.
+Theorem property_005:Spec.P005.
+Proof. apply source_guards. Qed.
+Print Assumptions property_005.
+Theorem property_006:Spec.P006.
+Proof. apply source_guards. Qed.
+Print Assumptions property_006.
+Theorem property_007:Spec.P007.
+Proof. apply source_guards. Qed.
+Print Assumptions property_007.
+Theorem property_008:Spec.P008.
+Proof. apply source_guards. Qed.
+Print Assumptions property_008.
+Theorem property_009:Spec.P009.
+Proof. apply source_guards. Qed.
+Print Assumptions property_009.
+Theorem property_010:Spec.P010.
+Proof. apply source_guards. Qed.
+Print Assumptions property_010.
+Theorem property_011:Spec.P011.
+Proof. apply source_guards. Qed.
+Print Assumptions property_011.
+Theorem property_012:Spec.P012.
+Proof. apply source_guards. Qed.
+Print Assumptions property_012.
+Theorem property_013:Spec.P013.
+Proof. apply source_guards. Qed.
+Print Assumptions property_013.
+Theorem property_014:Spec.P014.
+Proof. apply source_guards. Qed.
+Print Assumptions property_014.
+Theorem property_015:Spec.P015.
+Proof. apply source_guards. Qed.
+Print Assumptions property_015.
+Theorem property_016:Spec.P016.
+Proof. apply source_guards. Qed.
+Print Assumptions property_016.
+Theorem property_017:Spec.P017.
+Proof. apply source_guards. Qed.
+Print Assumptions property_017.
+Theorem property_018:Spec.P018.
+Proof. apply source_guards. Qed.
+Print Assumptions property_018.
+Theorem property_019:Spec.P019.
+Proof. apply source_guards. Qed.
+Print Assumptions property_019.
+    result={str(p):sha(p),str(cb):sha(cb),**bindings}
+    for ident,status in statuses.items():
+        row=mapped[ident]
+        if status not in ['SUCCESS','FAILURE']:raise RuntimeError('Unknown/incomplete CBMC property: '+ident)
+        expected='proved' if status=='SUCCESS' else 'refuted'
+        if row.get('status')!=expected or not row.get('scope') or not row.get('theorem') or not row.get('evidence'):
+            raise RuntimeError('Missing exact-scope Rocq reproof/refutation: '+ident)
+        if status=='FAILURE':
+            if not row.get('counterexample_replay'):
+                raise RuntimeError('Real CBMC failure requires bit/byte/prefix counterexample replay')
+            replay_path=root/row['counterexample_replay'];replay=json.loads(replay_path.read_text())
+            trace=next(r for r in properties if r['property']==ident).get('trace')
+            if not trace or replay.get('status')!='reproduced' or replay.get('property_id')!=ident or replay.get('request_sha256')!=request_sha or replay.get('backend_manifest_sha256')!=manifest_sha or replay.get('cbmc_json_sha256')!=sha(cb):
+                raise RuntimeError('Counterexample replay is missing, stale or unbound to real trace')
+            if not {'input_state','fault_operation','memory_prefix','bit_observations'}.issubset(replay):
+                raise RuntimeError('Counterexample replay omits input/operation/bytes/bits')
+            result[str(replay_path)]=sha(replay_path)
+        for ref in row['evidence']:
+            evidence=json.loads((root/ref).read_text())
+            if row['theorem'] not in evidence.get('theorems',[]):raise RuntimeError('Claimed recheck theorem not kernel-bound')
+            for name,h in (execution_bindings or {}).items():
+                if evidence.get('dependency_sha256',{}).get(name)!=h:raise RuntimeError('Recheck theorem is not bound to the actual execution model')
+            result.update(kernel_record(root,ref))
+    failed=sum(v=='FAILURE' for v in statuses.values())
+    if cmds[0]['exit_code']!=(10 if failed else 0):raise RuntimeError('CBMC result and exit status disagree')
+    return {'bindings':result,'proved':len(statuses)-failed,'refuted':failed}
+
+def check_external_support(root,manifest,contract):
+    from ast_library_audit import audit_source
+    root=Path(root).resolve()
+    registry_path=root/'shared/compcert_libc/registry.json'
+    registry=json.loads(registry_path.read_text())
+    inventory=audit_source(root/manifest['files']['Source.v']['path'],[manifest['function']],registry,root)
+    if not inventory['support_inventory_complete']:
+        raise RuntimeError('AST contains unresolved calls, unsupported system interfaces, builtins or worlds')
+    ordinary={r['support']['name']:r['support'] for r in inventory['static_calls']
+              if r.get('support',{}).get('status')=='ordinary-adapter-available'}
+    sources=contract.get('source_semantics',{}).get('source_sha256',{})
+    for name,row in ordinary.items():
+        needed={str(registry_path.relative_to(root)):sha(registry_path),**row['dependency_sha256']}
+        for path,digest in needed.items():
+            if sources.get(path)!=digest:
+                raise RuntimeError('Ordinary library adapter/spec/proof/registry not bound: '+path)
+        binding=contract.get('external_library_bindings',{}).get(name,{})
+        if binding.get('callback')!=row['adapter']['callback'] or binding.get('specification')!=row['adapter']['specification'] or not binding.get('assumption'):
+            raise RuntimeError('Missing explicit callback, specification or trusted library-contract assumption: '+name)
+    return inventory
+
+def accept_compcert_delivery(root,*,request_path,contract_path,expected_request_sha256,
+                            manifest_path,spec_recheck_path):
+    root=Path(root).resolve();manifest_path=root/manifest_path
+    m=json.loads(manifest_path.read_text());req=json.loads((root/request_path).read_text())
+    if req.get('execution_backend')!='compcert-csyntax-cexec':
+        raise RuntimeError('Current delivery requires a frozen CompCert-backed request; historical approval is not migrated')
+    if not m.get('request') or m['request']['sha256']!=expected_request_sha256:
+        raise RuntimeError('CompCert export is not bound to the frozen request')
+    if m['target']!=req.get('target'):raise RuntimeError('CompCert target differs from request')
+    provenance=audit(manifest_path)
+{
+  "schema": "five-cbmc-rocq-recheck/1",
+  "status": "refuted",
+  "verification_method": "traditional-bounded-model-checking",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "fc0971aec1a912de9ec126b79e6134ced5c33c387f50f7bc3dda41535c291ab5",
+  "cbmc_run": "_build/quat-rotation-ultra/evidence-support/20261120T105115-4d1225361c/five-cbmc",
+  "cbmc_command_id": "001-cbmc-unchanged-general-query",
+  "cbmc_json": "_build/quat-rotation-ultra/evidence-support/20261120T105115-4d1225361c/five-cbmc/logs/001-cbmc-unchanged-general-query.stdout.log",
+  "cbmc_input_sha256": {
+    "paparazzi/models/float_quat_vmult/prepare/source/float_quat_vmult.c": "64c3359619e2f8de1f8c0b16ace92ab01c969fb7d408981bd68ba0fb7b8d80ff",
+    "paparazzi/models/float_quat_vmult/prepare/source/quat_types.h": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f",
+    "paparazzi/models/float_quat_vmult/prepare/source/bindings.json": "5008c2ce102edfcd6cc97811fa3d71172ce3292f305d606e2de9da37459189a0",
+    "paparazzi/models/float_quat_vmult/prepare/verification-request.json": "3f19a534aed0ba5746eedfb4cc81b00000870b10efdc8897ef10f5597855f68f",
+    "paparazzi/models/float_rmat_of_quat/prepare/source/float_rmat_of_quat.c": "5d5e765cf53bd21025c740ed40c0ef5d7f2650b85c30fd125911826efb03e44e",
+    "paparazzi/models/float_rmat_of_quat/prepare/source/quat_types.h": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f",
+    "paparazzi/models/float_rmat_of_quat/prepare/source/bindings.json": "6a1e6fdf04b07b8c752cf2bb0cc4a39120676db2d34163fb80b07203fc1aeb74",
+    "paparazzi/models/float_rmat_of_quat/prepare/verification-request.json": "fc3bc143c703c6713d8e04b6ce24167e82d3b2c9bcb3cd8f08a5ed9ad256782a",
+    "paparazzi/models/float_rmat_vmult/prepare/source/float_rmat_vmult.c": "468a207dd8dd04f0da2f5425a49e3a33db4c49eaeab003be650c883772284ab7",
+    "paparazzi/models/float_rmat_vmult/prepare/source/quat_types.h": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f",
+    "paparazzi/models/float_rmat_vmult/prepare/source/bindings.json": "cb0b59bc67ea0a02bc51c9a820bd92f57026534388da31dc2fdde583b29feb23",
+    "paparazzi/models/float_rmat_vmult/prepare/verification-request.json": "dfc28ffe6913f37092e1271cf295a3aa5a4f4e56feb369d5d0fafac3f086a7ec",
+    "paparazzi/report/quat_rotation_paths/cbmc/harness.c": "a91cc67a3f67657841ab527fa62f456219acf9f7748cf52927215d7f22d83fdb"
+  },
+  "shared_ledger": {
+    "unique_source_run_properties": 301,
+    "aggregate_count_once": true,
+    "decomposition": {
+      "float_quat_vmult": 96,
+      "float_rmat_of_quat": 87,
+      "float_rmat_vmult": 99,
+      "memcpy": 18,
+      "failed_equality": 1
+    }
+  },
+  "properties": [
+    {
+      "property_id": "float_quat_vmult.pointer_dereference.1",
+      "cbmc_status": "SUCCESS",
+      "status": "proved",
+      "scope": {
+        "assumptions": [
+          "valid separately allocated disjoint source/destination objects",
+          "initialized finite components with abs(q_i)<=1 and abs(v_i)<=1024 for relation BMC"
+        ],
+        "source_location": {
+          "comment": "dereference failure: pointer NULL in q->qi",
+          "file": "/home/yangfp/five/paparazzi/models/float_quat_vmult/prepare/source/float_quat_vmult.c",
+          "function": "float_quat_vmult",
+          "line": "6",
+          "pragma": [
+            "checked:bounds-check",
+            "checked:pointer-check",
+            "checked:div-by-zero-check",
+            "checked:signed-overflow-check",
+{
+  "schema": "five-cbmc-counterexample-replay/1",
+  "status": "reproduced",
+  "property_id": "main.assertion.1",
+  "request_sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9",
+  "backend_manifest_sha256": "fc0971aec1a912de9ec126b79e6134ced5c33c387f50f7bc3dda41535c291ab5",
+  "cbmc_json_sha256": "c13c8dfab284f052211dcdd97baf062160f6779d66953d474a49a1012ec34841",
+  "source_actual_trace": {
+    "path": "_build/quat-rotation-ultra/evidence-support/20261120T105115-4d1225361c/five-cbmc/evidence/counterexample-trace.json",
+    "sha256": "27fd33582e571099621f6192ad629f3b372e79a96ecbf5a91cdd9cb01549d386",
+    "comparison": "_build/quat-rotation-ultra/evidence-support/20261120T105115-4d1225361c/five-cbmc/evidence/comparison.json",
+    "original_unit_witness_used": false
+  },
+  "input_state": {
+    "representation": "binary32 little endian; all caller objects at offset zero in distinct CompCert blocks",
+    "quaternion": {
+      "q.qi": {
+        "binary32": "10111111001101111010101011001010",
+        "uint32": 3208096458,
+        "hex": "bf37aaca",
+        "little_endian_bytes": [
+          202,
+          170,
+          55,
+          191
+        ]
+      },
+      "q.qx": {
+        "binary32": "10111110001111011011110111100110",
+        "uint32": 3191717350,
+        "hex": "be3dbde6",
+        "little_endian_bytes": [
+          230,
+          189,
+          61,
+          190
+        ]
+      },
+      "q.qy": {
+        "binary32": "10100000001101010000010011110011",
+        "uint32": 2687829235,
+        "hex": "a03504f3",
+        "little_endian_bytes": [
+          243,
+          4,
+          53,
+          160
+        ]
+      },
+      "q.qz": {
+        "binary32": "00010000000001110011101100010001",
+        "uint32": 268909329,
+        "hex": "10073b11",
+        "little_endian_bytes": [
+          17,
+          59,
+          7,
+          16
+        ]
+      }

@@ -1,0 +1,95 @@
+355-
+356-(** The standard, platform-independent built-ins *)
+357-
+358-Inductive standard_builtin : Type :=
+359-  | BI_select (t: typ)
+360-  | BI_fabs
+361:  | BI_fabsf
+362-  | BI_fsqrt
+363-  | BI_negl
+364-  | BI_addl
+365-  | BI_subl
+366-  | BI_mull
+367-  | BI_i16_bswap
+368-  | BI_i32_bswap
+369-  | BI_i64_bswap
+370-  | BI_unreachable
+371-  | BI_i64_umulh
+372-  | BI_i64_smulh
+373-  | BI_i64_sdiv
+374-  | BI_i64_udiv
+375-  | BI_i64_smod
+376-  | BI_i64_umod
+377-  | BI_i64_shl
+--
+394-Definition standard_builtin_table : list (string * standard_builtin) :=
+395-    ("__builtin_sel", BI_select Tint)
+396- :: ("__builtin_sel", BI_select Tlong)
+397- :: ("__builtin_sel", BI_select Tfloat)
+398- :: ("__builtin_sel", BI_select Tsingle)
+399- :: ("__builtin_fabs", BI_fabs)
+400: :: ("__builtin_fabsf", BI_fabsf)
+401- :: ("__builtin_fsqrt", BI_fsqrt)
+402- :: ("__builtin_sqrt", BI_fsqrt)
+403- :: ("__builtin_negl", BI_negl)
+404- :: ("__builtin_addl", BI_addl)
+405- :: ("__builtin_subl", BI_subl)
+406- :: ("__builtin_mull", BI_mull)
+407- :: ("__builtin_bswap16", BI_i16_bswap)
+408- :: ("__builtin_bswap", BI_i32_bswap)
+409- :: ("__builtin_bswap32", BI_i32_bswap)
+410- :: ("__builtin_bswap64", BI_i64_bswap)
+411- :: ("__builtin_unreachable", BI_unreachable)
+412- :: ("__compcert_i64_umulh", BI_i64_umulh)
+413- :: ("__compcert_i64_smulh", BI_i64_smulh)
+414- :: ("__compcert_i64_sdiv", BI_i64_sdiv)
+415- :: ("__compcert_i64_udiv", BI_i64_udiv)
+416- :: ("__compcert_i64_smod", BI_i64_smod)
+--
+429-Definition standard_builtin_sig (b: standard_builtin) : signature :=
+430-  match b with
+431-  | BI_select t =>
+432-      let t := inj_type t in [Xint; t; t ---> t]
+433-  | BI_fabs | BI_fsqrt =>
+434-      [Xfloat ---> Xfloat]
+435:  | BI_fabsf =>
+436-      [Xsingle ---> Xsingle]
+437-  | BI_negl =>
+438-      [Xlong ---> Xlong]
+439-  | BI_addl | BI_subl | BI_i64_umulh| BI_i64_smulh 
+440-  | BI_i64_sdiv | BI_i64_udiv | BI_i64_smod | BI_i64_umod =>
+441-      [Xlong; Xlong ---> Xlong]
+442-  | BI_mull =>
+443-      [Xint; Xint ---> Xlong]
+444-  | BI_i32_bswap =>
+445-      [Xint ---> Xint]
+446-  | BI_i64_bswap =>
+447-      [Xlong ---> Xlong]
+448-  | BI_i16_bswap =>
+449-      [Xint16unsigned ---> Xint16unsigned]
+450-  | BI_unreachable =>
+451-      mksignature nil Xvoid cc_default
+--
+465-      mkbuiltin (inj_type t) 
+466-       (fun vargs => match vargs with
+467-          | Vint n :: v1 :: v2 :: nil => Some (Val.normalize (if Int.eq n Int.zero then v2 else v1) t)
+468-          | _ => None
+469-        end) _ _
+470-  | BI_fabs => mkbuiltin_n1t Tfloat Xfloat Float.abs
+471:  | BI_fabsf => mkbuiltin_n1t Tsingle Xsingle Float32.abs
+472-  | BI_fsqrt => mkbuiltin_n1t Tfloat Xfloat Float.sqrt
+473-  | BI_negl => mkbuiltin_n1t Tlong Xlong Int64.neg
+474-  | BI_addl => mkbuiltin_v2t Xlong Val.addl _ _ 
+475-  | BI_subl => mkbuiltin_v2t Xlong Val.subl _ _
+476-  | BI_mull => mkbuiltin_v2t Xlong Val.mull' _ _
+477-  | BI_i16_bswap =>
+478-    mkbuiltin_n1t Tint Xint16unsigned
+479-                  (fun n => Int.repr (decode_int (List.rev (encode_int 2%nat (Int.unsigned n)))))
+480-  | BI_i32_bswap =>
+481-    mkbuiltin_n1t Tint Xint
+482-                  (fun n => Int.repr (decode_int (List.rev (encode_int 4%nat (Int.unsigned n)))))
+483-  | BI_i64_bswap =>
+484-    mkbuiltin_n1t Tlong Xlong
+485-                  (fun n => Int64.repr (decode_int (List.rev (encode_int 8%nat (Int64.unsigned n)))))
+486-  | BI_unreachable => mkbuiltin Xvoid (fun vargs => None) _ _
+487-  | BI_i64_umulh => mkbuiltin_n2t Tlong Tlong Xlong Int64.mulhu

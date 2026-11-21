@@ -1,0 +1,142 @@
+2125-      | None => nil
+2126-      end
+2127-
+2128-  | Callstate (Internal f) vargs k m =>
+2129-      check (list_norepet_dec ident_eq (var_names (fn_params f) ++ var_names (fn_vars f)));
+2130-      let (e,m1) := do_alloc_variables empty_env m (f.(fn_params) ++ f.(fn_vars)) in
+2131-      do m2 <- sem_bind_parameters w e m1 f.(fn_params) vargs;
+2132:      ret "step_internal_function" (State f f.(fn_body) k e m2)
+2133-  | Callstate (External ef _ _ _) vargs k m =>
+2134-      match do_external ef w vargs m with
+2135-      | None => nil
+2136-      | Some(w',t,v,m') => TR "step_external_function" t (Returnstate v k m') :: nil
+2137-      end
+2138-
+2139-  | Returnstate v (Kcall f e C ty k) m =>
+2140-      ret "step_returnstate" (ExprState f (C (Eval v ty)) k e m)
+2141-
+2142-  | _ => nil
+2143-  end.
+2144-
+2145-Ltac myinv :=
+2146-  match goal with
+2147-  | [ |- In _ nil -> _ ] => let X := fresh "X" in intro X; elim X
+2148-  | [ |- In _ (ret _ _) -> _ ] =>
+2149-        let X := fresh "X" in
+2150-        intro X; elim X; clear X;
+2151-        [let EQ := fresh "EQ" in intro EQ; unfold ret in EQ; inv EQ; myinv | myinv]
+2152-  | [ |- In _ (_ :: nil) -> _ ] =>
+2153-        let X := fresh "X" in
+2154-        intro X; elim X; clear X; [let EQ := fresh "EQ" in intro EQ; inv EQ; myinv | myinv]
+2155-  | [ |- In _ (match ?x with Some _ => _ | None => _ end) -> _ ] => destruct x eqn:?; myinv
+2156-  | [ |- In _ (match ?x with false => _ | true => _ end) -> _ ] => destruct x eqn:?; myinv
+2157-  | [ |- In _ (match ?x with left _ => _ | right _ => _ end) -> _ ] => destruct x; myinv
+2158-  | _ => idtac
+2159-  end.
+2160-
+2161-Local Hint Extern 3 => exact I : core.
+2162-
+2163-Theorem do_step_sound:
+2164-  forall w S rule t S',
+2165-  In (TR rule t S') (do_step w S) ->
+2166-  Csem.step ge S t S' \/ (t = E0 /\ S' = Stuckstate /\ can_crash_world w S).
+2167-Proof with try (left; right; econstructor; eauto; fail).
+2168-  intros until S'. destruct S; simpl.
+2169-(* State *)
+2170-  destruct s; myinv...
+2171-  (* skip *)
+2172-  destruct k; myinv...
+--
+2197-  destruct RD; subst m'. left; left; apply step_call; eauto.
+2198-  (* stuck rred *)
+2199-  exploit not_imm_safe_t; eauto. intros [R | R]; eauto.
+2200-(* callstate *)
+2201-  destruct fd; myinv.
+2202-  (* internal *)
+2203-  destruct (do_alloc_variables empty_env m (fn_params f ++ fn_vars f)) as [e m1] eqn:?.
+2204:  myinv. left; right; apply step_internal_function with m1. auto.
+2205-  change e with (fst (e,m1)). change m1 with (snd (e,m1)) at 2. rewrite <- Heqp.
+2206-  apply do_alloc_variables_sound. eapply sem_bind_parameters_sound; eauto.
+2207-  (* external *)
+2208-  destruct p as [[[w' tr] v] m']. myinv. left; right; constructor.
+2209-  eapply do_ef_external_sound; eauto.
+2210-(* returnstate *)
+2211-  destruct k; myinv...
+2212-(* stuckstate *)
+2213-  contradiction.
+2214-Qed.
+2215-
+2216-Remark estep_not_val:
+2217-  forall f a k e m t S, estep ge (ExprState f a k e m) t S -> is_val a = None.
+2218-Proof.
+2219-  intros.
+2220-  assert (forall b from to C, context from to C -> (from = to /\ C = fun x => x) \/ is_val (C b) = None).
+2221-    induction 1; simpl; auto.
+2222-  inv H.
+2223-  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+2224-  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+2225-  destruct (H0 a0 _ _ _ H9) as [[A B] | A]. subst. inv H8; auto. auto.
+2226-  destruct (H0 a0 _ _ _ H8) as [[A B] | A]. subst. destruct a0; auto. elim H9. constructor. auto.
+2227-Qed.
+2228-
+2229-Theorem do_step_complete:
+2230-  forall w S t S' w',
+2231-  possible_trace w t w' -> Csem.step ge S t S' -> exists rule, In (TR rule t S') (do_step w S).
+2232-Proof with (unfold ret; eauto with coqlib).
+2233-  intros until w'; intros PT H.
+2234-  destruct H.
+2235-  (* Expression step *)
+2236-  inversion H; subst; exploit estep_not_val; eauto; intro NOTVAL.
+2237-(* lred *)
+2238-  unfold do_step; rewrite NOTVAL.
+2239-  exploit lred_topred; eauto. instantiate (1 := w). intros (rule & STEP).
+2240-  exists rule. change (TR rule E0 (ExprState f (C a') k e m')) with (expr_final_state f k e (C, Lred rule a' m')).
+2241-  apply in_map.
+2242-  generalize (step_expr_context e w _ _ _ H1 a m). unfold reducts_incl.
+2243-  intro. replace C with (fun x => C x). apply H2.
+2244-  rewrite STEP. unfold topred; auto with coqlib.
+[
+  {
+    "description": "pointer arithmetic: pointer NULL in mat_in + (signed long int)0",
+    "property": "float_mat_inv_2d.pointer_arithmetic.1",
+    "sourceLocation": {
+      "comment": "pointer arithmetic: pointer NULL in mat_in + (signed long int)0",
+      "file": "/home/yangfp/five/paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c",
+      "function": "float_mat_inv_2d",
+      "line": "30",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:pointer-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check",
+        "checked:memory-leak-check",
+        "checked:memory-cleanup-check",
+        "checked:float-div-by-zero-check",
+        "checked:enum-range-check",
+        "checked:unsigned-overflow-check",
+        "checked:conversion-check",
+        "checked:float-overflow-check",
+        "checked:nan-check"
+      ],
+      "propertyClass": "pointer arithmetic",
+      "propertyFatal": true,
+      "propertyId": "float_mat_inv_2d.pointer_arithmetic.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "status": "SUCCESS"
+  },
+  {
+    "description": "pointer arithmetic: pointer invalid in mat_in + (signed long int)0",
+    "property": "float_mat_inv_2d.pointer_arithmetic.2",
+    "sourceLocation": {
+      "comment": "pointer arithmetic: pointer invalid in mat_in + (signed long int)0",
+      "file": "/home/yangfp/five/paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c",
+      "function": "float_mat_inv_2d",
+      "line": "30",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",

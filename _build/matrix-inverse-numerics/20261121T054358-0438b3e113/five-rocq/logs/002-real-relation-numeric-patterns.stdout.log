@@ -1,0 +1,239 @@
+From Stdlib Require Import List ZArith Reals.
+From compcert Require Import Integers Floats AST Values Memory Memdata Events Csem Smallstep.
+From Flocq Require Import IEEE754.Binary.
+Require FiveLowpassUpdate.Execution FiveLowpassUpdateCase.Contract.
+From FiveLowpassRoundoffSupport Require Import Recurrence.
+Import ListNotations.
+Local Open Scope R_scope.
+Module U:=FiveLowpassUpdateCase.Contract.
+Definition real32(f:float32):R:=B2R 24 128 f.
+Definition finite32(f:float32):Prop:=is_finite 24 128 f=true.
+Definition delta:R:=1/1048576.
+Definition Admissible(c:float32)(x:nat->float32)(y0:float32):Prop:=
+ finite32 c /\ 1<=real32 c<=2 /\
+ finite32 y0 /\ Rabs(real32 y0)<=1 /\
+ forall n,finite32(x n) /\ Rabs(real32(x n))<=1.
+Fixpoint actual(c:float32)(x:nat->float32)(y0:float32)(n:nat):float32:=
+ match n with O=>y0 | S k=>U.output c (x k)(actual c x y0 k)(x(S k)) end.
+Definition ideal(c:float32)(x:nat->float32)(y0:float32)(n:nat):R:=
+ reference(real32 c)(fun k=>real32(x k))(real32 y0)n.
+Definition NumericInvariant:Prop:=forall c x y0,Admissible c x y0->
+ forall n,finite32(actual c x y0 n) /\ Rabs(real32(actual c x y0 n))<=2.
+Definition LocalRoundoff:Prop:=forall c x y0,Admissible c x y0->
+ forall n,Rabs(real32(actual c x y0(S n))-
+ reference_step(real32 c)(real32(x(S n)))(real32(x n))(real32(actual c x y0 n)))<=delta.
+Definition ArbitraryHorizon:Prop:=forall c x y0,Admissible c x y0->
+ forall n,Rabs(real32(actual c x y0 n)-ideal c x y0 n)<=envelope delta n /\
+ Rabs(real32(actual c x y0 n)-ideal c x y0 n)<=1/524288.
+
+Definition Call(b:block)(p:ptrofs)(input:float32)(m:mem)(t:trace)(r:val)(mf:mem):Prop:=
+ star Csem.step FiveLowpassUpdate.Execution.ge
+ (FiveLowpassUpdate.Execution.entry[Vptr b p;Vsingle input]m)t(Returnstate r Kstop mf).
+Inductive Calls(b:block)(p:ptrofs)(x:nat->float32):nat->mem->mem->list val->Prop:=
+ | calls_zero:forall m,Calls b p x O m m []
+ | calls_succ:forall n m0 m1 m2 rs t r,
+ Calls b p x n m0 m1 rs ->
+ Call b p (x(S n)) m1 t r m2 ->
+ Calls b p x (S n) m0 m2(rs++[r]).
+Definition Returns(c:float32)(x:nat->float32)(y0:float32)(n:nat):list val:=
+ map(fun k=>Vsingle(actual c x y0(S k)))(seq O n).
+Definition Observed(c:float32)(x:nat->float32)(y0:float32)(n:nat)
+ (b:block)(p:ptrofs)(m0 mf:mem):Prop:=
+ U.Initialized mf b p c (x n)(actual c x y0 n) /\
+ Mem.loadbytes mf b(Ptrofs.unsigned p)4=Mem.loadbytes m0 b(Ptrofs.unsigned p)4 /\
+ U.Frame m0 mf b p /\
+ ((0<n)%nat->
+ Mem.loadbytes mf b(Ptrofs.unsigned p+4)4=Some(encode_val Mfloat32(Vsingle(x n))) /\
+ Mem.loadbytes mf b(Ptrofs.unsigned p+8)4=Some(encode_val Mfloat32(Vsingle(actual c x y0 n)))).
+Definition ExecutionExists:Prop:=forall c x y0 m b p,
+ Admissible c x y0->U.Initialized m b p c(x O)y0->
+ forall n,exists mf,Calls b p x n m mf(Returns c x y0 n) /\
+ Observed c x y0 n b p m mf.
+Definition EveryExecution:Prop:=forall c x y0 m b p,
+ Admissible c x y0->U.Initialized m b p c(x O)y0->
+ forall n mf rs,Calls b p x n m mf rs->
+ rs=Returns c x y0 n /\ Observed c x y0 n b p m mf /\
+ Rabs(real32(actual c x y0 n)-ideal c x y0 n)<=envelope delta n /\
+ finite32(actual c x y0 n) /\ Rabs(real32(actual c x y0 n))<=2.
+Definition Nonvacuity:Prop:=
+ (exists c x y0,Admissible c x y0) /\
+ (forall c x y0,Admissible c x y0->exists m b p,U.Initialized m b p c(x O)y0).
+From Stdlib Require Import List ZArith Reals Psatz.
+From compcert Require Import Integers Floats Values Memory.
+From FiveLowpassRoundoff Require Import Spec.
+From FiveLowpassRoundoffSupport Require Import Recurrence Cycles Numerical.
+Require FiveLowpassUpdateCase.Witness.
+Local Open Scope R_scope.
+Module Spec:=FiveLowpassRoundoff.Spec.
+Module N:=FiveLowpassRoundoffSupport.Numerical.
+
+Lemma original_step:forall c li lo x,U.output c li lo x=N.step c li lo x.
+Proof. reflexivity. Qed.
+Theorem numeric_invariant:Spec.NumericInvariant.
+Proof.
+ unfold Spec.NumericInvariant;intros c x y0 [FC[HC[FY[HY HX]]]] n.
+ induction n as[|n[FN HN]].
+ - cbn[Spec.actual];split;[exact FY|lra].
+ - destruct(HX n)as[FL HL];destruct(HX(S n))as[FX HV].
+   cbn[Spec.actual];rewrite original_step.
+   pose proof(N.step_bound_local c (x n)(Spec.actual c x y0 n)(x(S n))
+     FC HC FL HL FN HN FX HV)as[F[B E]];split;assumption.
+Qed.
+Theorem local_roundoff:Spec.LocalRoundoff.
+Proof.
+ unfold Spec.LocalRoundoff;intros c x y0 A n.
+ pose proof(numeric_invariant c x y0 A n)as[FY HY].
+ destruct A as[FC[HC[F0[H0 HX]]]].
+ destruct(HX n)as[FL HL];destruct(HX(S n))as[FX HV].
+ cbn[Spec.actual];rewrite original_step.
+ pose proof(N.step_bound_local c (x n)(Spec.actual c x y0 n)(x(S n))
+     FC HC FL HL FY HY FX HV)as[F[B E]];exact E.
+Qed.
+Theorem arbitrary_horizon:Spec.ArbitraryHorizon.
+Proof.
+ unfold Spec.ArbitraryHorizon;intros c x y0 A n.
+ assert(E:Rabs(Spec.real32(Spec.actual c x y0 n)-Spec.ideal c x y0 n)<=envelope Spec.delta n).
+ { unfold Spec.ideal;apply (arbitrary_horizon_roundoff (Spec.real32 c)(fun k=>Spec.real32(x k))(Spec.real32 y0)(fun k=>Spec.real32(Spec.actual c x y0 k)) Spec.delta).
+   - exact(proj1(proj2 A)).
+   - unfold Spec.delta;lra.
+   - reflexivity.
+   - exact(local_roundoff c x y0 A). }
+ split;[exact E|].
+ pose proof(envelope_bounds Spec.delta n ltac:(unfold Spec.delta;lra))as[LOW HIGH].
+ unfold Spec.delta in *;lra.
+Qed.
+Theorem execution_exists:Spec.ExecutionExists.
+Proof.
+ unfold Spec.ExecutionExists;intros c x y0 m b p A INIT n.
+ destruct(repeated_exists c x y0 m b p INIT n)as[mf[RUN[OBS VALID]]].
+ exists mf;auto.
+Qed.
+Theorem every_execution:Spec.EveryExecution.
+Proof.
+ unfold Spec.EveryExecution;intros c x y0 m b p A INIT n mf rs RUN.
+ destruct(calls_observed b p x n m mf rs RUN c y0 INIT)as[RET[OBS VALID]].
+ pose proof(arbitrary_horizon c x y0 A n)as[E UNIFORM].
+ pose proof(numeric_invariant c x y0 A n)as[F B].
+ split;[exact RET|];split;[exact OBS|];split;[exact E|];split;assumption.
+Qed.
+Theorem nonvacuity:Spec.Nonvacuity.
+Proof.
+ unfold Spec.Nonvacuity;split.
+ - exists N.one,(fun _=>Float32.zero),Float32.zero.
+   unfold Spec.Admissible;split;[exact N.one_finite|].
+   split;[change(1<=N.r32 N.one<=2);rewrite N.one_real;lra|].
+   assert(F:Spec.finite32 Float32.zero)by reflexivity.
+   assert(R:Spec.real32 Float32.zero=0)by reflexivity.
+   split;[exact F|];split;[rewrite R,Rabs_R0;lra|].
+   intros n;split;[exact F|rewrite R,Rabs_R0;lra].
+ - intros c x y0 A.
+   destruct(FiveLowpassUpdateCase.Witness.initialized_inhabited c(x O)y0)as[m[b INIT]].
+   exists m,b,Ptrofs.zero;exact INIT.
+Qed.
+Print Assumptions numeric_invariant.
+Print Assumptions local_roundoff.
+Print Assumptions arbitrary_horizon.
+Print Assumptions execution_exists.
+Print Assumptions every_execution.
+Print Assumptions nonvacuity.
+
+Example nonzero_roundoff_example_bits:
+ Float32.to_bits(U.output
+ (Float32.of_bits(Int.repr 1073741824)) Float32.zero Float32.zero N.one)
+ =Int.repr 1051372203.
+Proof. vm_compute;reflexivity. Qed.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition WriteRegion (m:mem)(b:block)(p:ptrofs)(n:Z):Prop :=
+ (4 | Ptrofs.unsigned p) /\ Ptrofs.unsigned p+4*n<=Ptrofs.modulus /\
+ Mem.range_perm m b(Ptrofs.unsigned p)(Ptrofs.unsigned p+4*n)Cur Writable.
+Definition Reads(m:mem)(b:block)(p:ptrofs)(n:Z)(f:Z->float32):Prop :=
+ (4|Ptrofs.unsigned p) /\ Ptrofs.unsigned p+4*n<=Ptrofs.modulus /\
+ (forall i,0<=i<n->Mem.load Mfloat32 m b(Ptrofs.unsigned p+4*i)=Some(Vsingle(f i))).
+Lemma index_pointer:forall p n i,
+ Ptrofs.unsigned p+4*n<=Ptrofs.modulus->0<=i<n->
+ Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr(4*i)))=Ptrofs.unsigned p+4*i.
+Proof. intros p n i NW B;rewrite Ptrofs.add_unsigned.
+ rewrite(Ptrofs.unsigned_repr(4*i)) by(pose proof(Ptrofs.unsigned_range p);change Ptrofs.max_unsigned with 18446744073709551615;change Ptrofs.modulus with 18446744073709551616 in NW;lia).
+ apply Ptrofs.unsigned_repr;pose proof(Ptrofs.unsigned_range p);change Ptrofs.max_unsigned with 18446744073709551615;change Ptrofs.modulus with 18446744073709551616 in NW;lia. Qed.
+Lemma writable_access:forall m b p n i,WriteRegion m b p n->0<=i<n->
+ Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+4*i)Writable.
+Proof. intros m b p n i[AL[NW RP]]B;split.
+ - intros z R;apply RP;cbn[size_chunk]in R;lia.
+ - change(4|Ptrofs.unsigned p+4*i);destruct AL as[k K];exists(k+i);lia. Qed.
+Lemma writable_store:forall m b p n i x,WriteRegion m b p n->0<=i<n->
+ exists mf,Mem.store Mfloat32 m b(Ptrofs.unsigned p+4*i)(Vsingle x)=Some mf.
+Proof. intros m b p n i x W B;destruct(Mem.valid_access_store m Mfloat32 b(Ptrofs.unsigned p+4*i)(Vsingle x)(writable_access m b p n i W B))as[mf ST];exists mf;exact ST. Qed.
+Lemma writable_store_preserved:forall m b p n ch q z v mf,
+ WriteRegion m b p n->Mem.store ch m q z v=Some mf->WriteRegion mf b p n.
+Proof. intros m b p n ch q z v mf[AL[NW RP]]ST;repeat split;auto;intros z' B;eapply Mem.perm_store_1;[exact ST|apply RP;exact B]. Qed.
+Lemma reads_store_preserved:forall m b p n f ch q z v mf,
+ Reads m b p n f->b<>q->Mem.store ch m q z v=Some mf->Reads mf b p n f.
+Proof. intros m b p n f ch q z v mf[AL[NW RD]]NE ST;repeat split;auto;intros i B;erewrite Mem.load_store_other by(exact ST||(left;congruence));apply RD;exact B. Qed.
+Lemma reads_valid:forall m b p n f,0<n->Reads m b p n f->Mem.valid_block m b.
+Proof. intros m b p n f N[_[_ RD]];eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact(RD 0 ltac:(lia))|constructor]. Qed.
+Lemma writable_valid:forall m b p n,0<n->WriteRegion m b p n->Mem.valid_block m b.
+Proof. intros m b p n N W;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact(writable_access m b p n 0 W ltac:(lia))|constructor]. Qed.
+Fixpoint Writes(m:mem)(b:block)(base:Z)(xs:list(Z*float32))(mf:mem):Prop :=
+ match xs with []=>mf=m|(i,x)::tail=>exists m1,Mem.store Mfloat32 m b(base+4*i)(Vsingle x)=Some m1 /\ Writes m1 b base tail mf end.
+Lemma writes_exist:forall xs m b p n,WriteRegion m b p n->(forall i x,In(i,x)xs->0<=i<n)->exists mf,Writes m b(Ptrofs.unsigned p)xs mf.
+Proof. induction xs as[|[i x]xs IH];intros m b p n W B;[exists m;reflexivity|].
+ destruct(writable_store m b p n i x W(B i x(or_introl eq_refl)))as[m1 ST].
+ destruct(IH m1 b p n(writable_store_preserved _ _ _ _ _ _ _ _ _ W ST)ltac:(intros j y IN;apply B with y;right;exact IN))as[mf REST].
+ exists mf,m1;auto.
+Qed.
+
+Lemma writes_permissions:forall xs m b base mf,Writes m b base xs mf->
+ forall q z k perm,Mem.perm m q z k perm->Mem.perm mf q z k perm.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q z k perm P;cbn[Writes]in WR;[subst mf;exact P|].
+ destruct WR as[m1[ST REST]];eapply IH;[exact REST|];eapply Mem.perm_store_1;eauto. Qed.
+Lemma writes_access:forall xs m b base mf,Writes m b base xs mf->
+ forall ch q z perm,Mem.valid_access m ch q z perm->Mem.valid_access mf ch q z perm.
+Proof. intros xs m b base mf WR ch q z perm[P AL];split;auto;intros off B;eapply writes_permissions;[exact WR|];apply P;exact B. Qed.
+Lemma writes_writable:forall xs m b base mf p n,Writes m b base xs mf->
+ WriteRegion m b p n->WriteRegion mf b p n.
+Proof. intros xs m b base mf p n WR[AL[NW RP]];repeat split;auto;intros z B;eapply writes_permissions;[exact WR|apply RP;exact B]. Qed.
+Lemma writes_unaffected:forall xs m b base mf,Writes m b base xs mf->
+ forall q z n,(forall i x,In(i,x)xs->q<>b \/ z+n<=base+4*i \/ base+4*i+4<=z)->
+ Mem.loadbytes mf q z n=Mem.loadbytes m q z n.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q z n OUT;cbn[Writes]in WR;[subst mf;reflexivity|].
+ destruct WR as[m1[ST REST]].
+ rewrite(IH m1 b base mf REST q z n ltac:(intros j y IN;apply OUT with y;right;exact IN)).
+ eapply Mem.loadbytes_store_other;[exact ST|];pose proof(OUT i x(or_introl eq_refl));cbn[size_chunk];tauto. Qed.
+Lemma writes_frame:forall xs m b p n mf,Writes m b(Ptrofs.unsigned p)xs mf->
+ (forall i x,In(i,x)xs->0<=i<n)->forall q z count,
+ q<>b \/ z+count<=Ptrofs.unsigned p \/ Ptrofs.unsigned p+4*n<=z->
+ Mem.loadbytes mf q z count=Mem.loadbytes m q z count.
+Proof. intros xs m b p n mf WR B q z count OUT;eapply writes_unaffected;[exact WR|].
+ intros i x IN;specialize(B i x IN);destruct OUT as[NE|[L|R]];[left;exact NE|right;left;lia|right;right;lia]. Qed.
+Lemma writes_bytes:forall xs m b base mf,Writes m b base xs mf->NoDup(map fst xs)->
+ forall i x,In(i,x)xs->Mem.loadbytes mf b(base+4*i)4=Some(encode_val Mfloat32(Vsingle x)).
+Proof. induction xs as[|[j y]xs IH];intros m b base mf WR ND i x IN;[contradiction|].
+ destruct WR as[m1[ST REST]];inversion ND as[|head tail NIN ND'];subst;destruct IN as[EQ|IN].
+ - inversion EQ;subst j y.
+   rewrite(writes_unaffected xs m1 b base mf REST b(base+4*i)4).
+   + exact(Mem.loadbytes_store_same _ _ _ _ _ _ ST).
+   + intros j y IN;assert(j<>i)by(intro EJI;subst j;apply NIN;apply in_map with (f:=@fst Z float32) in IN;exact IN).
+     right;destruct(Z_lt_ge_dec i j);[left|right];lia.
+ - eapply IH;eauto.
+Qed.
+Lemma writes_reads_other:forall xs m b base mf,Writes m b base xs mf->
+ forall q p n f,Reads m q p n f->q<>b->Reads mf q p n f.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q p n f RD NE;cbn[Writes]in WR;[subst mf;exact RD|].
+ destruct WR as[m1[ST REST]];eapply IH;[exact REST|eapply reads_store_preserved;eauto|exact NE]. Qed.
+Print Assumptions writes_bytes.
+Print Assumptions writes_frame.
+Binary.glob
+Binary.v
+Binary.vo
+BinarySingleNaN.glob
+BinarySingleNaN.v
+BinarySingleNaN.vo
+Bits.glob
+Bits.v
+Bits.vo
+PrimFloat.glob
+PrimFloat.v
+PrimFloat.vo

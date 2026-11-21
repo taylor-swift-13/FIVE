@@ -1,0 +1,272 @@
+  | _ => invert_expr_prop a m
+  end.
+Proof.
+  intros. eapply imm_safe_inv; eauto. eapply safe_imm_safe; eauto.
+Qed.
+
+End INVERSION_LEMMAS.
+
+(** * Correctness of the strategy. *)
+
+Section SIMPLE_EVAL.
+
+Variable f: function.
+Variable k: cont.
+Variable e: env.
+Variable m: mem.
+
+Lemma eval_simple_steps:
+   (forall a v, eval_simple_rvalue e m a v ->
+    forall C, context RV RV C ->
+    star Csem.step ge (ExprState f (C a) k e m)
+                   E0 (ExprState f (C (Eval v (typeof a))) k e m))
+/\ (forall a b ofs bf, eval_simple_lvalue e m a b ofs bf ->
+    forall C, context LV RV C ->
+    star Csem.step ge (ExprState f (C a) k e m)
+                   E0 (ExprState f (C (Eloc b ofs bf (typeof a))) k e m)).
+Proof.
+
+Ltac Steps REC C' := eapply star_trans; [apply (REC C'); eauto | idtac | simpl; reflexivity].
+Ltac FinishR := apply star_one; left; apply step_rred; eauto; simpl; try (econstructor; eauto; fail).
+Ltac FinishL := apply star_one; left; apply step_lred; eauto; simpl; try (econstructor; eauto; fail).
+
+  apply eval_simple_rvalue_lvalue_ind; intros.
+(* val *)
+  apply star_refl.
+(* valof *)
+  Steps H0 (fun x => C(Evalof x ty)). rewrite <- H1 in *. FinishR.
+(* addrof *)
+  Steps H0 (fun x => C(Eaddrof x ty)). FinishR.
+(* unop *)
+  Steps H0 (fun x => C(Eunop op x ty)). FinishR.
+(* binop *)
+  Steps H0 (fun x => C(Ebinop op x r2 ty)).
+  Steps H2 (fun x => C(Ebinop op (Eval v1 (typeof r1)) x ty)).
+  FinishR.
+(* cast *)
+  Steps H0 (fun x => C(Ecast x ty)). FinishR.
+(* sizeof *)
+  FinishR.
+(* alignof *)
+  FinishR.
+(* loc *)
+  apply star_refl.
+(* var local *)
+  FinishL.
+(* var global *)
+  FinishL.
+(* deref *)
+  Steps H0 (fun x => C(Ederef x ty)). FinishL.
+(* field struct *)
+  Steps H0 (fun x => C(Efield x f0 ty)). rewrite H1 in *. FinishL.
+(* field union *)
+  Steps H0 (fun x => C(Efield x f0 ty)). rewrite H1 in *. FinishL.
+Qed.
+
+Lemma eval_simple_rvalue_steps:
+  forall a v, eval_simple_rvalue e m a v ->
+  forall C, context RV RV C ->
+  star Csem.step ge (ExprState f (C a) k e m)
+                E0 (ExprState f (C (Eval v (typeof a))) k e m).
+Proof. exact (proj1 eval_simple_steps). Qed.
+
+Lemma eval_simple_lvalue_steps:
+  forall a b ofs bf, eval_simple_lvalue e m a b ofs bf ->
+  forall C, context LV RV C ->
+  star Csem.step ge (ExprState f (C a) k e m)
+                E0 (ExprState f (C (Eloc b ofs bf (typeof a))) k e m).
+Proof. exact (proj2 eval_simple_steps). Qed.
+
+Corollary eval_simple_rvalue_safe:
+  forall C a v,
+  eval_simple_rvalue e m a v ->
+  context RV RV C -> safe (ExprState f (C a) k e m) ->
+  safe (ExprState f (C (Eval v (typeof a))) k e m).
+Proof.
+  intros. eapply safe_steps; eauto. eapply eval_simple_rvalue_steps; eauto.
+Qed.
+
+Corollary eval_simple_lvalue_safe:
+  forall C a b ofs bf,
+  eval_simple_lvalue e m a b ofs bf ->
+      bind_parameters e m1 params vl m2 ->
+      bind_parameters e m ((id, ty) :: params) (v1 :: vl) m2.
+
+(** Return the list of blocks in the codomain of [e], with low and high bounds. *)
+
+Definition block_of_binding (id_b_ty: ident * (block * type)) :=
+  match id_b_ty with (id, (b, ty)) => (b, 0, sizeof ge ty) end.
+
+Definition blocks_of_env (e: env) : list (block * Z * Z) :=
+  List.map block_of_binding (PTree.elements e).
+
+(** Selection of the appropriate case of a [switch], given the value [n]
+  of the selector expression. *)
+
+Fixpoint select_switch_default (sl: labeled_statements): labeled_statements :=
+  match sl with
+  | LSnil => sl
+  | LScons None s sl' => sl
+  | LScons (Some i) s sl' => select_switch_default sl'
+  end.
+
+Fixpoint select_switch_case (n: Z) (sl: labeled_statements): option labeled_statements :=
+  match sl with
+  | LSnil => None
+  | LScons None s sl' => select_switch_case n sl'
+  | LScons (Some c) s sl' => if zeq c n then Some sl else select_switch_case n sl'
+  end.
+
+Definition select_switch (n: Z) (sl: labeled_statements): labeled_statements :=
+  match select_switch_case n sl with
+  | Some sl' => sl'
+  | None => select_switch_default sl
+  end.
+
+(** Turn a labeled statement into a sequence *)
+
+Fixpoint seq_of_labeled_statement (sl: labeled_statements) : statement :=
+  match sl with
+  | LSnil => Sskip
+  | LScons _ s sl' => Ssequence s (seq_of_labeled_statement sl')
+  end.
+
+(** Extract the values from a list of function arguments *)
+
+Inductive cast_arguments (m: mem): exprlist -> list type -> list val -> Prop :=
+  | cast_args_nil:
+      cast_arguments m Enil nil nil
+  | cast_args_cons: forall v ty el targ1 targs v1 vl,
+      sem_cast v ty targ1 m = Some v1 -> cast_arguments m el targs vl ->
+      cast_arguments m (Econs (Eval v ty) el) (targ1 :: targs) (v1 :: vl).
+
+(** ** Reduction semantics for expressions *)
+
+Section EXPR.
+
+Variable e: env.
+
+(** The semantics of expressions follows the popular Wright-Felleisen style.
+  It is a small-step semantics that reduces one redex at a time.
+  We first define head reductions (at the top of an expression, then
+  use reduction contexts to define reduction within an expression. *)
+
+(** Head reduction for l-values. *)
+
+Inductive lred: expr -> mem -> expr -> mem -> Prop :=
+  | red_var_local: forall x ty m b,
+      e!x = Some(b, ty) ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_var_global: forall x ty m b,
+      e!x = None ->
+      Genv.find_symbol ge x = Some b ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_deref: forall b ofs ty1 ty m,
+      lred (Ederef (Eval (Vptr b ofs) ty1) ty) m
+           (Eloc b ofs Full ty) m
+  | red_field_struct: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tstruct id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m
+  | red_field_union: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      union_field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tunion id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m.
+
+(** Head reductions for r-values *)
+
+Inductive rred: expr -> mem -> trace -> expr -> mem -> Prop :=
+  | red_rvalof: forall b ofs bf ty m t v,
+      deref_loc ty m b ofs bf t v ->
+      rred (Evalof (Eloc b ofs bf ty) ty) m
+         t (Eval v ty) m
+  | red_addrof: forall b ofs ty1 ty m,
+      rred (Eaddrof (Eloc b ofs Full ty1) ty) m
+        E0 (Eval (Vptr b ofs) ty) m
+  | red_unop: forall op v1 ty1 ty m v,
+      sem_unary_operation op v1 ty1 m = Some v ->
+      rred (Eunop op (Eval v1 ty1) ty) m
+        E0 (Eval v ty) m
+  | red_binop: forall op v1 ty1 v2 ty2 ty m v,
+      sem_binary_operation ge op v1 ty1 v2 ty2 m = Some v ->
+      rred (Ebinop op (Eval v1 ty1) (Eval v2 ty2) ty) m
+        E0 (Eval v ty) m
+  | red_cast: forall ty v1 ty1 m v,
+      sem_cast v1 ty1 ty m = Some v ->
+      rred (Ecast (Eval v1 ty1) ty) m
+        E0 (Eval v ty) m
+  | red_seqand_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_seqand_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.zero) ty) m
+  | red_seqor_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.one) ty) m
+  | red_seqor_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_condition: forall v1 ty1 r1 r2 ty b m,
+      bool_val v1 ty1 m = Some b ->
+      rred (Econdition (Eval v1 ty1) r1 r2 ty) m
+        E0 (Eparen (if b then r1 else r2) ty ty) m
+  | red_sizeof: forall ty1 ty m,
+      rred (Esizeof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (sizeof ge ty1))) ty) m
+  | red_alignof: forall ty1 ty m,
+      rred (Ealignof ty1 ty) m
+        E0 (Eval (Vptrofs (Ptrofs.repr (alignof ge ty1))) ty) m
+  | red_assign: forall b ofs ty1 bf v2 ty2 m v t m' v',
+      sem_cast v2 ty2 ty1 m = Some v ->
+      assign_loc ty1 m b ofs bf v t m' v' ->
+      rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+         t (Eval v' ty1) m'
+  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+      deref_loc ty1 m b ofs bf t v1 ->
+      rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+         t (Eassign (Eloc b ofs bf ty1)
+                    (Ebinop op (Eval v1 ty1) (Eval v2 ty2) tyres) ty1) m
+  | red_postincr: forall id b ofs ty bf m t v1 op,
+      deref_loc ty m b ofs bf t v1 ->
+      op = match id with Incr => Oadd | Decr => Osub end ->
+      rred (Epostincr id (Eloc b ofs bf ty) ty) m
+         t (Ecomma (Eassign (Eloc b ofs bf ty)
+                            (Ebinop op (Eval v1 ty)
+                                       (Eval (Vint Int.one) type_int32s)
+                                       (incrdecr_type ty))
+                           ty)
+                   (Eval v1 ty) ty) m
+  | red_comma: forall v ty1 r2 ty m,
+      typeof r2 = ty ->
+      rred (Ecomma (Eval v ty1) r2 ty) m
+        E0 r2 m
+  | red_paren: forall v1 ty1 ty2 ty m v,
+      sem_cast v1 ty1 ty2 m = Some v ->
+      rred (Eparen (Eval v1 ty1) ty2 ty) m
+        E0 (Eval v ty) m
+  | red_builtin: forall ef tyargs el ty m vargs t vres m',
+      cast_arguments m el tyargs vargs ->
+      external_call ef ge vargs m t vres m' ->
+      rred (Ebuiltin ef tyargs el ty) m
+         t (Eval vres ty) m'.
+
+
+(** Head reduction for function calls.
+    (More exactly, identification of function calls that can reduce.) *)
+
+Inductive callred: expr -> mem -> fundef -> list val -> type -> Prop :=
+  | red_call: forall vf tyf m tyargs tyres cconv el ty fd vargs,
+      Genv.find_funct ge vf = Some fd ->
+      cast_arguments m el tyargs vargs ->
+      type_of_fundef fd = Tfunction tyargs tyres cconv ->
+      classify_fun tyf = fun_case_f tyargs tyres cconv ->
+      callred (Ecall (Eval vf tyf) el ty) m

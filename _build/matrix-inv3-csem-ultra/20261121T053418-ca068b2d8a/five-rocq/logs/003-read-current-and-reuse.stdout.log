@@ -1,0 +1,140 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Values Memory Floats.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+From FiveLowpassSupport Require Import Straightline.
+From FiveRmatVmult Require Import Execution.
+From FiveRmatVmultCase Require Import Contract Call.
+From FiveRmatVmultNoError Require Import Spec.
+Theorem no_error_proved:Spec.NoError.
+Proof.
+ unfold Spec.NoError;intros args m(bo&br&bv&po&pr&pv&f&v&EQ&OR&OV&RV&W&RM&RI);subst args.
+ destruct(call_summary m bo br bv po pr pv f v OR OV RV W RM RI)as[mf[EV POST]].
+ assert(N:normal_state(Execution.entry(Args bo br bv po pr pv)m)=true)by(vm_compute;reflexivity).
+ assert(CN:call_names(Execution.entry(Args bo br bv po pr pv)m))by(vm_compute;repeat constructor;simpl;intuition discriminate).
+ eapply defined_evaluator_no_error;[exact N|exact CN|exact EV].
+Qed.
+Print Assumptions no_error_proved.
+From FiveRmatVmultCorrespondence Require Import Spec.
+From FiveRmatVmultCorrespondence Require Import Closure.
+Theorem domain_preservation:Spec.domain_preservation_goal.
+Proof. intros;split;[reflexivity|apply Closure.entry_source]. Qed.
+Lemma reachable_step:Spec.reachable_step_goal.
+Proof.
+ intros args m t reached tr next PATH.
+ apply (Closure.one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world).
+ eapply Closure.source_reachable;eauto.
+Qed.
+Theorem floating_point_correspondence:Spec.floating_point_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem machine_integer_correspondence:Spec.machine_integer_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem memory_access_correspondence:Spec.memory_access_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem control_and_exhaustion_correspondence:Spec.control_and_exhaustion_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Theorem normal_result_and_memory_correspondence:Spec.normal_result_and_memory_correspondence_goal.
+Proof. intros;split;[apply Closure.whole_execution_correspondence|reflexivity]. Qed.
+Theorem invalid_operation_correspondence:Spec.invalid_operation_correspondence_goal.
+Proof. exact Closure.invalid_operation_correspondence. Qed.
+Theorem whole_execution_correspondence:Spec.whole_execution_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Print Assumptions domain_preservation.
+Print Assumptions floating_point_correspondence.
+Print Assumptions machine_integer_correspondence.
+Print Assumptions memory_access_correspondence.
+Print Assumptions control_and_exhaustion_correspondence.
+Print Assumptions normal_result_and_memory_correspondence.
+Print Assumptions invalid_operation_correspondence.
+Print Assumptions whole_execution_correspondence.
+                manifest.append({'role':role,'source':str(path),'status':'missing','reason':'Input did not exist at invocation start'})
+                dump(folder/'inputs/manifest.json',manifest)
+        if usage_session is not None:
+            from codex_usage import snapshot
+            metadata=run.read('run.json')
+            metadata['codex_usage_boundary']={'session_file':str(Path(usage_session).resolve()),'before':snapshot(usage_session)}
+            dump(folder/'run.json',metadata)
+        run.refresh_metrics()
+        if parent:
+            cls(parent).link_child(run)
+        return run
+
+    def __init__(self, folder):
+        self.folder = Path(folder).resolve()
+        if not (self.folder/'run.json').is_file():
+            raise ValueError('Not a FIVE run directory')
+
+    def read(self,name):
+        key = SECTIONS.get(name,'inputs' if name == 'inputs/manifest.json' else None)
+        if key:
+            return json.loads((self.folder/'run.json').read_text())[key]
+        return json.loads((self.folder/name).read_text())
+
+    def capture(self, path, role, area='evidence'):
+        original = Path(path).resolve()
+        if not original.exists():
+            raise FileNotFoundError(f'Required artifact missing: {original}')
+        safe_role = re.sub(r'[^A-Za-z0-9_.-]+','-',role)
+        target = self.folder/area/f'{safe_role}--{original.name}'
+        if original.is_dir():
+            shutil.copytree(original,target)
+            files = sorted(p for p in target.rglob('*') if p.is_file())
+            value = hashlib.sha256(''.join(str(p.relative_to(target))+':'+sha(p)+'\n' for p in files).encode()).hexdigest()
+            return {'role':role,'source':str(original),'path':str(target.relative_to(self.folder)),
+                    'sha256_tree':value,'bytes':sum(p.stat().st_size for p in files)}
+        shutil.copyfile(original,target)
+        record = {'role':role,'source':str(original),'path':str(target.relative_to(self.folder)),
+                  'sha256':sha(target),'bytes':target.stat().st_size}
+        if area == 'inputs':
+            manifest = self.read('inputs/manifest.json')
+            manifest.append(record)
+            dump(self.folder/'inputs/manifest.json',manifest)
+        return record
+
+    def evidence(self, name, data):
+        dump(self.folder/'evidence'/name,data)
+
+    def command(self,args,label,timeout=180,cwd=None,combined_log=None):
+        if not args or not all(isinstance(a,str) for a in args):
+            raise ValueError('Command must be a nonempty argv string list')
+        commands = self.read('commands.json')
+        seq = len(commands)+1
+        stem = f'{seq:03d}-'+re.sub(r'[^A-Za-z0-9_.-]+','-',label)
+        stdout = self.folder/'logs'/f'{stem}.stdout.log'
+        stderr = self.folder/'logs'/f'{stem}.stderr.log'
+        resources = self.folder/'logs'/f'{stem}.time.log'
+        binary = shutil.which(args[0])
+        started_at, started = utc(), time.monotonic()
+        stop = threading.Event()
+        rss_samples = []
+        sample_errors = []
+        proc = None
+        status = 'failed'
+        exit_code = None
+        error = None
+        time_format = '{"max_process_rss_kib":%M,"user_seconds":%U,"system_seconds":%S,"elapsed_seconds":%e,"exit_code":%x}'
+        try:
+            with stdout.open('wb') as out, stderr.open('wb') as err:
+                proc = subprocess.Popen(['/usr/bin/time','-f',time_format,'-o',str(resources),'--',*args],
+                       cwd=cwd,stdout=out,stderr=err,start_new_session=True)
+                def sample():
+                    while not stop.is_set():
+                        try:
+                            rss_samples.append((time.monotonic(),tree_rss(proc.pid)))
+                        except Exception as exc:
+                            sample_errors.append(str(exc))
+                        stop.wait(0.01)
+                monitor = threading.Thread(target=sample,daemon=True)
+                monitor.start()
+                try:
+                    exit_code = proc.wait(timeout=timeout)
+                    status = 'passed' if exit_code == 0 else 'failed'
+                except subprocess.TimeoutExpired:
+                    status = 'timeout'
+                    # The tool and its workers share this newly created session.
+                    try:
+                        os.killpg(proc.pid,signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        exit_code = proc.wait(timeout=1)

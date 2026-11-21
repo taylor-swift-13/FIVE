@@ -1,0 +1,31 @@
+File "./paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v", line 60, characters 52-78:
+Error:
+In environment
+i : Z
+x : float32
+xs : list (Z * float32)
+IH :
+  forall (m : mem) (b : block) (base : Z) (mf : mem),
+  Writes m b base xs mf ->
+  forall (q : block) (z n : Z),
+  (forall (i : Z) (x : float32),
+   In (i, x) xs -> q <> b \/ z + n <= base + 4 * i \/ base + 4 * i + 4 <= z) ->
+  Mem.loadbytes mf q z n = Mem.loadbytes m q z n
+m : mem
+b : block
+base : Z
+mf, m1 : mem
+ST : Mem.store Mfloat32 m b (base + 4 * i) (Vsingle x) = Some m1
+REST : Writes m1 b base xs mf
+q : block
+z, n : Z
+OUT :
+  forall (i0 : Z) (x0 : float32),
+  In (i0, x0) ((i, x) :: xs) ->
+  q <> b \/ z + n <= base + 4 * i0 \/ base + 4 * i0 + 4 <= z
+The term "OUT i x (or_introl eq_refl)" has type
+ "q <> b \/ z + n <= base + 4 * i \/ base + 4 * i + 4 <= z"
+while it is expected to have type
+ "q <> b \/
+  n <= 0 \/ z + n <= base + 4 * i \/ base + 4 * i + size_chunk Mfloat32 <= z".
+

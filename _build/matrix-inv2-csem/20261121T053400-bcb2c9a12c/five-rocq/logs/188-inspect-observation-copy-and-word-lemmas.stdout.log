@@ -1,0 +1,271 @@
+748-
+749-(** ** Properties related to [loadbytes] *)
+750-
+751:Theorem range_perm_loadbytes:
+752-  forall m b ofs len,
+753-  range_perm m b ofs (ofs + len) Cur Readable ->
+754-  exists bytes, loadbytes m b ofs len = Some bytes.
+755-Proof.
+756-  intros. econstructor. unfold loadbytes. rewrite pred_dec_true; eauto.
+757-Qed.
+758-
+759:Theorem loadbytes_range_perm:
+760-  forall m b ofs len bytes,
+761-  loadbytes m b ofs len = Some bytes ->
+762-  range_perm m b ofs (ofs + len) Cur Readable.
+763-Proof.
+764-  intros until bytes. unfold loadbytes.
+765-  destruct (range_perm_dec m b ofs (ofs + len) Cur Readable). auto. congruence.
+766-Qed.
+767-
+768-Theorem loadbytes_load:
+769-  forall chunk m b ofs bytes,
+770-  loadbytes m b ofs (size_chunk chunk) = Some bytes ->
+771-  (align_chunk chunk | ofs) ->
+772-  load chunk m b ofs = Some(decode_val chunk bytes).
+773-Proof.
+774-  unfold loadbytes, load; intros.
+775-  destruct (range_perm_dec m b ofs (ofs + size_chunk chunk) Cur Readable);
+776-  try congruence.
+777-  inv H. rewrite pred_dec_true. auto.
+778-  split; auto.
+779-Qed.
+780-
+781-Theorem load_loadbytes:
+782-  forall chunk m b ofs v,
+783-  load chunk m b ofs = Some v ->
+784-  exists bytes, loadbytes m b ofs (size_chunk chunk) = Some bytes
+785-             /\ v = decode_val chunk bytes.
+786-Proof.
+787-  intros. exploit load_valid_access; eauto. intros [A B].
+788-  exploit load_result; eauto. intros.
+789-  exists (getN (size_chunk_nat chunk) ofs m.(mem_contents)#b); split.
+790-  unfold loadbytes. rewrite pred_dec_true; auto.
+791-  auto.
+792-Qed.
+793-
+794-Lemma getN_length:
+795-  forall c n p, length (getN n p c) = n.
+796-Proof.
+797-  induction n; simpl; intros. auto. decEq; auto.
+798-Qed.
+799-
+800:Theorem loadbytes_length:
+801-  forall m b ofs n bytes,
+802-  loadbytes m b ofs n = Some bytes ->
+803-  length bytes = Z.to_nat n.
+804-Proof.
+805-  unfold loadbytes; intros.
+806-  destruct (range_perm_dec m b ofs (ofs + n) Cur Readable); try congruence.
+807-  inv H. apply getN_length.
+808-Qed.
+809-
+810-Theorem loadbytes_empty:
+811-  forall m b ofs n,
+812-  n <= 0 -> loadbytes m b ofs n = Some nil.
+813-Proof.
+814-  intros. unfold loadbytes. rewrite pred_dec_true. rewrite Z_to_nat_neg; auto.
+815-  red; intros. extlia.
+816-Qed.
+817-
+818-Lemma getN_concat:
+819-  forall c n1 n2 p,
+820-  getN (n1 + n2)%nat p c = getN n1 p c ++ getN n2 (p + Z.of_nat n1) c.
+821-Proof.
+822-  induction n1; intros.
+823-  simpl. decEq. lia.
+824-  rewrite Nat2Z.inj_succ. simpl. decEq.
+825-  replace (p + Z.succ (Z.of_nat n1)) with ((p + 1) + Z.of_nat n1) by lia.
+826-  auto.
+827-Qed.
+828-
+829-Theorem loadbytes_concat:
+830-  forall m b ofs n1 n2 bytes1 bytes2,
+831-  loadbytes m b ofs n1 = Some bytes1 ->
+832-  loadbytes m b (ofs + n1) n2 = Some bytes2 ->
+833-  n1 >= 0 -> n2 >= 0 ->
+834-  loadbytes m b ofs (n1 + n2) = Some(bytes1 ++ bytes2).
+835-Proof.
+836-  unfold loadbytes; intros.
+837-  destruct (range_perm_dec m b ofs (ofs + n1) Cur Readable); try congruence.
+838-  destruct (range_perm_dec m b (ofs + n1) (ofs + n1 + n2) Cur Readable); try congruence.
+--
+844-  destruct H4. apply r; lia. apply r0; lia.
+845-Qed.
+846-
+847:Theorem loadbytes_split:
+848-  forall m b ofs n1 n2 bytes,
+849-  loadbytes m b ofs (n1 + n2) = Some bytes ->
+850-  n1 >= 0 -> n2 >= 0 ->
+851-  exists bytes1, exists bytes2,
+852-     loadbytes m b ofs n1 = Some bytes1
+853-  /\ loadbytes m b (ofs + n1) n2 = Some bytes2
+854-  /\ bytes = bytes1 ++ bytes2.
+855-Proof.
+856-  unfold loadbytes; intros.
+857-  destruct (range_perm_dec m b ofs (ofs + (n1 + n2)) Cur Readable);
+858-  try congruence.
+859-  rewrite Z2Nat.inj_add in H by lia. rewrite getN_concat in H.
+860-  rewrite Z2Nat.id in H by lia.
+861-  repeat rewrite pred_dec_true.
+862-  econstructor; econstructor.
+863-  split. reflexivity. split. reflexivity. congruence.
+864-  red; intros; apply r; lia.
+865-  red; intros; apply r; lia.
+866-Qed.
+867-
+868-Theorem load_rep:
+869- forall ch m1 m2 b ofs v1 v2,
+870-  (forall z, 0 <= z < size_chunk ch -> ZMap.get (ofs + z) m1.(mem_contents)#b = ZMap.get (ofs + z) m2.(mem_contents)#b) ->
+871-  load ch m1 b ofs = Some v1 ->
+872-  load ch m2 b ofs = Some v2 ->
+873-  v1 = v2.
+874-Proof.
+875-  intros.
+876-  apply load_result in H0.
+877-  apply load_result in H1.
+878-  subst.
+879-  f_equal.
+880-  rewrite size_chunk_conv in H.
+881-  remember (size_chunk_nat ch) as n; clear Heqn.
+882-  revert ofs H; induction n; intros; simpl; auto.
+883-  f_equal.
+884-  rewrite Nat2Z.inj_succ in H.
+885-  replace ofs with (ofs+0) by lia.
+--
+1378-
+1379-(** ** Properties related to [storebytes]. *)
+1380-
+1381:Theorem range_perm_storebytes:
+1382-  forall m1 b ofs bytes,
+1383-  range_perm m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable ->
+1384-  { m2 : mem | storebytes m1 b ofs bytes = Some m2 }.
+1385-Proof.
+1386-  intros. unfold storebytes.
+1387-  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable).
+1388-  econstructor; reflexivity.
+1389-  contradiction.
+1390-Defined.
+1391-
+1392-Theorem storebytes_store:
+1393-  forall m1 b ofs chunk v m2,
+1394-  storebytes m1 b ofs (encode_val chunk v) = Some m2 ->
+1395-  (align_chunk chunk | ofs) ->
+1396-  store chunk m1 b ofs v = Some m2.
+1397-Proof.
+1398-  unfold storebytes, store. intros.
+1399-  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length (encode_val chunk v))) Cur Writable); inv H.
+1400-  destruct (valid_access_dec m1 chunk b ofs Writable).
+1401-  f_equal. apply mkmem_ext; auto.
+1402-  elim n. constructor; auto.
+1403-  rewrite encode_val_length in r. rewrite size_chunk_conv. auto.
+1404-Qed.
+1405-
+1406-Theorem store_storebytes:
+1407-  forall m1 b ofs chunk v m2,
+1408-  store chunk m1 b ofs v = Some m2 ->
+1409-  storebytes m1 b ofs (encode_val chunk v) = Some m2.
+1410-Proof.
+1411-  unfold storebytes, store. intros.
+1412-  destruct (valid_access_dec m1 chunk b ofs Writable); inv H.
+1413-  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length (encode_val chunk v))) Cur Writable).
+1414-  f_equal. apply mkmem_ext; auto.
+1415-  destruct v0.  elim n.
+1416-  rewrite encode_val_length. rewrite <- size_chunk_conv. auto.
+1417-Qed.
+1418-
+1419-Section STOREBYTES.
+--
+1505-  auto.
+1506-Qed.
+1507-
+1508:Theorem loadbytes_storebytes_same:
+1509-  loadbytes m2 b ofs (Z.of_nat (length bytes)) = Some bytes.
+1510-Proof.
+1511-  intros. assert (STORE2:=STORE). unfold storebytes in STORE2. unfold loadbytes.
+1512-  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable);
+1513-  try discriminate.
+1514-  rewrite pred_dec_true.
+1515-  decEq. inv STORE2; simpl. rewrite PMap.gss. rewrite Nat2Z.id.
+1516-  apply getN_setN_same.
+1517-  red; eauto with mem.
+1518-Qed.
+1519-
+1520-Theorem loadbytes_storebytes_disjoint:
+1521-  forall b' ofs' len,
+1522-  len >= 0 ->
+1523-  b' <> b \/ Intv.disjoint (ofs', ofs' + len) (ofs, ofs + Z.of_nat (length bytes)) ->
+1524-  loadbytes m2 b' ofs' len = loadbytes m1 b' ofs' len.
+1525-Proof.
+1526-  intros. unfold loadbytes.
+1527-  destruct (range_perm_dec m1 b' ofs' (ofs' + len) Cur Readable).
+1528-  rewrite pred_dec_true.
+1529-  rewrite storebytes_mem_contents. decEq.
+1530-  rewrite PMap.gsspec. destruct (peq b' b). subst b'.
+1531-  apply getN_setN_disjoint. rewrite Z2Nat.id by lia. intuition congruence.
+1532-  auto.
+1533-  red; auto with mem.
+1534-  apply pred_dec_false.
+1535-  red; intros; elim n. red; auto with mem.
+1536-Qed.
+1537-
+1538-Theorem loadbytes_storebytes_other:
+1539-  forall b' ofs' len,
+1540-  len >= 0 ->
+1541-  b' <> b
+1542-  \/ ofs' + len <= ofs
+1543-  \/ ofs + Z.of_nat (length bytes) <= ofs' ->
+1544-  loadbytes m2 b' ofs' len = loadbytes m1 b' ofs' len.
+1545-Proof.
+1546-  intros. apply loadbytes_storebytes_disjoint; auto.
+422:Definition encode_val (chunk: memory_chunk) (v: val) : list memval :=
+423-  match v, chunk with
+424-  | Vint n, (Mbool | Mint8signed | Mint8unsigned) => inj_bytes (encode_int 1%nat (Int.unsigned n))
+425-  | Vint n, (Mint16signed | Mint16unsigned) => inj_bytes (encode_int 2%nat (Int.unsigned n))
+426-  | Vint n, Mint32 => inj_bytes (encode_int 4%nat (Int.unsigned n))
+427-  | Vptr b ofs, Mint32 => if Archi.ptr64 then List.repeat Undef 4%nat else inj_value Q32 v
+428-  | Vlong n, Mint64 => inj_bytes (encode_int 8%nat (Int64.unsigned n))
+429-  | Vptr b ofs, Mint64 => if Archi.ptr64 then inj_value Q64 v else List.repeat Undef 8%nat
+430-  | Vsingle n, Mfloat32 => inj_bytes (encode_int 4%nat (Int.unsigned (Float32.to_bits n)))
+431-  | Vfloat n, Mfloat64 => inj_bytes (encode_int 8%nat (Int64.unsigned (Float.to_bits n)))
+432-  | _, Many32 => inj_value Q32 v
+433-  | _, Many64 => inj_value Q64 v
+434-  | _, _ => List.repeat Undef (size_chunk_nat chunk)
+435-  end.
+436-
+437:Definition decode_val (chunk: memory_chunk) (vl: list memval) : val :=
+438-  match proj_bytes vl with
+439-  | Some bl =>
+440-      match chunk with
+441-      | Mbool => Val.norm_bool (Vint (Int.zero_ext 8 (Int.repr (decode_int bl))))
+442-      | Mint8signed => Vint(Int.sign_ext 8 (Int.repr (decode_int bl)))
+443-      | Mint8unsigned => Vint(Int.zero_ext 8 (Int.repr (decode_int bl)))
+444-      | Mint16signed => Vint(Int.sign_ext 16 (Int.repr (decode_int bl)))
+445-      | Mint16unsigned => Vint(Int.zero_ext 16 (Int.repr (decode_int bl)))
+446-      | Mint32 => Vint(Int.repr(decode_int bl))
+447-      | Mint64 => Vlong(Int64.repr(decode_int bl))
+448-      | Mfloat32 => Vsingle(Float32.of_bits (Int.repr (decode_int bl)))
+449-      | Mfloat64 => Vfloat(Float.of_bits (Int64.repr (decode_int bl)))
+450-      | Many32 => Vundef
+451-      | Many64 => Vundef
+452-      end
+453-  | None =>
+454-      match chunk with
+455-      | Mint32 => if Archi.ptr64 then Vundef else Val.load_result chunk (proj_value Q32 vl)
+456-      | Many32 => Val.load_result chunk (proj_value Q32 vl)
+457-      | Mint64 => if Archi.ptr64 then Val.load_result chunk (proj_value Q64 vl) else Vundef
+458-      | Many64 => Val.load_result chunk (proj_value Q64 vl)
+459-      | _ => Vundef
+460-      end
+461-  end.
+462-
+463-Ltac solve_encode_val_length :=
+464-  match goal with
+465-  | [ |- length (inj_bytes _) = _ ] => rewrite length_inj_bytes; solve_encode_val_length
+466-  | [ |- length (encode_int _ _) = _ ] => apply encode_int_length
+467-  | [ |- length (if ?x then _ else _) = _ ] => destruct x eqn:?; solve_encode_val_length
+468-  | _ => reflexivity
+469-  end.
+470-
+471-Lemma encode_val_length:
+472-  forall chunk v, length(encode_val chunk v) = size_chunk_nat chunk.

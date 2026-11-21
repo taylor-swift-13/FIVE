@@ -1,0 +1,92 @@
+        argv = command.get('argv', [])
+        if full_compile(command):
+            compiled.update((Path(command['cwd']) / arg).resolve() for arg in argv[1:] if arg.endswith('.v'))
+    if not set(dependencies).issubset(compiled):
+        raise ValueError('kernel dependency source was not compiled in the bound proof run')
+    kernel_commands = [c for c in proof_run.get('commands', []) if c.get('id') == receipt['command_id']]
+    def module_candidates(command, module):
+        args = command['argv']; mappings = []
+        for i, arg in enumerate(args):
+            if arg in ('-Q', '-R') and i + 2 < len(args):
+                mappings.append((args[i + 2], (Path(command['cwd']) / args[i + 1]).resolve()))
+        matching = [(prefix, directory) for prefix, directory in mappings if module == prefix or module.startswith(prefix + '.')]
+        if not matching:
+            return []
+        longest = max(len(prefix) for prefix, _ in matching)
+        matching = [(prefix, directory) for prefix, directory in matching if len(prefix) == longest]
+        if len(matching) != 1:
+            raise ValueError('ambiguous logical namespace mapping: ' + module)
+        prefix, directory = matching[0]
+        return [directory.joinpath(*module[len(prefix):].strip('.').split('.')).with_suffix('.v')]
+    for theorem in receipt['theorems']:
+        module = theorem.rsplit('.', 1)[0]
+        candidates = module_candidates(kernel_commands[0], module)
+        if len(candidates) != 1 or candidates[0] not in dependencies:
+            raise ValueError('kernel theorem module does not resolve to bound dependency snapshot')
+        source = candidates[0]
+        matching_compiles = [c for c in proof_run.get('commands', []) if full_compile(c) and any((Path(c['cwd']) / arg).resolve() == source for arg in c['argv'] if arg.endswith('.v'))]
+        if not matching_compiles or any(module_candidates(c, module) != [source] for c in matching_compiles):
+            raise ValueError('proof compile and kernel namespace mappings differ')
+    bindings = data.get('goal_bindings')
+    goals = status.get('requested_goals')
+    if not isinstance(bindings, list) or not bindings or not isinstance(goals, list) or len(set(goals)) != len(goals):
+        raise ValueError('missing/malformed goal bindings')
+    if [r.get('requested_goal') for r in bindings] != goals:
+        raise ValueError('requested goals differ from certified goals')
+    ident = r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*'
+    for row in bindings:
+        if not re.fullmatch(ident, str(row.get('theorem', ''))) or not isinstance(row.get('type'), str) or not row['type'].strip() or any(token in row['type'] for token in ('(*', '*)', '\n', '\r')) or re.search(r'\.(?:\s|$)', row['type']):
+            raise ValueError('malformed theorem/type binding')
+        if row['theorem'] not in receipt['theorems']:
+            raise ValueError('goal theorem is not claimed by kernel receipt')
+    cert = data['certificate']
+    certificate = checked(cert)
+    imports = cert.get('imports')
+    if not isinstance(imports, list) or not imports or not all(re.fullmatch(ident, str(n)) for n in imports):
+        raise ValueError('malformed certificate imports')
+    if certificate.read_text() != certificate_source(imports, bindings):
+        raise ValueError('certificate does not express exact theorem-to-goal bindings')
+    run = json.loads((root / cert['run'] / 'run.json').read_text())
+    if run.get('status') != 'passed':
+        raise ValueError('certificate run did not pass')
+    run_inputs = {Path(x['source']).resolve(): x['sha256'] for x in run.get('inputs', [])}
+    if run_inputs.get(certificate) != cert['sha256'] or any(run_inputs.get(p) != h for p, h in dependencies.items()):
+        raise ValueError('certificate run omitted actual certificate/dependency snapshot')
+    def command(command_id):
+        rows = [c for c in run.get('commands', []) if c.get('id') == command_id]
+        if len(rows) != 1 or rows[0].get('exit_code') != 0 or rows[0].get('status') != 'passed':
+            raise ValueError('missing/failed certificate command')
+        return rows[0]
+    compile_row = command(cert['compile_command_id'])
+    stdout = compile_row.get('stdout')
+    if not isinstance(stdout, str) or not (root / cert['run'] / stdout).is_file() or not (root / cert['run'] / stdout).stat().st_size:
+        raise ValueError('missing actual certificate Print Assumptions output')
+    argv = compile_row['argv']
+    if not full_compile(compile_row) or not any((Path(compile_row['cwd']) / arg).resolve() == certificate for arg in argv if arg.endswith('.v')):
+        raise ValueError('certificate was not actually compiled')
+    # Reuse canonical independent-kernel and compilation/snapshot checks for
+    # certificate module, avoiding a second permissive argv implementation.
+    certificate_receipt = cert['kernel_evidence']
+    kernel_record(root, certificate_receipt)
+    ce = json.loads((root / certificate_receipt).read_text())
+    if ce['run'] != cert['run'] or ce['command_id'] != cert['kernel_command_id'] or ce['theorems'] != [cert['module'] + '.goal_' + str(i) for i in range(len(bindings))] or ce['statement_artifacts'] != [cert['path']] or ce['dependency_sha256'] != {**receipt['dependency_sha256'], cert['path']: cert['sha256']}:
+        raise ValueError('certificate kernel receipt differs from exact certification')
+    # Imports must resolve to the very same compiled dependency source paths.
+    for row in (compile_row, command(cert['kernel_command_id'])):
+        for module in set(imports) | {b['theorem'].rsplit('.', 1)[0] for b in bindings} | {b['type'].rsplit('.', 1)[0] for b in bindings if re.fullmatch(ident, b['type']) and '.' in b['type']}:
+            candidates = module_candidates(row, module)
+            if not any(p in dependencies for p in candidates):
+                raise ValueError('certificate import not bound to actual compiled snapshot: ' + module)
+        if certificate not in module_candidates(row, cert['module']):
+            raise ValueError('certificate module does not resolve to actual compiled certificate')
+usage: compcert-verify.py gate [-h] --request REQUEST --request-sha256
+                               REQUEST_SHA256 --contract CONTRACT --manifest
+                               MANIFEST --spec-recheck SPEC_RECHECK
+
+options:
+  -h, --help            show this help message and exit
+  --request REQUEST
+  --request-sha256 REQUEST_SHA256
+  --contract CONTRACT
+  --manifest MANIFEST
+  --spec-recheck SPEC_RECHECK

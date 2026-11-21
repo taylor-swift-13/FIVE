@@ -1,0 +1,89 @@
+768:Theorem loadbytes_load:
+769-  forall chunk m b ofs bytes,
+770-  loadbytes m b ofs (size_chunk chunk) = Some bytes ->
+771-  (align_chunk chunk | ofs) ->
+772-  load chunk m b ofs = Some(decode_val chunk bytes).
+773-Proof.
+774-  unfold loadbytes, load; intros.
+775-  destruct (range_perm_dec m b ofs (ofs + size_chunk chunk) Cur Readable);
+776-  try congruence.
+777-  inv H. rewrite pred_dec_true. auto.
+778-  split; auto.
+779-Qed.
+780-
+781:Theorem load_loadbytes:
+782-  forall chunk m b ofs v,
+783-  load chunk m b ofs = Some v ->
+784-  exists bytes, loadbytes m b ofs (size_chunk chunk) = Some bytes
+785-             /\ v = decode_val chunk bytes.
+786-Proof.
+787-  intros. exploit load_valid_access; eauto. intros [A B].
+788-  exploit load_result; eauto. intros.
+789-  exists (getN (size_chunk_nat chunk) ofs m.(mem_contents)#b); split.
+790-  unfold loadbytes. rewrite pred_dec_true; auto.
+791-  auto.
+792-Qed.
+793-
+794-Lemma getN_length:
+--
+1666:Theorem nextblock_alloc:
+1667-  nextblock m2 = Pos.succ (nextblock m1).
+1668-Proof.
+1669-  injection ALLOC; intros. rewrite <- H0; auto.
+1670-Qed.
+1671-
+1672:Theorem alloc_result:
+1673-  b = nextblock m1.
+1674-Proof.
+1675-  injection ALLOC; auto.
+1676-Qed.
+1677-
+1678-Theorem valid_block_alloc:
+1679-  forall b', valid_block m1 b' -> valid_block m2 b'.
+1680-Proof.
+1681-  unfold valid_block; intros. rewrite nextblock_alloc.
+1682-  apply Plt_trans_succ; auto.
+1683-Qed.
+1684-
+1685-Theorem fresh_block_alloc:
+--
+1707:Theorem perm_alloc_1:
+1708-  forall b' ofs k p, perm m1 b' ofs k p -> perm m2 b' ofs k p.
+1709-Proof.
+1710-  unfold perm; intros. injection ALLOC; intros. rewrite <- H1; simpl.
+1711-  subst b. rewrite PMap.gsspec. destruct (peq b' (nextblock m1)); auto.
+1712-  rewrite nextblock_noaccess in H. contradiction. subst b'. apply Plt_strict.
+1713-Qed.
+1714-
+1715:Theorem perm_alloc_2:
+1716-  forall ofs k, lo <= ofs < hi -> perm m2 b ofs k Freeable.
+1717-Proof.
+1718-  unfold perm; intros. injection ALLOC; intros. rewrite <- H1; simpl.
+1719-  subst b. rewrite PMap.gss. unfold proj_sumbool. rewrite zle_true.
+1720-  rewrite zlt_true. simpl. auto with mem. lia. lia.
+1721-Qed.
+1722-
+1723-Theorem perm_alloc_inv:
+1724-  forall b' ofs k p,
+1725-  perm m2 b' ofs k p ->
+1726-  if eq_block b' b then lo <= ofs < hi else perm m1 b' ofs k p.
+1727-Proof.
+1728-  intros until p; unfold perm. inv ALLOC. simpl.
+4-From FiveLowpassUpdateCase Require Import Contract.
+5-Local Open Scope Z_scope.
+6:Theorem initialized_inhabited:forall tc li lo:float32,exists m b,Initialized m b Ptrofs.zero tc li lo.
+7-Proof.
+8- intros tc li lo;destruct(Mem.alloc Mem.empty 0 12)as[ma b]eqn:A.
+9- assert(W:writable12 ma b Ptrofs.zero).
+10- { unfold writable12;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|]. split;[change(12<=18446744073709551616);lia|].
+11- intros z R;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact A|exact R]|constructor]. }
+12- destruct(three_stores_exist ma b Ptrofs.zero tc li lo W)as[mf[m1[m2[S0[S4 S8]]]]].
+13- exists mf,b;split.
+14- - eapply store_preserves_writable12;[|exact S8]. eapply store_preserves_writable12;[|exact S4]. eapply store_preserves_writable12;[exact W|exact S0].
+15- - split.
+16- + erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];intuition lia)). erewrite Mem.load_store_other by(exact S4||(cbn[size_chunk];intuition lia)). erewrite Mem.load_store_same by exact S0;reflexivity.
+17- + split.
+18- * erewrite Mem.load_store_other by(exact S8||(cbn[size_chunk];intuition lia)). erewrite Mem.load_store_same by exact S4;reflexivity.
+19- * erewrite Mem.load_store_same by exact S8;reflexivity.
+20-Qed.
+21:Print Assumptions initialized_inhabited.

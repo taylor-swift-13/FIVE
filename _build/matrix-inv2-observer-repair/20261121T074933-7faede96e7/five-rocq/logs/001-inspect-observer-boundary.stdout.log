@@ -1,0 +1,301 @@
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+bool float_mat_inv_2d(float out[4], const float in[4]);
+extern float nondet_float(void);
+int main(void) {
+  float arbitrary[4];
+  arbitrary[0] = nondet_float();
+  arbitrary[1] = nondet_float();
+  arbitrary[2] = nondet_float();
+  arbitrary[3] = nondet_float();
+  struct { uint32_t before; float value[4]; uint32_t after; } guarded = {.before=0x12345678u, .after=0x9abcdef0u};
+  bool arbitrary_status = float_mat_inv_2d(guarded.value, arbitrary);
+  __CPROVER_assert(arbitrary_status == 0 || arbitrary_status == 1, "return status is boolean for arbitrary binary32 matrix");
+  __CPROVER_assert(guarded.before == 0x12345678u && guarded.after == 0x9abcdef0u, "arbitrary matrix call preserves surrounding frame words");
+  float base[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+  float small[4] = {0x1p-8f, 0.0f, 0.0f, 0x1p-8f};
+  float large[4] = {0x1p100f, 0.0f, 0.0f, 0x1p100f};
+  float base_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  float small_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  float large_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  uint32_t base_words[4], small_before[4], small_after[4], large_words[4];
+  memcpy(small_before, small_out, sizeof small_out);
+  bool base_status = float_mat_inv_2d(base_out, base);
+  bool small_status = float_mat_inv_2d(small_out, small);
+  bool large_status = float_mat_inv_2d(large_out, large);
+  memcpy(base_words, base_out, sizeof base_out);
+  memcpy(small_after, small_out, sizeof small_out);
+  memcpy(large_words, large_out, sizeof large_out);
+  __CPROVER_assert(base_status == 0, "identity call succeeds");
+  __CPROVER_assert(base_words[0] == 0x3f800000u && base_words[1] == 0x80000000u && base_words[2] == 0x80000000u && base_words[3] == 0x3f800000u, "identity exact signedzero output bits");
+  __CPROVER_assert(small_status == 1, "small conditionone diagonal call rejects");
+  __CPROVER_assert(small_before[0] == small_after[0] && small_before[1] == small_after[1] && small_before[2] == small_after[2] && small_before[3] == small_after[3], "rejected call preserves every output byte");
+  __CPROVER_assert(large_status == 0, "finite large diagonal call reports success");
+  __CPROVER_assert(large_words[0] == 0x00000000u && large_words[1] == 0x80000000u && large_words[2] == 0x80000000u && large_words[3] == 0x00000000u, "overflow determinant exact signedzero output bits");
+  __CPROVER_assert(base_status == small_status, "positive scaling preserves inverse status");
+  float residual = large[0] * large_out[0] - 1.0f;
+  __CPROVER_assert(large_status != 0 || (residual > -0.5f && residual < 0.5f), "successful wellconditioned inverse has residual component below half");
+  return 0;
+}
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveMatInv3Case Require Import MatrixMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition Det(f:Z->float32):float32 := Float32.sub(Float32.mul(f 0)(f 3))(Float32.mul(f 1)(f 2)).
+Definition Reject(f:Z->float32):bool := Float.cmp Clt(Float.of_single(Float32.abs(Det f)))(Float.of_bits(Int64.repr 4547007122018943789)).
+Definition Result(f:Z->float32):val := Vint(if Reject f then Int.one else Int.zero).
+Definition Output(f:Z->float32)(i:Z):float32 :=
+ if Z.eq_dec i 0 then Float32.div(f 3)(Det f) else
+ if Z.eq_dec i 1 then Float32.div(Float32.neg(f 1))(Det f) else
+ if Z.eq_dec i 2 then Float32.div(Float32.neg(f 2))(Det f) else Float32.div(f 0)(Det f).
+Definition Outputs(f:Z->float32):list(Z*float32):=[(0,Output f 0);(1,Output f 1);(2,Output f 2);(3,Output f 3)].
+Definition Args(bo bi:block)(po pi:ptrofs):list val := [Vptr bo po;Vptr bi pi].
+Definition Inputs(m:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ bo<>bi /\ WriteRegion m bo po 4 /\ Reads m bi pi 4 f.
+Definition Precondition(args:list val)(m:mem):Prop := exists bo bi po pi f,args=Args bo bi po pi /\ Inputs m bo bi po pi f.
+Definition Frame(m mf:mem)(bo:block)(po:ptrofs):Prop := forall b z n,Mem.valid_block m b->
+ b<>bo \/ z+n<=Ptrofs.unsigned po \/ Ptrofs.unsigned po+16<=z ->Mem.loadbytes mf b z n=Mem.loadbytes m b z n.
+Definition Encoded(f:Z->float32):list memval :=
+ encode_val Mfloat32(Vsingle(Output f 0))++encode_val Mfloat32(Vsingle(Output f 1))++
+ encode_val Mfloat32(Vsingle(Output f 2))++encode_val Mfloat32(Vsingle(Output f 3)).
+Definition Post(m mf:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ WriteRegion mf bo po 4 /\ Reads mf bi pi 4 f /\ Frame m mf bo po /\
+ (forall b,Mem.valid_block m b->Mem.valid_block mf b) /\
+ (Mem.loadbytes mf bo(Ptrofs.unsigned po)16=
+ if Reject f then Mem.loadbytes m bo(Ptrofs.unsigned po)16 else Some(Encoded f)) /\
+ (forall ch b z perm,Mem.valid_block m b->Mem.valid_access m ch b z perm->Mem.valid_access mf ch b z perm).
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FivePprzFloatMatInv2d Require Import Execution.
+From FiveInv2Case Require Import Contract Call RecheckSupport TraceInputs.
+From FiveMatrixInverseSupport Require Import Kernels.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition NormalCall(m:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32)(mf:mem):Prop:=exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Result f)Kstop mf).
+Record Separate(og ig ob ib os is0 ol il:block):Prop:={
+ sep_bg:ob<>og;sep_big:ib<>og;sep_sg:os<>og;sep_sig:is0<>og;sep_lg:ol<>og;sep_lig:il<>og;
+ sep_sb:os<>ob;sep_sib:is0<>ob;sep_lb:ol<>ob;sep_lib:il<>ob;sep_ls:ol<>os;sep_lis:il<>os
+}.
+Definition OriginalReplay:Prop:=forall m og ig ob ib os is0 ol il,
+ Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input->
+ Inputs m ob ib Ptrofs.zero Ptrofs.zero base2->
+ Inputs m os is0 Ptrofs.zero Ptrofs.zero small2->
+ Inputs m ol il Ptrofs.zero Ptrofs.zero large2->Separate og ig ob ib os is0 ol il->
+ exists ma mb mc md,
+ NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+ NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+ NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+ NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+Theorem original_trace_four_calls:OriginalReplay.
+Proof. intros m og ig ob ib os is0 ol il IG IB IS IL SEP;destruct SEP.
+ destruct(call_summary m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input IG)as[ma[PG[QG OTHERG]]].
+ assert(IBA:Inputs ma ob ib Ptrofs.zero Ptrofs.zero base2)by(eapply post_preserves_other_inputs;eauto).
+ assert(ISA:Inputs ma os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+ assert(ILA:Inputs ma ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+ destruct(call_summary ma ob ib Ptrofs.zero Ptrofs.zero base2 IBA)as[mb[PB[QB OTHERB]]].
+ assert(ISB:Inputs mb os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+ assert(ILB:Inputs mb ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+ destruct(call_summary mb os is0 Ptrofs.zero Ptrofs.zero small2 ISB)as[mc[PS[QS OTHERS]]].
+ assert(ILC:Inputs mc ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+ destruct(call_summary mc ol il Ptrofs.zero Ptrofs.zero large2 ILC)as[md[PL[QL OTHERL]]].
+ exists ma,mb,mc,md;unfold NormalCall;split;[exact PG|];split;[exact QG|];split;[exact PB|];split;[exact QB|];split;[exact PS|];split;[exact QS|];split;[exact PL|exact QL].
+Qed.
+Theorem original_trace_statuses:Result trace_input=Vint Int.zero/\Result base2=Vint Int.zero/\Result small2=Vint Int.one/\Result large2=Vint Int.zero.
+Proof. split;[exact(proj1 original_arbitrary_trace_kernel)|];split;[exact(proj1 base2_kernel)|];split;[exact(proj1 small2_kernel)|exact(proj1 large2_kernel)]. Qed.
+Theorem original_trace_scale_failure:OriginalReplay /\ Result base2<>Result small2.
+Proof. split;[exact original_trace_four_calls|exact RefuteScaleStatus2]. Qed.
+Theorem original_trace_residual_failure:OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864.
+Proof. split;[exact original_trace_four_calls|];destruct RefuteLargeResidual2 as[RET BAD];split;[exact RET|];split;[exact BAD|exact large2_residual]. Qed.
+Print Assumptions original_trace_four_calls.
+Print Assumptions original_trace_scale_failure.
+Print Assumptions original_trace_residual_failure.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Integers Floats AST Values Memory Events Csem Smallstep.
+From FiveGuidanceEntry Require Import StackCleanup.
+From FiveMatInv3Case Require Import MatrixMemory GuardWitness PairExtend.
+From FiveInv2Case Require Import Contract Replay TraceInputs.
+From FiveMatrixInverseSupport Require Import Kernels.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma extension_reads:forall m0 m,LoadPreserved m0 m->forall b p n f,0<n->Reads m0 b p n f->Reads m b p n f.
+Proof. intros m0 m KEEP b p n f N RD;pose proof(reads_valid m0 b p n f N RD)as V;destruct RD as[AL[NW L]];repeat split;auto;intros i B;rewrite KEEP by exact V;apply L;exact B. Qed.
+Lemma extension_writable:forall m0 m,AccessPreserved m0 m->forall b p n,WriteRegion m0 b p n->WriteRegion m b p n.
+Proof. intros m0 m KEEP b p n[AL[NW RP]];split;[exact AL|];split;[exact NW|];eapply range_perm_access_preserved_block;[intros ch ofs perm VA;exact(KEEP ch b ofs perm VA)|exact RP]. Qed.
+Lemma extension_inputs:forall m0 m,LoadPreserved m0 m->AccessPreserved m0 m->forall bo bi po pi f,Inputs m0 bo bi po pi f->Inputs m bo bi po pi f.
+Proof. intros m0 m L A bo bi po pi f[NE[W RD]];split;[exact NE|];split;[eapply extension_writable;eauto|eapply extension_reads;eauto;lia]. Qed.
+Lemma extension_guarded:forall m0 m,LoadPreserved m0 m->AccessPreserved m0 m->forall bo bi f,Guarded 4 m0 bo bi f->Guarded 4 m bo bi f.
+Proof. intros m0 m L A bo bi f[NE[W[RD[OLD[BE AF]]]]].
+ pose proof(writable_valid m0 bo(Ptrofs.repr 4)4 ltac:(lia)W)as V.
+ split;[exact NE|];split;[eapply extension_writable;eauto|];split;[eapply extension_reads;eauto;lia|];split;[eapply extension_reads;eauto;lia|].
+ split;[rewrite L by exact V;exact BE|rewrite L by exact V;exact AF]. Qed.
+Definition InitializedLayout(m:mem)(og ig ob ib os is0 ol il:block):Prop:=
+ Guarded 4 m og ig trace_input /\Inputs m ob ib Ptrofs.zero Ptrofs.zero base2 /\Inputs m os is0 Ptrofs.zero Ptrofs.zero small2 /\Inputs m ol il Ptrofs.zero Ptrofs.zero large2 /\
+ Reads m ob Ptrofs.zero 4 initial_fixture /\Reads m os Ptrofs.zero 4 initial_fixture /\Reads m ol Ptrofs.zero 4 initial_fixture /\Separate og ig ob ib os is0 ol il.
+Theorem initialized_layout_inhabited:exists m og ig ob ib os is0 ol il,InitializedLayout m og ig ob ib os is0 ol il.
+Proof.
+ destruct(matrix4_guarded trace_input)as[m0[og[ig GG]]].
+ pose proof GG as[NG[WG[RG RESTG]]].
+ pose proof(writable_valid m0 og(Ptrofs.repr 4)4 ltac:(lia)WG)as VG0.
+ destruct(pair4_extend m0 base2 initial_fixture)as[m1[ob[ib[NB[WB[RB[OB[FOB[FIB[B1[L1[A1 V1]]]]]]]]]]]].
+ assert(IB1:Inputs m1 ob ib Ptrofs.zero Ptrofs.zero base2)by(split;[exact NB|];split;[exact WB|exact RB]).
+ pose proof(writable_valid m1 ob Ptrofs.zero 4 ltac:(lia)WB)as VB1.
+ pose proof(V1 og VG0)as VG1.
+ destruct(pair4_extend m1 small2 initial_fixture)as[m2[os[is0[NS[WS[RS[OS[FOS[FIS[B2[L2[A2 V2]]]]]]]]]]]].
+ assert(IS2:Inputs m2 os is0 Ptrofs.zero Ptrofs.zero small2)by(split;[exact NS|];split;[exact WS|exact RS]).
+ pose proof(writable_valid m2 os Ptrofs.zero 4 ltac:(lia)WS)as VS2.
+ pose proof(V2 og VG1)as VG2;pose proof(V2 ob VB1)as VB2.
+ destruct(pair4_extend m2 large2 initial_fixture)as[m3[ol[il[NL[WL[RL[OL[FOL[FIL[B3[L3[A3 V3]]]]]]]]]]]].
+ assert(IL3:Inputs m3 ol il Ptrofs.zero Ptrofs.zero large2)by(split;[exact NL|];split;[exact WL|exact RL]).
+ exists m3,og,ig,ob,ib,os,is0,ol,il;unfold InitializedLayout;split.
+ - eapply extension_guarded;[exact L3|exact A3|];eapply extension_guarded;[exact L2|exact A2|];eapply extension_guarded;eauto.
+ - split.
+ + eapply extension_inputs;[exact L3|exact A3|];eapply extension_inputs;eauto.
+ + split.
+ * eapply extension_inputs;eauto.
+ * split;[exact IL3|];split.
+ -- eapply extension_reads;[exact L3|lia|];eapply extension_reads;eauto;lia.
+ -- split;[eapply extension_reads;eauto;lia|];split;[exact OL|].
+ constructor;intro EQ;subst;first[exact(FOB VG0)|exact(FIB VG0)|exact(FOS VG1)|exact(FIS VG1)|exact(FOL VG2)|exact(FIL VG2)|exact(FOS VB1)|exact(FIS VB1)|exact(FOL VB2)|exact(FIL VB2)|exact(FOL VS2)|exact(FIL VS2)].
+Qed.
+Definition TraceNonempty:Prop:=exists m og ig ob ib os is0 ol il ma mb mc md,
+ InitializedLayout m og ig ob ib os is0 ol il /\
+ NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+ NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+ NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+ NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+Theorem original_trace_nonempty:TraceNonempty.
+Proof. destruct initialized_layout_inhabited as[m[og[ig[ob[ib[os[is0[ol[il LAYOUT]]]]]]]]].
+ pose proof LAYOUT as[GG[IB[IS[IL[OB[OS[OL SEP]]]]]]].
+ pose proof GG as[NE[W[RD OTHER]]];assert(IG:Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input)by(split;[exact NE|];split;[exact W|exact RD]).
+ destruct(original_trace_four_calls m og ig ob ib os is0 ol il IG IB IS IL SEP)as[ma[mb[mc[md CALLS]]]].
+ exists m,og,ig,ob,ib,os,is0,ol,il,ma,mb,mc,md;split;assumption. Qed.
+Print Assumptions initialized_layout_inhabited.
+Print Assumptions original_trace_nonempty.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FiveInv2Case Require Import Memcpy16.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma append_cut:forall(A:Type)(a b c d:list A),length a=length c->a++b=c++d->a=c /\b=d.
+Proof. intros A a;induction a as[|x a IH];intros b c d LEN EQ;destruct c as[|y c];simpl in LEN;try discriminate.
+ - simpl in EQ;auto.
+ - simpl in EQ;injection EQ as XY EQ;subst y;destruct(IH b c d ltac:(lia)EQ)as[-> ->];auto. Qed.
+Lemma same_bytes_cell:forall m1 b1 m2 b2 bytes z,
+ Mem.loadbytes m1 b1 0 16=Some bytes->Mem.loadbytes m2 b2 0 16=Some bytes->0<=z->z+4<=16->
+ Mem.loadbytes m1 b1 z 4=Mem.loadbytes m2 b2 z 4.
+Proof.
+ intros m1 b1 m2 b2 bytes z A B Z LIMIT.
+ replace 16 with(z+(16-z))in A,B by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ A ltac:(lia)ltac:(lia))as[a[rest[RA[RR EA]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ B ltac:(lia)ltac:(lia))as[c[tail[RC[RT EC]]]].
+ assert(L:length a=length c)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RA),(Mem.loadbytes_length _ _ _ _ _ RC);reflexivity).
+ destruct(append_cut _ a rest c tail L ltac:(congruence))as[_ EQ];subst tail.
+ replace(0+z)with z in RR,RT by lia.
+ replace(16-z)with(4+(12-z))in RR,RT by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RR ltac:(lia)ltac:(lia))as[d[ds[RD[RDS ED]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RT ltac:(lia)ltac:(lia))as[f[fs[RF[RFS EF]]]].
+ assert(L':length d=length f)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RD),(Mem.loadbytes_length _ _ _ _ _ RF);reflexivity).
+ destruct(append_cut _ d ds f fs L' ltac:(congruence))as[EQ _];subst f;congruence.
+Qed.
+Lemma memcpy_word_observation:forall m src dst mf bytes f,
+ Mem.loadbytes m src 0 16=Some bytes->Mem.storebytes m dst 0 bytes=Some mf->
+ (forall i,0<=i<4->Mem.loadbytes m src(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))->
+ forall i,0<=i<4->Mem.load Mint32 mf dst(4*i)=Some(Vint(Float32.to_bits(f i))).
+Proof.
+ intros m src dst mf bytes f RD ST CELLS i I.
+ pose proof(Mem.loadbytes_length _ _ _ _ _ RD)as LEN;change(length bytes=16%nat)in LEN.
+ pose proof(Mem.loadbytes_storebytes_same _ _ _ _ _ ST)as ALL;rewrite LEN in ALL;change(Mem.loadbytes mf dst 0 16=Some bytes)in ALL.
+ pose proof(same_bytes_cell m src mf dst bytes(4*i)RD ALL ltac:(lia)ltac:(lia))as EQ.
+ assert(C:Mem.loadbytes mf dst(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))by(rewrite <-EQ;apply CELLS;exact I).
+ pose proof(Mem.loadbytes_load Mint32 mf dst(4*i)_ C ltac:(change(4|4*i);exists i;lia))as LOAD.
+ pose proof(decode_encode_val_general(Vsingle(f i))Mfloat32 Mint32)as DE.
+ change(decode_val Mint32(encode_val Mfloat32(Vsingle(f i)))=Vint(Float32.to_bits(f i)))in DE;rewrite DE in LOAD;exact LOAD.
+Qed.
+Print Assumptions memcpy_word_observation.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Ctypes Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FivePprzFloatMatInv2d Require Import Execution.
+From FiveInv2Case Require Import Contract Call MemoryEffects Body Memcpy16 Observer TraceInputs.
+Import ListNotations.
+Local Open Scope Z_scope.
+Record AddressFacts(m:mem)(b:block)(p:ptrofs)(i:Z)(perm:permission):Prop:={
+ address_nonnull:Vptr b(Ptrofs.add p(Ptrofs.repr(4*i)))<>Vnullptr;
+ address_live:Mem.valid_block m b;
+ address_typed:Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+4*i)perm;
+ address_nowrap:Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr(4*i)))=Ptrofs.unsigned p+4*i;
+ address_bounds:0<=i<4
+}.
+Definition SourceGuards(i:Z)(output:bool):Prop :=forall m bo bi po pi f,Inputs m bo bi po pi f->0<=i<4->
+ no_error Execution.ge(Execution.entry(Args bo bi po pi)m)/\
+ if output then AddressFacts m bo po i Writable else AddressFacts m bi pi i Readable.
+Theorem source_guards:forall i output,SourceGuards i output.
+Proof. intros i output m bo bi po pi f IN B;destruct(call_summary m bo bi po pi f IN)as[mf[PATH[POST[SAFE ALL]]]];split;[exact SAFE|].
+ destruct IN as[NE[W RD]];destruct output;constructor;try discriminate;try exact B.
+ - exact(writable_valid m bo po 4 ltac:(lia)W).
+ - eapply writable_access;eauto.
+ - eapply index_pointer;[exact(proj1(proj2 W))|exact B].
+ - exact(reads_valid m bi pi 4 f ltac:(lia)RD).
+ - eapply Mem.load_valid_access;exact(proj2(proj2 RD)i B).
+ - eapply index_pointer;[exact(proj1(proj2 RD))|exact B]. Qed.
+Lemma same_bytes_cell_at:forall m1 b1 base1 m2 b2 base2 bytes z,
+ Mem.loadbytes m1 b1 base1 16=Some bytes->Mem.loadbytes m2 b2 base2 16=Some bytes->0<=z->z+4<=16->
+ Mem.loadbytes m1 b1(base1+z)4=Mem.loadbytes m2 b2(base2+z)4.
+Proof. intros m1 b1 base1 m2 b2 base2 bytes z A B Z LIMIT.
+ replace 16 with(z+(16-z))in A,B by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ A ltac:(lia)ltac:(lia))as[a[rest[RA[RR EA]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ B ltac:(lia)ltac:(lia))as[c[tail[RC[RT EC]]]].
+ assert(L:length a=length c)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RA),(Mem.loadbytes_length _ _ _ _ _ RC);reflexivity).
+ destruct(append_cut _ a rest c tail L ltac:(congruence))as[_ EQ];subst tail.
+ replace(16-z)with(4+(12-z))in RR,RT by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RR ltac:(lia)ltac:(lia))as[d[ds[RD[RDS ED]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RT ltac:(lia)ltac:(lia))as[f[fs[RF[RFS EF]]]].
+ assert(L':length d=length f)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RD),(Mem.loadbytes_length _ _ _ _ _ RF);reflexivity).
+ destruct(append_cut _ d ds f fs L' ltac:(congruence))as[EQ _];subst f;congruence. Qed.
+Lemma successful_post_cells:forall m mf bo bi po pi f,Post m mf bo bi po pi f->Reject f=false->forall i,0<=i<4->
+ Mem.loadbytes mf bo(Ptrofs.unsigned po+4*i)4=Some(encode_val Mfloat32(Vsingle(Output f i))).
+Proof. intros m mf bo bi po pi f POST REJ i B.
+ destruct POST as[W[RD[FR[VB[BY AC]]]]];rewrite REJ in BY.
+ destruct(Mem.alloc Mem.empty 0 16)as[ma br]eqn:AL.
+ assert(WR:WriteRegion ma br Ptrofs.zero 4).
+ { unfold WriteRegion;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[change(16<=18446744073709551616);lia|intros z R;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact AL|lia]|constructor]]. }
+ destruct(writes_exist(Outputs f)ma br Ptrofs.zero 4 WR(output_bounds f))as[mr WS].
+ assert(BR:Branch ma br Ptrofs.zero f mr)by(unfold Branch;rewrite REJ;exact WS).
+ pose proof(branch_bytes ma br Ptrofs.zero f mr BR)as REF;rewrite REJ,Ptrofs.unsigned_zero in REF.
+ pose proof(same_bytes_cell_at mf bo(Ptrofs.unsigned po)mr br 0(Encoded f)(4*i)BY REF ltac:(lia)ltac:(lia))as EQ.
+ rewrite EQ;replace(0+4*i)with(Ptrofs.unsigned Ptrofs.zero+4*i)by(rewrite Ptrofs.unsigned_zero;lia).
+ eapply writes_bytes;[exact WS|apply output_nodup|].
+ assert(C:i=0\/i=1\/i=2\/i=3)by lia;destruct C as [-> | [-> | [-> | ->]]];unfold Outputs;repeat first[left;reflexivity|right]. Qed.
+Theorem successful_copy_words:forall m mf bo bi pi f dst bytes obs,
+ Post m mf bo bi Ptrofs.zero pi f->Reject f=false->Mem.loadbytes mf bo 0 16=Some bytes->Mem.storebytes mf dst 0 bytes=Some obs->
+ forall i,0<=i<4->Mem.load Mint32 obs dst(4*i)=Some(Vint(Float32.to_bits(Output f i))).
+Proof. intros m mf bo bi pi f dst bytes obs POST REJ READ STORE i B;eapply memcpy_word_observation;[exact READ|exact STORE| |exact B].
+ intros j J;replace(4*j)with(Ptrofs.unsigned Ptrofs.zero+4*j)by(rewrite Ptrofs.unsigned_zero;lia);eapply successful_post_cells;eauto. Qed.
+Theorem post_preserves_other_inputs:forall m mf bo bi po pi f out input outp inp g,
+ Post m mf bo bi po pi f->Inputs m out input outp inp g->out<>bo->input<>bo->Inputs mf out input outp inp g.
+Proof. intros m mf bo bi po pi f out input outp inp g[W[RD[FR[VB[BY AC]]]]][NE[WO RI]]OO IO;split;[exact NE|];split.
+ - destruct WO as[AL[NW RP]];repeat split;auto;intros z B.
+   assert(V:Mem.valid_block m out)by(eapply(writable_valid m out outp 4 ltac:(lia));repeat split;eauto).
+   assert(VA:Mem.valid_access m Mint8unsigned out z Writable)by(split;[intros off R;apply RP;cbn[size_chunk]in R;lia|change(1|z);exists z;lia]).
+   pose proof(AC Mint8unsigned out z Writable V VA)as[PF ALIGN];apply PF;cbn[size_chunk];lia.
+ - destruct RI as[AL[NW L]];repeat split;auto;intros i B.
+   destruct(Mem.load_loadbytes Mfloat32 m input(Ptrofs.unsigned inp+4*i)(Vsingle(g i))(L i B))as[bytes[LB DE]].
+   assert(VI:Mem.valid_block m input)by(eapply(reads_valid m input inp 4 g ltac:(lia));repeat split;eauto).
+   assert(LBF:Mem.loadbytes mf input(Ptrofs.unsigned inp+4*i)4=Some bytes)by(rewrite FR by(auto);exact LB).
+   pose proof(Mem.loadbytes_load Mfloat32 mf input(Ptrofs.unsigned inp+4*i)bytes LBF ltac:(change(4|Ptrofs.unsigned inp+4*i);destruct AL as[k K];exists(k+i);lia))as LF;rewrite <-DE in LF;exact LF.
+Qed.
+Print Assumptions source_guards.
+Print Assumptions successful_copy_words.
+
+Theorem frame_load_kept:forall m mf bo po b ofs ch v,Frame m mf bo po->Mem.valid_block m b->
+ (b<>bo\/ofs+size_chunk ch<=Ptrofs.unsigned po\/Ptrofs.unsigned po+16<=ofs)->Mem.load ch m b ofs=Some v->Mem.load ch mf b ofs=Some v.
+Proof. intros m mf bo po b ofs ch v FR VB OUT LD.
+ destruct(Mem.load_loadbytes ch m b ofs v LD)as[bytes[LB DE]].
+ assert(LBF:Mem.loadbytes mf b ofs(size_chunk ch)=Some bytes)by(rewrite FR by assumption;exact LB).
+ pose proof(Mem.load_valid_access _ _ _ _ _ LD)as[RP AL].
+ pose proof(Mem.loadbytes_load ch mf b ofs bytes LBF AL)as LF;rewrite <-DE in LF;exact LF. Qed.

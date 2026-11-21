@@ -1,0 +1,139 @@
+363-(** * Encoding and decoding values *)
+364-
+365-Definition inj_bytes (bl: list byte) : list memval :=
+366-  List.map Byte bl.
+367-
+368:Fixpoint proj_bytes (vl: list memval) : option (list byte) :=
+369-  match vl with
+370-  | nil => Some nil
+371-  | Byte b :: vl' =>
+372-      match proj_bytes vl' with None => None | Some bl => Some(b :: bl) end
+373-  | _ => None
+374-  end.
+375-
+376-Remark length_inj_bytes:
+377-  forall bl, length (inj_bytes bl) = length bl.
+378-Proof.
+379-  intros. apply List.map_length.
+380-Qed.
+381-
+382-Remark proj_inj_bytes:
+383-  forall bl, proj_bytes (inj_bytes bl) = Some bl.
+384-Proof.
+385-  induction bl; simpl. auto. rewrite IHbl. auto.
+386-Qed.
+387-
+388-Lemma inj_proj_bytes:
+389-  forall cl bl, proj_bytes cl = Some bl -> cl = inj_bytes bl.
+390-Proof.
+391-  induction cl; simpl; intros.
+392-  inv H; auto.
+393-  destruct a; try congruence. destruct (proj_bytes cl); inv H.
+394-  simpl. decEq. auto.
+395-Qed.
+396-
+397-Fixpoint inj_value_rec (n: nat) (v: val) (q: quantity) {struct n}: list memval :=
+398-  match n with
+399-  | O => nil
+400-  | S m => Fragment v q m :: inj_value_rec m v q
+401-  end.
+402-
+403-Definition inj_value (q: quantity) (v: val): list memval :=
+404-  inj_value_rec (size_quantity_nat q) v q.
+405-
+406-Fixpoint check_value (n: nat) (v: val) (q: quantity) (vl: list memval)
+407-                       {struct n} : bool :=
+408-  match n, vl with
+409-  | O, nil => true
+410-  | S m, Fragment v' q' m' :: vl' =>
+411-      Val.eq v v' && quantity_eq q q' && Nat.eqb m m' && check_value m v q vl'
+412-  | _, _ => false
+413-  end.
+414-
+415-Definition proj_value (q: quantity) (vl: list memval) : val :=
+416-  match vl with
+417-  | Fragment v q' n :: vl' =>
+418-      if check_value (size_quantity_nat q) v q vl then v else Vundef
+419-  | _ => Vundef
+420-  end.
+421-
+422-Definition encode_val (chunk: memory_chunk) (v: val) : list memval :=
+423-  match v, chunk with
+--
+432-  | _, Many32 => inj_value Q32 v
+433-  | _, Many64 => inj_value Q64 v
+434-  | _, _ => List.repeat Undef (size_chunk_nat chunk)
+435-  end.
+436-
+437:Definition decode_val (chunk: memory_chunk) (vl: list memval) : val :=
+438-  match proj_bytes vl with
+439-  | Some bl =>
+440-      match chunk with
+441-      | Mbool => Val.norm_bool (Vint (Int.zero_ext 8 (Int.repr (decode_int bl))))
+442-      | Mint8signed => Vint(Int.sign_ext 8 (Int.repr (decode_int bl)))
+443-      | Mint8unsigned => Vint(Int.zero_ext 8 (Int.repr (decode_int bl)))
+444-      | Mint16signed => Vint(Int.sign_ext 16 (Int.repr (decode_int bl)))
+445-      | Mint16unsigned => Vint(Int.zero_ext 16 (Int.repr (decode_int bl)))
+446-      | Mint32 => Vint(Int.repr(decode_int bl))
+447-      | Mint64 => Vlong(Int64.repr(decode_int bl))
+448-      | Mfloat32 => Vsingle(Float32.of_bits (Int.repr (decode_int bl)))
+449-      | Mfloat64 => Vfloat(Float.of_bits (Int64.repr (decode_int bl)))
+450-      | Many32 => Vundef
+451-      | Many64 => Vundef
+452-      end
+453-  | None =>
+454-      match chunk with
+455-      | Mint32 => if Archi.ptr64 then Vundef else Val.load_result chunk (proj_value Q32 vl)
+456-      | Many32 => Val.load_result chunk (proj_value Q32 vl)
+457-      | Mint64 => if Archi.ptr64 then Val.load_result chunk (proj_value Q64 vl) else Vundef
+458-      | Many64 => Val.load_result chunk (proj_value Q64 vl)
+459-      | _ => Vundef
+460-      end
+461-  end.
+462-
+463-Ltac solve_encode_val_length :=
+464-  match goal with
+465-  | [ |- length (inj_bytes _) = _ ] => rewrite length_inj_bytes; solve_encode_val_length
+466-  | [ |- length (encode_int _ _) = _ ] => apply encode_int_length
+467-  | [ |- length (if ?x then _ else _) = _ ] => destruct x eqn:?; solve_encode_val_length
+468-  | _ => reflexivity
+469-  end.
+470-
+471-Lemma encode_val_length:
+472-  forall chunk v, length(encode_val chunk v) = size_chunk_nat chunk.
+473-Proof.
+474-  intros. destruct v; simpl; destruct chunk; solve_encode_val_length.
+475-Qed.
+476-
+477-Lemma check_inj_value:
+478-  forall v q n, check_value n v q (inj_value_rec n v q) = true.
+479-Proof.
+480-  induction n; simpl. auto.
+481-  unfold proj_sumbool. rewrite dec_eq_true. rewrite dec_eq_true.
+482-  rewrite Nat.eqb_refl. simpl; auto.
+483-Qed.
+484-
+485-Lemma proj_inj_value:
+486-  forall q v, proj_value q (inj_value q v) = v.
+487-Proof.
+488-  intros. unfold proj_value, inj_value. destruct (size_quantity_nat_pos q) as [n EQ].
+489-  rewrite EQ at 1. simpl. rewrite check_inj_value. auto.
+490-Qed.
+491-
+492-Remark in_inj_value:
+1536-Qed.
+1537-
+1538:Theorem loadbytes_storebytes_other:
+1539-  forall b' ofs' len,
+1540-  len >= 0 ->
+1541-  b' <> b
+1542-  \/ ofs' + len <= ofs
+1543-  \/ ofs + Z.of_nat (length bytes) <= ofs' ->
+1544-  loadbytes m2 b' ofs' len = loadbytes m1 b' ofs' len.
+1545-Proof.
+1546-  intros. apply loadbytes_storebytes_disjoint; auto.
+1547-  destruct H0; auto. right. apply Intv.disjoint_range; auto.
+1548-Qed.
+1549-
+1550-Theorem load_storebytes_other:
+1551-  forall chunk b' ofs',

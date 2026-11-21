@@ -1,0 +1,29 @@
+Axioms:
+ClassicalDedekindReals.sig_forall_dec :
+  forall P : nat -> Prop,
+  (forall n : nat, {P n} + {~ P n}) ->
+  {n : nat | ~ P n} + {forall n : nat, P n}
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+Bconv_widen_exact
+     : forall prec1 emax1 prec2 emax2 : Z,
+       Prec_gt_0 prec1 ->
+       forall (prec2_gt_0_ : Prec_gt_0 prec2) (Hmax2 : prec2 < emax2),
+       prec2 >= prec1 ->
+       emax2 >= emax1 ->
+       forall
+         (conv_nan : binary_float prec1 emax1 ->
+                     {x : binary_float prec2 emax2
+                     | is_nan prec2 emax2 x = true})
+         (m : BinarySingleNaN.mode) (f : binary_float prec1 emax1),
+       is_finite prec1 emax1 f = true ->
+       B2R prec2 emax2
+         (Bconv prec1 emax1 prec2 emax2 prec2_gt_0_ Hmax2 conv_nan m f) =
+       B2R prec1 emax1 f /\
+       is_finite prec2 emax2
+         (Bconv prec1 emax1 prec2 emax2 prec2_gt_0_ Hmax2 conv_nan m f) =
+       true /\
+       Bsign prec2 emax2
+         (Bconv prec1 emax1 prec2 emax2 prec2_gt_0_ Hmax2 conv_nan m f) =
+       Bsign prec1 emax1 f

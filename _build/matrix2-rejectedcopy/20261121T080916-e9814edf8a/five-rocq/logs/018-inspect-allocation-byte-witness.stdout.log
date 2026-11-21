@@ -1,0 +1,56 @@
+1801-  eauto with mem.
+1802-Qed.
+1803-
+1804:Theorem load_alloc_other:
+1805-  forall chunk b' ofs v,
+1806-  load chunk m1 b' ofs = Some v ->
+1807-  load chunk m2 b' ofs = Some v.
+1808-Proof.
+1809-  intros. rewrite <- H. apply load_alloc_unchanged. eauto with mem.
+1810-Qed.
+1811-
+1812-Theorem load_alloc_same:
+1813-  forall chunk ofs v,
+1814-  load chunk m2 b ofs = Some v ->
+1815-  v = Vundef.
+1816-Proof.
+1817-  intros. exploit load_result; eauto. intro. rewrite H0.
+1818-  injection ALLOC; intros. rewrite <- H2; simpl. rewrite <- H1.
+1819-  rewrite PMap.gss. destruct (size_chunk_nat_pos chunk) as [n E]. rewrite E. simpl.
+1820-  rewrite ZMap.gi. apply decode_val_undef.
+--
+1832-  eapply load_alloc_same; eauto.
+1833-Qed.
+1834-
+1835:Theorem loadbytes_alloc_unchanged:
+1836-  forall b' ofs n,
+1837-  valid_block m1 b' ->
+1838-  loadbytes m2 b' ofs n = loadbytes m1 b' ofs n.
+1839-Proof.
+1840-  intros. unfold loadbytes.
+1841-  destruct (range_perm_dec m1 b' ofs (ofs + n) Cur Readable).
+1842-  rewrite pred_dec_true.
+1843-  injection ALLOC; intros A B. rewrite <- B; simpl.
+1844-  rewrite PMap.gso. auto. rewrite A. eauto with mem.
+1845-  red; intros. eapply perm_alloc_1; eauto.
+1846-  rewrite pred_dec_false; auto.
+1847-  red; intros; elim n0. red; intros. eapply perm_alloc_4; eauto. eauto with mem.
+1848-Qed.
+1849-
+1850:Theorem loadbytes_alloc_same:
+1851-  forall n ofs bytes byte,
+1852-  loadbytes m2 b ofs n = Some bytes ->
+1853-  In byte bytes -> byte = Undef.
+1854-Proof.
+1855-  unfold loadbytes; intros. destruct (range_perm_dec m2 b ofs (ofs + n) Cur Readable); inv H.
+1856-  revert H0.
+1857-  injection ALLOC; intros A B. rewrite <- A; rewrite <- B; simpl. rewrite PMap.gss.
+1858-  generalize (Z.to_nat n) ofs. induction n0; simpl; intros.
+1859-  contradiction.
+1860-  rewrite ZMap.gi in H0. destruct H0; eauto.
+1861-Qed.
+1862-
+1863-End ALLOC.
+1864-
+1865-Local Hint Resolve valid_block_alloc fresh_block_alloc valid_new_block: mem.
+1866-Local Hint Resolve valid_access_alloc_other valid_access_alloc_same: mem.

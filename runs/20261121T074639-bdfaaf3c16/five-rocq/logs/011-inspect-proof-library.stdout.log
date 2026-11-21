@@ -1,0 +1,138 @@
+  | ctx_addrof: forall k C ty,
+      context k LV C -> context k RV (fun x => Eaddrof (C x) ty)
+  | ctx_unop: forall k C op ty,
+      context k RV C -> context k RV (fun x => Eunop op (C x) ty)
+  | ctx_binop_left: forall k C op e2 ty,
+      context k RV C -> context k RV (fun x => Ebinop op (C x) e2 ty)
+  | ctx_binop_right: forall k C op e1 ty,
+      context k RV C -> context k RV (fun x => Ebinop op e1 (C x) ty)
+  | ctx_cast: forall k C ty,
+      context k RV C -> context k RV (fun x => Ecast (C x) ty)
+  | ctx_seqand: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+  | ctx_seqor: forall k C r2 ty,
+      context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+  | ctx_condition: forall k C r2 r3 ty,
+      context k RV C -> context k RV (fun x => Econdition (C x) r2 r3 ty)
+  | ctx_assign_left: forall k C e2 ty,
+      context k LV C -> context k RV (fun x => Eassign (C x) e2 ty)
+  | ctx_assign_right: forall k C e1 ty,
+      context k RV C -> context k RV (fun x => Eassign e1 (C x) ty)
+  | ctx_assignop_left: forall k C op e2 tyres ty,
+      context k LV C -> context k RV (fun x => Eassignop op (C x) e2 tyres ty)
+  | ctx_assignop_right: forall k C op e1 tyres ty,
+      context k RV C -> context k RV (fun x => Eassignop op e1 (C x) tyres ty)
+  | ctx_postincr: forall k C id ty,
+      context k LV C -> context k RV (fun x => Epostincr id (C x) ty)
+  | ctx_call_left: forall k C el ty,
+      context k RV C -> context k RV (fun x => Ecall (C x) el ty)
+  | ctx_call_right: forall k C e1 ty,
+      contextlist k C -> context k RV (fun x => Ecall e1 (C x) ty)
+  | ctx_builtin: forall k C ef tyargs ty,
+      contextlist k C -> context k RV (fun x => Ebuiltin ef tyargs (C x) ty)
+  | ctx_comma: forall k C e2 ty,
+      context k RV C -> context k RV (fun x => Ecomma (C x) e2 ty)
+  | ctx_paren: forall k C tycast ty,
+      context k RV C -> context k RV (fun x => Eparen (C x) tycast ty)
+
+with contextlist: kind -> (expr -> exprlist) -> Prop :=
+  | ctx_list_head: forall k C el,
+      context k RV C -> contextlist k (fun x => Econs (C x) el)
+  | ctx_list_tail: forall k C e1,
+      contextlist k C -> contextlist k (fun x => Econs e1 (C x)).
+
+(** In a nondeterministic semantics, expressions can go wrong according
+  to one reduction order while being defined according to another.
+  Consider for instance [(x = 1) + (10 / x)] where [x] is initially [0].
+  This expression goes wrong if evaluated right-to-left, but is defined
+  if evaluated left-to-right.  Since our compiler is going to pick one
+  particular evaluation order, we must make sure that all orders are safe,
+  i.e. never evaluate a subexpression that goes wrong.
+
+  Being safe is a stronger requirement than just not getting stuck during
+  reductions.  Consider [f() + (10 / x)], where [f()] does not terminate.
+  This expression is never stuck because the evaluation of [f()] can make
+  infinitely many transitions.  Yet it contains a subexpression [10 / x]
+  that can go wrong if [x = 0], and the compiler may choose to evaluate
+  [10 / x] first, before calling [f()].
+
+  Therefore, we must make sure that not only an expression cannot get stuck,
+  but none of its subexpressions can either.  We say that a subexpression
+  is not immediately stuck if it is a value (of the appropriate kind)
+  or it can reduce (at head or within). *)
+
+Inductive imm_safe: kind -> expr -> mem -> Prop :=
+  | imm_safe_val: forall v ty m,
+      imm_safe RV (Eval v ty) m
+  | imm_safe_loc: forall b ofs bf ty m,
+      imm_safe LV (Eloc b ofs bf ty) m
+  | imm_safe_lred: forall to C e m e' m',
+      lred e m e' m' ->
+      context LV to C ->
+      imm_safe to (C e) m
+  | imm_safe_rred: forall to C e m t e' m',
+      rred e m t e' m' ->
+      context RV to C ->
+      imm_safe to (C e) m
+  | imm_safe_callred: forall to C e m fd args ty,
+      callred e m fd args ty ->
+      context RV to C ->
+      imm_safe to (C e) m.
+
+Definition not_stuck (e: expr) (m: mem) : Prop :=
+  forall k C e' ,
+  context k RV C -> e = C e' -> imm_safe k e' m.
+
+(** ** Derived forms. *)
+
+(** The following are admissible reduction rules for some derived forms
+  of the CompCert C language.  They help showing that the derived forms
+  make sense. *)
+
+Lemma red_selection:
+  forall v1 ty1 v2 ty2 v3 ty3 ty m b v2' v3',
+  ty <> Tvoid ->
+  bool_val v1 ty1 m = Some b ->
+  sem_cast v2 ty2 ty m = Some v2' ->
+  sem_cast v3 ty3 ty m = Some v3' ->
+  rred (Eselection (Eval v1 ty1) (Eval v2 ty2) (Eval v3 ty3) ty) m
+    E0 (Eval (if b then v2' else v3') ty) m.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation.
+From FiveLowpassSupport Require Import Expressions.
+From FiveMatInv3Case Require Import MatrixMemory.
+Local Open Scope Z_scope.
+Definition MatrixPtr(id:ident)(n:Z):expr:=Evalof(Evar id(tptr(tarray tfloat n)))(tptr(tarray tfloat n)).
+Definition MatrixLoc(id:ident)(n r c:Z):expr:=Ederef(Ebinop Oadd
+ (Evalof(Ederef(Ebinop Oadd(MatrixPtr id n)(Eval(Vint(Int.repr r))tint)(tptr(tarray tfloat n)))(tarray tfloat n))(tarray tfloat n))
+ (Eval(Vint(Int.repr c))tint)(tptr tfloat))tfloat.
+Definition MatrixVal(id:ident)(n r c:Z):expr:=Evalof(MatrixLoc id n r c)tfloat.
+Lemma matrix_location:forall ge e m id bx b p n r c,
+ e!id=Some(bx,tptr(tarray tfloat n))->Mem.load Mptr m bx 0=Some(Vptr b p)->
+ (n=2\/n=3)->0<=r<n->0<=c<n->
+ pure_lval ge e m(MatrixLoc id n r c)=Some(b,Ptrofs.add p(Ptrofs.repr(4*(n*r+c))),Full).
+Proof.
+ intros ge e m id bx b p n r c E L N R C.
+ assert(P:pure_rval ge e m(MatrixPtr id n)=Some(Vptr b p))by(unfold MatrixPtr;eapply pointer_variable;eauto).
+ unfold MatrixLoc;cbn[pure_lval pure_rval];fold(MatrixPtr id n);fold(pure_rval ge e m(MatrixPtr id n));rewrite P.
+ destruct N as[-> | ->];assert(RR:r=0\/r=1\/r=2)by lia;assert(CC:c=0\/c=1\/c=2)by lia;
+ destruct RR as[-> | [-> | ->]];destruct CC as[-> | [-> | ->]];try lia;
+ match goal with |- _=Some(b,Ptrofs.add p(Ptrofs.repr(4*(?nn*?rr+?cc))),Full)=>
+ change(Some(b,Ptrofs.add(Ptrofs.add p(Ptrofs.repr(4*nn*rr)))(Ptrofs.repr(4*cc)),Full)=Some(b,Ptrofs.add p(Ptrofs.repr(4*(nn*rr+cc))),Full)) end;
+ rewrite Ptrofs.add_assoc;reflexivity.
+Qed.
+Lemma matrix_value:forall ge e m id bx b p n r c f,
+ e!id=Some(bx,tptr(tarray tfloat n))->Mem.load Mptr m bx 0=Some(Vptr b p)->
+ Reads m b p(n*n)f->(n=2\/n=3)->0<=r<n->0<=c<n->
+ pure_rval ge e m(MatrixVal id n r c)=Some(Vsingle(f(n*r+c))).
+Proof.
+ intros ge e m id bx b p n r c f E L RD N R C.
+ assert(B:0<=n*r+c<n*n)by(destruct N as[-> | ->];nia).
+ pose proof(matrix_location ge e m id bx b p n r c E L N R C)as LOC.
+ change(match pure_lval ge e m(MatrixLoc id n r c)with Some(bb,pp,bf)=>match Cexec.do_deref_loc ge quiet_world tfloat m bb pp bf with Some(_,_,v)=>Some v|None=>None end|None=>None end=Some(Vsingle(f(n*r+c)))).
+ rewrite LOC;cbv[Cexec.do_deref_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv].
+ rewrite(index_pointer p(n*n)(n*r+c)(proj1(proj2 RD))B);rewrite zle_true by(destruct RD as[_[NW _]];change Ptrofs.modulus with 18446744073709551616 in NW|-*;cbn[size_chunk];lia).
+ rewrite(proj2(proj2 RD)(n*r+c)B);reflexivity.
+Qed.
+Print Assumptions matrix_value.

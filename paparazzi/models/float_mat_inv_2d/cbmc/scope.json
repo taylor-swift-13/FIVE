@@ -1,0 +1,22 @@
+{
+  "method": "traditional bounded model checking, actual source body; no function/loop contract replacements",
+  "entry": "main",
+  "arbitrary_input": "every binary32 matrix value, distinct initialized typed input/output storage",
+  "concrete_inputs": {
+    "base": "I",
+    "small": "2^-8 I",
+    "large": "2^100 I"
+  },
+  "observations": "complete uint32 words copied by memcpy, little-endian binary32; signed zeros retained",
+  "bounds": {
+    "unwind": 40,
+    "unwinding_assertions": true,
+    "source_loops": 0,
+    "recursion": false
+  },
+  "expected_refutations": [
+    "positive scaling preserves inverse status",
+    "successful wellconditioned inverse has residual component below half"
+  ],
+  "note": "Float overflow/NaN are represented numerical outcomes, not Csem crash flags. No float-overflow or nan assertions are enabled."
+}

@@ -1,0 +1,271 @@
+  is_nan_SF x = false ->
+  valid_binary (SF2FF x) = valid_binary_SF x.
+Proof.
+now intros [sx|sx| |sx mx ex] H.
+Qed.
+
+(** Basic type used for representing binary FP numbers.
+    Note that there is exactly one such object per FP datum. *)
+
+Inductive binary_float :=
+  | B754_zero (s : bool)
+  | B754_infinity (s : bool)
+  | B754_nan (s : bool) (pl : positive) :
+    nan_pl pl = true -> binary_float
+  | B754_finite (s : bool) (m : positive) (e : Z) :
+    bounded m e = true -> binary_float.
+
+Definition B2BSN (x : binary_float) : BinarySingleNaN.binary_float prec emax :=
+  match x with
+  | B754_zero s => BinarySingleNaN.B754_zero s
+  | B754_infinity s => BinarySingleNaN.B754_infinity s
+unfold binary_round_aux.
+destruct (Rlt_bool (Rabs _) _).
+- now destruct BinarySingleNaN.binary_round_aux as [sz|sz| |sz mz ez].
+- intros [_ ->].
+  split.
+  rewrite valid_binary_SF2FF by apply is_nan_binary_overflow.
+  now apply binary_overflow_correct.
+  easy.
+Qed.
+
+(** Multiplication *)
+
+Definition Bmult mult_nan m x y :=
+  BSN2B (mult_nan x y) (Bmult m (B2BSN x) (B2BSN y)).
+
+Theorem Bmult_correct :
+  forall mult_nan m x y,
+  if Rlt_bool (Rabs (round radix2 fexp (round_mode m) (B2R x * B2R y))) (bpow radix2 emax) then
+    B2R (Bmult mult_nan m x y) = round radix2 fexp (round_mode m) (B2R x * B2R y) /\
+    is_finite (Bmult mult_nan m x y) = andb (is_finite x) (is_finite y) /\
+    (is_nan (Bmult mult_nan m x y) = false ->
+      Bsign (Bmult mult_nan m x y) = xorb (Bsign x) (Bsign y))
+  else
+    B2FF (Bmult mult_nan m x y) = binary_overflow m (xorb (Bsign x) (Bsign y)).
+Proof.
+intros mult_nan mode x y.
+generalize (Bmult_correct prec emax _ _ mode (B2BSN x) (B2BSN y)).
+replace (BinarySingleNaN.Bmult _ _ _) with (B2BSN (Bmult mult_nan mode x y)) by apply B2BSN_BSN2B.
+intros H.
+destruct x as [sx|sx|sx plx Hplx|sx mx ex Hx] ;
+  destruct y as [sy|sy|sy ply Hply|sy my ey Hy] ;
+  try ( rewrite ?Rmult_0_r, ?Rmult_0_l, round_0, Rabs_R0, Rlt_bool_true ; [ try easy | apply bpow_gt_0 | now auto with typeclass_instances ]).
+revert H.
+rewrite 2!B2R_B2BSN.
+destruct Rlt_bool.
+- now destruct Bmult.
+- intros H.
+  apply eq_binary_overflow_FF2SF.
+  now rewrite FF2SF_B2FF, <- B2SF_B2BSN.
+Qed.
+
+(** Normalization and rounding *)
+
+Definition shl_align_fexp mx ex :=
+  shl_align mx ex (fexp (Zpos (digits2_pos mx) + ex)).
+
+Lemma shl_align_fexp_correct :
+  forall mx ex,
+  let (mx', ex') := shl_align_fexp mx ex in
+  F2R (Float radix2 (Zpos mx) ex) = F2R (Float radix2 (Zpos mx') ex') /\
+  (ex' <= fexp (Zdigits radix2 (Zpos mx') + ex'))%Z.
+Proof.
+intros mx ex.
+apply shl_align_fexp_correct.
+Qed.
+
+- intros H.
+  apply eq_binary_overflow_FF2SF.
+  now rewrite FF2SF_B2FF, <- B2SF_B2BSN.
+Qed.
+
+(** Division *)
+
+Definition Bdiv div_nan m x y :=
+  BSN2B (div_nan x y) (Bdiv m (B2BSN x) (B2BSN y)).
+
+Theorem Bdiv_correct :
+  forall div_nan m x y,
+  B2R y <> 0%R ->
+  if Rlt_bool (Rabs (round radix2 fexp (round_mode m) (B2R x / B2R y))) (bpow radix2 emax) then
+    B2R (Bdiv div_nan m x y) = round radix2 fexp (round_mode m) (B2R x / B2R y) /\
+    is_finite (Bdiv div_nan m x y) = is_finite x /\
+    (is_nan (Bdiv div_nan m x y) = false ->
+      Bsign (Bdiv div_nan m x y) = xorb (Bsign x) (Bsign y))
+  else
+    B2FF (Bdiv div_nan m x y) = binary_overflow m (xorb (Bsign x) (Bsign y)).
+Proof.
+intros div_nan mode x y Zy.
+rewrite <- B2R_B2BSN in Zy.
+generalize (Bdiv_correct prec emax _ _ mode (B2BSN x) _ Zy).
+replace (BinarySingleNaN.Bdiv _ _ _) with (B2BSN (Bdiv div_nan mode x y)) by apply B2BSN_BSN2B.
+unfold Rdiv.
+destruct y as [sy|sy|sy ply|sy my ey Hy] ; try now elim Zy.
+destruct x as [sx|sx|sx plx Hx|sx mx ex Hx] ;
+  try ( simpl ; rewrite Rmult_0_l, round_0, Rabs_R0, Rlt_bool_true ; [ simpl ; try easy ; now rewrite B2R_build_nan, is_finite_build_nan, is_nan_build_nan | apply bpow_gt_0 | auto with typeclass_instances ] ).
+destruct Rlt_bool.
+- now destruct Bdiv.
+- intros H.
+  apply eq_binary_overflow_FF2SF.
+  now rewrite FF2SF_B2FF, <- B2SF_B2BSN.
+Qed.
+
+(** Square root *)
+
+Definition Bsqrt sqrt_nan m x :=
+  BSN2B (sqrt_nan x) (Bsqrt m (B2BSN x)).
+
+
+Definition SF2R beta x :=
+  match x with
+  | S754_finite s m e => F2R (Float beta (cond_Zopp s (Zpos m)) e)
+  | _ => 0%R
+  end.
+
+Class Prec_lt_emax prec emax := prec_lt_emax : (prec < emax)%Z.
+Arguments prec_lt_emax prec emax {Prec_lt_emax}.
+
+Section Binary.
+
+(** [prec] is the number of bits of the mantissa including the implicit one;
+    [emax] is the exponent of the infinities.
+    For instance, binary32 is defined by [prec = 24] and [emax = 128]. *)
+Variable prec emax : Z.
+Context (prec_gt_0_ : Prec_gt_0 prec).
+Context (prec_lt_emax_ : Prec_lt_emax prec emax).
+
+Notation emin := (emin prec emax).
+Notation fexp := (fexp prec emax).
+Instance fexp_correct : Valid_exp fexp := FLT_exp_valid emin prec.
+Instance fexp_monotone : Monotone_exp fexp := FLT_exp_monotone emin prec.
+
+Notation canonical_mantissa := (canonical_mantissa prec emax).
+
+Notation bounded := (SpecFloat.bounded prec emax).
+
+Notation valid_binary := (valid_binary prec emax).
+
+(** Basic type used for representing binary FP numbers.
+    Note that there is exactly one such object per FP datum. *)
+
+Inductive binary_float :=
+  | B754_zero (s : bool)
+  | B754_infinity (s : bool)
+  | B754_nan : binary_float
+  | B754_finite (s : bool) (m : positive) (e : Z) :
+    bounded m e = true -> binary_float.
+
+Definition SF2B x :=
+exact inbetween_int_UP_sign.
+exact inbetween_int_NA_sign.
+Qed.
+
+(** Multiplication *)
+
+Lemma Bmult_correct_aux :
+  forall m sx mx ex (Hx : bounded mx ex = true) sy my ey (Hy : bounded my ey = true),
+  let x := F2R (Float radix2 (cond_Zopp sx (Zpos mx)) ex) in
+  let y := F2R (Float radix2 (cond_Zopp sy (Zpos my)) ey) in
+  let z := binary_round_aux m (xorb sx sy) (Zpos (mx * my)) (ex + ey) loc_Exact in
+  valid_binary z = true /\
+  if Rlt_bool (Rabs (round radix2 fexp (round_mode m) (x * y))) (bpow radix2 emax) then
+    SF2R radix2 z = round radix2 fexp (round_mode m) (x * y) /\
+    is_finite_SF z = true /\ sign_SF z = xorb sx sy
+  else
+    z = binary_overflow m (xorb sx sy).
+Proof.
+intros m sx mx ex Hx sy my ey Hy x y.
+unfold x, y.
+rewrite <- F2R_mult.
+simpl.
+replace (xorb sx sy) with (Rlt_bool (F2R (Float radix2 (cond_Zopp sx (Zpos mx) * cond_Zopp sy (Zpos my)) (ex + ey))) 0).
+apply binary_round_aux_correct.
+constructor.
+rewrite <- F2R_abs.
+apply F2R_eq.
+rewrite Zabs_Zmult.
+now rewrite 2!abs_cond_Zopp.
+(* *)
+change (Zpos (mx * my)) with (Zpos mx * Zpos my)%Z.
+assert (forall m e, bounded m e = true -> fexp (Zdigits radix2 (Zpos m) + e) = e)%Z.
+clear. intros m e Hb.
+destruct (andb_prop _ _ Hb) as (H,_).
+apply Zeq_bool_eq.
+now rewrite <- Zpos_digits2_pos.
+generalize (H _ _ Hx) (H _ _ Hy).
+clear x y sx sy Hx Hy H.
+unfold fexp, FLT_exp.
+refine (_ (Zdigits_mult_ge radix2 (Zpos mx) (Zpos my) _ _)) ; try discriminate.
+refine (_ (Zdigits_gt_0 radix2 (Zpos mx) _) (Zdigits_gt_0 radix2 (Zpos my) _)) ; try discriminate.
+generalize (Zdigits radix2 (Zpos mx)) (Zdigits radix2 (Zpos my)) (Zdigits radix2 (Zpos mx * Zpos my)).
+intros dx dy dxy Hx Hy Hxy.
+unfold emin.
+generalize (prec_lt_emax prec emax).
+lia.
+(* *)
+case sx ; case sy.
+apply Rlt_bool_false.
+now apply F2R_ge_0.
+apply Rlt_bool_true.
+now apply F2R_lt_0.
+apply Rlt_bool_true.
+now apply F2R_lt_0.
+apply Rlt_bool_false.
+now apply F2R_ge_0.
+392:Theorem B2R_inj:
+481:intros. destruct x, y; try (apply B2R_inj; now eauto).
+776:Theorem Bcompare_correct :
+783:  rewrite BinarySingleNaN.Bcompare_correct.
+From Stdlib Require Import List ZArith.
+From compcert Require Import Floats Integers AST Values Ctypes Csyntax Csyntaxdefs Cop.
+From FivePprzFloatMatInv3d Require Import Source.
+From FiveMatInv3Case Require Import MatrixAccess.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition M00(f:Z->float32):float32:=Float32.sub(Float32.mul(f 4)(f 8))(Float32.mul(f 5)(f 7)).
+Definition M10(f:Z->float32):float32:=Float32.sub(Float32.mul(f 1)(f 8))(Float32.mul(f 2)(f 7)).
+Definition M20(f:Z->float32):float32:=Float32.sub(Float32.mul(f 1)(f 5))(Float32.mul(f 2)(f 4)).
+Definition M01(f:Z->float32):float32:=Float32.sub(Float32.mul(f 3)(f 8))(Float32.mul(f 5)(f 6)).
+Definition M11(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 8))(Float32.mul(f 2)(f 6)).
+Definition M21(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 5))(Float32.mul(f 2)(f 3)).
+Definition M02(f:Z->float32):float32:=Float32.sub(Float32.mul(f 3)(f 7))(Float32.mul(f 4)(f 6)).
+Definition M12(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 7))(Float32.mul(f 1)(f 6)).
+Definition M22(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 4))(Float32.mul(f 1)(f 3)).
+Definition Det(f:Z->float32):float32:=Float32.add(Float32.sub(Float32.mul(f 0)(M00 f))(Float32.mul(f 3)(M10 f)))(Float32.mul(f 6)(M20 f)).
+Definition Accept(f:Z->float32):bool:=Float.cmp Cgt(Float.abs(Float.of_single(Det f)))(Float.of_single(Float32.of_bits(Int.repr 872415232))).
+Definition Status(f:Z->float32):val:=Vint(if Accept f then Int.zero else Int.one).
+Definition Output(f:Z->float32)(i:Z):float32:=
+ match i with
+ |0=>Float32.div(M00 f)(Det f)
+ |1=>Float32.div(Float32.neg(M10 f))(Det f)
+ |2=>Float32.div(M20 f)(Det f)
+ |3=>Float32.div(Float32.neg(M01 f))(Det f)
+ |4=>Float32.div(M11 f)(Det f)
+ |5=>Float32.div(Float32.neg(M21 f))(Det f)
+ |6=>Float32.div(M02 f)(Det f)
+ |7=>Float32.div(Float32.neg(M12 f))(Det f)
+ |_=>Float32.div(M22 f)(Det f)
+ end.
+Definition Outputs(f:Z->float32):list(Z*float32):=[(0,Output f 0);(3,Output f 3);(6,Output f 6);(1,Output f 1);(4,Output f 4);(7,Output f 7);(2,Output f 2);(5,Output f 5);(8,Output f 8)].
+Definition Local(id:ident):expr:=Evalof(Evar id tfloat)tfloat.
+Definition FBin(op:binary_operation)(a b:expr):expr:=Ebinop op a b tfloat.
+Definition FNeg(a:expr):expr:=Eunop Oneg a tfloat.
+Definition Inp(r c:Z):expr:=MatrixVal Source._mat_in 3 r c.
+Definition MinExpr(a b c d:Z):expr:=FBin Osub(FBin Omul(Inp(a/3)(a mod 3))(Inp(b/3)(b mod 3)))(FBin Omul(Inp(c/3)(c mod 3))(Inp(d/3)(d mod 3))).
+Definition Prefix:list(ident*expr):=[
+ (Source._m00,MinExpr 4 8 5 7);(Source._m10,MinExpr 1 8 2 7);(Source._m20,MinExpr 1 5 2 4);
+ (Source._m01,MinExpr 3 8 5 6);(Source._m11,MinExpr 0 8 2 6);(Source._m21,MinExpr 0 5 2 3);
+ (Source._m02,MinExpr 3 7 4 6);(Source._m12,MinExpr 0 7 1 6);(Source._m22,MinExpr 0 4 1 3);
+ (Source._det,FBin Oadd(FBin Osub(FBin Omul(Inp 0 0)(Local Source._m00))(FBin Omul(Inp 1 0)(Local Source._m10)))(FBin Omul(Inp 2 0)(Local Source._m20)))].
+Definition LocalResults(f:Z->float32):list(ident*float32):=[(Source._m00,M00 f);(Source._m10,M10 f);(Source._m20,M20 f);(Source._m01,M01 f);(Source._m11,M11 f);(Source._m21,M21 f);(Source._m02,M02 f);(Source._m12,M12 f);(Source._m22,M22 f);(Source._det,Det f)].
+Definition Guard:expr:=Ebinop Ogt(Eunop Oabsfloat(Local Source._det)tdouble)(Eval(Vsingle(Float32.of_bits(Int.repr 872415232)))tfloat)tint.
+Definition OutExprs:list(Z*Z*expr):=[
+ (0,0,FBin Odiv(Local Source._m00)(Local Source._det));(1,0,FBin Odiv(FNeg(Local Source._m01))(Local Source._det));(2,0,FBin Odiv(Local Source._m02)(Local Source._det));
+ (0,1,FBin Odiv(FNeg(Local Source._m10))(Local Source._det));(1,1,FBin Odiv(Local Source._m11)(Local Source._det));(2,1,FBin Odiv(FNeg(Local Source._m12))(Local Source._det));
+ (0,2,FBin Odiv(Local Source._m20)(Local Source._det));(1,2,FBin Odiv(FNeg(Local Source._m21))(Local Source._det));(2,2,FBin Odiv(Local Source._m22)(Local Source._det))].
+Fixpoint PrefixStmt(xs:list(ident*expr))(tail:statement):statement:=match xs with []=>tail|(id,r)::xs=>Ssequence(Sdo(Eassign(Evar id tfloat)r tfloat))(PrefixStmt xs tail)end.
+Fixpoint OutputStmt(xs:list(Z*Z*expr)):statement:=match xs with []=>Sreturn(Some(Eval(Vint Int.zero)tint))|(r,c,x)::xs=>Ssequence(Sdo(Eassign(MatrixLoc Source._inv_out 3 r c)x tfloat))(OutputStmt xs)end.
+Definition Suffix:=Ssequence(Sifthenelse Guard(OutputStmt OutExprs)Sskip)(Sreturn(Some(Eval(Vint Int.one)tint))).
+Lemma body_syntax:fn_body Source.f_float_mat_inv_3d=PrefixStmt Prefix Suffix.
+Proof. reflexivity. Qed.

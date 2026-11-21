@@ -1,0 +1,15 @@
+    44	 assert(G0:Mem.load Mint32 m bo 0=Some(Vint(Int.repr 305419896))).
+    45	 { pose proof(CELLS 0 ltac:(lia))as B;unfold GuardValue in B;rewrite Z.eqb_refl in B.
+    46	   pose proof(Mem.loadbytes_load Mint32 m bo 0 _ B ltac:(exists 0;lia))as L.
+    47	   pose proof(decode_encode_val_general(Vsingle(Float32.of_bits(Int.repr 305419896)))Mfloat32 Mint32)as DE.
+    48	   change(decode_val Mint32(encode_val Mfloat32(Vsingle(Float32.of_bits(Int.repr 305419896)))))=Vint(Int.repr 305419896))in DE;rewrite DE in L;exact L. }
+    49	 assert(GN:Mem.load Mint32 m bo(4*n+4)=Some(Vint(Int.repr 2596069104))).
+    50	 { pose proof(CELLS(n+1)ltac:(lia))as B;unfold GuardValue in B;rewrite(proj2(Z.eqb_neq(n+1)0)ltac:(lia))in B;rewrite Z.eqb_refl in B.
+    51	   replace(4*(n+1))with(4*n+4)in B by lia.
+    52	   pose proof(Mem.loadbytes_load Mint32 m bo(4*n+4)_ B ltac:(exists(n+1);lia))as L.
+    53	   pose proof(decode_encode_val_general(Vsingle(Float32.of_bits(Int.repr 2596069104)))Mfloat32 Mint32)as DE.
+    54	   change(decode_val Mint32(encode_val Mfloat32(Vsingle(Float32.of_bits(Int.repr 2596069104)))))=Vint(Int.repr 2596069104))in DE;rewrite DE in L;exact L. }
+    55	 exists m,bo;split;[exact NE|];split;[exact OUTW|];split;[exact RF|];split;[exact OUTR|];split;assumption.
+    56	Qed.
+    57	Theorem matrix4_guarded:forall f:Z->float32,exists m bo bi,Guarded 4 m bo bi f.
+    58	Proof.

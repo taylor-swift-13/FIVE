@@ -1,0 +1,17 @@
+(self, verdict, summary, required_roles, missing=None)
+    def finish(self, verdict, summary, required_roles, missing=None):
+        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+            raise ValueError('Invalid verification verdict')
+        metadata = self.read('run.json')
+        boundary=metadata.get('codex_usage_boundary')
+        if boundary and not boundary.get('after'):
+            try:
+                from codex_usage import snapshot, receipt
+                import tempfile
+                boundary['after']=snapshot(boundary['session_file'])
+                metadata['codex_usage_boundary']=boundary
+                dump(self.folder/'run.json',metadata)
+                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+                    usage_file=Path(temporary)/'usage.json'
+        

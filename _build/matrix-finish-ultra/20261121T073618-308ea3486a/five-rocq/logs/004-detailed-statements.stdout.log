@@ -1,0 +1,583 @@
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/no_error/problem/Spec.v
+From compcert Require Import Values Memory Csem.
+From FiveShared.verification Require Import Obligations.
+From FivePprzFloatMatInv2d Require Import Execution.
+From FiveInv2Case Require Import Contract.
+Definition NoError:Prop:=forall args m,Precondition args m->no_error Execution.ge(Execution.entry args m).
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/no_error/attempts/001/Proof.v
+From FiveInv2NoError Require Import Spec.
+From FiveInv2Case Require Import Contract Call.
+Theorem no_error_proved:Spec.NoError.
+Proof. intros args m(bo&bi&po&pi&f&EQ&IN);subst args;destruct(call_summary m bo bi po pi f IN)as[mf[PATH[POST[SAFE ALL]]]];exact SAFE. Qed.
+Print Assumptions no_error_proved.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/termination/problem/Spec.v
+From Stdlib Require Import List.
+From compcert Require Import Values Memory Csem.
+From FiveShared.verification Require Import Obligations.
+From FivePprzFloatMatInv2d Require Import Source Execution.
+Definition AllSuccessorsTerminate:Prop := forall args m,Acc(successor Execution.ge)(Execution.entry args m).
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/termination/attempts/001/Proof.v
+From FiveInv2Termination Require Import Spec.
+From FiveInv2Case Require Import Closure.
+Theorem all_successors_terminate:Spec.AllSuccessorsTerminate.
+Proof. exact Closure.all_successor_termination. Qed.
+Print Assumptions all_successors_terminate.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/functional/problem/Spec.v
+From Stdlib Require Import ZArith.
+From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.
+From FivePprzFloatMatInv2d Require Import Execution.
+From FiveInv2Case Require Import Contract.
+Definition NormalCall:Prop:=forall m bo bi po pi f,Inputs m bo bi po pi f->exists t mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Result f)Kstop mf)/\Post m mf bo bi po pi f.
+Definition AllReturns:Prop:=forall m bo bi po pi f,Inputs m bo bi po pi f->forall t result mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->result=Result f/\Post m mf bo bi po pi f.
+Definition Nonvacuity:Prop:=forall f:Z->float32,exists m bo bi,Inputs m bo bi Ptrofs.zero Ptrofs.zero f.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/functional/attempts/001/Proof.v
+From FiveInv2Functional Require Import Spec.
+From FiveInv2Case Require Import Contract Call.
+From FiveMatrixInverseSupport Require Import Witness.
+Theorem normal_call:Spec.NormalCall.
+Proof. intros m bo bi po pi f IN;destruct(call_summary m bo bi po pi f IN)as[mf[[t PATH][POST OTHER]]];exists t,mf;auto. Qed.
+Theorem all_returns:Spec.AllReturns.
+Proof. intros m bo bi po pi f IN t result mf PATH;destruct(call_summary m bo bi po pi f IN)as[after[EX[POST[SAFE ALL]]]];destruct(ALL t result mf PATH)as[R M];subst result mf;auto. Qed.
+Theorem nonvacuity:Spec.Nonvacuity.
+Proof. exact matrix4_inhabited. Qed.
+Print Assumptions normal_call.
+Print Assumptions all_returns.
+Print Assumptions nonvacuity.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem/Spec.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Values Memory Events Ctypes Csyntax Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FivePprzFloatMatInv2d Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveInv2Case Require Import Closure.
+Import ListNotations.
+Definition source_state := SourceClosure.source_state Closure.ge Closure.allowed Closure.budget.
+Definition closed_step := Closure.closed_step.
+Definition domain_preservation_goal:Prop := forall args m,
+ Execution.entry args m=Callstate(Internal Source.f_float_mat_inv_2d)args Kstop m /\ source_state(Execution.entry args m).
+Definition reachable_step_goal:Prop := forall args m t reached tr next,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (closed_step tt reached tr next <-> Csem.step Execution.ge reached tr next).
+Definition floating_point_correspondence_goal := reachable_step_goal.
+Definition machine_integer_correspondence_goal := reachable_step_goal.
+Definition memory_access_correspondence_goal := reachable_step_goal.
+Definition control_and_exhaustion_correspondence_goal:Prop := forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step Execution.ge(Execution.entry args m)t final.
+Definition normal_result_and_memory_correspondence_goal:Prop := forall args m t v mf b ofs n,
+ (star closed_step tt(Execution.entry args m)t(Returnstate v Kstop mf) <->
+ star Csem.step Execution.ge(Execution.entry args m)t(Returnstate v Kstop mf)) /\
+ Execution.observe_bytes mf b ofs n=Mem.loadbytes mf b ofs n.
+Definition invalid_operation_correspondence_goal:Prop := forall args m t reached,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <-> ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Definition whole_execution_correspondence_goal := control_and_exhaustion_correspondence_goal.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/attempts/001/Proof.v
+From FiveInv2Correspondence Require Import Spec.
+From FiveInv2Case Require Import Closure.
+Theorem domain_preservation:Spec.domain_preservation_goal.
+Proof. intros;split;[reflexivity|apply Closure.entry_source]. Qed.
+Lemma reachable_step:Spec.reachable_step_goal.
+Proof.
+ intros args m t reached tr next PATH.
+ apply (Closure.one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world).
+ eapply Closure.source_reachable;eauto.
+Qed.
+Theorem floating_point_correspondence:Spec.floating_point_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem machine_integer_correspondence:Spec.machine_integer_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem memory_access_correspondence:Spec.memory_access_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem control_and_exhaustion_correspondence:Spec.control_and_exhaustion_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Theorem normal_result_and_memory_correspondence:Spec.normal_result_and_memory_correspondence_goal.
+Proof. intros;split;[apply Closure.whole_execution_correspondence|reflexivity]. Qed.
+Theorem invalid_operation_correspondence:Spec.invalid_operation_correspondence_goal.
+Proof. exact Closure.invalid_operation_correspondence. Qed.
+Theorem whole_execution_correspondence:Spec.whole_execution_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Print Assumptions domain_preservation.
+Print Assumptions floating_point_correspondence.
+Print Assumptions machine_integer_correspondence.
+Print Assumptions memory_access_correspondence.
+Print Assumptions control_and_exhaustion_correspondence.
+Print Assumptions normal_result_and_memory_correspondence.
+Print Assumptions invalid_operation_correspondence.
+Print Assumptions whole_execution_correspondence.
+
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/goal-index.json KEYS list
+[{"property": "float_mat_inv_2d.pointer_arithmetic.1", "goal": "P001", "theorem": "property_001", "proof": "apply source_guards.", "status": "SUCCESS"}, {"property": "float_mat_inv_2d.pointer_arithmetic.2", "goal": "P002", "theorem": "property_002", "proof": "apply source_guards.", "status": "SUCCESS"}]
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_2d/align/model/compcert-manifest.json KEYS ['schema', 'status', 'backend', 'source', 'cpp_arguments', 'frontend_options', 'cpp_cwd', 'tool', 'formal_library', 'semantic_dependencies', 'target', 'namespace', 'function', 'files', 'ast_semantic_sha256', 'request', 'generation_run', 'coverage_status', 'generated_obligations', 'pending_obligations', 'execution_modes']
+[["schema", "five-compcert-backend/1"], ["status", "generated"], ["backend", "compcert-csyntax-cexec"]]
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_2d/align/spec-map.json KEYS ['schema', 'request_sha256', 'backend_manifest_sha256', 'verification_method', 'cbmc_run', 'cbmc_command_id', 'cbmc_json', 'cbmc_input_sha256', 'properties', 'paths_relative_to']
+[["schema", "five-cbmc-rocq-map/1"], ["request_sha256", "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9"], ["backend_manifest_sha256", "bfd37ae7eeef42d51324ef53b57f0d073dea46c919972a76a52ab4a6bc9c11e4"]]
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_2d/cbmc/properties.json KEYS list
+[{"description": "pointer arithmetic: pointer NULL in mat_in + (signed long int)0", "property": "float_mat_inv_2d.pointer_arithmetic.1", "sourceLocation": {"comment": "pointer arithmetic: pointer NULL in mat_in + (signed long int)0", "file": "/home/yangfp/five/paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c", "function": "float_mat_inv_2d", "line": "30", "pragma": ["checked:bounds-check", "checked:pointer-check", "checked:div-by-zero-check", "checked:signed-overflow-check", "checked:pointer-overflow-check", "checked:undefined-shift-check", "checked:pointer-primitive-check", "checked:memory-leak-check", "checked:memory-cleanup-check", "checked:float-div-by-zero-check", "checked:enum-range-check", "checked:unsigned-overflow-check", "checked:conversion-check", "checked:float-overflow-check", "checked:nan-check"], "propertyClass": "pointer arithmetic", "propertyFatal": true, "propertyId": "float_mat_inv_2d.pointer_arithmetic.1", "workingDirectory": "/home/yangfp/five"}, "status": "SUCCESS"}, {"description": "pointer arithmetic: pointer invalid in mat_in + (signed long int)0", "property": "float_mat_inv_2d.pointer_arithmetic.2", "sourceLocation": {"comment": "pointer arithmetic: pointer invalid in mat_in + (signed long int)0", "file": "/home/yangfp/five/paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c", "function": "float_mat_inv_2d", "line": "30", "pragma": ["checked:bounds-check", "checked:pointer-check", "checked:div-by-zero-check", "checked:signed-overflow-check", "checked:pointer-overflow-check", "checked:undefined-shift-check", "checked:pointer-primitive-check", "checked:memory-leak-check", "checked:memory-cleanup-check", "checked:float-div-by-zero-check", "checked:enum-range-check", "checked:unsigned-overflow-check", "checked:conversion-check", "checked:float-overflow-check", "checked:nan-check"], "propertyClass": "pointer arithmetic", "propertyFatal": true, "propertyId": "float_mat_inv_2d.pointer_arithmetic.2", "workingDirectory": "/home/yangfp/five"}, "status": "SUCCESS"}]
+IMPORT Body.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.', 'From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation AtomicDenotation CallfreeExecution BlockExecution PhaseComposition FactorShell.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FivePprzFloatMatInv2d Require Import Source Execution.', 'From FiveInv2Case Require Import Contract Expressions BuiltinFabs Certificates.', 'Definition Branch', 'Definition fabs_block', 'Lemma fabs_symbol', 'Lemma fabs_find', 'Lemma pure_target_eval', 'Theorem body_certificate']
+IMPORT BuiltinFabs.v ['From Stdlib Require Import Bool List ZArith String Classical Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep Builtins Builtins0.', 'From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure.', 'From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation FactorShell PhaseComposition.', 'Definition fabs_ef', 'Definition fabs_fd', 'Definition fabs_type', 'Definition threshold', 'Definition compare_abs', 'Definition call_expr', 'Definition pre_state', 'Definition call_frame', 'Definition called', 'Definition returned', 'Definition target', 'Definition phase', 'Definition pre_or_called', 'Lemma pre_animator', 'Lemma pre_nonempty', 'Lemma pre_core', 'Lemma pre_silent', 'Lemma pre_step', 'Lemma pre_progress', 'Lemma called_unique', 'Lemma returned_unique', 'Theorem phase_certificate']
+IMPORT Call.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.', 'From FiveShared.verification Require Import Obligations.', 'From FiveGuidanceAllOrder Require Import PureDenotation CallfreeExecution PhaseComposition.', 'From FiveGuidanceAllocation Require Import StackAllocation.', 'From FiveGuidanceEntry Require Import StackCleanup FunctionAllocation.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FivePprzFloatMatInv2d Require Import Source Execution.', 'From FiveInv2Case Require Import Contract Expressions Body MemoryEffects Certificates Closure.', 'Definition declares', 'Lemma declares_nodup', 'Theorem call_certificate', 'Theorem call_summary']
+IMPORT Certificates.v ['From Stdlib Require Import List Classical String.', 'From compcert Require Import Coqlib AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.', 'From FiveGuidanceSemantics Require Import SemanticsSupport.', 'From FiveShared.verification Require Import Obligations.', 'From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress CallfreeExecution PhaseComposition BlockExecution.', 'Definition Defined', 'Lemma defined_certificate', 'Lemma join_certificate', 'Lemma prepend_certificate', 'Lemma accessible_certificate_reaches', 'Lemma certificate_safety', 'Lemma seq_unique', 'Lemma skipseq_unique', 'Lemma if_unique', 'Definition null_external', 'Lemma internal_unique']
+IMPORT Closure.v ['From Stdlib Require Import List Bool Lia Arith.', 'From compcert Require Import AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Smallstep Csyntaxdefs.', 'From FiveShared.verification Require Import Obligations.', 'From FivePprzFloatMatInv2d Require Import Source Execution.', 'From FiveGuidanceSemantics Require Import SemanticsSupport SourceClosure WeightedTermination SourceTermination TableSupport.', 'Definition call_weight', 'Definition allowed', 'Definition budget', 'Definition ge', 'Definition check_global', 'Lemma function_in_global', 'Lemma checked_float_table', 'Lemma float_call_closed', 'Lemma entry_body_core', 'Lemma internal_body', 'Lemma external_supported', 'Theorem entry_source', 'Theorem source_step_invariant', 'Theorem all_successor_termination', 'Theorem one_step_correspondence', 'Definition closed_step', 'Theorem source_reachable', 'Theorem whole_execution_correspondence', 'Theorem invalid_operation_correspondence', 'Theorem normal_result_memory_correspondence']
+IMPORT Contract.v ['From Stdlib Require Import List ZArith.', 'From compcert Require Import Integers Floats AST Values Memory Memdata Csem Smallstep.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'Definition Det', 'Definition Reject', 'Definition Result', 'Definition Output', 'Definition Outputs', 'Definition Args', 'Definition Inputs', 'Definition Precondition', 'Definition Frame', 'Definition Encoded', 'Definition Post']
+IMPORT ExactReplay.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Integers Floats AST Values Memory Events Csem Smallstep.', 'From FiveGuidanceEntry Require Import StackCleanup.', 'From FiveMatInv3Case Require Import MatrixMemory GuardWitness PairExtend.', 'From FiveInv2Case Require Import Contract Replay TraceInputs.', 'From FiveMatrixInverseSupport Require Import Kernels.', 'Lemma extension_reads', 'Lemma extension_writable', 'Lemma extension_inputs', 'Lemma extension_guarded', 'Definition InitializedLayout', 'Theorem initialized_layout_inhabited', 'Definition TraceNonempty', 'Theorem original_trace_nonempty']
+IMPORT Expressions.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.', 'From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.', 'From FiveLowpassSupport Require Import Expressions.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FivePprzFloatMatInv2d Require Import Source Execution.', 'From FiveInv2Case Require Import Contract BuiltinFabs.', 'Definition Ptr', 'Definition Loc', 'Definition Mat', 'Definition Dvar', 'Definition DetExpr', 'Definition DetAssign', 'Definition OutExpr', 'Definition OutAssign', 'Definition Return1', 'Definition Return0', 'Definition Suffix', 'Definition CallAbs', 'Definition Rest', 'Lemma body_syntax', 'Lemma location', 'Lemma matrix_value', 'Lemma rval_mul', 'Lemma rval_sub', 'Lemma rval_div', 'Lemma rval_neg', 'Lemma determinant_value', 'Lemma determinant_assign', 'Lemma out_value', 'Lemma output_assign', 'Lemma suffix_eval', 'Definition PureGuard', 'Lemma guard_value', 'Lemma guard_bool']
+IMPORT Memcpy16.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.', 'Definition CopyFrame', 'Lemma copy_pre_safety', 'Theorem copy16_exact', 'Lemma copy16_preserves_pre', 'Theorem two_copy16_exact']
+IMPORT MemoryEffects.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Csem.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FiveInv2Case Require Import Contract Body.', 'Lemma output_bounds', 'Lemma output_nodup', 'Lemma writes_valid', 'Lemma free_list_valid', 'Lemma branch_permissions', 'Lemma branch_valid', 'Lemma branch_writable', 'Lemma branch_reads', 'Lemma branch_frame', 'Lemma branch_bytes', 'Lemma branch_access']
+IMPORT Observer.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FiveInv2Case Require Import Memcpy16.', 'Lemma append_cut', 'Lemma same_bytes_cell', 'Lemma memcpy_word_observation']
+IMPORT RecheckSupport.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Ctypes Csem Smallstep.', 'From FiveShared.verification Require Import Obligations.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FivePprzFloatMatInv2d Require Import Execution.', 'From FiveInv2Case Require Import Contract Call MemoryEffects Body Memcpy16 Observer TraceInputs.', 'Definition SourceGuards', 'Theorem source_guards', 'Lemma same_bytes_cell_at', 'Lemma successful_post_cells', 'Theorem successful_copy_words', 'Theorem post_preserves_other_inputs', 'Theorem frame_load_kept']
+IMPORT Replay.v ['From Stdlib Require Import List ZArith.', 'From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FivePprzFloatMatInv2d Require Import Execution.', 'From FiveInv2Case Require Import Contract Call RecheckSupport TraceInputs.', 'From FiveMatrixInverseSupport Require Import Kernels.', 'Definition NormalCall', 'Definition OriginalReplay', 'Theorem original_trace_four_calls', 'Theorem original_trace_statuses', 'Theorem original_trace_scale_failure', 'Theorem original_trace_residual_failure']
+IMPORT TraceInputs.v ['From Stdlib Require Import List ZArith.', 'From compcert Require Import Integers Floats Values.', 'From FiveInv2Case Require Import Contract.', 'Definition trace_input_words', 'Definition trace_input', 'Definition trace_output_words', 'Definition initial_fixture', 'Definition initial_guarded', 'Theorem original_arbitrary_trace_kernel', 'Theorem original_initial_fixture_words']
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/no_error/problem/Spec.v
+From compcert Require Import Values Memory.
+From FiveShared.verification Require Import Obligations.
+From FivePprzFloatMatInv3d Require Import Execution.
+From FiveMatInv3Case Require Import Contract.
+Definition NoError:Prop:=forall args m,FunctionalPre args m->no_error Execution.ge(Execution.entry args m).
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/no_error/attempts/001/Proof.v
+From compcert Require Import Values Memory.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceAllOrder Require Import CallfreeExecution.
+From FiveLowpassSupport Require Import Straightline.
+From FivePprzFloatMatInv3d Require Import Execution.
+From FiveMatInv3Case Require Import Contract Call.
+From FiveMatInv3NoError Require Import Spec.
+Theorem no_error_proved:Spec.NoError.
+Proof. intros args m(bo&bi&po&pi&f&EQ&NE&W&RD);subst args.
+ destruct(call_summary m bo bi po pi f NE W RD)as[mf[EV POST]].
+ eapply defined_evaluator_no_error;[vm_compute;reflexivity|vm_compute;repeat constructor;simpl;intuition discriminate|exact EV]. Qed.
+Print Assumptions no_error_proved.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/termination/problem/Spec.v
+From compcert Require Import Values Memory.
+From FiveShared.verification Require Import Obligations.
+From FivePprzFloatMatInv3d Require Import Execution.
+Definition Termination:Prop:=forall args m,Acc(successor Execution.ge)(Execution.entry args m).
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/termination/attempts/001/Proof.v
+From FiveLowpassSupport Require Import Straightline.
+From FiveGuidanceAllOrder Require Import CallfreeExecution.
+From FiveMatInv3Termination Require Import Spec.
+Theorem termination_proved:Spec.Termination.
+Proof. intros args m;apply normal_all_successors_terminate;vm_compute;reflexivity. Qed.
+Print Assumptions termination_proved.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/functional/problem/Spec.v
+From Stdlib Require Import ZArith.
+From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.
+From FivePprzFloatMatInv3d Require Import Execution.
+From FiveMatInv3Case Require Import Contract.
+Definition Post(m mf:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop:=
+ OutputBytes m mf bo po f /\ Frame m mf bo po /\ WriteRegion mf bo po 9 /\ OldBlocks m mf /\ OldAccess m mf /\
+ Mem.loadbytes mf bi(Ptrofs.unsigned pi)36=Mem.loadbytes m bi(Ptrofs.unsigned pi)36.
+Definition NormalCall:Prop:=forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+ exists mf,(exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Status f)Kstop mf))/\Post m mf bo bi po pi f.
+Definition AllNormalObservations:Prop:=forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+ forall t v mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate v Kstop mf)->v=Status f /\Post m mf bo bi po pi f.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/functional/attempts/001/Proof.v
+From Stdlib Require Import ZArith Lia.
+From compcert Require Import Values Memory Csem Smallstep.
+From FiveLowpassSupport Require Import Straightline.
+From FiveGuidanceAllOrder Require Import CallfreeExecution.
+From FivePprzFloatMatInv3d Require Import Execution.
+From FiveMatInv3Case Require Import Contract Call.
+From FiveMatInv3Functional Require Import Spec.
+Local Open Scope Z_scope.
+Lemma evaluator_post:forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+ exists mf,state_eval Execution.ge(Execution.entry(Args bo bi po pi)m)=Some(Status f,mf)/\Spec.Post m mf bo bi po pi f.
+Proof. intros m bo bi po pi f NE W RD;destruct(call_summary m bo bi po pi f NE W RD)as[mf[EV[BYTES[FR[WF[BL AC]]]]]].
+ exists mf;split;[exact EV|];split;[exact BYTES|];split;[exact FR|];split;[exact WF|];split;[exact BL|];split;[exact AC|].
+ apply FR;[exact(reads_valid m bi pi 9 f ltac:(lia)RD)|left;congruence]. Qed.
+Theorem normal_call:Spec.NormalCall.
+Proof. intros m bo bi po pi f NE W RD;destruct(evaluator_post m bo bi po pi f NE W RD)as[mf[EV POST]].
+ exists mf;split;[|exact POST];eapply defined_evaluator_return_exists;[vm_compute;reflexivity|vm_compute;repeat constructor;simpl;intuition discriminate|exact EV]. Qed.
+Theorem all_normal_observations:Spec.AllNormalObservations.
+Proof. intros m bo bi po pi f NE W RD t v mf PATH;destruct(evaluator_post m bo bi po pi f NE W RD)as[expected[EV POST]].
+ destruct(defined_evaluator_exact_return Execution.ge(Execution.entry(Args bo bi po pi)m)(Status f)expected t v mf ltac:(vm_compute;reflexivity)EV PATH)as[-> ->];split;[reflexivity|exact POST]. Qed.
+Print Assumptions normal_call.
+Print Assumptions all_normal_observations.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/execution_correspondence/problem/Spec.v
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Values Memory Events Ctypes Csyntax Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FivePprzFloatMatInv3d Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveMatInv3Correspondence Require Import Closure.
+Import ListNotations.
+Definition source_state := Closure.SS.
+Definition closed_step := Closure.closed_step.
+Definition domain_preservation_goal:Prop := forall args m,
+ Execution.entry args m=Callstate(Internal Source.f_float_mat_inv_3d)args Kstop m /\ source_state(Execution.entry args m).
+Definition reachable_step_goal:Prop := forall args m t reached tr next,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (closed_step tt reached tr next <-> Csem.step Execution.ge reached tr next).
+Definition floating_point_correspondence_goal := reachable_step_goal.
+Definition machine_integer_correspondence_goal := reachable_step_goal.
+Definition memory_access_correspondence_goal := reachable_step_goal.
+Definition control_and_exhaustion_correspondence_goal:Prop := forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step Execution.ge(Execution.entry args m)t final.
+Definition normal_result_and_memory_correspondence_goal:Prop := forall args m t v mf b ofs n,
+ (star closed_step tt(Execution.entry args m)t(Returnstate v Kstop mf) <->
+ star Csem.step Execution.ge(Execution.entry args m)t(Returnstate v Kstop mf)) /\
+ Execution.observe_bytes mf b ofs n=Mem.loadbytes mf b ofs n.
+Definition invalid_operation_correspondence_goal:Prop := forall args m t reached,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <-> ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Definition whole_execution_correspondence_goal := control_and_exhaustion_correspondence_goal.
+
+
+FILE /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/execution_correspondence/attempts/001/Proof.v
+From FiveMatInv3Correspondence Require Import Spec.
+From FiveMatInv3Correspondence Require Import Closure.
+Theorem domain_preservation:Spec.domain_preservation_goal.
+Proof. intros;split;[reflexivity|apply Closure.entry_source]. Qed.
+Lemma reachable_step:Spec.reachable_step_goal.
+Proof.
+ intros args m t reached tr next PATH.
+ apply (Closure.one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world).
+ eapply Closure.source_reachable;eauto.
+Qed.
+Theorem floating_point_correspondence:Spec.floating_point_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem machine_integer_correspondence:Spec.machine_integer_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem memory_access_correspondence:Spec.memory_access_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem control_and_exhaustion_correspondence:Spec.control_and_exhaustion_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Theorem normal_result_and_memory_correspondence:Spec.normal_result_and_memory_correspondence_goal.
+Proof. intros;split;[apply Closure.whole_execution_correspondence|reflexivity]. Qed.
+Theorem invalid_operation_correspondence:Spec.invalid_operation_correspondence_goal.
+Proof. exact Closure.invalid_operation_correspondence. Qed.
+Theorem whole_execution_correspondence:Spec.whole_execution_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Print Assumptions domain_preservation.
+Print Assumptions floating_point_correspondence.
+Print Assumptions machine_integer_correspondence.
+Print Assumptions memory_access_correspondence.
+Print Assumptions control_and_exhaustion_correspondence.
+Print Assumptions normal_result_and_memory_correspondence.
+Print Assumptions invalid_operation_correspondence.
+Print Assumptions whole_execution_correspondence.
+
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/attempts/001/property-bindings.json KEYS ['schema', 'properties']
+[["schema", "five-property-bindings/1"], ["properties", [{"id": "float_mat_inv_3d.pointer_arithmetic.1", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_001", "status": "proved", "description": "pointer arithmetic: pointer NULL in mat_in + (signed long int)1", "index": 0}, {"id": "float_mat_inv_3d.pointer_arithmetic.2", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_002", "status": "proved", "description": "pointer arithmetic: pointer invalid in mat_in + (signed long int)1", "index": 1}, {"id": "float_mat_inv_3d.pointer_arithmetic.3", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_003", "status": "proved", "description": "pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)1", "index": 2}, {"id": "float_mat_inv_3d.pointer_arithmetic.4", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_004", "status": "proved", "description": "pointer arithmetic: dead object in mat_in + (signed long int)1", "index": 3}, {"id": "float_mat_inv_3d.pointer_arithmetic.5", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_005", "status": "proved", "description": "pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)1", "index": 4}, {"id": "float_mat_inv_3d.pointer_arithmetic.6", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_006", "status": "proved", "description": "pointer arithmetic: invalid integer address in mat_in + (signed long int)1", "index": 5}, {"id": "float_mat_inv_3d.pointer_dereference.1", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_007", "status": "proved", "description": "dereference failure: pointer NULL in mat_in[(signed long int)1]", "index": 6}, {"id": "float_mat_inv_3d.pointer_dereference.2", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_008", "status": "proved", "description": "dereference failure: pointer invalid in mat_in[(signed long int)1]", "index": 7}, {"id": "float_mat_inv_3d.pointer_dereference.3", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_009", "status": "proved", "description": "dereference failure: deallocated dynamic object in mat_in[(signed long int)1]", "index": 8}, {"id": "float_mat_inv_3d.pointer_dereference.4", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_010", "status": "proved", "description": "dereference failure: dead object in mat_in[(signed long int)1]", "index": 9}, {"id": "float_mat_inv_3d.pointer_dereference.5", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_011", "status": "proved", "description": "dereference failure: pointer outside object bounds in mat_in[(signed long int)1]", "index": 10}, {"id": "float_mat_inv_3d.pointer_dereference.6", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_012", "status": "proved", "description": "dereference failure: invalid integer address in mat_in[(signed long int)1]", "index": 11}, {"id": "float_mat_inv_3d.array_bounds.1", "kind": "KSource", "target": "SourceGuards", "proof": "source_guards", "theorem": "property_013", "status": "proved", "description": "array dynamic object upper bound in mat
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_3d/align/model/compcert-manifest.json KEYS ['schema', 'status', 'backend', 'source', 'cpp_arguments', 'frontend_options', 'cpp_cwd', 'tool', 'formal_library', 'semantic_dependencies', 'target', 'namespace', 'function', 'files', 'ast_semantic_sha256', 'request', 'generation_run', 'coverage_status', 'generated_obligations', 'pending_obligations', 'execution_modes']
+[["schema", "five-compcert-backend/1"], ["status", "generated"], ["backend", "compcert-csyntax-cexec"]]
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_3d/align/spec-map.json KEYS ['schema', 'request_sha256', 'backend_manifest_sha256', 'verification_method', 'cbmc_run', 'cbmc_command_id', 'cbmc_json', 'cbmc_input_sha256', 'properties', 'paths_relative_to']
+[["schema", "five-cbmc-rocq-map/1"], ["request_sha256", "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9"], ["backend_manifest_sha256", "60ef26b57977f9db5308a4717775e9b6249beacf7b6b59dab077ef6709b98908"]]
+
+JSON /home/yangfp/five/paparazzi/models/float_mat_inv_3d/cbmc/properties.json KEYS list
+[{"description": "pointer arithmetic: pointer NULL in mat_in + (signed long int)1", "property": "float_mat_inv_3d.pointer_arithmetic.1", "sourceLocation": {"comment": "pointer arithmetic: pointer NULL in mat_in + (signed long int)1", "file": "/home/yangfp/five/paparazzi/models/float_mat_inv_3d/prepare/source/float_mat_inv_3d.c", "function": "float_mat_inv_3d", "line": "31", "pragma": ["checked:bounds-check", "checked:pointer-check", "checked:div-by-zero-check", "checked:signed-overflow-check", "checked:pointer-overflow-check", "checked:undefined-shift-check", "checked:pointer-primitive-check", "checked:memory-leak-check", "checked:memory-cleanup-check", "checked:float-div-by-zero-check", "checked:enum-range-check", "checked:unsigned-overflow-check", "checked:conversion-check", "checked:float-overflow-check", "checked:nan-check"], "propertyClass": "pointer arithmetic", "propertyFatal": true, "propertyId": "float_mat_inv_3d.pointer_arithmetic.1", "workingDirectory": "/home/yangfp/five"}, "status": "SUCCESS"}, {"description": "pointer arithmetic: pointer invalid in mat_in + (signed long int)1", "property": "float_mat_inv_3d.pointer_arithmetic.2", "sourceLocation": {"comment": "pointer arithmetic: pointer invalid in mat_in + (signed long int)1", "file": "/home/yangfp/five/paparazzi/models/float_mat_inv_3d/prepare/source/float_mat_inv_3d.c", "function": "float_mat_inv_3d", "line": "31", "pragma": ["checked:bounds-check", "checked:pointer-check", "checked:div-by-zero-check", "checked:signed-overflow-check", "checked:pointer-overflow-check", "checked:undefined-shift-check", "checked:pointer-primitive-check", "checked:memory-leak-check", "checked:memory-cleanup-check", "checked:float-div-by-zero-check", "checked:enum-range-check", "checked:unsigned-overflow-check", "checked:conversion-check", "checked:float-overflow-check", "checked:nan-check"], "propertyClass": "pointer arithmetic", "propertyFatal": true, "propertyId": "float_mat_inv_3d.pointer_arithmetic.2", "workingDirectory": "/home/yangfp/five"}, "status": "SUCCESS"}]
+IMPORT Assertions.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Integers Floats AST Values Memory Memdata Events Csem Smallstep.', 'From FivePprzFloatMatInv3d Require Import Execution.', 'From FiveMatInv3Case Require Import Contract Scalar Observer RecheckSupport TraceInputs SequentialReplay.', 'From FiveMatrixInverseSupport Require Import Kernels.', 'Definition BaseWords', 'Definition LargeWords', 'Definition WordBridge', 'Lemma word_bridge', 'Definition Assert1', 'Lemma assertion1', 'Definition Assert2', 'Lemma assertion2', 'Definition Assert3', 'Lemma assertion3', 'Definition Assert4', 'Lemma assertion4', 'Definition Assert5', 'Lemma assertion5', 'Lemma small_rejects', 'Definition Assert6', 'Lemma assertion6', 'Definition Assert7', 'Lemma assertion7', 'Definition Assert8', 'Lemma assertion8', 'Definition OriginalReplay', 'Definition Refutation9', 'Lemma refutation9', 'Definition Refutation10', 'Lemma refutation10', 'Lemma original_base_input_bits', 'Lemma original_small_input_bits', 'Lemma original_large_input_bits', 'Lemma original_fixed_old_bits', 'Lemma original_trace_0_base3_write_prefix', 'Lemma original_trace_0_large3_write_prefix', 'Lemma original_trace_1_base3_write_prefix', 'Lemma original_trace_1_large3_write_prefix']
+IMPORT Call.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.', 'From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.', 'From FiveGuidanceAllocation Require Import StackAllocation.', 'From FiveGuidanceEntry Require Import StackCleanup FunctionAllocation.', 'From FiveLowpassSupport Require Import Expressions Straightline.', 'From FivePprzFloatMatInv3d Require Import Source Execution.', 'From FiveMatInv3Case Require Import MatrixMemory MatrixAccess Scalar LocalMemory Expression Output Contract.', 'Definition declarations', 'Lemma declarations_nodup', 'Lemma prefix_declarations', 'Lemma reads_alloc', 'Lemma write_alloc', 'Lemma allocation_blocks', 'Lemma writes_nextblock', 'Lemma free_list_nextblock', 'Lemma outputs_range', 'Lemma outputs_nodup', 'Lemma outputs_member', 'Theorem call_summary']
+IMPORT Contract.v ['From Stdlib Require Import List ZArith.', 'From compcert Require Import Integers Floats AST Values Memory Memdata.', 'Definition Args', 'Definition FunctionalPre', 'Definition Frame', 'Definition OutputBytes', 'Definition OldBlocks', 'Definition OldAccess']
+IMPORT Expression.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.', 'From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.', 'From FivePprzFloatMatInv3d Require Import Source Execution.', 'From FiveMatInv3Case Require Import MatrixMemory MatrixAccess Scalar LocalMemory.', 'Lemma rval_add', 'Lemma rval_sub', 'Lemma rval_mul', 'Lemma rval_div', 'Lemma rval_neg', 'Lemma prefix_valid', 'Lemma guard_value']
+IMPORT GuardWitness.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'From FiveMatrixInverseSupport Require Import Witness.', 'Definition GuardValue', 'Definition Guarded', 'Lemma guarded_extend', 'Theorem matrix4_guarded', 'Theorem matrix9_guarded']
+IMPORT LocalMemory.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.', 'From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.', 'From FiveGuidanceEntry Require Import StackCleanup.', 'From FiveGuidanceAllocation Require Import StackAllocation.', 'From FiveLowpassSupport Require Import Expressions.', 'From FivePprzFloatMatInv3d Require Import Source Execution.', 'From FiveMatInv3Case Require Import MatrixMemory MatrixAccess Scalar.', 'Definition Known', 'Definition FullFrame', 'Definition Access', 'Definition Outside', 'Lemma known_empty', 'Lemma known_value', 'Lemma known_store', 'Lemma local_slot_distinct', 'Lemma fullframe_store_local', 'Lemma access_store', 'Lemma access_trans', 'Lemma local_step', 'Lemma prefix_execute']
+IMPORT MatrixAccess.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.', 'From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation.', 'From FiveLowpassSupport Require Import Expressions.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'Definition MatrixPtr', 'Definition MatrixLoc', 'Definition MatrixVal', 'Lemma matrix_location', 'Lemma matrix_value']
+IMPORT MatrixMemory.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.', 'Definition WriteRegion', 'Definition Reads', 'Lemma index_pointer', 'Lemma writable_access', 'Lemma writable_store', 'Lemma writable_store_preserved', 'Lemma reads_store_preserved', 'Lemma reads_valid', 'Lemma writable_valid', 'Lemma writes_exist', 'Lemma writes_permissions', 'Lemma writes_access', 'Lemma writes_writable', 'Lemma writes_unaffected', 'Lemma writes_frame', 'Lemma writes_bytes', 'Lemma writes_reads_other']
+IMPORT Memcpy36.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.', 'Definition CopyFrame', 'Lemma copy_pre_safety', 'Theorem copy36_exact', 'Lemma copy36_preserves_pre', 'Theorem two_copy36_exact']
+IMPORT Observer.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.', 'From FiveMatInv3Case Require Import MatrixMemory Memcpy36.', 'Lemma append_cut', 'Lemma same_bytes_cell', 'Lemma memcpy_word_observation']
+IMPORT Output.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.', 'From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.', 'From FiveLowpassSupport Require Import Expressions.', 'From FivePprzFloatMatInv3d Require Import Source Execution.', 'From FiveMatInv3Case Require Import MatrixMemory MatrixAccess Scalar LocalMemory Expression.', 'Lemma core_output_store', 'Lemma output_valid', 'Lemma output_execute', 'Definition BodyWrites', 'Lemma suffix_execute']
+IMPORT PairExtend.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.', 'From FiveMatInv3Case Require Import MatrixMemory.', 'Definition BytePreserved', 'Definition LoadPreserved', 'Definition AccessPreserved', 'Definition BlocksPreserved', 'Lemma writes_load_other_block', 'Lemma writes_blocks', 'Definition ArrayExtended', 'Lemma array_extend', 'Theorem array4_extend', 'Theorem array9_extend', 'Definition PairExtended', 'Theorem pair4_extend', 'Theorem pair9_extend']
+IMPORT RecheckSupport.v ['From Stdlib Require Import List String ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Csem Smallstep.', 'From FiveShared.verification Require Import Obligations.', 'From FivePprzFloatMatInv3d Require Import Execution.', 'From FiveMatInv3Case Require Import Contract MatrixMemory Scalar Call Memcpy36 Observer TraceInputs.', 'From FiveMatrixInverseSupport Require Import Kernels Witness.', 'Lemma valid_cell_live', 'Definition SourceGuards', 'Theorem source_guards', 'Inductive CopyKind', 'Definition CopyGuard', 'Lemma copy_safety_guard', 'Definition CopyClaim', 'Theorem copy_claim', 'Definition FixedOutcome', 'Lemma fixed_outcome', 'Definition InitPairs', 'Definition Initialized', 'Lemma initialized_exists', 'Definition CallReplay', 'Theorem call_replay', 'Definition OldFixed', 'Definition OldArbitrary', 'Theorem original_calls_replay']
+IMPORT Scalar.v ['From Stdlib Require Import List ZArith.', 'From compcert Require Import Floats Integers AST Values Ctypes Csyntax Csyntaxdefs Cop.', 'From FivePprzFloatMatInv3d Require Import Source.', 'From FiveMatInv3Case Require Import MatrixAccess.', 'Definition M00', 'Definition M10', 'Definition M20', 'Definition M01', 'Definition M11', 'Definition M21', 'Definition M02', 'Definition M12', 'Definition M22', 'Definition Det', 'Definition Accept', 'Definition Status', 'Definition Output', 'Definition Outputs', 'Definition Local', 'Definition FBin', 'Definition FNeg', 'Definition Inp', 'Definition MinExpr', 'Definition Prefix', 'Definition LocalResults', 'Definition Guard', 'Definition OutExprs', 'Definition Suffix', 'Lemma body_syntax']
+IMPORT SequentialReplay.v ['From Stdlib Require Import List ZArith Lia.', 'From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Csem Smallstep.', 'From FivePprzFloatMatInv3d Require Import Execution.', 'From FiveMatInv3Case Require Import MatrixMemory Scalar Contract PairExtend GuardWitness TraceInputs.', 'From FiveMatrixInverseSupport Require Import Kernels.', 'Definition Ready', 'Definition OldFixed', 'Lemma region_preserved', 'Lemma reads_preserved', 'Lemma ready_preserved', 'Lemma guarded_preserved', 'Definition Layout', 'Theorem layout_inhabited', 'Lemma frame_load_kept', 'Lemma post_preserves_ready', 'Definition NormalCall', 'Definition Chain', 'Theorem original_sequential_calls', 'Definition NonvacuousReplay', 'Theorem nonvacuous_replay', 'Theorem both_original_traces_replayed']
+IMPORT TraceInputs.v ['From Stdlib Require Import List ZArith.', 'From compcert Require Import Integers Floats AST Values.', 'From FiveMatInv3Case Require Import Scalar.', 'Definition arbitrary_words_0', 'Definition arbitrary_0', 'Lemma arbitrary_rejects_0', 'Definition arbitrary_words_1', 'Definition arbitrary_1', 'Lemma arbitrary_rejects_1']
+#!/usr/bin/env python3
+"""Exact dependency snapshots and strict Rocq theorem/goal receipts.
+
+Use check(config, record_run=RUN_DIR), or this module's CLI. A recorded invocation
+adds measured commands to an already-open five-rocq phase. The caller finishes
+that phase after all work; this utility never fabricates a completed run status.
+"""
+from pathlib import Path
+import argparse
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+IDENT = r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*'
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def dump(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + '\n')
+
+
+def imports(path):
+    """Read static Require imports without interpreting or rewriting Rocq."""
+    source = re.sub(r'\(\*.*?\*\)', '', Path(path).read_text(), flags=re.S)
+    result = []
+    pattern = r'From\s+(' + IDENT + r')\s+Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.(?=\s|$)'
+    for prefix, names in re.findall(pattern, source):
+        result.extend(prefix + '.' + name for name in names.split())
+    source = re.sub(pattern, '', source)
+    pattern = r'Require\s+(?:Import\s+|Export\s+)?([A-Za-z0-9_.\s]+?)\.(?=\s|$)'
+    for names in re.findall(pattern, source):
+        result.extend(names.split())
+    return result
+
+
+def _resolve_path(root, value):
+    path = (root / value).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError('Source outside repository: ' + str(path))
+    return path
+
+
+def dependency_order(root, mappings, modules, roots):
+    """Resolve the requested imports; installed Stdlib/CompCert stay external."""
+    order, seen, active = [], set(), set()
+    def resolve(name):
+        if name in modules:
+            return _resolve_path(root, modules[name])
+        prefixes = [prefix for prefix in mappings if name.startswith(prefix + '.')]
+        if not prefixes:
+            if name.startswith(('Stdlib.', 'Coq.', 'compcert.', 'Flocq.')):
+                return None
+            raise ValueError('Unmapped project import: ' + name)
+        prefix = max(prefixes, key=len)
+        return _resolve_path(root, mappings[prefix]).joinpath(*name[len(prefix) + 1:].split('.')).with_suffix('.v')
+    def visit(name):
+        if name in seen:
+            return
+        path = resolve(name)
+        if path is None:
+            return
+        if name in active:
+            raise ValueError('Cyclic project import: ' + name)
+        if not path.is_file():
+            raise FileNotFoundError(str(path))
+        active.add(name)
+        for child in imports(path):
+            visit(child)
+        active.remove(name)
+        seen.add(name)
+        order.append((name, path))
+    for name in roots:
+        visit(name)
+    if not order:
+        raise ValueError('Empty proof dependency closure')
+    return order
+
+
+def _safe_capture(run, path, role):
+    """Do not reuse an input-copy name with different bytes."""
+    path = Path(path).resolve()
+    role = re.sub(r'[^A-Za-z0-9_.-]+', '-', role)
+    target = run.folder / 'inputs' / (role + '--' + path.name)
+    if target.exists() and digest(target) != digest(path):
+        raise ValueError('Immutable run input-copy conflict: ' + str(target))
+    prior = run.read('inputs/manifest.json')
+    existing = [row for row in prior if row.get('source') == str(path)]
+    if existing and any(row.get('sha256') != digest(path) for row in existing):
+        raise ValueError('Source changed within a proof run: ' + str(path))
+    if not existing:
+        run.capture(path, role, area='inputs')
+
+
+def _check_configuration(config, root):
+    required = ('attempt', 'namespace', 'mappings', 'modules', 'imports', 'goal_bindings')
+    for key in required:
+        if not config.get(key):
+            raise ValueError('Missing configuration: ' + key)
+    namespace = config['namespace']
+    if not re.fullmatch(IDENT, namespace):
+        raise ValueError('Invalid certificate namespace')
+    goals = config['goal_bindings']
+    names = [row.get('requested_goal') for row in goals]
+    if len(set(names)) != len(names) or not all(isinstance(name, str) and name for name in names):
+        raise ValueError('Missing or duplicate requested goals')
+    for row in goals:
+        if not re.fullmatch(IDENT, str(row.get('theorem', ''))):
+            raise ValueError('Invalid theorem name')
+        ty = row.get('type')
+        if not isinstance(ty, str) or not ty.strip() or any(t in ty for t in ('(*', '*)', '\n', '\r')) or re.search(r'\.(?:\s|$)', ty):
+            raise ValueError('Invalid exact expected Rocq type')
+    attempt = _resolve_path(root, config['attempt'])
+    for relative in ('Proof.v', 'check.py'):
+        if not (attempt / relative).is_file():
+            raise FileNotFoundError(str(attempt / relative))
+    return attempt
+
+
+def check(config, record_run=None):
+    """Compile exact closure and certify every requested theorem's expected type.
+
+    Configuration keys: root, attempt, namespace, mappings, modules, imports,
+    goal_bindings; optional extra_inputs, gate_inputs, build, rocq, timeout.
+    Paths are repository-relative except the explicit root and Rocq executable.
+    mappings maps logical namespace to source directory. modules overrides exact
+    logical module names (e.g. Spec/Proof in different problem/attempt folders).
+    For recorded builds, receipts are written only after successful checking.
+    """
+    root = Path(config.get('root', Path.cwd())).resolve()
+    attempt = _check_configuration(config, root)
+    sys.path.insert(0, str(root / 'scripts'))
+    from example_proof_gate import certificate_source, input_index
+    from five_telemetry import Run
+    run = Run(record_run) if record_run else None
+    if run and run.read('run.json').get('status') not in ('running', 'pending'):
+        raise ValueError('Recorded checker requires an open phase run')
+    if (attempt / 'provenance.json').exists() or (attempt / 'inputs.json').exists():
+        _, historical = input_index(root, attempt)
+        for source, old_hash in historical.items():
+            if source.suffix in ('.v', '.c') and digest(source) != old_hash:
+                raise ValueError('Retained attempt input changed; create a new attempt: ' + str(source))
+    roots = list(config['imports'])
+    roots += [row['theorem'].rsplit('.', 1)[0] for row in config['goal_bindings']]
+    order = dependency_order(root, config['mappings'], config['modules'], roots)
+    for row in config['goal_bindings']:
+        if row['theorem'].rsplit('.', 1)[0] not in {name for name, _ in order}:
+            raise ValueError('Goal theorem module is outside compiled closure')
+    if run:
+        fingerprint = hashlib.sha256(json.dumps([(name, digest(path)) for name, path in order], sort_keys=True).encode()).hexdigest()[:16]
+        build = _resolve_path(root, config['build']) if config.get('build') else run.folder / 'evidence' / (config['namespace'] + '-' + fingerprint)
+        result = _compile(config, root, attempt, run, build, order, certificate_source)
+        return result
+    with tempfile.TemporaryDirectory(prefix='five-quat-receipts-') as temporary:
+        return _compile(config, root, attempt, None, Path(temporary), order, certificate_source)
+
+
+def _compile(config, root, attempt, run, build, order, certificate_source):
+    namespace = config['namespace']
+    namespaces = list(config['mappings'])
+    for name, _ in order:
+        if not any(name.startswith(prefix + '.') for prefix in namespaces):
+            namespaces.append(name.rsplit('.', 1)[0])
+    if namespace not in namespaces:
+        namespaces.append(namespace)
+    nsmap = {prefix: build / prefix for prefix in namespaces}
+    flags = []
+    for prefix, directory in nsmap.items():
+        directory.mkdir(parents=True, exist_ok=True)
+        flags += ['-Q', str(directory), prefix]
+    sources, bindings = [], []
+    for name, original in order:
+        prefix = max((prefix for prefix in nsmap if name.startswith(prefix + '.')), key=len)
+        snapshot = nsmap[prefix].joinpath(*name[len(prefix) + 1:].split('.')).with_suffix('.v')
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        if snapshot.exists() and digest(snapshot) != digest(original):
+            raise ValueError('Immutable compiled-source snapshot differs: ' + str(snapshot))
+        if not snapshot.exists():
+            shutil.copyfile(original, snapshot)
+        sources.append(snapshot)
+        if run:
+            bindings.append({'path': str(original.relative_to(root)), 'sha256': digest(original), 'snapshot': str(snapshot.relative_to(root))})
+            _safe_capture(run, snapshot, 'compiled-' + namespace + '-' + name)
+    extra = [attempt / 'check.py', Path(__file__).resolve()]
+    extra += [_resolve_path(root, path) for path in config.get('extra_inputs', [])]
+    gate_inputs = [_resolve_path(root, path) for path in config.get('gate_inputs', [])]
+    for path in [*extra, *gate_inputs]:
+        if not path.is_file():
+            raise FileNotFoundError(str(path))
+        if run:
+            _safe_capture(run, path, 'context-' + namespace + '-' + hashlib.sha256(str(path).encode()).hexdigest()[:14])
+    executable = config.get('rocq', '/home/yangfp/.opam/five/bin/rocq')
+    def command(argv, label):
+        if run:
+            return run.command(argv, label, timeout=config.get('timeout', 600), cwd=str(root))
+        subprocess.run(argv, cwd=root, check=True)
+        return None
+    for i, source in enumerate(sources):
+        argv = [executable, 'compile', *flags, str(source)]
+        earlier = run.read('commands.json') if run else []
+        if not (source.with_suffix('.vo').exists() and any(row.get('argv') == argv and row.get('status') == 'passed' and row.get('exit_code') == 0 for row in earlier)):
+            command(argv, namespace + '-dependency-' + str(i))
+    certificate = nsmap[namespace] / 'GoalBinding.v'
+    expected = certificate_source(config['imports'], config['goal_bindings'])
+    if certificate.exists() and certificate.read_text() != expected:
+        raise ValueError('Immutable certificate snapshot differs')
+    certificate.write_text(expected)
+    if run:
+        _safe_capture(run, certificate, 'certificate-' + namespace)
+    compile_record = command([executable, 'compile', *flags, str(certificate)], namespace + '-goal-certificate')
+    theorem_modules = list(dict.fromkeys(row['theorem'].rsplit('.', 1)[0] for row in config['goal_bindings']))
+    certificate_module = namespace + '.GoalBinding'
+    kernel_record = command([executable, 'check', '-silent', *flags, *theorem_modules, certificate_module], namespace + '-independent-kernel')
+    if not run:
+        return {'status': 'passed', 'compiled_modules': len(sources), 'theorems': [row['theorem'] for row in config['goal_bindings']]}
+    evidence = attempt / 'evidence'
+    runpath = str(run.folder.relative_to(root))
+    dependencies = {str(path.relative_to(root)): digest(path) for path in sources}
+    statements = [str(snapshot.relative_to(root)) for (name, _), snapshot in zip(order, sources) if name in config['imports'] or name in theorem_modules]
+    receipt = {'kind': 'rocq-kernel-check', 'run': runpath, 'command_id': kernel_record['id'], 'theorems': [row['theorem'] for row in config['goal_bindings']], 'statement_artifacts': statements, 'dependency_sha256': dependencies}
+    dump(evidence / 'kernel-evidence.json', receipt)
+    gate_receipt = {**receipt, 'dependency_sha256': {**dependencies, **{str(path.relative_to(root)): digest(path) for path in gate_inputs}}}
+    dump(evidence / 'gate-kernel-evidence.json', gate_receipt)
+    certpath = str(certificate.relative_to(root))
+    cert_receipt = {**receipt, 'theorems': [certificate_module + '.goal_' + str(i) for i in range(len(config['goal_bindings']))], 'statement_artifacts': [certpath], 'dependency_sha256': {**dependencies, certpath: digest(certificate)}}
+    dump(evidence / 'certificate-kernel-evidence.json', cert_receipt)
+    indexed = {row['path']: row['sha256'] for row in bindings}
+    indexed.update({str(path.relative_to(root)): digest(path) for path in [*extra, *gate_inputs]})
+    provenance = attempt / 'provenance.json'
+    if not provenance.exists():
+        dump(provenance, {'schema': 'five-proof-attempt-provenance/1', 'files': [{'path': path, 'sha256': value} for path, value in sorted(indexed.items())]})
+    else:
+        from example_proof_gate import input_index
+        _, historical = input_index(root, attempt)
+        if {str(path.relative_to(root)): value for path, value in historical.items()} != indexed:
+            raise ValueError('Existing attempt provenance differs; create a new attempt')
+    bound = {row['path']: row for row in bindings}
+    for path, value in indexed.items():
+        bound.setdefault(path, {'path': path, 'sha256': value})
+    validation = {'schema': 'five-proof-validation/1', 'index': {'path': str(provenance.relative_to(root)), 'sha256': digest(provenance)}, 'inputs': list(bound.values()), 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'goal_bindings': config['goal_bindings'], 'certificate': {'path': certpath, 'sha256': digest(certificate), 'module': certificate_module, 'imports': config['imports'], 'run': runpath, 'compile_command_id': compile_record['id'], 'kernel_command_id': kernel_record['id'], 'kernel_evidence': str((evidence / 'certificate-kernel-evidence.json').relative_to(root))}}
+    dump(evidence / 'goal-validation.json', validation)
+    return {'status': 'passed', 'compiled_modules': len(sources), 'run': runpath, 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'gate_kernel_evidence': str((evidence / 'gate-kernel-evidence.json').relative_to(root)), 'goal_validation': str((evidence / 'goal-validation.json').relative_to(root)), 'print_assumptions_stdout': str((run.folder / compile_record['stdout']).relative_to(root))}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--config', required=True)
+    parser.add_argument('--record-run')
+    arguments = parser.parse_args()
+    print(json.dumps(check(json.loads(Path(arguments.config).read_text()), arguments.record_run), indent=2))
+
+
+if __name__ == '__main__':
+    main()
+

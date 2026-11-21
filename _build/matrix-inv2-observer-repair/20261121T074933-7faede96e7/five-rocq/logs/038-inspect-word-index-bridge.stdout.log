@@ -1,0 +1,28 @@
+ repeat first[eapply reduces_and_true;[reflexivity|reflexivity| |]|apply word_eq_true;[lia|apply LOAD;lia]].
+Qed.
+Definition CopiedObservation(m:mem)(src dst:block)(f:Z->float32)(ws:list Z):Prop:=
+ exists obs bytes, Mem.loadbytes m src 0 36=Some bytes /\Mem.storebytes m dst 0 bytes=Some obs /\
+ extcall_memcpy_sem 36 1(Genv.to_senv(Csem.genv_genv Execution.ge))[Vptr dst Ptrofs.zero;Vptr src Ptrofs.zero]m E0 Vundef obs /\
+ Mem.loadbytes obs dst 0 36=Some bytes /\CopyFrame m obs dst /\
+ (forall i,0<=i<9->Mem.load Mint32 obs dst(4*i)=Some(Vint(Float32.to_bits(Output f i)))) /\
+ Reduces obs(WordAssertion dst ws)(Eval(Vint Int.one)tint).
+Lemma copied_observation:forall m src dst f ws,CopyPre m src dst->
+ (forall i,0<=i<9->Mem.loadbytes m src(4*i)4=Some(encode_val Mfloat32(Vsingle(Output f i))))->
+ words3 f=map Int.repr ws->length ws=9%nat->CopiedObservation m src dst f ws.
+Proof.
+ intros m src dst f ws PRE CELLS WORD LEN.
+ destruct(copy36_exact(Genv.to_senv(Csem.genv_genv Execution.ge))m src dst PRE)as[obs[bytes[SAFE[READ[BLEN[STORE[CALL[BYTES FRAME]]]]]]]].
+ assert(LOAD:forall i,0<=i<9->Mem.load Mint32 obs dst(4*i)=Some(Vint(Float32.to_bits(Output f i)))).
+ { intros i I;exact(FiveMatInv3Case.Observer.memcpy_word_observation m src dst obs bytes (Output f) READ STORE CELLS i I). }
+ assert(W:forall i,0<=i<9->Float32.to_bits(Output f i)=Int.repr(nth(Z.to_nat i)ws 0)).
+ { intros i I;unfold words3 in WORD.
+   pose proof(f_equal(fun l=>nth(Z.to_nat i)l(Int.repr 0))WORD)as E.
+   cbn beta in E;rewrite map_nth in E.
+   assert(IX:i=0\/i=1\/i=2\/i=3\/i=4\/i=5\/i=6\/i=7\/i=8)by lia.
+   repeat destruct IX as[IX|IX];subst i;cbn[map nth]in E;exact E. }
+ exists obs,bytes;repeat split;try assumption.
+ apply word_assertion_true;intros i I;rewrite <-W by exact I;apply LOAD;exact I.
+Qed.
+Definition FixedObserver(f:Z->float32)(ws:list Z):Prop:=forall m bo bi pi,
+Qed.
+Print Assumptions matrix4_initialized.

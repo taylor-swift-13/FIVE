@@ -1,0 +1,4564 @@
+13 goals
+  
+  ge : genv
+  e : PTree.tree (block * type)
+  m : mem
+  id : positive
+  bx, b : block
+  p : ptrofs
+  E : e ! id = Some (bx, tptr (tarray tfloat 2))
+  L : Mem.load Mptr m bx 0 = Some (Vptr b p)
+  P : pure_rval ge e m (MatrixPtr id 2) = Some (Vptr b p)
+  C, R : 0 <= 0 < 2
+  ============================
+  match
+    match
+      (if
+        type_eq
+          (Tarray
+             (Tfloat F32 {| attr_volatile := false; attr_alignas := None |})
+             2 {| attr_volatile := false; attr_alignas := None |})
+          (typeof
+             (Ederef
+                (Ebinop Oadd (MatrixPtr id 2) (Eval (Vint (Int.repr 0)) tint)
+                   (tptr
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         2 {| attr_volatile := false; attr_alignas := None |})))
+                (Tarray
+                   (Tfloat F32
+                      {| attr_volatile := false; attr_alignas := None |})
+                   2 {| attr_volatile := false; attr_alignas := None |})))
+       then
+        match
+          match
+            match
+              match typeconv (typeof (MatrixPtr id 2)) with
+              | Tint _ si _ =>
+                  match
+                    typeconv (typeof (Eval (Vint (Int.repr 0)) tint))
+                  with
+                  | Tpointer ty _ => add_case_ip si ty
+                  | _ => add_default
+                  end
+              | Tlong _ _ =>
+                  match
+                    typeconv (typeof (Eval (Vint (Int.repr 0)) tint))
+                  with
+                  | Tpointer ty _ => add_case_lp ty
+                  | _ => add_default
+                  end
+              | Tpointer ty _ =>
+                  match
+                    typeconv (typeof (Eval (Vint (Int.repr 0)) tint))
+                  with
+                  | Tint _ si _ => add_case_pi ty si
+                  | Tlong _ _ => add_case_pl ty
+                  | _ => add_default
+                  end
+              | _ => add_default
+              end
+            with
+            | add_case_pi ty si =>
+                Some
+                  (Vptr b
+                     (Ptrofs.add p
+                        (Ptrofs.mul
+                           (Ptrofs.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (ptrofs_of_int si (Int.repr 0)))))
+            | add_default =>
+                sem_binarith
+                  (fun (_ : signedness) (n1 n2 : int) =>
+                   Some (Vint (Int.add n1 n2)))
+                  (fun (_ : signedness) (n1 n2 : int64) =>
+                   Some (Vlong (Int64.add n1 n2)))
+                  (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                  (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                  (Vptr b p) (typeof (MatrixPtr id 2)) 
+                  (Vint (Int.repr 0))
+                  (typeof (Eval (Vint (Int.repr 0)) tint)) m
+            | _ => None
+            end
+          with
+          | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+          | _ => None
+          end
+        with
+        | Some (b0, ofs, bf) =>
+            match
+              match bf with
+              | Full => Some (quiet_world, E0, Vptr b0 ofs)
+              | Bits _ _ _ _ => None
+              end
+            with
+            | Some (_, _, v) => Some v
+            | None => None
+            end
+        | None => None
+        end
+       else None)
+    with
+    | Some v =>
+        match
+          match
+            typeconv
+              (typeof
+                 (Evalof
+                    (Ederef
+                       (Ebinop Oadd (MatrixPtr id 2)
+                          (Eval (Vint (Int.repr 0)) tint)
+                          (tptr
+                             (Tarray
+                                (Tfloat F32
+                                   {|
+                                     attr_volatile := false;
+                                     attr_alignas := None
+                                   |})
+                                2
+                                {|
+                                  attr_volatile := false;
+                                  attr_alignas := None
+                                |})))
+                       (Tarray
+                          (Tfloat F32
+                             {|
+                               attr_volatile := false; attr_alignas := None
+                             |})
+                          2
+                          {| attr_volatile := false; attr_alignas := None |}))
+                    (Tarray
+                       (Tfloat F32
+                          {| attr_volatile := false; attr_alignas := None |})
+                       2 {| attr_volatile := false; attr_alignas := None |})))
+          with
+          | Tint _ si _ =>
+              match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+              | Tpointer ty _ => add_case_ip si ty
+              | _ => add_default
+              end
+          | Tlong _ _ =>
+              match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+              | Tpointer ty _ => add_case_lp ty
+              | _ => add_default
+              end
+          | Tpointer ty _ =>
+              match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+              | Tint _ si _ => add_case_pi ty si
+              | Tlong _ _ => add_case_pl ty
+              | _ => add_default
+              end
+          | _ => add_default
+          end
+        with
+        | add_case_pi ty si =>
+            match v with
+            | Vint n1 =>
+                if Archi.ptr64
+                then None
+                else
+                 Some
+                   (Vint
+                      (Int.add n1
+                         (Int.mul
+                            (Int.repr
+                               ((fix sizeof
+                                   (env : composite_env) 
+                                   (t : type) {struct t} : Z :=
+                                   match t with
+                                   | Tint I16 _ _ => 2
+                                   | Tint I32 _ _ | Tfloat F32 _ => 4
+                                   | Tlong _ _ | Tfloat F64 _ => 8
+                                   | Tpointer _ _ =>
+                                       if Archi.ptr64 then 8 else 4
+                                   | Tarray t' n _ =>
+                                       sizeof env t' * Z.max 0 n
+                                   | Tstruct id0 _ | Tunion id0 _ =>
+                                       match env ! id0 with
+                                       | Some co => co_sizeof co
+                                       | None => 0
+                                       end
+                                   | _ => 1
+                                   end)
+                                  ge ty))
+                            (Int.repr 0))))
+            | Vlong n1 =>
+                if Archi.ptr64
+                then
+                 Some
+                   (Vlong
+                      (Int64.add n1
+                         (Int64.mul
+                            (Int64.repr
+                               ((fix sizeof
+                                   (env : composite_env) 
+                                   (t : type) {struct t} : Z :=
+                                   match t with
+                                   | Tint I16 _ _ => 2
+                                   | Tint I32 _ _ | Tfloat F32 _ => 4
+                                   | Tlong _ _ | Tfloat F64 _ => 8
+                                   | Tpointer _ _ =>
+                                       if Archi.ptr64 then 8 else 4
+                                   | Tarray t' n _ =>
+                                       sizeof env t' * Z.max 0 n
+                                   | Tstruct id0 _ | Tunion id0 _ =>
+                                       match env ! id0 with
+                                       | Some co => co_sizeof co
+                                       | None => 0
+                                       end
+                                   | _ => 1
+                                   end)
+                                  ge ty))
+                            (cast_int_long si (Int.repr 0)))))
+                else None
+            | Vptr b1 ofs1 =>
+                Some
+                  (Vptr b1
+                     (Ptrofs.add ofs1
+                        (Ptrofs.mul
+                           (Ptrofs.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (ptrofs_of_int si (Int.repr 0)))))
+            | _ => None
+            end
+        | add_case_pl _ => match v with
+                           | Vundef | _ => None
+                           end
+        | add_case_ip _ ty =>
+            match v with
+            | Vint n2 =>
+                if Archi.ptr64
+                then None
+                else
+                 Some
+                   (Vint
+                      (Int.add (Int.repr 0)
+                         (Int.mul
+                            (Int.repr
+                               ((fix sizeof
+                                   (env : composite_env) 
+                                   (t : type) {struct t} : Z :=
+                                   match t with
+                                   | Tint I16 _ _ => 2
+                                   | Tint I32 _ _ | Tfloat F32 _ => 4
+                                   | Tlong _ _ | Tfloat F64 _ => 8
+                                   | Tpointer _ _ =>
+                                       if Archi.ptr64 then 8 else 4
+                                   | Tarray t' n _ =>
+                                       sizeof env t' * Z.max 0 n
+                                   | Tstruct id0 _ | Tunion id0 _ =>
+                                       match env ! id0 with
+                                       | Some co => co_sizeof co
+                                       | None => 0
+                                       end
+                                   | _ => 1
+                                   end)
+                                  ge ty))
+                            n2)))
+            | _ => None
+            end
+        | add_case_lp ty =>
+            match v with
+            | Vlong n2 =>
+                if Archi.ptr64
+                then None
+                else
+                 Some
+                   (Vint
+                      (Int.add (Int.repr 0)
+                         (Int.mul
+                            (Int.repr
+                               ((fix sizeof
+                                   (env : composite_env) 
+                                   (t : type) {struct t} : Z :=
+                                   match t with
+                                   | Tint I16 _ _ => 2
+                                   | Tint I32 _ _ | Tfloat F32 _ => 4
+                                   | Tlong _ _ | Tfloat F64 _ => 8
+                                   | Tpointer _ _ =>
+                                       if Archi.ptr64 then 8 else 4
+                                   | Tarray t' n _ =>
+                                       sizeof env t' * Z.max 0 n
+                                   | Tstruct id0 _ | Tunion id0 _ =>
+                                       match env ! id0 with
+                                       | Some co => co_sizeof co
+                                       | None => 0
+                                       end
+                                   | _ => 1
+                                   end)
+                                  ge ty))
+                            (Int.repr (Int64.unsigned n2)))))
+            | _ => None
+            end
+        | add_default =>
+            sem_binarith
+              (fun (_ : signedness) (n1 n2 : int) =>
+               Some (Vint (Int.add n1 n2)))
+              (fun (_ : signedness) (n1 n2 : int64) =>
+               Some (Vlong (Int64.add n1 n2)))
+              (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+              (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+              (typeof
+                 (Evalof
+                    (Ederef
+                       (Ebinop Oadd (MatrixPtr id 2)
+                          (Eval (Vint (Int.repr 0)) tint)
+                          (tptr
+                             (Tarray
+                                (Tfloat F32
+                                   {|
+                                     attr_volatile := false;
+                                     attr_alignas := None
+                                   |})
+                                2
+                                {|
+                                  attr_volatile := false;
+                                  attr_alignas := None
+                                |})))
+                       (Tarray
+                          (Tfloat F32
+                             {|
+                               attr_volatile := false; attr_alignas := None
+                             |})
+                          2
+                          {| attr_volatile := false; attr_alignas := None |}))
+                    (Tarray
+                       (Tfloat F32
+                          {| attr_volatile := false; attr_alignas := None |})
+                       2 {| attr_volatile := false; attr_alignas := None |})))
+              (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint)) m
+        end
+    | None => None
+    end
+  with
+  | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+  | _ => None
+  end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (2 * 0 + 0))), Full)
+
+goal 2 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 2
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 2) (Eval (Vint (Int.repr 0)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        2 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  2 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 2)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 2)) 
+                 (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 2)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               2
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         2 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      2 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 1))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 1)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 2)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               2
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         2 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      2 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (2 * 0 + 1))), Full)
+goal 3 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 2
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 2) (Eval (Vint (Int.repr 1)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        2 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  2 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 2)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 2)) 
+                 (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 2)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               2
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         2 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      2 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 0))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 0)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 2)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               2
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         2 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      2 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (2 * 1 + 0))), Full)
+goal 4 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 2
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 2) (Eval (Vint (Int.repr 1)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        2 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  2 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 2)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 2)) 
+                 (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 2)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               2
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         2 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      2 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 1))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 1)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 2)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               2
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         2 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      2 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (2 * 1 + 1))), Full)
+goal 5 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 0)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 0))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 0)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 0 + 0))), Full)
+goal 6 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 0)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 1))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 1)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 0 + 1))), Full)
+goal 7 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 0)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 2))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 2)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 2)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 2)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 2)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 0)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 2)) (typeof (Eval (Vint (Int.repr 2)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 0 + 2))), Full)
+goal 8 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 1)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 0))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 0)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 1 + 0))), Full)
+goal 9 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 1)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 1))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 1)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 1 + 1))), Full)
+goal 10 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 1)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 2))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 2)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 2)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 2)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 2)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 1)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 2)) (typeof (Eval (Vint (Int.repr 2)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 1 + 2))), Full)
+goal 11 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 2)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 2)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 2)) (typeof (Eval (Vint (Int.repr 2)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 2)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 0)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 0))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 0)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 0)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 0)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 2)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 0)) (typeof (Eval (Vint (Int.repr 0)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 2 + 0))), Full)
+goal 12 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 2)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 2)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 2)) (typeof (Eval (Vint (Int.repr 2)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 2)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 1)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 1))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 1)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 1)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 1)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 2)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 1)) (typeof (Eval (Vint (Int.repr 1)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 2 + 1))), Full)
+goal 13 is:
+ match
+   match
+     (if
+       type_eq
+         (Tarray
+            (Tfloat F32 {| attr_volatile := false; attr_alignas := None |}) 3
+            {| attr_volatile := false; attr_alignas := None |})
+         (typeof
+            (Ederef
+               (Ebinop Oadd (MatrixPtr id 3) (Eval (Vint (Int.repr 2)) tint)
+                  (tptr
+                     (Tarray
+                        (Tfloat F32
+                           {| attr_volatile := false; attr_alignas := None |})
+                        3 {| attr_volatile := false; attr_alignas := None |})))
+               (Tarray
+                  (Tfloat F32
+                     {| attr_volatile := false; attr_alignas := None |})
+                  3 {| attr_volatile := false; attr_alignas := None |})))
+      then
+       match
+         match
+           match
+             match typeconv (typeof (MatrixPtr id 3)) with
+             | Tint _ si _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tpointer ty _ => add_case_ip si ty
+                 | _ => add_default
+                 end
+             | Tlong _ _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tpointer ty _ => add_case_lp ty
+                 | _ => add_default
+                 end
+             | Tpointer ty _ =>
+                 match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+                 | Tint _ si _ => add_case_pi ty si
+                 | Tlong _ _ => add_case_pl ty
+                 | _ => add_default
+                 end
+             | _ => add_default
+             end
+           with
+           | add_case_pi ty si =>
+               Some
+                 (Vptr b
+                    (Ptrofs.add p
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 2)))))
+           | add_default =>
+               sem_binarith
+                 (fun (_ : signedness) (n1 n2 : int) =>
+                  Some (Vint (Int.add n1 n2)))
+                 (fun (_ : signedness) (n1 n2 : int64) =>
+                  Some (Vlong (Int64.add n1 n2)))
+                 (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+                 (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2)))
+                 (Vptr b p) (typeof (MatrixPtr id 3)) 
+                 (Vint (Int.repr 2)) (typeof (Eval (Vint (Int.repr 2)) tint))
+                 m
+           | _ => None
+           end
+         with
+         | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+         | _ => None
+         end
+       with
+       | Some (b0, ofs, bf) =>
+           match
+             match bf with
+             | Full => Some (quiet_world, E0, Vptr b0 ofs)
+             | Bits _ _ _ _ => None
+             end
+           with
+           | Some (_, _, v) => Some v
+           | None => None
+           end
+       | None => None
+       end
+      else None)
+   with
+   | Some v =>
+       match
+         match
+           typeconv
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 2)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+         with
+         | Tint _ si _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tpointer ty _ => add_case_ip si ty
+             | _ => add_default
+             end
+         | Tlong _ _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tpointer ty _ => add_case_lp ty
+             | _ => add_default
+             end
+         | Tpointer ty _ =>
+             match typeconv (typeof (Eval (Vint (Int.repr 2)) tint)) with
+             | Tint _ si _ => add_case_pi ty si
+             | Tlong _ _ => add_case_pl ty
+             | _ => add_default
+             end
+         | _ => add_default
+         end
+       with
+       | add_case_pi ty si =>
+           match v with
+           | Vint n1 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add n1
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr 2))))
+           | Vlong n1 =>
+               if Archi.ptr64
+               then
+                Some
+                  (Vlong
+                     (Int64.add n1
+                        (Int64.mul
+                           (Int64.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (cast_int_long si (Int.repr 2)))))
+               else None
+           | Vptr b1 ofs1 =>
+               Some
+                 (Vptr b1
+                    (Ptrofs.add ofs1
+                       (Ptrofs.mul
+                          (Ptrofs.repr
+                             ((fix sizeof
+                                 (env : composite_env) (t : type) {struct t} :
+                                   Z :=
+                                 match t with
+                                 | Tint I16 _ _ => 2
+                                 | Tint I32 _ _ | Tfloat F32 _ => 4
+                                 | Tlong _ _ | Tfloat F64 _ => 8
+                                 | Tpointer _ _ =>
+                                     if Archi.ptr64 then 8 else 4
+                                 | Tarray t' n _ => sizeof env t' * Z.max 0 n
+                                 | Tstruct id0 _ | Tunion id0 _ =>
+                                     match env ! id0 with
+                                     | Some co => co_sizeof co
+                                     | None => 0
+                                     end
+                                 | _ => 1
+                                 end)
+                                ge ty))
+                          (ptrofs_of_int si (Int.repr 2)))))
+           | _ => None
+           end
+       | add_case_pl _ => match v with
+                          | Vundef | _ => None
+                          end
+       | add_case_ip _ ty =>
+           match v with
+           | Vint n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 2)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           n2)))
+           | _ => None
+           end
+       | add_case_lp ty =>
+           match v with
+           | Vlong n2 =>
+               if Archi.ptr64
+               then None
+               else
+                Some
+                  (Vint
+                     (Int.add (Int.repr 2)
+                        (Int.mul
+                           (Int.repr
+                              ((fix sizeof
+                                  (env : composite_env) (t : type) {struct t} :
+                                    Z :=
+                                  match t with
+                                  | Tint I16 _ _ => 2
+                                  | Tint I32 _ _ | Tfloat F32 _ => 4
+                                  | Tlong _ _ | Tfloat F64 _ => 8
+                                  | Tpointer _ _ =>
+                                      if Archi.ptr64 then 8 else 4
+                                  | Tarray t' n _ =>
+                                      sizeof env t' * Z.max 0 n
+                                  | Tstruct id0 _ | Tunion id0 _ =>
+                                      match env ! id0 with
+                                      | Some co => co_sizeof co
+                                      | None => 0
+                                      end
+                                  | _ => 1
+                                  end)
+                                 ge ty))
+                           (Int.repr (Int64.unsigned n2)))))
+           | _ => None
+           end
+       | add_default =>
+           sem_binarith
+             (fun (_ : signedness) (n1 n2 : int) =>
+              Some (Vint (Int.add n1 n2)))
+             (fun (_ : signedness) (n1 n2 : int64) =>
+              Some (Vlong (Int64.add n1 n2)))
+             (fun n1 n2 : float => Some (Vfloat (Float.add n1 n2)))
+             (fun n1 n2 : float32 => Some (Vsingle (Float32.add n1 n2))) v
+             (typeof
+                (Evalof
+                   (Ederef
+                      (Ebinop Oadd (MatrixPtr id 3)
+                         (Eval (Vint (Int.repr 2)) tint)
+                         (tptr
+                            (Tarray
+                               (Tfloat F32
+                                  {|
+                                    attr_volatile := false;
+                                    attr_alignas := None
+                                  |})
+                               3
+                               {|
+                                 attr_volatile := false; attr_alignas := None
+                               |})))
+                      (Tarray
+                         (Tfloat F32
+                            {|
+                              attr_volatile := false; attr_alignas := None
+                            |})
+                         3 {| attr_volatile := false; attr_alignas := None |}))
+                   (Tarray
+                      (Tfloat F32
+                         {| attr_volatile := false; attr_alignas := None |})
+                      3 {| attr_volatile := false; attr_alignas := None |})))
+             (Vint (Int.repr 2)) (typeof (Eval (Vint (Int.repr 2)) tint)) m
+       end
+   | None => None
+   end
+ with
+ | Some (Vptr b0 ofs) => Some (b0, ofs, Full)
+ | _ => None
+ end = Some (b, Ptrofs.add p (Ptrofs.repr (4 * (3 * 2 + 2))), Full)

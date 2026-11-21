@@ -1,0 +1,56 @@
+61:Theorem post_preserves_other_inputs:forall m mf bo bi po pi f out input outp inp g,
+62- Post m mf bo bi po pi f->Inputs m out input outp inp g->out<>bo->input<>bo->Inputs mf out input outp inp g.
+63-Proof. intros m mf bo bi po pi f out input outp inp g[W[RD[FR[VB[BY AC]]]]][NE[WO RI]]OO IO;split;[exact NE|];split.
+64- - destruct WO as[AL[NW RP]];repeat split;auto;intros z B.
+65-   assert(V:Mem.valid_block m out)by(eapply(writable_valid m out outp 4 ltac:(lia));repeat split;eauto).
+66-   assert(VA:Mem.valid_access m Mint8unsigned out z Writable)by(split;[intros off R;apply RP;cbn[size_chunk]in R;lia|change(1|z);exists z;lia]).
+67-   pose proof(AC Mint8unsigned out z Writable V VA)as[PF ALIGN];apply PF;cbn[size_chunk];lia.
+68- - destruct RI as[AL[NW L]];repeat split;auto;intros i B.
+69-   destruct(Mem.load_loadbytes Mfloat32 m input(Ptrofs.unsigned inp+4*i)(Vsingle(g i))(L i B))as[bytes[LB DE]].
+70-   assert(VI:Mem.valid_block m input)by(eapply(reads_valid m input inp 4 g ltac:(lia));repeat split;eauto).
+71-   assert(LBF:Mem.loadbytes mf input(Ptrofs.unsigned inp+4*i)4=Some bytes)by(rewrite FR by(auto);exact LB).
+72-   pose proof(Mem.loadbytes_load Mfloat32 mf input(Ptrofs.unsigned inp+4*i)bytes LBF ltac:(change(4|Ptrofs.unsigned inp+4*i);destruct AL as[k K];exists(k+i);lia))as LF;rewrite <-DE in LF;exact LF.
+73-Qed.
+74-Print Assumptions source_guards.
+75-Print Assumptions successful_copy_words.
+76-
+77-Theorem frame_load_kept:forall m mf bo po b ofs ch v,Frame m mf bo po->Mem.valid_block m b->
+78- (b<>bo\/ofs+size_chunk ch<=Ptrofs.unsigned po\/Ptrofs.unsigned po+16<=ofs)->Mem.load ch m b ofs=Some v->Mem.load ch mf b ofs=Some v.
+79-Proof. intros m mf bo po b ofs ch v FR VB OUT LD.
+80- destruct(Mem.load_loadbytes ch m b ofs v LD)as[bytes[LB DE]].
+81- assert(LBF:Mem.loadbytes mf b ofs(size_chunk ch)=Some bytes)by(rewrite FR by assumption;exact LB).
+82- pose proof(Mem.load_valid_access _ _ _ _ _ LD)as[RP AL].
+83- pose proof(Mem.loadbytes_load ch mf b ofs bytes LBF AL)as LF;rewrite <-DE in LF;exact LF. Qed.
+14:Definition OriginalReplay:Prop:=forall m og ig ob ib os is0 ol il,
+15- Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input->
+16- Inputs m ob ib Ptrofs.zero Ptrofs.zero base2->
+17- Inputs m os is0 Ptrofs.zero Ptrofs.zero small2->
+18- Inputs m ol il Ptrofs.zero Ptrofs.zero large2->Separate og ig ob ib os is0 ol il->
+19- exists ma mb mc md,
+20- NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+21- NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+22- NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+23- NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+24:Theorem original_trace_four_calls:OriginalReplay.
+25-Proof. intros m og ig ob ib os is0 ol il IG IB IS IL SEP;destruct SEP.
+26- destruct(call_summary m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input IG)as[ma[PG[QG OTHERG]]].
+27- assert(IBA:Inputs ma ob ib Ptrofs.zero Ptrofs.zero base2)by(eapply post_preserves_other_inputs;eauto).
+28- assert(ISA:Inputs ma os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+29- assert(ILA:Inputs ma ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+30- destruct(call_summary ma ob ib Ptrofs.zero Ptrofs.zero base2 IBA)as[mb[PB[QB OTHERB]]].
+31- assert(ISB:Inputs mb os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+32- assert(ILB:Inputs mb ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+33- destruct(call_summary mb os is0 Ptrofs.zero Ptrofs.zero small2 ISB)as[mc[PS[QS OTHERS]]].
+34- assert(ILC:Inputs mc ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+35- destruct(call_summary mc ol il Ptrofs.zero Ptrofs.zero large2 ILC)as[md[PL[QL OTHERL]]].
+36- exists ma,mb,mc,md;unfold NormalCall;split;[exact PG|];split;[exact QG|];split;[exact PB|];split;[exact QB|];split;[exact PS|];split;[exact QS|];split;[exact PL|exact QL].
+37-Qed.
+38-Theorem original_trace_statuses:Result trace_input=Vint Int.zero/\Result base2=Vint Int.zero/\Result small2=Vint Int.one/\Result large2=Vint Int.zero.
+39-Proof. split;[exact(proj1 original_arbitrary_trace_kernel)|];split;[exact(proj1 base2_kernel)|];split;[exact(proj1 small2_kernel)|exact(proj1 large2_kernel)]. Qed.
+40:Theorem original_trace_scale_failure:OriginalReplay /\ Result base2<>Result small2.
+41-Proof. split;[exact original_trace_four_calls|exact RefuteScaleStatus2]. Qed.
+42:Theorem original_trace_residual_failure:OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864.
+43-Proof. split;[exact original_trace_four_calls|];destruct RefuteLargeResidual2 as[RET BAD];split;[exact RET|];split;[exact BAD|exact large2_residual]. Qed.
+44-Print Assumptions original_trace_four_calls.
+45-Print Assumptions original_trace_scale_failure.
+46-Print Assumptions original_trace_residual_failure.

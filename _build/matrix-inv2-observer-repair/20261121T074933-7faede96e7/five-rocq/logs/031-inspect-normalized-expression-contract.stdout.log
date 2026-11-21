@@ -1,0 +1,180 @@
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FivePprzFloatMatInv3d Require Import Source Execution.
+From FiveMatInv3Case Require Import Contract Scalar Observer Memcpy36 RecheckSupport Assertions TraceInputs SequentialReplay PairExtend GuardWitness.
+From FiveMatrixInverseSupport Require Import Kernels.
+Require FiveMatInv3Functional.Spec FiveMatInv3Functional.Proof.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition ObserverFunction:=Source.f_float_mat_inv_3d.
+(** These object-bound expressions are the original harness expressions after
+    resolving caller-local base addresses. Indexing and every actual load,
+    arithmetic operation, comparison and short-circuit remain Csyntax/Csem. *)
+Definition Cell(b:block)(i:Z)(ty:type):expr:=Evalof(Ederef(Ebinop Oadd
+ (Eval(Vptr b Ptrofs.zero)(tptr ty))(Eval(Vlong(Int64.repr i))tlong)(tptr ty))ty)ty.
+Definition Reduces(m:mem)(a b:expr):Prop:=forall C,Csem.context RV RV C->
+ star Csem.step Execution.ge(ExprState ObserverFunction(C a)Kstop empty_env m)E0
+ (ExprState ObserverFunction(C b)Kstop empty_env m).
+Lemma reduces_refl:forall m a,Reduces m a a.
+Proof. intros m a C HC;constructor. Qed.
+Lemma reduces_trans:forall m a b c,Reduces m a b->Reduces m b c->Reduces m a c.
+Proof. intros m a b c A B C HC;eapply star_trans;[apply A;exact HC|apply B;exact HC|reflexivity]. Qed.
+Lemma reduces_head:forall m a b,Csem.rred Execution.ge a m E0 b m->Reduces m a b.
+Proof. intros m a b H C HC;apply star_one;left;eapply step_rred;[exact H|exact HC]. Qed.
+Lemma reduces_lift:forall m a b D,Csem.context RV RV D->Reduces m a b->Reduces m(D a)(D b).
+Proof. intros m a b D HD H C HC;apply(H(fun x=>C(D x)));eapply Cstrategy.context_compose;eauto. Qed.
+Lemma reduces_simple:forall m a v,eval_simple_rvalue Execution.ge empty_env m a v->Reduces m a(Eval v(typeof a)).
+Proof. intros m a v E C HC;eapply eval_simple_rvalue_steps;[exact E|exact HC]. Qed.
+Lemma reduces_and_true:forall m a b,typeof a=tint->typeof b=tint->
+ Reduces m a(Eval(Vint Int.one)tint)->Reduces m b(Eval(Vint Int.one)tint)->
+ Reduces m(Eseqand a b tint)(Eval(Vint Int.one)tint).
+Proof.
+ intros m a b TA TB A B.
+ eapply reduces_trans;[eapply reduces_lift with(D:=fun x=>Eseqand x b tint);[apply ctx_seqand;constructor|exact A]|].
+ eapply reduces_trans;[apply reduces_head;apply red_seqand_true;reflexivity|].
+ eapply reduces_trans;[eapply reduces_lift with(D:=fun x=>Eparen x type_bool tint);[apply ctx_paren;constructor|exact B]|].
+ apply reduces_head;apply red_paren;reflexivity.
+Qed.
+Lemma reduces_and_false:forall m a b,Reduces m a(Eval(Vint Int.zero)tint)->
+ Reduces m(Eseqand a b tint)(Eval(Vint Int.zero)tint).
+Proof. intros m a b A;eapply reduces_trans;[eapply reduces_lift with(D:=fun x=>Eseqand x b tint);[apply ctx_seqand;constructor|exact A]|];apply reduces_head;apply red_seqand_false;reflexivity. Qed.
+Lemma reduces_or_false:forall m a b,Reduces m a(Eval(Vint Int.zero)tint)->Reduces m b(Eval(Vint Int.zero)tint)->
+ Reduces m(Eseqor a b tint)(Eval(Vint Int.zero)tint).
+Proof.
+ intros m a b A B;eapply reduces_trans;[eapply reduces_lift with(D:=fun x=>Eseqor x b tint);[apply ctx_seqor;constructor|exact A]|].
+ eapply reduces_trans;[apply reduces_head;apply red_seqor_false;reflexivity|].
+ eapply reduces_trans;[eapply reduces_lift with(D:=fun x=>Eparen x type_bool tint);[apply ctx_paren;constructor|exact B]|].
+ apply reduces_head;apply red_paren;reflexivity.
+Qed.
+Lemma cell_word_value:forall m b i v,0<=i<9->Mem.load Mint32 m b(4*i)=Some(Vint v)->
+ eval_simple_rvalue Execution.ge empty_env m(Cell b i tuint)(Vint v).
+Proof.
+ intros m b i v I L;unfold Cell;eapply esr_rvalof with(b:=b)(ofs:=Ptrofs.repr(4*i))(bf:=Full).
+ - apply esl_deref;eapply esr_binop;[constructor|constructor|].
+   assert(i=0\/i=1\/i=2\/i=3\/i=4\/i=5\/i=6\/i=7\/i=8)by lia;
+   repeat destruct H as[H|H];subst i;reflexivity.
+ - reflexivity.
+ - reflexivity.
+ - eapply deref_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.loadv;rewrite Ptrofs.unsigned_repr by(change Ptrofs.max_unsigned with 18446744073709551615;lia).
+   rewrite zle_true;[exact L|change(size_chunk Mint32)with 4;change Ptrofs.modulus with 18446744073709551616;lia].
+Qed.
+Lemma cell_single_value:forall m b i v,0<=i<9->Mem.load Mfloat32 m b(4*i)=Some(Vsingle v)->
+ eval_simple_rvalue Execution.ge empty_env m(Cell b i tfloat)(Vsingle v).
+Proof.
+ intros m b i v I L;unfold Cell;eapply esr_rvalof with(b:=b)(ofs:=Ptrofs.repr(4*i))(bf:=Full).
+ - apply esl_deref;eapply esr_binop;[constructor|constructor|].
+   assert(i=0\/i=1\/i=2\/i=3\/i=4\/i=5\/i=6\/i=7\/i=8)by lia;
+   repeat destruct H as[H|H];subst i;reflexivity.
+ - reflexivity.
+ - reflexivity.
+ - eapply deref_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.loadv;rewrite Ptrofs.unsigned_repr by(change Ptrofs.max_unsigned with 18446744073709551615;lia).
+   rewrite zle_true;[exact L|change(size_chunk Mfloat32)with 4;change Ptrofs.modulus with 18446744073709551616;lia].
+Qed.
+Definition WordEq(b:block)(i w:Z):expr:=Ebinop Oeq(Cell b i tuint)(Eval(Vint(Int.repr w))tuint)tint.
+Lemma word_eq_true:forall m b i w,0<=i<9->Mem.load Mint32 m b(4*i)=Some(Vint(Int.repr w))->
+ Reduces m(WordEq b i w)(Eval(Vint Int.one)tint).
+Proof. intros m b i w I L;apply reduces_simple;unfold WordEq;eapply esr_binop with(v1:=Vint(Int.repr w))(v2:=Vint(Int.repr w));[apply cell_word_value;[exact I|exact L]|constructor|].
+ change(Some(Val.of_bool(Int.eq(Int.repr w)(Int.repr w)))=Some(Vint Int.one));rewrite Int.eq_true;reflexivity. Qed.
+Definition WordAssertion(b:block)(ws:list Z):expr:=
+ fold_left(fun a i=>Eseqand a(WordEq b i(nth(Z.to_nat i)ws 0))tint)
+ [1;2;3;4;5;6;7;8](WordEq b 0(nth 0 ws 0)).
+Lemma word_assertion_true:forall m b ws,
+ (forall i,0<=i<9->Mem.load Mint32 m b(4*i)=Some(Vint(Int.repr(nth(Z.to_nat i)ws 0))))->
+ Reduces m(WordAssertion b ws)(Eval(Vint Int.one)tint).
+Proof.
+ intros m b ws LOAD;unfold WordAssertion;cbn[fold_left].
+ repeat first[eapply reduces_and_true;[reflexivity|reflexivity| |]|apply word_eq_true;[lia|apply LOAD;lia]].
+Qed.
+Definition CopiedObservation(m:mem)(src dst:block)(f:Z->float32)(ws:list Z):Prop:=
+"""five-verify acceptance: provenance + five-rocq proofs + CBMC spec recheck.
+
+This gate is not a completion requirement for five-align's generated artifacts.
+"""
+import json,re
+from pathlib import Path
+from five_telemetry import sha
+from execution_contract import _execution_contract
+from compcert_backend import audit
+
+CONTRACT_REPLACEMENT_FLAGS={'--apply-loop-contracts','--replace-call-with-contract',
+ '--enforce-contract','--enforce-contract-rec','--function-contracts'}
+
+def kernel_record(root,ref):
+    root=Path(root);p=root/ref;e=json.loads(p.read_text())
+    if e.get('kind')!='rocq-kernel-check' or not e.get('theorems') or not e.get('statement_artifacts'):
+        raise RuntimeError('Spec recheck requires actual Rocq theorem statements and kernel evidence')
+    r=json.loads((root/e['run']/'run.json').read_text())
+    rows=[c for c in r.get('commands',[]) if c['id']==e.get('command_id')]
+    if r.get('status')!='passed' or len(rows)!=1 or rows[0].get('status')!='passed' or rows[0].get('exit_code')!=0:
+        raise RuntimeError('Spec kernel check missing, failed or ambiguous')
+    a=rows[0]['argv'];tool=Path(a[0]).name
+    if tool=='rocq' and len(a)>1 and a[1]=='check':a=a[2:]
+    elif tool=='coqchk':a=a[1:]
+    else:raise RuntimeError('Spec evidence is not independent kernel checking')
+    modules=[];i=0
+    while i<len(a):
+        if a[i] in ['-Q','-R']:i+=3;continue
+        if a[i]=='-I':i+=2;continue
+        if a[i]=='-silent':i+=1;continue
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*',a[i]):
+            raise RuntimeError('Unchecked/admit/help kernel option rejected')
+        modules.append(a[i]);i+=1
+    if not {t.rsplit('.',1)[0] for t in e['theorems']}.issubset(modules):
+        raise RuntimeError('Kernel check did not check the claimed theorem modules')
+    hashes=e.get('dependency_sha256',{})
+    if not set(e['statement_artifacts']).issubset(hashes):raise RuntimeError('Unbound recheck statements')
+    snapshots={Path(x['source']).resolve():x['sha256'] for x in r.get('inputs',[])}
+    for n,h in hashes.items():
+        if sha(root/n)!=h:raise RuntimeError('Stale recheck proof dependency: '+n)
+        if snapshots.get((root/n).resolve())!=h:
+            raise RuntimeError('Recheck dependency differs from the actual kernel-run input snapshot: '+n)
+    for statement in e['statement_artifacts']:
+        compiled=False
+        for command in r.get('commands',[]):
+            argv=command['argv']
+            is_compile=(Path(argv[0]).name=='rocq' and len(argv)>1 and argv[1]=='compile') or Path(argv[0]).name=='coqc'
+            if is_compile and command.get('status')=='passed' and any(
+                arg.endswith('.v') and (Path(command['cwd'])/arg).resolve()==(root/statement).resolve() for arg in argv[1:]):
+                compiled=True
+        if not compiled:raise RuntimeError('Claimed statement was not compiled in its bound proof run: '+statement)
+    return {str(p):sha(p),**hashes}
+
+def check_spec_recheck(root,path,request_sha,manifest_sha,original_c,execution_bindings=None):
+    root=Path(root);p=root/path;s=json.loads(p.read_text())
+    if s.get('schema')!='five-cbmc-rocq-recheck/1' or s.get('request_sha256')!=request_sha or s.get('backend_manifest_sha256')!=manifest_sha:
+        raise RuntimeError('Missing/stale CBMC-to-Rocq recheck ledger')
+    if s.get('verification_method')!='traditional-bounded-model-checking':
+        raise RuntimeError('CBMC must use traditional symbolic execution/BMC, not contract replacement')
+    run=json.loads((root/s['cbmc_run']/'run.json').read_text())
+    cmds=[c for c in run.get('commands',[]) if c['id']==s.get('cbmc_command_id')]
+    if len(cmds)!=1 or Path(cmds[0]['argv'][0]).name!='cbmc':raise RuntimeError('Missing original CBMC invocation')
+    argv=cmds[0]['argv']
+    if cmds[0].get('exit_code') not in [0,10] or cmds[0].get('status') not in ['passed','failed']:
+        raise RuntimeError('CBMC invocation did not complete with a verification result')
+    if any(a.split('=')[0] in CONTRACT_REPLACEMENT_FLAGS for a in argv):
+        raise RuntimeError('Contract-replacement CBMC mode is outside the requested BMC workflow')
+    bindings=s.get('cbmc_input_sha256',{})
+    snapshots={Path(x['source']).resolve():x['sha256'] for x in run.get('inputs',[])}
+    if original_c not in bindings:raise RuntimeError('CBMC ledger does not bind the original C implementation')
+    for n,h in bindings.items():
+        if sha(root/n)!=h:raise RuntimeError('Stale CBMC harness/source: '+n)
+        if snapshots.get((root/n).resolve())!=h:raise RuntimeError('CBMC input differs from actual run snapshot: '+n)
+    if not any(a.endswith('.c') for a in argv[1:]):raise RuntimeError('CBMC must inspect raw C, not a pre-replaced goto model')
+    for arg in argv[1:]:
+        if arg.endswith('.c'):
+            actual=(Path(cmds[0]['cwd'])/arg).resolve()
+            if not any((root/n).resolve()==actual for n in bindings):raise RuntimeError('Unbound CBMC C input')
+    cb=root/s['cbmc_json'];raw=json.loads(cb.read_text())
+    if cb.resolve()!=(root/s['cbmc_run']/cmds[0]['stdout']).resolve():
+        raise RuntimeError('CBMC JSON is not the recorded invocation output')
+    properties=[r for block in raw for r in block.get('result',[])]
+    statuses={r['property']:r['status'] for r in properties}
+    if len(statuses)!=len(properties):raise RuntimeError('Duplicate CBMC property IDs')
+    if not statuses:raise RuntimeError('No actual CBMC properties')
+    entries=s.get('properties',[]);mapped={x.get('property_id'):x for x in entries}
+    if len(mapped)!=len(entries) or set(mapped)!=set(statuses):raise RuntimeError('Rocq recheck omits/duplicates actual CBMC properties')
+    result={str(p):sha(p),str(cb):sha(cb),**bindings}
+    for ident,status in statuses.items():
+        row=mapped[ident]

@@ -1,0 +1,1543 @@
+{
+  "schema": "five-inv2-proof-ready/1",
+  "status": "all-source-proofs-compiled-independent-cold-receipts-pending-root",
+  "proof_run": "_build/matrix-inv2-csem/20261121T053400-bcb2c9a12c/five-rocq",
+  "runtime_receipt": "_build/matrix-inv2-csem/20261121T053400-bcb2c9a12c/five-rocq/evidence/runtime-metadata.json",
+  "mappings": {
+    "FiveShared": "shared",
+    "FiveGuidanceSemantics": "paparazzi/relations/guidance_mode/support/semantics",
+    "FiveGuidanceAllOrder": "paparazzi/relations/guidance_mode/support/allorder",
+    "FiveGuidanceAllocation": "paparazzi/relations/guidance_mode/support/allocation",
+    "FiveGuidanceEntry": "paparazzi/relations/guidance_mode/support/entry",
+    "FiveLowpassSupport": "paparazzi/relations/lowpass_recovery/support",
+    "FiveMatInv3Case": "paparazzi/models/float_mat_inv_3d/rocq/support",
+    "FiveInv2Case": "paparazzi/models/float_mat_inv_2d/rocq/support",
+    "FivePprzFloatMatInv2d": "paparazzi/models/float_mat_inv_2d/align/model",
+    "FivePprzFloatMatInv3d": "paparazzi/models/float_mat_inv_3d/align/model",
+    "FiveMatrixInverseSupport": "paparazzi/relations/matrix_inverse_scale/support",
+    "FiveInv2NoError": "paparazzi/models/float_mat_inv_2d/rocq/no_error/problem",
+    "FiveInv2Termination": "paparazzi/models/float_mat_inv_2d/rocq/termination/problem",
+    "FiveInv2Functional": "paparazzi/models/float_mat_inv_2d/rocq/functional/problem",
+    "FiveInv2Correspondence": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem",
+    "FiveInv2Recheck": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem"
+  },
+  "problems": [
+    {
+      "kind": "no_error",
+      "namespace": "FiveInv2NoError",
+      "attempt": "paparazzi/models/float_mat_inv_2d/rocq/no_error/attempts/001",
+      "modules": {
+        "FiveInv2NoError.Spec": "paparazzi/models/float_mat_inv_2d/rocq/no_error/problem/Spec.v",
+        "FiveInv2NoError.Proof": "paparazzi/models/float_mat_inv_2d/rocq/no_error/attempts/001/Proof.v"
+      },
+      "imports": [
+        "FiveInv2NoError.Spec",
+        "FiveInv2NoError.Proof"
+      ],
+      "goal_bindings": [
+        {
+          "requested_goal": "NoError",
+          "theorem": "FiveInv2NoError.Proof.no_error_proved",
+          "type": "FiveInv2NoError.Spec.NoError"
+        }
+      ]
+    },
+    {
+      "kind": "termination",
+      "namespace": "FiveInv2Termination",
+      "attempt": "paparazzi/models/float_mat_inv_2d/rocq/termination/attempts/001",
+      "modules": {
+        "FiveInv2Termination.Spec": "paparazzi/models/float_mat_inv_2d/rocq/termination/problem/Spec.v",
+        "FiveInv2Termination.Proof": "paparazzi/models/float_mat_inv_2d/rocq/termination/attempts/001/Proof.v"
+      },
+      "imports": [
+        "FiveInv2Termination.Spec",
+        "FiveInv2Termination.Proof"
+      ],
+      "goal_bindings": [
+        {
+          "requested_goal": "AllSuccessorsTerminate",
+          "theorem": "FiveInv2Termination.Proof.all_successors_terminate",
+          "type": "FiveInv2Termination.Spec.AllSuccessorsTerminate"
+        }
+      ]
+    },
+    {
+      "kind": "functional",
+      "namespace": "FiveInv2Functional",
+      "attempt": "paparazzi/models/float_mat_inv_2d/rocq/functional/attempts/001",
+      "modules": {
+        "FiveInv2Functional.Spec": "paparazzi/models/float_mat_inv_2d/rocq/functional/problem/Spec.v",
+        "FiveInv2Functional.Proof": "paparazzi/models/float_mat_inv_2d/rocq/functional/attempts/001/Proof.v"
+      },
+      "imports": [
+        "FiveInv2Functional.Spec",
+        "FiveInv2Functional.Proof"
+      ],
+      "goal_bindings": [
+        {
+          "requested_goal": "NormalCall",
+          "theorem": "FiveInv2Functional.Proof.normal_call",
+          "type": "FiveInv2Functional.Spec.NormalCall"
+        },
+        {
+          "requested_goal": "AllReturns",
+          "theorem": "FiveInv2Functional.Proof.all_returns",
+          "type": "FiveInv2Functional.Spec.AllReturns"
+        },
+        {
+          "requested_goal": "Nonvacuity",
+          "theorem": "FiveInv2Functional.Proof.nonvacuity",
+          "type": "FiveInv2Functional.Spec.Nonvacuity"
+        }
+      ]
+    },
+    {
+      "kind": "execution_correspondence",
+      "namespace": "FiveInv2Correspondence",
+      "attempt": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/attempts/001",
+      "modules": {
+        "FiveInv2Correspondence.Spec": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem/Spec.v",
+        "FiveInv2Correspondence.Proof": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/attempts/001/Proof.v"
+      },
+      "imports": [
+        "FiveInv2Correspondence.Spec",
+        "FiveInv2Correspondence.Proof"
+      ],
+      "goal_bindings": [
+        {
+          "requested_goal": "domain_preservation",
+          "theorem": "FiveInv2Correspondence.Proof.domain_preservation",
+          "type": "FiveInv2Correspondence.Spec.domain_preservation_goal"
+        },
+        {
+          "requested_goal": "floating_point_correspondence",
+          "theorem": "FiveInv2Correspondence.Proof.floating_point_correspondence",
+          "type": "FiveInv2Correspondence.Spec.floating_point_correspondence_goal"
+        },
+        {
+          "requested_goal": "machine_integer_correspondence",
+          "theorem": "FiveInv2Correspondence.Proof.machine_integer_correspondence",
+          "type": "FiveInv2Correspondence.Spec.machine_integer_correspondence_goal"
+        },
+        {
+          "requested_goal": "memory_access_correspondence",
+          "theorem": "FiveInv2Correspondence.Proof.memory_access_correspondence",
+          "type": "FiveInv2Correspondence.Spec.memory_access_correspondence_goal"
+        },
+        {
+          "requested_goal": "control_and_exhaustion_correspondence",
+          "theorem": "FiveInv2Correspondence.Proof.control_and_exhaustion_correspondence",
+          "type": "FiveInv2Correspondence.Spec.control_and_exhaustion_correspondence_goal"
+        },
+        {
+          "requested_goal": "normal_result_and_memory_correspondence",
+          "theorem": "FiveInv2Correspondence.Proof.normal_result_and_memory_correspondence",
+          "type": "FiveInv2Correspondence.Spec.normal_result_and_memory_correspondence_goal"
+        },
+        {
+          "requested_goal": "invalid_operation_correspondence",
+          "theorem": "FiveInv2Correspondence.Proof.invalid_operation_correspondence",
+          "type": "FiveInv2Correspondence.Spec.invalid_operation_correspondence_goal"
+        },
+        {
+          "requested_goal": "whole_execution_correspondence",
+          "theorem": "FiveInv2Correspondence.Proof.whole_execution_correspondence",
+          "type": "FiveInv2Correspondence.Spec.whole_execution_correspondence_goal"
+        }
+      ]
+    },
+    {
+      "kind": "cbmc_recheck",
+      "namespace": "FiveInv2Recheck",
+      "attempt": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001",
+      "modules": {
+        "FiveInv2Recheck.Spec": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v",
+        "FiveInv2Recheck.Proof": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/Proof.v"
+      },
+      "imports": [
+        "FiveInv2Recheck.Spec",
+        "FiveInv2Recheck.Proof"
+      ],
+      "goal_bindings": [
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.1",
+          "theorem": "FiveInv2Recheck.Proof.property_001",
+          "type": "FiveInv2Recheck.Spec.P001"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.2",
+          "theorem": "FiveInv2Recheck.Proof.property_002",
+          "type": "FiveInv2Recheck.Spec.P002"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.3",
+          "theorem": "FiveInv2Recheck.Proof.property_003",
+          "type": "FiveInv2Recheck.Spec.P003"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.4",
+          "theorem": "FiveInv2Recheck.Proof.property_004",
+          "type": "FiveInv2Recheck.Spec.P004"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.5",
+          "theorem": "FiveInv2Recheck.Proof.property_005",
+          "type": "FiveInv2Recheck.Spec.P005"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.6",
+          "theorem": "FiveInv2Recheck.Proof.property_006",
+          "type": "FiveInv2Recheck.Spec.P006"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.1",
+          "theorem": "FiveInv2Recheck.Proof.property_007",
+          "type": "FiveInv2Recheck.Spec.P007"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.2",
+          "theorem": "FiveInv2Recheck.Proof.property_008",
+          "type": "FiveInv2Recheck.Spec.P008"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.3",
+          "theorem": "FiveInv2Recheck.Proof.property_009",
+          "type": "FiveInv2Recheck.Spec.P009"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.4",
+          "theorem": "FiveInv2Recheck.Proof.property_010",
+          "type": "FiveInv2Recheck.Spec.P010"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.5",
+          "theorem": "FiveInv2Recheck.Proof.property_011",
+          "type": "FiveInv2Recheck.Spec.P011"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.6",
+          "theorem": "FiveInv2Recheck.Proof.property_012",
+          "type": "FiveInv2Recheck.Spec.P012"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.7",
+          "theorem": "FiveInv2Recheck.Proof.property_013",
+          "type": "FiveInv2Recheck.Spec.P013"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.8",
+          "theorem": "FiveInv2Recheck.Proof.property_014",
+          "type": "FiveInv2Recheck.Spec.P014"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.9",
+          "theorem": "FiveInv2Recheck.Proof.property_015",
+          "type": "FiveInv2Recheck.Spec.P015"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.10",
+          "theorem": "FiveInv2Recheck.Proof.property_016",
+          "type": "FiveInv2Recheck.Spec.P016"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.11",
+          "theorem": "FiveInv2Recheck.Proof.property_017",
+          "type": "FiveInv2Recheck.Spec.P017"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.12",
+          "theorem": "FiveInv2Recheck.Proof.property_018",
+          "type": "FiveInv2Recheck.Spec.P018"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.7",
+          "theorem": "FiveInv2Recheck.Proof.property_019",
+          "type": "FiveInv2Recheck.Spec.P019"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.8",
+          "theorem": "FiveInv2Recheck.Proof.property_020",
+          "type": "FiveInv2Recheck.Spec.P020"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.9",
+          "theorem": "FiveInv2Recheck.Proof.property_021",
+          "type": "FiveInv2Recheck.Spec.P021"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.10",
+          "theorem": "FiveInv2Recheck.Proof.property_022",
+          "type": "FiveInv2Recheck.Spec.P022"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.11",
+          "theorem": "FiveInv2Recheck.Proof.property_023",
+          "type": "FiveInv2Recheck.Spec.P023"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.12",
+          "theorem": "FiveInv2Recheck.Proof.property_024",
+          "type": "FiveInv2Recheck.Spec.P024"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.13",
+          "theorem": "FiveInv2Recheck.Proof.property_025",
+          "type": "FiveInv2Recheck.Spec.P025"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.14",
+          "theorem": "FiveInv2Recheck.Proof.property_026",
+          "type": "FiveInv2Recheck.Spec.P026"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.15",
+          "theorem": "FiveInv2Recheck.Proof.property_027",
+          "type": "FiveInv2Recheck.Spec.P027"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.16",
+          "theorem": "FiveInv2Recheck.Proof.property_028",
+          "type": "FiveInv2Recheck.Spec.P028"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.17",
+          "theorem": "FiveInv2Recheck.Proof.property_029",
+          "type": "FiveInv2Recheck.Spec.P029"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.18",
+          "theorem": "FiveInv2Recheck.Proof.property_030",
+          "type": "FiveInv2Recheck.Spec.P030"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.13",
+          "theorem": "FiveInv2Recheck.Proof.property_031",
+          "type": "FiveInv2Recheck.Spec.P031"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.14",
+          "theorem": "FiveInv2Recheck.Proof.property_032",
+          "type": "FiveInv2Recheck.Spec.P032"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.15",
+          "theorem": "FiveInv2Recheck.Proof.property_033",
+          "type": "FiveInv2Recheck.Spec.P033"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.16",
+          "theorem": "FiveInv2Recheck.Proof.property_034",
+          "type": "FiveInv2Recheck.Spec.P034"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.17",
+          "theorem": "FiveInv2Recheck.Proof.property_035",
+          "type": "FiveInv2Recheck.Spec.P035"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.18",
+          "theorem": "FiveInv2Recheck.Proof.property_036",
+          "type": "FiveInv2Recheck.Spec.P036"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.19",
+          "theorem": "FiveInv2Recheck.Proof.property_037",
+          "type": "FiveInv2Recheck.Spec.P037"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.20",
+          "theorem": "FiveInv2Recheck.Proof.property_038",
+          "type": "FiveInv2Recheck.Spec.P038"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.21",
+          "theorem": "FiveInv2Recheck.Proof.property_039",
+          "type": "FiveInv2Recheck.Spec.P039"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.22",
+          "theorem": "FiveInv2Recheck.Proof.property_040",
+          "type": "FiveInv2Recheck.Spec.P040"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.23",
+          "theorem": "FiveInv2Recheck.Proof.property_041",
+          "type": "FiveInv2Recheck.Spec.P041"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.24",
+          "theorem": "FiveInv2Recheck.Proof.property_042",
+          "type": "FiveInv2Recheck.Spec.P042"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.19",
+          "theorem": "FiveInv2Recheck.Proof.property_043",
+          "type": "FiveInv2Recheck.Spec.P043"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.20",
+          "theorem": "FiveInv2Recheck.Proof.property_044",
+          "type": "FiveInv2Recheck.Spec.P044"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.21",
+          "theorem": "FiveInv2Recheck.Proof.property_045",
+          "type": "FiveInv2Recheck.Spec.P045"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.22",
+          "theorem": "FiveInv2Recheck.Proof.property_046",
+          "type": "FiveInv2Recheck.Spec.P046"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.23",
+          "theorem": "FiveInv2Recheck.Proof.property_047",
+          "type": "FiveInv2Recheck.Spec.P047"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.24",
+          "theorem": "FiveInv2Recheck.Proof.property_048",
+          "type": "FiveInv2Recheck.Spec.P048"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.25",
+          "theorem": "FiveInv2Recheck.Proof.property_049",
+          "type": "FiveInv2Recheck.Spec.P049"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.26",
+          "theorem": "FiveInv2Recheck.Proof.property_050",
+          "type": "FiveInv2Recheck.Spec.P050"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.27",
+          "theorem": "FiveInv2Recheck.Proof.property_051",
+          "type": "FiveInv2Recheck.Spec.P051"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.28",
+          "theorem": "FiveInv2Recheck.Proof.property_052",
+          "type": "FiveInv2Recheck.Spec.P052"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.29",
+          "theorem": "FiveInv2Recheck.Proof.property_053",
+          "type": "FiveInv2Recheck.Spec.P053"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.30",
+          "theorem": "FiveInv2Recheck.Proof.property_054",
+          "type": "FiveInv2Recheck.Spec.P054"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.25",
+          "theorem": "FiveInv2Recheck.Proof.property_055",
+          "type": "FiveInv2Recheck.Spec.P055"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.26",
+          "theorem": "FiveInv2Recheck.Proof.property_056",
+          "type": "FiveInv2Recheck.Spec.P056"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.27",
+          "theorem": "FiveInv2Recheck.Proof.property_057",
+          "type": "FiveInv2Recheck.Spec.P057"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.28",
+          "theorem": "FiveInv2Recheck.Proof.property_058",
+          "type": "FiveInv2Recheck.Spec.P058"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.29",
+          "theorem": "FiveInv2Recheck.Proof.property_059",
+          "type": "FiveInv2Recheck.Spec.P059"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.30",
+          "theorem": "FiveInv2Recheck.Proof.property_060",
+          "type": "FiveInv2Recheck.Spec.P060"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.31",
+          "theorem": "FiveInv2Recheck.Proof.property_061",
+          "type": "FiveInv2Recheck.Spec.P061"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.32",
+          "theorem": "FiveInv2Recheck.Proof.property_062",
+          "type": "FiveInv2Recheck.Spec.P062"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.33",
+          "theorem": "FiveInv2Recheck.Proof.property_063",
+          "type": "FiveInv2Recheck.Spec.P063"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.34",
+          "theorem": "FiveInv2Recheck.Proof.property_064",
+          "type": "FiveInv2Recheck.Spec.P064"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.35",
+          "theorem": "FiveInv2Recheck.Proof.property_065",
+          "type": "FiveInv2Recheck.Spec.P065"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.36",
+          "theorem": "FiveInv2Recheck.Proof.property_066",
+          "type": "FiveInv2Recheck.Spec.P066"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.31",
+          "theorem": "FiveInv2Recheck.Proof.property_067",
+          "type": "FiveInv2Recheck.Spec.P067"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.32",
+          "theorem": "FiveInv2Recheck.Proof.property_068",
+          "type": "FiveInv2Recheck.Spec.P068"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.33",
+          "theorem": "FiveInv2Recheck.Proof.property_069",
+          "type": "FiveInv2Recheck.Spec.P069"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.34",
+          "theorem": "FiveInv2Recheck.Proof.property_070",
+          "type": "FiveInv2Recheck.Spec.P070"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.35",
+          "theorem": "FiveInv2Recheck.Proof.property_071",
+          "type": "FiveInv2Recheck.Spec.P071"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.36",
+          "theorem": "FiveInv2Recheck.Proof.property_072",
+          "type": "FiveInv2Recheck.Spec.P072"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.37",
+          "theorem": "FiveInv2Recheck.Proof.property_073",
+          "type": "FiveInv2Recheck.Spec.P073"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.38",
+          "theorem": "FiveInv2Recheck.Proof.property_074",
+          "type": "FiveInv2Recheck.Spec.P074"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.39",
+          "theorem": "FiveInv2Recheck.Proof.property_075",
+          "type": "FiveInv2Recheck.Spec.P075"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.40",
+          "theorem": "FiveInv2Recheck.Proof.property_076",
+          "type": "FiveInv2Recheck.Spec.P076"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.41",
+          "theorem": "FiveInv2Recheck.Proof.property_077",
+          "type": "FiveInv2Recheck.Spec.P077"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.42",
+          "theorem": "FiveInv2Recheck.Proof.property_078",
+          "type": "FiveInv2Recheck.Spec.P078"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.37",
+          "theorem": "FiveInv2Recheck.Proof.property_079",
+          "type": "FiveInv2Recheck.Spec.P079"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.38",
+          "theorem": "FiveInv2Recheck.Proof.property_080",
+          "type": "FiveInv2Recheck.Spec.P080"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.39",
+          "theorem": "FiveInv2Recheck.Proof.property_081",
+          "type": "FiveInv2Recheck.Spec.P081"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.40",
+          "theorem": "FiveInv2Recheck.Proof.property_082",
+          "type": "FiveInv2Recheck.Spec.P082"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.41",
+          "theorem": "FiveInv2Recheck.Proof.property_083",
+          "type": "FiveInv2Recheck.Spec.P083"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.42",
+          "theorem": "FiveInv2Recheck.Proof.property_084",
+          "type": "FiveInv2Recheck.Spec.P084"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.43",
+          "theorem": "FiveInv2Recheck.Proof.property_085",
+          "type": "FiveInv2Recheck.Spec.P085"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.44",
+          "theorem": "FiveInv2Recheck.Proof.property_086",
+          "type": "FiveInv2Recheck.Spec.P086"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.45",
+          "theorem": "FiveInv2Recheck.Proof.property_087",
+          "type": "FiveInv2Recheck.Spec.P087"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.46",
+          "theorem": "FiveInv2Recheck.Proof.property_088",
+          "type": "FiveInv2Recheck.Spec.P088"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.47",
+          "theorem": "FiveInv2Recheck.Proof.property_089",
+          "type": "FiveInv2Recheck.Spec.P089"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.48",
+          "theorem": "FiveInv2Recheck.Proof.property_090",
+          "type": "FiveInv2Recheck.Spec.P090"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.43",
+          "theorem": "FiveInv2Recheck.Proof.property_091",
+          "type": "FiveInv2Recheck.Spec.P091"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.44",
+          "theorem": "FiveInv2Recheck.Proof.property_092",
+          "type": "FiveInv2Recheck.Spec.P092"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.45",
+          "theorem": "FiveInv2Recheck.Proof.property_093",
+          "type": "FiveInv2Recheck.Spec.P093"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.46",
+          "theorem": "FiveInv2Recheck.Proof.property_094",
+          "type": "FiveInv2Recheck.Spec.P094"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.47",
+          "theorem": "FiveInv2Recheck.Proof.property_095",
+          "type": "FiveInv2Recheck.Spec.P095"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.48",
+          "theorem": "FiveInv2Recheck.Proof.property_096",
+          "type": "FiveInv2Recheck.Spec.P096"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.49",
+          "theorem": "FiveInv2Recheck.Proof.property_097",
+          "type": "FiveInv2Recheck.Spec.P097"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.50",
+          "theorem": "FiveInv2Recheck.Proof.property_098",
+          "type": "FiveInv2Recheck.Spec.P098"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.51",
+          "theorem": "FiveInv2Recheck.Proof.property_099",
+          "type": "FiveInv2Recheck.Spec.P099"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.52",
+          "theorem": "FiveInv2Recheck.Proof.property_100",
+          "type": "FiveInv2Recheck.Spec.P100"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.53",
+          "theorem": "FiveInv2Recheck.Proof.property_101",
+          "type": "FiveInv2Recheck.Spec.P101"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.54",
+          "theorem": "FiveInv2Recheck.Proof.property_102",
+          "type": "FiveInv2Recheck.Spec.P102"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.49",
+          "theorem": "FiveInv2Recheck.Proof.property_103",
+          "type": "FiveInv2Recheck.Spec.P103"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.50",
+          "theorem": "FiveInv2Recheck.Proof.property_104",
+          "type": "FiveInv2Recheck.Spec.P104"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.51",
+          "theorem": "FiveInv2Recheck.Proof.property_105",
+          "type": "FiveInv2Recheck.Spec.P105"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.52",
+          "theorem": "FiveInv2Recheck.Proof.property_106",
+          "type": "FiveInv2Recheck.Spec.P106"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.53",
+          "theorem": "FiveInv2Recheck.Proof.property_107",
+          "type": "FiveInv2Recheck.Spec.P107"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.54",
+          "theorem": "FiveInv2Recheck.Proof.property_108",
+          "type": "FiveInv2Recheck.Spec.P108"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.55",
+          "theorem": "FiveInv2Recheck.Proof.property_109",
+          "type": "FiveInv2Recheck.Spec.P109"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.56",
+          "theorem": "FiveInv2Recheck.Proof.property_110",
+          "type": "FiveInv2Recheck.Spec.P110"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.57",
+          "theorem": "FiveInv2Recheck.Proof.property_111",
+          "type": "FiveInv2Recheck.Spec.P111"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.58",
+          "theorem": "FiveInv2Recheck.Proof.property_112",
+          "type": "FiveInv2Recheck.Spec.P112"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.59",
+          "theorem": "FiveInv2Recheck.Proof.property_113",
+          "type": "FiveInv2Recheck.Spec.P113"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.60",
+          "theorem": "FiveInv2Recheck.Proof.property_114",
+          "type": "FiveInv2Recheck.Spec.P114"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.55",
+          "theorem": "FiveInv2Recheck.Proof.property_115",
+          "type": "FiveInv2Recheck.Spec.P115"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.56",
+          "theorem": "FiveInv2Recheck.Proof.property_116",
+          "type": "FiveInv2Recheck.Spec.P116"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.57",
+          "theorem": "FiveInv2Recheck.Proof.property_117",
+          "type": "FiveInv2Recheck.Spec.P117"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.58",
+          "theorem": "FiveInv2Recheck.Proof.property_118",
+          "type": "FiveInv2Recheck.Spec.P118"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.59",
+          "theorem": "FiveInv2Recheck.Proof.property_119",
+          "type": "FiveInv2Recheck.Spec.P119"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.60",
+          "theorem": "FiveInv2Recheck.Proof.property_120",
+          "type": "FiveInv2Recheck.Spec.P120"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.61",
+          "theorem": "FiveInv2Recheck.Proof.property_121",
+          "type": "FiveInv2Recheck.Spec.P121"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.62",
+          "theorem": "FiveInv2Recheck.Proof.property_122",
+          "type": "FiveInv2Recheck.Spec.P122"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.63",
+          "theorem": "FiveInv2Recheck.Proof.property_123",
+          "type": "FiveInv2Recheck.Spec.P123"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.64",
+          "theorem": "FiveInv2Recheck.Proof.property_124",
+          "type": "FiveInv2Recheck.Spec.P124"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.65",
+          "theorem": "FiveInv2Recheck.Proof.property_125",
+          "type": "FiveInv2Recheck.Spec.P125"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.66",
+          "theorem": "FiveInv2Recheck.Proof.property_126",
+          "type": "FiveInv2Recheck.Spec.P126"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.61",
+          "theorem": "FiveInv2Recheck.Proof.property_127",
+          "type": "FiveInv2Recheck.Spec.P127"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.62",
+          "theorem": "FiveInv2Recheck.Proof.property_128",
+          "type": "FiveInv2Recheck.Spec.P128"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.63",
+          "theorem": "FiveInv2Recheck.Proof.property_129",
+          "type": "FiveInv2Recheck.Spec.P129"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.64",
+          "theorem": "FiveInv2Recheck.Proof.property_130",
+          "type": "FiveInv2Recheck.Spec.P130"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.65",
+          "theorem": "FiveInv2Recheck.Proof.property_131",
+          "type": "FiveInv2Recheck.Spec.P131"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.66",
+          "theorem": "FiveInv2Recheck.Proof.property_132",
+          "type": "FiveInv2Recheck.Spec.P132"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.67",
+          "theorem": "FiveInv2Recheck.Proof.property_133",
+          "type": "FiveInv2Recheck.Spec.P133"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.68",
+          "theorem": "FiveInv2Recheck.Proof.property_134",
+          "type": "FiveInv2Recheck.Spec.P134"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.69",
+          "theorem": "FiveInv2Recheck.Proof.property_135",
+          "type": "FiveInv2Recheck.Spec.P135"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.70",
+          "theorem": "FiveInv2Recheck.Proof.property_136",
+          "type": "FiveInv2Recheck.Spec.P136"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.71",
+          "theorem": "FiveInv2Recheck.Proof.property_137",
+          "type": "FiveInv2Recheck.Spec.P137"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_arithmetic.72",
+          "theorem": "FiveInv2Recheck.Proof.property_138",
+          "type": "FiveInv2Recheck.Spec.P138"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.67",
+          "theorem": "FiveInv2Recheck.Proof.property_139",
+          "type": "FiveInv2Recheck.Spec.P139"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.68",
+          "theorem": "FiveInv2Recheck.Proof.property_140",
+          "type": "FiveInv2Recheck.Spec.P140"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.69",
+          "theorem": "FiveInv2Recheck.Proof.property_141",
+          "type": "FiveInv2Recheck.Spec.P141"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.70",
+          "theorem": "FiveInv2Recheck.Proof.property_142",
+          "type": "FiveInv2Recheck.Spec.P142"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.71",
+          "theorem": "FiveInv2Recheck.Proof.property_143",
+          "type": "FiveInv2Recheck.Spec.P143"
+        },
+        {
+          "requested_goal": "float_mat_inv_2d.pointer_dereference.72",
+          "theorem": "FiveInv2Recheck.Proof.property_144",
+          "type": "FiveInv2Recheck.Spec.P144"
+        },
+        {
+          "requested_goal": "main.assertion.1",
+          "theorem": "FiveInv2Recheck.Proof.property_145",
+          "type": "FiveInv2Recheck.Spec.P145"
+        },
+        {
+          "requested_goal": "main.assertion.2",
+          "theorem": "FiveInv2Recheck.Proof.property_146",
+          "type": "FiveInv2Recheck.Spec.P146"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.1",
+          "theorem": "FiveInv2Recheck.Proof.property_147",
+          "type": "FiveInv2Recheck.Spec.P147"
+        },
+        {
+          "requested_goal": "memcpy.pointer.1",
+          "theorem": "FiveInv2Recheck.Proof.property_148",
+          "type": "FiveInv2Recheck.Spec.P148"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.2",
+          "theorem": "FiveInv2Recheck.Proof.property_149",
+          "type": "FiveInv2Recheck.Spec.P149"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.3",
+          "theorem": "FiveInv2Recheck.Proof.property_150",
+          "type": "FiveInv2Recheck.Spec.P150"
+        },
+        {
+          "requested_goal": "memcpy.pointer.2",
+          "theorem": "FiveInv2Recheck.Proof.property_151",
+          "type": "FiveInv2Recheck.Spec.P151"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.4",
+          "theorem": "FiveInv2Recheck.Proof.property_152",
+          "type": "FiveInv2Recheck.Spec.P152"
+        },
+        {
+          "requested_goal": "main.precondition_instance.1",
+          "theorem": "FiveInv2Recheck.Proof.property_153",
+          "type": "FiveInv2Recheck.Spec.P153"
+        },
+        {
+          "requested_goal": "main.precondition_instance.2",
+          "theorem": "FiveInv2Recheck.Proof.property_154",
+          "type": "FiveInv2Recheck.Spec.P154"
+        },
+        {
+          "requested_goal": "main.precondition_instance.3",
+          "theorem": "FiveInv2Recheck.Proof.property_155",
+          "type": "FiveInv2Recheck.Spec.P155"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.5",
+          "theorem": "FiveInv2Recheck.Proof.property_156",
+          "type": "FiveInv2Recheck.Spec.P156"
+        },
+        {
+          "requested_goal": "memcpy.pointer.3",
+          "theorem": "FiveInv2Recheck.Proof.property_157",
+          "type": "FiveInv2Recheck.Spec.P157"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.6",
+          "theorem": "FiveInv2Recheck.Proof.property_158",
+          "type": "FiveInv2Recheck.Spec.P158"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.7",
+          "theorem": "FiveInv2Recheck.Proof.property_159",
+          "type": "FiveInv2Recheck.Spec.P159"
+        },
+        {
+          "requested_goal": "memcpy.pointer.4",
+          "theorem": "FiveInv2Recheck.Proof.property_160",
+          "type": "FiveInv2Recheck.Spec.P160"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.8",
+          "theorem": "FiveInv2Recheck.Proof.property_161",
+          "type": "FiveInv2Recheck.Spec.P161"
+        },
+        {
+          "requested_goal": "main.precondition_instance.4",
+          "theorem": "FiveInv2Recheck.Proof.property_162",
+          "type": "FiveInv2Recheck.Spec.P162"
+        },
+        {
+          "requested_goal": "main.precondition_instance.5",
+          "theorem": "FiveInv2Recheck.Proof.property_163",
+          "type": "FiveInv2Recheck.Spec.P163"
+        },
+        {
+          "requested_goal": "main.precondition_instance.6",
+          "theorem": "FiveInv2Recheck.Proof.property_164",
+          "type": "FiveInv2Recheck.Spec.P164"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.9",
+          "theorem": "FiveInv2Recheck.Proof.property_165",
+          "type": "FiveInv2Recheck.Spec.P165"
+        },
+        {
+          "requested_goal": "memcpy.pointer.5",
+          "theorem": "FiveInv2Recheck.Proof.property_166",
+          "type": "FiveInv2Recheck.Spec.P166"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.10",
+          "theorem": "FiveInv2Recheck.Proof.property_167",
+          "type": "FiveInv2Recheck.Spec.P167"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.11",
+          "theorem": "FiveInv2Recheck.Proof.property_168",
+          "type": "FiveInv2Recheck.Spec.P168"
+        },
+        {
+          "requested_goal": "memcpy.pointer.6",
+          "theorem": "FiveInv2Recheck.Proof.property_169",
+          "type": "FiveInv2Recheck.Spec.P169"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.12",
+          "theorem": "FiveInv2Recheck.Proof.property_170",
+          "type": "FiveInv2Recheck.Spec.P170"
+        },
+        {
+          "requested_goal": "main.precondition_instance.7",
+          "theorem": "FiveInv2Recheck.Proof.property_171",
+          "type": "FiveInv2Recheck.Spec.P171"
+        },
+        {
+          "requested_goal": "main.precondition_instance.8",
+          "theorem": "FiveInv2Recheck.Proof.property_172",
+          "type": "FiveInv2Recheck.Spec.P172"
+        },
+        {
+          "requested_goal": "main.precondition_instance.9",
+          "theorem": "FiveInv2Recheck.Proof.property_173",
+          "type": "FiveInv2Recheck.Spec.P173"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.13",
+          "theorem": "FiveInv2Recheck.Proof.property_174",
+          "type": "FiveInv2Recheck.Spec.P174"
+        },
+        {
+          "requested_goal": "memcpy.pointer.7",
+          "theorem": "FiveInv2Recheck.Proof.property_175",
+          "type": "FiveInv2Recheck.Spec.P175"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.14",
+          "theorem": "FiveInv2Recheck.Proof.property_176",
+          "type": "FiveInv2Recheck.Spec.P176"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.15",
+          "theorem": "FiveInv2Recheck.Proof.property_177",
+          "type": "FiveInv2Recheck.Spec.P177"
+        },
+        {
+          "requested_goal": "memcpy.pointer.8",
+          "theorem": "FiveInv2Recheck.Proof.property_178",
+          "type": "FiveInv2Recheck.Spec.P178"
+        },
+        {
+          "requested_goal": "memcpy.pointer_arithmetic.16",
+          "theorem": "FiveInv2Recheck.Proof.property_179",
+          "type": "FiveInv2Recheck.Spec.P179"
+        },
+        {
+          "requested_goal": "main.precondition_instance.10",
+          "theorem": "FiveInv2Recheck.Proof.property_180",
+          "type": "FiveInv2Recheck.Spec.P180"
+        },
+        {
+          "requested_goal": "main.precondition_instance.11",
+          "theorem": "FiveInv2Recheck.Proof.property_181",
+          "type": "FiveInv2Recheck.Spec.P181"
+        },
+        {
+          "requested_goal": "main.precondition_instance.12",
+          "theorem": "FiveInv2Recheck.Proof.property_182",
+          "type": "FiveInv2Recheck.Spec.P182"
+        },
+        {
+          "requested_goal": "main.assertion.3",
+          "theorem": "FiveInv2Recheck.Proof.property_183",
+          "type": "FiveInv2Recheck.Spec.P183"
+        },
+        {
+          "requested_goal": "main.assertion.4",
+          "theorem": "FiveInv2Recheck.Proof.property_184",
+          "type": "FiveInv2Recheck.Spec.P184"
+        },
+        {
+          "requested_goal": "main.assertion.5",
+          "theorem": "FiveInv2Recheck.Proof.property_185",
+          "type": "FiveInv2Recheck.Spec.P185"
+        },
+        {
+          "requested_goal": "main.assertion.6",
+          "theorem": "FiveInv2Recheck.Proof.property_186",
+          "type": "FiveInv2Recheck.Spec.P186"
+        },
+        {
+          "requested_goal": "main.assertion.7",
+          "theorem": "FiveInv2Recheck.Proof.property_187",
+          "type": "FiveInv2Recheck.Spec.P187"
+        },
+        {
+          "requested_goal": "main.assertion.8",
+          "theorem": "FiveInv2Recheck.Proof.property_188",
+          "type": "FiveInv2Recheck.Spec.P188"
+        },
+        {
+          "requested_goal": "main.assertion.9",
+          "theorem": "FiveInv2Recheck.Proof.property_189",
+          "type": "FiveInv2Recheck.Spec.P189"
+        },
+        {
+          "requested_goal": "main.assertion.10",
+          "theorem": "FiveInv2Recheck.Proof.property_190",
+          "type": "FiveInv2Recheck.Spec.P190"
+        }
+      ]
+    }
+  ],
+  "dependency_order": [
+    {
+      "module": "FiveShared.verification.Obligations",
+      "path": "shared/verification/Obligations.v",
+      "sha256": "b248d4397fbd3ddc2ea8f6324f32752d1493d6a5f48f097e0fd214212010a6b4"
+    },
+    {
+      "module": "FivePprzFloatMatInv2d.Source",
+      "path": "paparazzi/models/float_mat_inv_2d/align/model/Source.v",
+      "sha256": "9cc1524a49e10a888c1381d5e77f6042748ebf43d2a8c2deaa7dcfd63b65e2a4"
+    },
+    {
+      "module": "FivePprzFloatMatInv2d.Execution",
+      "path": "paparazzi/models/float_mat_inv_2d/align/model/Execution.v",
+      "sha256": "03a7039fe82bf6df94795cd66ad95f1807dee7683cb40c32551aaa2f060c772e"
+    },
+    {
+      "module": "FiveMatInv3Case.MatrixMemory",
+      "path": "paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v",
+      "sha256": "833642960fca23de5495655509a08c0f4fd0112e1c4dfafda59839e52a0232a4"
+    },
+    {
+      "module": "FiveInv2Case.Contract",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Contract.v",
+      "sha256": "8e480aaa8e22be371d8ddfc38c79dfa98ab1115d5918da0871a935553dbfe627"
+    },
+    {
+      "module": "FiveInv2NoError.Spec",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/no_error/problem/Spec.v",
+      "sha256": "f2bd284cd9a4fd8cf96877d96709ba268ed0cf2908685023e22ebd629eb47fc9"
+    },
+    {
+      "module": "FiveGuidanceSemantics.SemanticsSupport",
+      "path": "paparazzi/relations/guidance_mode/support/semantics/SemanticsSupport.v",
+      "sha256": "244711d59388ac34cfbbdf15eeb2eebf7c81e335ee283edac1560ea4119826ea"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.PureSyntax",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/PureSyntax.v",
+      "sha256": "7fdc277e6a599060ef73566b0de1eab17f6a23567d5c9cee3def648dfa022492"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.PureDenotation",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/PureDenotation.v",
+      "sha256": "12456231c9097b3ccc26fdf1c8f1972aff42755d24eef28c76b1e460a590c317"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.PureProgress",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/PureProgress.v",
+      "sha256": "302c90ea9306aa580ccdddfd571fdd49841ec4166a4f24057742f4c5bffec58b"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.AtomicDenotation",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/AtomicDenotation.v",
+      "sha256": "ea27b03f6e1a0e6ddea6cce8031a9004d55aad037740ae8d609027c13e703f01"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.AtomicProgress",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/AtomicProgress.v",
+      "sha256": "a8f4dacdb41766a0473ff216f054c9c0b724f0c6bc0f0508d22f81777d9aeb5e"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.CallfreeExecution",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v",
+      "sha256": "fcdb796ddf9b35773fd2e33a95f4a98ecdedbeb087c6a0c837a055ed1245d09b"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.PhaseComposition",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/PhaseComposition.v",
+      "sha256": "0638f20b1eaaa38de9c69d0ec89cabe93968b5eb07b266a265db56bced0caf05"
+    },
+    {
+      "module": "FiveGuidanceAllocation.StackAllocation",
+      "path": "paparazzi/relations/guidance_mode/support/allocation/StackAllocation.v",
+      "sha256": "4814fe81c3671de6ef6f97ecc4f75069e3f87fcc867c38154294d291caa51fdc"
+    },
+    {
+      "module": "FiveGuidanceEntry.StackCleanup",
+      "path": "paparazzi/relations/guidance_mode/support/entry/StackCleanup.v",
+      "sha256": "7291a68f2927f6d98790b3eb5fa2fc8e7847db67c84a8c8fb96b834fea6d3eb8"
+    },
+    {
+      "module": "FiveGuidanceEntry.FunctionAllocation",
+      "path": "paparazzi/relations/guidance_mode/support/entry/FunctionAllocation.v",
+      "sha256": "d66efb28302ef1745d3982963eaf0b882353bdd34831d14f737f3f58abae52ab"
+    },
+    {
+      "module": "FiveLowpassSupport.Expressions",
+      "path": "paparazzi/relations/lowpass_recovery/support/Expressions.v",
+      "sha256": "cef395af3058d1e64974e5b61fa17f66b07be3decadd28a74877b7955c5fa8ac"
+    },
+    {
+      "module": "FiveGuidanceSemantics.SourceClosure",
+      "path": "paparazzi/relations/guidance_mode/support/semantics/SourceClosure.v",
+      "sha256": "686325be0ff4eef9fedc08363f93e89dbaaa8e738c4df6e427ebf8865c01682c"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.ContinuationLift",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v",
+      "sha256": "19fd76146475254fd3d63f4634c9892180bf4f51f47632455d9d108c9abe135d"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.BlockExecution",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v",
+      "sha256": "326e0a4a87076b50d29193db88ae8f43bd9a1364cbc380585ebe86741e3bcffc"
+    },
+    {
+      "module": "FiveGuidanceAllOrder.FactorShell",
+      "path": "paparazzi/relations/guidance_mode/support/allorder/FactorShell.v",
+      "sha256": "b4620980c1786249f240dcbdb433740862ff24152c7c893a59d807f0edfeba9c"
+    },
+    {
+      "module": "FiveInv2Case.BuiltinFabs",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/BuiltinFabs.v",
+      "sha256": "ec6528f5ab401b17987c1945e443bede9ab340d808aab96b6638ed924ef2765b"
+    },
+    {
+      "module": "FiveInv2Case.Expressions",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Expressions.v",
+      "sha256": "a4cdfbd2669e2500f46bfa58c8f03a53df853b66a4689777dbe570daa90f371a"
+    },
+    {
+      "module": "FiveInv2Case.Certificates",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Certificates.v",
+      "sha256": "a395e93498360579ac54a732ca1e1670ad1350d88d7b2754de7dcc5030a54a59"
+    },
+    {
+      "module": "FiveInv2Case.Body",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Body.v",
+      "sha256": "7da5377849b987105b7aaa616b26f291ffc7745957664fae7fd9b8d8eba56656"
+    },
+    {
+      "module": "FiveInv2Case.MemoryEffects",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/MemoryEffects.v",
+      "sha256": "7dc007d560c831d31739d1c5ed36518e54edf1048a9d34478b689b10c3c79063"
+    },
+    {
+      "module": "FiveGuidanceSemantics.WeightedTermination",
+      "path": "paparazzi/relations/guidance_mode/support/semantics/WeightedTermination.v",
+      "sha256": "1cce986c8d11142c94d21b6d0591a685faec8adc5650c9f923e74d984fe2d057"
+    },
+    {
+      "module": "FiveGuidanceSemantics.SourceTermination",
+      "path": "paparazzi/relations/guidance_mode/support/semantics/SourceTermination.v",
+      "sha256": "35b6230eecf9312ebf5b86395fca3196638c4083d4ab138eb390b335135405bc"
+    },
+    {
+      "module": "FiveGuidanceSemantics.TableSupport",
+      "path": "paparazzi/relations/guidance_mode/support/semantics/TableSupport.v",
+      "sha256": "7703856f4066e4ec649c0b35b1a429d73d60f2bf1bdfdca97ec6f50f32f36151"
+    },
+    {
+      "module": "FiveInv2Case.Closure",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Closure.v",
+      "sha256": "80d1550da3231f1e5dac2b54af1532732b913a82ea33f1b98ff888273ca85b54"
+    },
+    {
+      "module": "FiveInv2Case.Call",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Call.v",
+      "sha256": "fe2062c9e420ab7274718adff884dd5a2f4c95f9aa96f9103f28f38d256e0d23"
+    },
+    {
+      "module": "FiveInv2NoError.Proof",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/no_error/attempts/001/Proof.v",
+      "sha256": "dbe221ac755be2bd21b0735ec39edd0687aa1e999fca1c6938fc9391a0e67eb9"
+    },
+    {
+      "module": "FiveInv2Termination.Spec",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/termination/problem/Spec.v",
+      "sha256": "be7ad0a1da38c72a44f8e98216daa41bd2b39c1788e8e4ccdc0781b562fef1c4"
+    },
+    {
+      "module": "FiveInv2Termination.Proof",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/termination/attempts/001/Proof.v",
+      "sha256": "3543b7e4a0be08779489b655fdf6030bd79ba2cd3454beed410d0d37ed43e49d"
+    },
+    {
+      "module": "FiveInv2Functional.Spec",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/functional/problem/Spec.v",
+      "sha256": "e599fc799fa89cd8af08be5ef3cdbf0ca460487a4e0e487d8ceb48d0bc22cd08"
+    },
+    {
+      "module": "FiveMatrixInverseSupport.Witness",
+      "path": "paparazzi/relations/matrix_inverse_scale/support/Witness.v",
+      "sha256": "7fbca1770e0252f221a01e800576ce23dc384c7fb740cd10d4f186766c888e48"
+    },
+    {
+      "module": "FiveInv2Functional.Proof",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/functional/attempts/001/Proof.v",
+      "sha256": "f4b4253f4411450c7fa09da80469cd59e89c3f9d9d71036d2f0a2740efc74c46"
+    },
+    {
+      "module": "FiveInv2Correspondence.Spec",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem/Spec.v",
+      "sha256": "698513d0e2c8baa40485ebbc20bc864908e412c330a3b6f1b0532dbebd517ed6"
+    },
+    {
+      "module": "FiveInv2Correspondence.Proof",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/attempts/001/Proof.v",
+      "sha256": "7b42d6d5e76e0620860504d91a3209dada1bd31757e5cf9c737bc0766b673b76"
+    },
+    {
+      "module": "FiveInv2Case.Memcpy16",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Memcpy16.v",
+      "sha256": "64e91b096afdff6603a91c5d6eab7817023eac587972fce81de39278fbe15240"
+    },
+    {
+      "module": "FiveInv2Case.Observer",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Observer.v",
+      "sha256": "da86c593e4f9353a79dc09a218b3c45577d3c493fcbdb1d50232e8a19b163f6f"
+    },
+    {
+      "module": "FiveInv2Case.TraceInputs",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/TraceInputs.v",
+      "sha256": "8da28338229b201b6be37c472402e65a70458132e4e6df1997920bd293db07d8"
+    },
+    {
+      "module": "FiveInv2Case.RecheckSupport",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/RecheckSupport.v",
+      "sha256": "9a481e620f883655d9d5c751df678b61ab3ea3a992d4ae75236c046487143a43"
+    },
+    {
+      "module": "FiveMatrixInverseSupport.Dyadic",
+      "path": "paparazzi/relations/matrix_inverse_scale/support/Dyadic.v",
+      "sha256": "69cd925dc6b02bb1339927e8a6ef2cafc6fa0aeb226cf297d6877fdda0ba8385"
+    },
+    {
+      "module": "FivePprzFloatMatInv3d.Source",
+      "path": "paparazzi/models/float_mat_inv_3d/align/model/Source.v",
+      "sha256": "8a5457ea6fc48aa16b627d174d6b1174e89b06f1212f995ecff82ffdf4b1f6db"
+    },
+    {
+      "module": "FiveMatInv3Case.MatrixAccess",
+      "path": "paparazzi/models/float_mat_inv_3d/rocq/support/MatrixAccess.v",
+      "sha256": "500d8ff8fea41b4c5799b42bd8e0dc06f9d60d4cbd9c4139e31be19653ecd2f3"
+    },
+    {
+      "module": "FiveMatInv3Case.Scalar",
+      "path": "paparazzi/models/float_mat_inv_3d/rocq/support/Scalar.v",
+      "sha256": "5b371f62399ea8145312542144b4f36bad5003069f75edc3c9fa38d833a2b734"
+    },
+    {
+      "module": "FiveMatrixInverseSupport.Kernels",
+      "path": "paparazzi/relations/matrix_inverse_scale/support/Kernels.v",
+      "sha256": "7d072811c27799869006b109c4a01651d14605796e24130b389b9acd3f3c8363"
+    },
+    {
+      "module": "FiveInv2Case.Replay",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v",
+      "sha256": "f16f343645b6e98839caadb8d09565c19e840a5e95d471c89b6b320119e21922"
+    },
+    {
+      "module": "FiveMatInv3Case.GuardWitness",
+      "path": "paparazzi/models/float_mat_inv_3d/rocq/support/GuardWitness.v",
+      "sha256": "0c9d7d015eb5a95969fc5dc620dd696ca6e76c96a4ab96452825294dc869ad75"
+    },
+    {
+      "module": "FiveMatInv3Case.PairExtend",
+      "path": "paparazzi/models/float_mat_inv_3d/rocq/support/PairExtend.v",
+      "sha256": "7e3807f93dac9a6a3e75e62b8856d0935f26d68f9c962594895e4afec1fa01a1"
+    },
+    {
+      "module": "FiveInv2Case.ExactReplay",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/support/ExactReplay.v",
+      "sha256": "59fc26062ca97af130a499d30174eed240e188b2137fe93914d09bb7a05f42d3"
+    },
+    {
+      "module": "FiveInv2Recheck.Spec",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v",
+      "sha256": "ad7bd7b7fd160935385a9af54746cbc71dae58244efd70158a27ba91c23e3f3c"
+    },
+    {
+      "module": "FiveInv2Recheck.Proof",
+      "path": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/Proof.v",
+      "sha256": "bb73caa0305e620f7db90838bba24a5d701bcd542b516f970b515932f55d5a97"
+    }
+  ],
+  "extra_inputs": [
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c",
+      "sha256": "5ff0fbc7d7284628788464d5b8d505756da59d0cddba3b97afe2a7c8d25b85e4"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/prepare/source/bindings.json",
+      "sha256": "f3b7ee50820d3c04164fab5fcd32c97627c6b9b06d5f466f872d73b34d38d59e"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/prepare/handoff.json",
+      "sha256": "169b8934da2a4229eafd2ba4568a2fbd741a7c29968bba4b37d743e2a68aac8f"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/align/model/Source.v",
+      "sha256": "9cc1524a49e10a888c1381d5e77f6042748ebf43d2a8c2deaa7dcfd63b65e2a4"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/align/model/Execution.v",
+      "sha256": "03a7039fe82bf6df94795cd66ad95f1807dee7683cb40c32551aaa2f060c772e"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/align/model/preprocessed.i",
+      "sha256": "02851134430cf986a9ca7d3fd0f42e646a0077ee7fc3770b5ffa0f5edaff17f3"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/align/model/compcert-manifest.json",
+      "sha256": "bfd37ae7eeef42d51324ef53b57f0d073dea46c919972a76a52ab4a6bc9c11e4"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/align/request.json",
+      "sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/align/spec-map.json",
+      "sha256": "3d5513154a88c32f0c21cf68d47668be69ac02eebefbf51a13e15f8db22709a9"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/align/handoff.json",
+      "sha256": "928125ec118611dd5979da69964baf842572631d368cb70624b02e4bd71fe8c8"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/cbmc/harness.c",
+      "sha256": "cf242e5439b643b341544a3e70176932bfef62e898c660445cb0e130732784c3"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/cbmc/properties.json",
+      "sha256": "0875a175250b797e1b8e3f769b4f5a5b2dd23a10da9661def339f2690373bc7f"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/cbmc/results.json",
+      "sha256": "a849a57177e76cd7da8e99861af2032abe6710e2b6aba45a5bde6b270cc04763"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/cbmc/counterexamples.json",
+      "sha256": "3aafc5193e6d7ab1f39bda8b87635c013559b77ab8ab4a04b77ddd27c70be8fe"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/cbmc/command.json",
+      "sha256": "79d33d05250d8d546757694336cd0a20feba75114d4a3497f7bcb04c0d0f8f0a"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_2d/cbmc/handoff.json",
+      "sha256": "4e81e82cb8c30aca729b1d5a8cec5507da90de50726cfd065ae74990c671955f"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/prepare/source/float_mat_inv_3d.c",
+      "sha256": "68ede3a9167c9a8c036eadfd24fd9ee590183f2b282e8594eee165d8e6a07d3f"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/prepare/source/bindings.json",
+      "sha256": "66206542f2015b0b4f3bcbfe3cb201343c58556dacb604987547a4e813ca6cd9"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/prepare/handoff.json",
+      "sha256": "b97b98d4f4b897b74d9c62e42db4b5d40a9e7080fd3e003e1cba0b674d8dbb83"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/align/model/Source.v",
+      "sha256": "8a5457ea6fc48aa16b627d174d6b1174e89b06f1212f995ecff82ffdf4b1f6db"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/align/model/Execution.v",
+      "sha256": "b39e1b5ecaeaad262a7295ad1864bce57c2547ff1f7f30ae589c02bafb30b3cf"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/align/model/preprocessed.i",
+      "sha256": "b9ff4f4c013aa6b54490e4cd488c5feef8aca964ddef69a2c99a91655ed9a844"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/align/model/compcert-manifest.json",
+      "sha256": "60ef26b57977f9db5308a4717775e9b6249beacf7b6b59dab077ef6709b98908"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/align/request.json",
+      "sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/align/spec-map.json",
+      "sha256": "f6640a5cb60964be0668a95356ad1b3a65b0eb4dad364dca28ce2d6cfc3c90d8"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/align/handoff.json",
+      "sha256": "3cefcc7b122034ee7aab96b8f92fc8593febee9489339c5c3f428ad06bb4e943"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/cbmc/harness.c",
+      "sha256": "07d7bd838edd6624f6ca2aaad6fd90bdf0f45264f98f0502a6c40ea775b89b57"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/cbmc/properties.json",
+      "sha256": "c5b780b2210614af765940d9ac75e2ea6239e84e25bf093dfa781edb08b83c51"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/cbmc/results.json",
+      "sha256": "d23a0c57064a48a3242d78e29b90c370bb2cd67535fc7ee3e193b2ba4160323f"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/cbmc/counterexamples.json",
+      "sha256": "8e3317d44a4d54ae865d629b7f5672345a97fad7d78b2c79f86c3bb00f4aed49"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/cbmc/command.json",
+      "sha256": "46b6b12a3f3347f688923d3a637361b01211cd4a2ab74e5dc990936ce14aa38d"
+    },
+    {
+      "path": "paparazzi/models/float_mat_inv_3d/cbmc/handoff.json",
+      "sha256": "589941735ab8ac00db8bef4f7008e18eb2ca198de766cffb32a0d19bb6e25165"
+    }
+  ],
+  "cold_check_requirements": [
+    "capture original inputs and exact FQ compiled snapshot .v before compiler/kernel",
+    "unique capture roles per logical module; original C/Source/Execution aliases retain same SHA256",
+    "full rocq compile of dependency closure plus exact exhaustive GoalBinding, Print Assumptions, independent rocq check",
+    "timeout at least300s for190-IDProof/GoalBinding",
+    "close kernel run PASSED before actual validate_current",
+    "no source .v edits during cold check; do not claimCOMPLETE before validator passes"
+  ],
+  "logical_result": {
+    "no_error": "compiled",
+    "all_successors_termination": "compiled-unrestricted-raw-domain",
+    "functional": "compiled-existence-allreturns-byteframe-source-oldvalid-oldaccess-and-arbitrarymatrixnonvacuity",
+    "execution_correspondence": "compiled-eight-raw-domain-goals",
+    "cbmc_properties": {
+      "count": 190,
+      "proved_source": 188,
+      "refuted_source": 2,
+      "counterexample_replay": "compiled-actual-original-initialized-common-memory-four-calls-plus-copy-observation"
+    }
+  }
+}

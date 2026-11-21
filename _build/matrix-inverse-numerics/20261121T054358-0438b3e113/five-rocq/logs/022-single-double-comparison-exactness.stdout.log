@@ -1,0 +1,219 @@
+(* *********************************************************************)
+(*                                                                     *)
+(*              The Compcert verified compiler                         *)
+(*                                                                     *)
+(*          Xavier Leroy, INRIA Paris-Rocquencourt                     *)
+(*          Jacques-Henri Jourdan, INRIA Paris-Rocquencourt            *)
+(*                                                                     *)
+(*  Copyright Institut National de Recherche en Informatique et en     *)
+(*  Automatique.  All rights reserved.  This file is distributed       *)
+(*  under the terms of the GNU Lesser General Public License as        *)
+(*  published by the Free Software Foundation, either version 2.1 of   *)
+(*  the License, or  (at your option) any later version.               *)
+(*  This file is also distributed under the terms of the               *)
+(*  INRIA Non-Commercial License Agreement.                            *)
+(*                                                                     *)
+(* *********************************************************************)
+
+(** Formalization of floating-point numbers, using the Flocq library. *)
+
+From Coq Require Import Reals Program.
+Require Import Coqlib Zbits Integers.
+From Flocq Require Import BinarySingleNaN Binary Bits Core.
+Require Import IEEE754_extra.
+Require Archi.
+Import ListNotations.
+
+Close Scope R_scope.
+Open Scope Z_scope.
+Set Asymmetric Patterns.
+
+Definition float := binary64. (**r the type of IEE754 double-precision FP numbers *)
+Definition float32 := binary32. (**r the type of IEE754 single-precision FP numbers *)
+
+Lemma integer_representable_n :
+  forall n : Z, - 2 ^ 53 <= n <= 2 ^ 53 -> integer_representable 53 1024 n.
+Proof.
+now apply integer_representable_n.
+Qed.
+
+(** Boolean-valued comparisons *)
+
+Definition cmp_of_comparison (c: comparison) (x: option Datatypes.comparison) : bool :=
+  match c with
+  | Ceq =>
+      match x with Some Eq => true | _ => false end
+  | Cne =>
+      match x with Some Eq => false | _ => true end
+  | Clt =>
+      match x with Some Lt => true | _ => false end
+  | Cle =>
+      match x with Some(Lt|Eq) => true | _ => false end
+  | Cgt =>
+      match x with Some Gt => true | _ => false end
+  | Cge =>
+      match x with Some(Gt|Eq) => true | _ => false end
+  end.
+
+Definition ordered_of_comparison (x: option Datatypes.comparison) : bool :=
+  match x with None => false | Some _ => true end.
+
+Lemma cmp_of_comparison_swap:
+  forall c x,
+  cmp_of_comparison (swap_comparison c) x =
+  cmp_of_comparison c (match x with None => None | Some x => Some (CompOpp x) end).
+Proof.
+  intros. destruct c; destruct x as [[]|]; reflexivity.
+Qed.
+
+Lemma cmp_of_comparison_ne_eq:
+  forall x, cmp_of_comparison Cne x = negb (cmp_of_comparison Ceq x).
+Proof.
+  intros. destruct x as [[]|]; reflexivity.
+Qed.
+
+Lemma cmp_of_comparison_lt_eq_false:
+  forall x, cmp_of_comparison Clt x = true -> cmp_of_comparison Ceq x = true -> False.
+Proof.
+  destruct x as [[]|]; simpl; intros; discriminate.
+Qed.
+
+Lemma cmp_of_comparison_le_lt_eq:
+  forall x, cmp_of_comparison Cle x = cmp_of_comparison Clt x || cmp_of_comparison Ceq x.
+Proof.
+  destruct x as [[]|]; reflexivity.
+Qed.
+
+Lemma cmp_of_comparison_gt_eq_false:
+  forall x, cmp_of_comparison Cgt x = true -> cmp_of_comparison Ceq x = true -> False.
+Proof.
+  destruct x as [[]|]; simpl; intros; discriminate.
+Qed.
+
+Lemma cmp_of_comparison_ge_gt_eq:
+  forall x, cmp_of_comparison Cge x = cmp_of_comparison Cgt x || cmp_of_comparison Ceq x.
+Proof.
+  destruct x as [[]|]; reflexivity.
+Qed.
+
+Lemma cmp_of_comparison_lt_gt_false:
+  forall x, cmp_of_comparison Clt x = true -> cmp_of_comparison Cgt x = true -> False.
+Proof.
+  destruct x as [[]|]; simpl; intros; discriminate.
+Qed.
+
+(** Normalization of NaN payloads *)
+
+Lemma normalized_nan: forall prec n p,
+  Z.of_nat n = prec - 1 -> 1 < prec ->
+  nan_pl prec (Z.to_pos (P_mod_two_p p n)) = true.
+Proof.
+  intros. unfold nan_pl. apply Z.ltb_lt. rewrite Digits.Zpos_digits2_pos.
+  set (p' := P_mod_two_p p n).
+  assert (A: 0 <= p' < 2 ^ Z.of_nat n).
+  { rewrite <- two_power_nat_equiv; apply P_mod_two_p_range. }
+  assert (B: Digits.Zdigits radix2 p' <= prec - 1).
+Theorem cmp_le_lt_eq:
+  forall f1 f2, cmp Cle f1 f2 = cmp Clt f1 f2 || cmp Ceq f1 f2.
+Proof.
+  intros f1 f2; apply cmp_of_comparison_le_lt_eq.
+Qed.
+
+Theorem cmp_gt_eq_false:
+  forall x y, cmp Cgt x y = true -> cmp Ceq x y = true -> False.
+Proof.
+  intros f1 f2; apply cmp_of_comparison_gt_eq_false.
+Qed.
+
+Theorem cmp_ge_gt_eq:
+  forall f1 f2, cmp Cge f1 f2 = cmp Cgt f1 f2 || cmp Ceq f1 f2.
+Proof.
+  intros f1 f2; apply cmp_of_comparison_ge_gt_eq.
+Qed.
+
+Theorem cmp_lt_gt_false:
+  forall f1 f2, cmp Clt f1 f2 = true -> cmp Cgt f1 f2 = true -> False.
+Proof.
+  intros f1 f2; apply cmp_of_comparison_lt_gt_false.
+Qed.
+
+Theorem cmp_double:
+  forall f1 f2 c, cmp c f1 f2 = Float.cmp c (to_double f1) (to_double f2).
+Proof.
+  unfold cmp, Float.cmp; intros. f_equal. symmetry. apply Bcompare_Bconv_widen.
+  red; lia. lia. lia.
+Qed.
+
+(** Properties of conversions to/from in-memory representation.
+  The conversions are bijective (one-to-one). *)
+
+Theorem of_to_bits:
+  forall f, of_bits (to_bits f) = f.
+Proof.
+  intros; unfold of_bits, to_bits, bits_of_b32, b32_of_bits.
+  rewrite Int.unsigned_repr, binary_float_of_bits_of_binary_float; [reflexivity|].
+  generalize (bits_of_binary_float_range 23 8 __ __ f).
+  change (2^(23+8+1)) with (Int.max_unsigned + 1). lia.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3715-R53804:53813 compcert.lib.IEEE754_extra <> ZofB_Bconv thm
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3716-R53837:53849 Flocq.Core.Zaux <> Zle_bool_true thm
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob:3717:prf 53942:53961 <> Bcompare_Bconv_widen
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3718-R53980:53983 Corelib.Init.Notations <> ::type_scope:x_'->'_x not
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3719-R53971:53974 Stdlib.ZArith.BinInt <> ::Z_scope:x_'>='_x not
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3720-R53966:53970 compcert.lib.IEEE754_extra <> Conversions.prec2 var
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3721-R53975:53979 compcert.lib.IEEE754_extra <> Conversions.prec1 var
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3722-R53998:54003 Corelib.Init.Notations <> ::type_scope:x_'->'_x not
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3723-R53989:53992 Stdlib.ZArith.BinInt <> ::Z_scope:x_'>='_x not
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3724-R53984:53988 compcert.lib.IEEE754_extra <> Conversions.emax2 var
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3725-R53993:53997 compcert.lib.IEEE754_extra <> Conversions.emax1 var
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3726-binder 54011:54018 <> conv_nan:231
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3727-binder 54020:54020 <> m:232
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3728-binder 54022:54022 <> x:233
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.glob-3729-binder 54024:54024 <> y:234
+--
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1427-(** Change of format (to higher precision) and comparison. *)
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1428-
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v:1429:Theorem Bcompare_Bconv_widen:
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1430-  prec2 >= prec1 -> emax2 >= emax1 ->
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1431-  forall conv_nan m x y,
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1432-  Bcompare _ _ (Bconv conv_nan m x) (Bconv conv_nan m y) = Bcompare _ _ x y.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1433-Proof.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1434-  intros. destruct (is_finite _ _ x && is_finite _ _ y) eqn:FIN.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1435-- apply andb_true_iff in FIN. destruct FIN.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1436-  destruct (Bconv_widen_exact H H0 conv_nan m x H1) as (A & B & C).
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1437-  destruct (Bconv_widen_exact H H0 conv_nan m y H2) as (D & E & F).
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1438-  rewrite ! Bcompare_correct by auto. rewrite A, D. auto.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1439-- generalize (Bconv_widen_exact H H0 conv_nan m x)
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1440-             (Bconv_widen_exact H H0 conv_nan m y); intros P Q.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/IEEE754_extra.v-1441-  destruct x as [sx|sx|sx px Hx|sx mx ex Hx], y as [sy|sy|sy py Hy|sy my ey Hy]; try discriminate; simpl in P, Q; simpl;
+--
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2978-R47029:47031 compcert.lib.Floats Float32 cmp def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2979-R47034:47042 compcert.lib.Floats Float cmp def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob:2980:R47078:47097 compcert.lib.IEEE754_extra <> Bcompare_Bconv_widen thm
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2981-prf 47250:47259 Float32 of_to_bits
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2982-binder 47271:47271 <> f:240
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2983-R47293:47295 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2984-R47274:47280 compcert.lib.Floats Float32 of_bits def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2985-R47283:47289 compcert.lib.Floats Float32 to_bits def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2986-R47291:47291 compcert.lib.Floats <> f:240 var
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2987-R47296:47296 compcert.lib.Floats <> f:240 var
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2988-R47323:47329 compcert.lib.Floats Float32 of_bits def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2989-R47332:47338 compcert.lib.Floats Float32 to_bits def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2990-R47341:47351 Flocq.IEEE754.Bits <> bits_of_b32 def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2991-R47354:47364 Flocq.IEEE754.Bits <> b32_of_bits def
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.glob-2992-R47377:47393 compcert.lib.Integers Int unsigned_repr thm
+--
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1195-  forall f1 f2 c, cmp c f1 f2 = Float.cmp c (to_double f1) (to_double f2).
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1196-Proof.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v:1197:  unfold cmp, Float.cmp; intros. f_equal. symmetry. apply Bcompare_Bconv_widen.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1198-  red; lia. lia. lia.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1199-Qed.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1200-
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1201-(** Properties of conversions to/from in-memory representation.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1202-  The conversions are bijective (one-to-one). *)
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1203-
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1204-Theorem of_to_bits:
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1205-  forall f, of_bits (to_bits f) = f.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1206-Proof.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1207-  intros; unfold of_bits, to_bits, bits_of_b32, b32_of_bits.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1208-  rewrite Int.unsigned_repr, binary_float_of_bits_of_binary_float; [reflexivity|].
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v-1209-  generalize (bits_of_binary_float_range 23 8 __ __ f).

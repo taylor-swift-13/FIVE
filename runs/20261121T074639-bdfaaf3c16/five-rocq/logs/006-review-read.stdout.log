@@ -1,0 +1,254 @@
+
+FILE paparazzi/relations/guidance_mode/support/allorder/PureProgress.v SHA256 302c90ea9306aa580ccdddfd571fdd49841ec4166a4f24057742f4c5bffec58b
+1: From Stdlib Require Import Bool List ZArith Lia.
+2: From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+3: From FiveGuidanceSemantics Require Import SemanticsSupport.
+4: From FiveGuidanceAllOrder Require Import PureSyntax.
+5: From FiveGuidanceAllOrder Require Import PureDenotation.
+6: Import ListNotations.
+7: 
+8: Ltac option_cases E :=
+9:  repeat match type of E with
+10:  | context [match ?x with _ => _ end] =>
+11:    let EQ := fresh "EQ" in destruct x eqn:EQ; try discriminate
+12:  end.
+13: 
+14: Lemma pure_eval_big : forall a ge e m,
+15:  simple a=true ->
+16:  (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+17:  (forall b ofs bf, pure_lval ge e m a=Some(b,ofs,bf) -> eval_simple_lvalue ge e m a b ofs bf).
+18: Proof.
+19:  induction a; intros ge e m SIMPLE; simpl in SIMPLE; core_unpack; try discriminate;
+20:  repeat match goal with
+21:  | IH: forall ge e m, simple ?a=true -> _ /\ _ |- _ =>
+22:    let R:=fresh "RV" in let L:=fresh "LV" in
+23:    pose proof (IH ge e m ltac:(assumption)) as [R L]; clear IH
+24:  end;
+25:  split; intros; cbn [pure_rval pure_lval] in H; try discriminate.
+26:  - inversion H; subst; constructor.
+27:  - option_cases H; inversion H; subst; eauto using esl_var_local, esl_var_global.
+28:  - option_cases H; inversion H; subst; eauto using esl_field_struct, esl_field_union.
+29:  - option_cases H; inversion H; subst.
+30:    match goal with D: do_deref_loc _ _ _ _ _ _ _ = Some _ |- _ =>
+31:     destruct (do_deref_loc_sound _ _ _ _ _ _ _ _ _ _ D) as [DR PT]
+32:    end.
+33:    assert (SIL: t = E0) by (eapply deref_loc_silent; eauto; unfold nv; congruence).
+34:    subst t. econstructor; eauto; try (symmetry; assumption).
+35:    apply negb_true_iff; assumption.
+36:  - option_cases H; inversion H; subst; eauto using esl_deref.
+37:  - option_cases H; inversion H; subst; eauto using esr_addrof.
+38:  - option_cases H; eauto using esr_unop.
+39:  - option_cases H; eauto using esr_binop.
+40:  - option_cases H; eauto using esr_cast.
+41:  - inversion H; subst; constructor.
+42:  - inversion H; subst; constructor.
+43:  - inversion H; subst; constructor.
+44: Qed.
+45: 
+46: Definition literal (k:kind) (a:expr) : bool :=
+47:  match k,a with RV,Eval _ _ | LV,Eloc _ _ _ _=>true | _,_=>false end.
+48: 
+49: Lemma lift_immediate : forall ge e m from to C a,
+50:  context from to C -> literal from a=false -> imm_safe ge e from a m ->
+51:  imm_safe ge e to (C a) m.
+52: Proof.
+53:  intros ge e m from to C a CT NL IS; inversion IS; subst; try discriminate.
+54:  - eapply imm_safe_lred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+55:  - eapply imm_safe_rred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+56:  - eapply imm_safe_callred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+57: Qed.
+58: 
+59: Lemma literal_r_inv : forall a, literal RV a=true -> exists v ty,a=Eval v ty.
+60: Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+61: Lemma literal_l_inv : forall a, literal LV a=true -> exists b ofs bf ty,a=Eloc b ofs bf ty.
+62: Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+63: 
+64: Ltac invert_literal_eval :=
+65:  repeat match goal with
+66:  | H:eval_simple_rvalue _ _ _ (Eval _ _) _ |- _ => inversion H; subst; clear H
+67:  | H:eval_simple_lvalue _ _ _ (Eloc _ _ _ _) _ _ _ |- _ => inversion H; subst; clear H
+68:  end.
+69: Lemma big_immediate : forall ge e m,
+70:  (forall a v,eval_simple_rvalue ge e m a v -> imm_safe ge e RV a m) /\
+71:  (forall a b ofs bf,eval_simple_lvalue ge e m a b ofs bf -> imm_safe ge e LV a m).
+72: Proof.
+73:  intros ge e m; apply eval_simple_rvalue_lvalue_ind; intros.
+74:  - constructor.
+75:  - destruct (literal LV l) eqn:LIT.
+76:    + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+77:      invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+78:      eapply red_rvalof; eauto.
+79:    + eapply lift_immediate with (from:=LV) (C:=fun x=>Evalof x ty); eauto.
+80:      constructor; constructor.
+81:  - destruct (literal LV l) eqn:LIT.
+82:    + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+83:      invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+84:      constructor.
+85:    + eapply lift_immediate with (from:=LV) (C:=fun x=>Eaddrof x ty); eauto.
+86:      constructor; constructor.
+87:  - destruct (literal RV r1) eqn:LIT.
+88:    + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1.
+89:      invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+90:      econstructor; eassumption.
+91:    + eapply lift_immediate with (from:=RV) (C:=fun x=>Eunop op x ty); eauto.
+92:      constructor; constructor.
+93:  - destruct (literal RV r1) eqn:L1.
+94:    + destruct (literal_r_inv _ L1) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+95:      destruct (literal RV r2) eqn:L2.
+96:      * destruct (literal_r_inv _ L2) as [vr2[tr2 LITERAL_EQ2]]; subst r2. invert_literal_eval; cbn [typeof] in *; subst.
+97:        eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+98:      * eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op _ x ty); eauto.
+99:        constructor; constructor.
+100:    + eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op x r2 ty); eauto.
+101:      constructor; constructor.
+102:  - destruct (literal RV r1) eqn:LIT.
+103:    + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+104:      eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+105:    + eapply lift_immediate with (from:=RV) (C:=fun x=>Ecast x ty); eauto.
+106:      constructor; constructor.
+107:  - eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. constructor.
+108:  - eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. constructor.
+109:  - constructor.
+110:  - eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+111:  - eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_var_global; eauto.
+112:  - destruct (literal RV r) eqn:LIT.
+113:    + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+114:      eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. constructor.
+115:    + eapply lift_immediate with (from:=RV) (C:=fun x=>Ederef x ty); eauto.
+116:      constructor; constructor.
+117:  - destruct (literal RV r) eqn:LIT.
+118:    + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+119:      eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_field_struct; eauto.
+120:    + eapply lift_immediate with (from:=RV) (C:=fun x=>Efield x f ty); eauto.
+121:      constructor; constructor.
+122:  - destruct (literal RV r) eqn:LIT.
+123:    + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+124:      eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_field_union; eauto.
+125:    + eapply lift_immediate with (from:=RV) (C:=fun x=>Efield x f ty); eauto.
+126:      constructor; constructor.
+127: Qed.
+128: 
+129: Definition big_defined (ge:genv) (e:env) (m:mem) (k:kind) (a:expr) : Prop :=
+130:  match k with
+131:  | RV=>exists v,eval_simple_rvalue ge e m a v
+132:  | LV=>exists b ofs bf,eval_simple_lvalue ge e m a b ofs bf end.
+133: 
+134: Lemma big_context_hole : forall from to C,
+135:  context from to C -> forall a ge e m,
+136:  simple(C a)=true -> big_defined ge e m to (C a) -> big_defined ge e m from a.
+137: Proof.
+138:  induction 1; intros a0 ge e m SIMPLE BIG; simpl in SIMPLE; core_unpack; try discriminate; auto;
+139:  unfold big_defined in BIG; repeat match goal with B:exists _,_ |- _=>destruct B end;
+140:  match goal with
+141:  | B:eval_simple_rvalue _ _ _ _ _ |- _=>inversion B; subst
+142:  | B:eval_simple_lvalue _ _ _ _ _ _ _ |- _=>inversion B; subst
+143:  end;
+144:  eapply IHcontext; eauto; unfold big_defined; eauto.
+145: Qed.
+146: 
+147: Lemma pure_not_stuck : forall ge e m a v,
+148:  simple a=true -> pure_rval ge e m a=Some v -> Csem.not_stuck ge e a m.
+149: Proof.
+150:  intros ge e m a v S EV k C sub CT EQ; subst a.
+151:  pose proof (proj1 (pure_eval_big _ ge e m S) _ EV) as BIG.
+152:  destruct k.
+153:  - destruct (big_context_hole _ _ _ CT sub ge e m S ltac:(unfold big_defined; eauto))
+154:    as [b[ofs[bf L]]]. exact (proj2(big_immediate ge e m) _ _ _ _ L).
+155:  - destruct (big_context_hole _ _ _ CT sub ge e m S ltac:(unfold big_defined; eauto))
+156:    as [w R]. exact (proj1(big_immediate ge e m) _ _ R).
+157: Qed.
+158: 
+159: Lemma simple_immediate : forall ge e m a,
+160:  simple a=true -> pure_rval ge e m a<>None -> imm_safe ge e RV a m.
+161: Proof.
+162:  intros ge e m a S D. destruct (pure_rval ge e m a) eqn:E; [|contradiction].
+163:  eapply (proj1(big_immediate ge e m)); eapply(proj1(pure_eval_big _ ge e m S)); eauto.
+164: Qed.
+165: 
+166: Lemma flat_split : forall a,flat_expr a=true ->
+167:  simple a=true \/ exists l r ty,a=Eassign l r ty /\ simple l=true /\ simple r=true.
+168: Proof.
+169:  destruct a; simpl; intros H; try discriminate; try(left;assumption).
+170:  right; exists a1,a2,ty; apply andb_true_iff in H; tauto.
+171: Qed.
+172: 
+173: Lemma flat_immediate : forall ge e m a v m',
+174:  flat_expr a=true -> flat_eval ge e m a=Some(v,m') -> imm_safe ge e RV a m.
+175: Proof.
+176:  intros ge e m a v m' FL E.
+177:  destruct (flat_split _ FL) as [S|[l[r[ty[EQ[SL SR]]]]]].
+178:  - rewrite (flat_eval_simple ge e m a S) in E.
+179:    eapply simple_immediate; eauto. destruct(pure_rval ge e m a); congruence.
+180:  - subst a. unfold flat_eval in E. option_cases E; inversion E; subst.
+
+FILE paparazzi/relations/guidance_mode/support/allorder/PureSyntax.v SHA256 7fdc277e6a599060ef73566b0de1eab17f6a23567d5c9cee3def648dfa022492
+1: From Coq Require Import Bool List ZArith.
+2: From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Smallstep.
+3: From FiveGuidanceSemantics Require Import SemanticsSupport.
+4: Import ListNotations.
+5: 
+6: (** These predicates constrain syntax only.  Values, argument lists, memories,
+7:     allocation, initialization, alignment and permissions remain arbitrary. *)
+8: Definition nv (ty: type) := negb (type_is_volatile ty).
+9: Fixpoint core_expr (a: expr): bool :=
+10:   match a with
+11:   | Eval _ ty | Evar _ ty | Eloc _ _ _ ty => nv ty
+12:   | Efield a _ ty | Evalof a ty | Ederef a ty | Eaddrof a ty
+13:   | Eunop _ a ty | Ecast a ty | Eparen a _ ty => nv ty && core_expr a
+14:   | Ebinop _ a b ty | Eassign a b ty => nv ty && core_expr a && core_expr b
+15:   | _ => false
+16:   end.
+17: Fixpoint core_stmt (s: statement): bool :=
+18:   match s with
+19:   | Sskip | Sreturn None => true
+20:   | Sdo a | Sreturn (Some a) => core_expr a
+21:   | Ssequence a b => core_stmt a && core_stmt b
+22:   | Sifthenelse a b c => core_expr a && core_stmt b && core_stmt c
+23:   | _ => false
+24:   end.
+25: Fixpoint core_cont (k: cont): bool :=
+26:   match k with
+27:   | Kstop => true
+28:   | Kseq s k => core_stmt s && core_cont k
+29:   | _ => false
+30:   end.
+31: Definition core_expr_cont (k: cont): bool :=
+32:   match k with Kdo k | Kreturn k => core_cont k
+33:  | Kifthenelse a b k => core_stmt a && core_stmt b && core_cont k
+34:  | _ => false end.
+35: 
+36: Ltac core_unpack := repeat match goal with H: _ && _ = true |- _ =>
+37:   apply andb_true_iff in H; let A := fresh "CORE" in let B := fresh "CORE" in destruct H as [A B] end.
+38: Ltac core_build := repeat match goal with |- _ && _ = true => apply andb_true_iff; split end.
+39: 
+40: Lemma core_expr_no_builtin:
+41:   forall a, core_expr a = true -> no_builtin a = true.
+42: Proof.
+43:   induction a; simpl; intros H; core_unpack; try discriminate; core_build; eauto.
+44: Qed.
+45: 
+46: Lemma core_context_hole:
+47:   forall from to C, context from to C -> forall a,
+48:   core_expr (C a) = true -> core_expr a = true.
+49: Proof.
+50:   induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+51: Qed.
+52: 
+53: Lemma core_context_replace:
+54:   forall from to C, context from to C -> forall a b,
+55:   core_expr (C a) = true -> core_expr b = true -> core_expr (C b) = true.
+56: Proof.
+57:   induction 1; simpl; intros a b HA HB; core_unpack; try discriminate;
+58:     core_build; eauto.
+59: Qed.
+60: 
+61: Lemma core_lred:
+62:   forall ge e a m a' m', core_expr a = true -> lred ge e a m a' m' -> core_expr a' = true.
+63: Proof.
+64:   intros ge e a m a' m' HA HR; inversion HR; subst; simpl in *; core_unpack; auto.
+65: Qed.
+66: 
+67: Lemma deref_loc_silent:
+68:   forall ge ty m b ofs bf t v, nv ty = true -> deref_loc ge ty m b ofs bf t v -> t = E0.
+69: Proof.
+70:   intros ge ty m b ofs bf t v NV HR; unfold nv in NV; apply negb_true_iff in NV.

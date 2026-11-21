@@ -1,0 +1,287 @@
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/Proof.v SHA256 bb73caa0305e620f7db90838bba24a5d701bcd542b516f970b515932f55d5a97
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Integers Floats AST Values Memory Memdata Events Csem Smallstep.
+3: From FiveInv2Recheck Require Import Spec.
+4: From FiveMatInv3Case Require Import MatrixMemory.
+5: From FiveInv2Case Require Import Contract Call RecheckSupport Memcpy16 Replay TraceInputs ExactReplay.
+6: From FiveMatrixInverseSupport Require Import Kernels.
+7: Import ListNotations.
+8: Local Open Scope Z_scope.
+9: Lemma call_post:forall m bo bi po pi f,Inputs m bo bi po pi f->forall t result mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->result=Result f/\Post m mf bo bi po pi f.
+10: Proof. intros m bo bi po pi f IN t result mf PATH;destruct(call_summary m bo bi po pi f IN)as[after[EX[POST[SAFE ALL]]]];destruct(ALL t result mf PATH)as[R M];subst result mf;auto. Qed.
+11: Lemma copy_guard_proved:forall k,CopyGuard k.
+12: Proof. intros k m src dst PRE;pose proof(copy_pre_safety m src dst PRE)as[NE A B EN C D SEP RD WR].
+13:  destruct k as[|[|[|[|[|[|[|[|k]]]]]]]];simpl;auto;intros order[EQ Q];congruence. Qed.
+14: Lemma case_status:forall f expected,Result f=expected->CaseStatus f expected.
+15: Proof. intros f expected EQ m bo bi po pi IN t result mf PATH;rewrite(proj1(call_post m bo bi po pi f IN t result mf PATH));exact EQ. Qed.
+16: Lemma case_words:forall f words,Reject f=false->map(fun i=>Float32.to_bits(Output f i))[0;1;2;3]=map Int.repr words->CaseWords f words.
+17: Proof. intros f words REJ WORD m bo bi pi IN t result mf PATH dst bytes obs READ STORE.
+18:  pose proof(proj2(call_post m bo bi Ptrofs.zero pi f IN t result mf PATH))as POST.
+19:  transitivity(map(fun i=>Some(Vint(Float32.to_bits(Output f i))))[0;1;2;3]).
+20:  - apply map_ext_in;intros i INDEX;eapply successful_copy_words;[exact POST|exact REJ|exact READ|exact STORE|];simpl in INDEX;repeat destruct INDEX as[EQ|INDEX];try contradiction;subst i;lia.
+21:  - change(map(fun w=>Some(Vint w))(map(fun i=>Float32.to_bits(Output f i))[0;1;2;3])=map(fun w=>Some(Vint(Int.repr w)))words);rewrite WORD,map_map;reflexivity. Qed.
+22: Lemma case_preserves:forall f,Reject f=true->CasePreserves f.
+23: Proof. intros f REJ m bo bi po pi IN t result mf PATH;destruct(proj2(call_post m bo bi po pi f IN t result mf PATH))as[W[RD[FR[VB[BY AC]]]]];rewrite REJ in BY;exact BY. Qed.
+24: Lemma assertion_1:Assertion1.
+25: Proof. intros m bo bi po pi f IN t result mf PATH;rewrite(proj1(call_post m bo bi po pi f IN t result mf PATH));unfold Result;destruct(Reject f);auto. Qed.
+26: Lemma assertion_2:Assertion2.
+27: Proof. intros m bo bi pi f before after IN BEFORE AFTER t result mf PATH.
+28:  destruct(proj2(call_post m bo bi(Ptrofs.repr 4)pi f IN t result mf PATH))as[W[RD[FR REST]]].
+29:  assert(VO:Mem.valid_block m bo)by(destruct IN as[NE[WO RI]];exact(writable_valid m bo(Ptrofs.repr 4)4 ltac:(lia)WO)).
+30:  split;[exact FR|];split.
+31:  - eapply(frame_load_kept m mf bo(Ptrofs.repr 4)bo 0 Mint32(Vint before));[exact FR|exact VO|right;left;change(0+4<=4);lia|exact BEFORE].
+32:  - eapply(frame_load_kept m mf bo(Ptrofs.repr 4)bo 20 Mint32(Vint after));[exact FR|exact VO|right;right;change(4+16<=20);lia|exact AFTER]. Qed.
+33: Lemma assertion_3:CaseStatus base2(Vint Int.zero).
+34: Proof. apply case_status;exact(proj1 base2_kernel). Qed.
+35: Lemma assertion_4:CaseWords base2[1065353216;2147483648;2147483648;1065353216].
+36: Proof. apply case_words;[vm_compute;reflexivity|exact(proj2(proj2 base2_kernel))]. Qed.
+37: Lemma assertion_5:CaseStatus small2(Vint Int.one).
+38: Proof. apply case_status;exact(proj1 small2_kernel). Qed.
+39: Lemma assertion_6:CasePreserves small2.
+40: Proof. apply case_preserves;vm_compute;reflexivity. Qed.
+41: Lemma assertion_7:CaseStatus large2(Vint Int.zero).
+42: Proof. apply case_status;exact(proj1 large2_kernel). Qed.
+43: Lemma assertion_8:CaseWords large2[0;2147483648;2147483648;0].
+44: Proof. apply case_words;[vm_compute;reflexivity|exact(proj2(proj2 large2_kernel))]. Qed.
+45: Lemma assertion_9:OriginalReplay /\ Result base2<>Result small2 /\ TraceNonempty.
+46: Proof. split;[exact original_trace_four_calls|];split;[exact RefuteScaleStatus2|exact original_trace_nonempty]. Qed.
+47: Lemma assertion_10:OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864 /\ TraceNonempty.
+48: Proof. destruct original_trace_residual_failure as[REPLAY[STATUS[BAD BITS]]];split;[exact REPLAY|];split;[exact STATUS|];split;[exact BAD|];split;[exact BITS|exact original_trace_nonempty]. Qed.
+49: Theorem property_001:Spec.P001.
+50: Proof. apply source_guards. Qed.
+51: Print Assumptions property_001.
+52: Theorem property_002:Spec.P002.
+53: Proof. apply source_guards. Qed.
+54: Print Assumptions property_002.
+55: Theorem property_003:Spec.P003.
+56: Proof. apply source_guards. Qed.
+57: Print Assumptions property_003.
+58: Theorem property_004:Spec.P004.
+59: Proof. apply source_guards. Qed.
+60: Print Assumptions property_004.
+61: Theorem property_005:Spec.P005.
+62: Proof. apply source_guards. Qed.
+63: Print Assumptions property_005.
+64: Theorem property_006:Spec.P006.
+65: Proof. apply source_guards. Qed.
+66: Print Assumptions property_006.
+67: Theorem property_007:Spec.P007.
+68: Proof. apply source_guards. Qed.
+69: Print Assumptions property_007.
+70: Theorem property_008:Spec.P008.
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/Proof.v SHA256 bb73caa0305e620f7db90838bba24a5d701bcd542b516f970b515932f55d5a97
+400: Theorem property_118:Spec.P118.
+401: Proof. apply source_guards. Qed.
+402: Print Assumptions property_118.
+403: Theorem property_119:Spec.P119.
+404: Proof. apply source_guards. Qed.
+405: Print Assumptions property_119.
+406: Theorem property_120:Spec.P120.
+407: Proof. apply source_guards. Qed.
+408: Print Assumptions property_120.
+409: Theorem property_121:Spec.P121.
+410: Proof. apply source_guards. Qed.
+411: Print Assumptions property_121.
+412: Theorem property_122:Spec.P122.
+413: Proof. apply source_guards. Qed.
+414: Print Assumptions property_122.
+415: Theorem property_123:Spec.P123.
+416: Proof. apply source_guards. Qed.
+417: Print Assumptions property_123.
+418: Theorem property_124:Spec.P124.
+419: Proof. apply source_guards. Qed.
+420: Print Assumptions property_124.
+421: Theorem property_125:Spec.P125.
+422: Proof. apply source_guards. Qed.
+423: Print Assumptions property_125.
+424: Theorem property_126:Spec.P126.
+425: Proof. apply source_guards. Qed.
+426: Print Assumptions property_126.
+427: Theorem property_127:Spec.P127.
+428: Proof. apply source_guards. Qed.
+429: Print Assumptions property_127.
+430: Theorem property_128:Spec.P128.
+431: Proof. apply source_guards. Qed.
+432: Print Assumptions property_128.
+433: Theorem property_129:Spec.P129.
+434: Proof. apply source_guards. Qed.
+435: Print Assumptions property_129.
+436: Theorem property_130:Spec.P130.
+437: Proof. apply source_guards. Qed.
+438: Print Assumptions property_130.
+439: Theorem property_131:Spec.P131.
+440: Proof. apply source_guards. Qed.
+441: Print Assumptions property_131.
+442: Theorem property_132:Spec.P132.
+443: Proof. apply source_guards. Qed.
+444: Print Assumptions property_132.
+445: Theorem property_133:Spec.P133.
+446: Proof. apply source_guards. Qed.
+447: Print Assumptions property_133.
+448: Theorem property_134:Spec.P134.
+449: Proof. apply source_guards. Qed.
+450: Print Assumptions property_134.
+451: Theorem property_135:Spec.P135.
+452: Proof. apply source_guards. Qed.
+453: Print Assumptions property_135.
+454: Theorem property_136:Spec.P136.
+455: Proof. apply source_guards. Qed.
+456: Print Assumptions property_136.
+457: Theorem property_137:Spec.P137.
+458: Proof. apply source_guards. Qed.
+459: Print Assumptions property_137.
+460: Theorem property_138:Spec.P138.
+461: Proof. apply source_guards. Qed.
+462: Print Assumptions property_138.
+463: Theorem property_139:Spec.P139.
+464: Proof. apply source_guards. Qed.
+465: Print Assumptions property_139.
+466: Theorem property_140:Spec.P140.
+467: Proof. apply source_guards. Qed.
+468: Print Assumptions property_140.
+469: Theorem property_141:Spec.P141.
+470: Proof. apply source_guards. Qed.
+471: Print Assumptions property_141.
+472: Theorem property_142:Spec.P142.
+473: Proof. apply source_guards. Qed.
+474: Print Assumptions property_142.
+475: Theorem property_143:Spec.P143.
+476: Proof. apply source_guards. Qed.
+477: Print Assumptions property_143.
+478: Theorem property_144:Spec.P144.
+479: Proof. apply source_guards. Qed.
+480: Print Assumptions property_144.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/attempts/001/Proof.v SHA256 fc02d9f217c0ad771ab7db2413b714a447ae2aea56a56bcd5b91ff55a94b28e5
+1: From FiveMatInv3Case Require Import RecheckSupport Assertions.
+2: From FiveMatInv3Recheck Require Import Spec.
+3: From Stdlib Require Import String.
+4: Local Open Scope string_scope.
+5: Theorem property_001:Spec.Property 0%nat "float_mat_inv_3d.pointer_arithmetic.1".
+6: Proof. change ("float_mat_inv_3d.pointer_arithmetic.1"="float_mat_inv_3d.pointer_arithmetic.1"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+7: Theorem property_002:Spec.Property 1%nat "float_mat_inv_3d.pointer_arithmetic.2".
+8: Proof. change ("float_mat_inv_3d.pointer_arithmetic.2"="float_mat_inv_3d.pointer_arithmetic.2"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+9: Theorem property_003:Spec.Property 2%nat "float_mat_inv_3d.pointer_arithmetic.3".
+10: Proof. change ("float_mat_inv_3d.pointer_arithmetic.3"="float_mat_inv_3d.pointer_arithmetic.3"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+11: Theorem property_004:Spec.Property 3%nat "float_mat_inv_3d.pointer_arithmetic.4".
+12: Proof. change ("float_mat_inv_3d.pointer_arithmetic.4"="float_mat_inv_3d.pointer_arithmetic.4"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+13: Theorem property_005:Spec.Property 4%nat "float_mat_inv_3d.pointer_arithmetic.5".
+14: Proof. change ("float_mat_inv_3d.pointer_arithmetic.5"="float_mat_inv_3d.pointer_arithmetic.5"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+15: Theorem property_006:Spec.Property 5%nat "float_mat_inv_3d.pointer_arithmetic.6".
+16: Proof. change ("float_mat_inv_3d.pointer_arithmetic.6"="float_mat_inv_3d.pointer_arithmetic.6"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+17: Theorem property_007:Spec.Property 6%nat "float_mat_inv_3d.pointer_dereference.1".
+18: Proof. change ("float_mat_inv_3d.pointer_dereference.1"="float_mat_inv_3d.pointer_dereference.1"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+19: Theorem property_008:Spec.Property 7%nat "float_mat_inv_3d.pointer_dereference.2".
+20: Proof. change ("float_mat_inv_3d.pointer_dereference.2"="float_mat_inv_3d.pointer_dereference.2"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+21: Theorem property_009:Spec.Property 8%nat "float_mat_inv_3d.pointer_dereference.3".
+22: Proof. change ("float_mat_inv_3d.pointer_dereference.3"="float_mat_inv_3d.pointer_dereference.3"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+23: Theorem property_010:Spec.Property 9%nat "float_mat_inv_3d.pointer_dereference.4".
+24: Proof. change ("float_mat_inv_3d.pointer_dereference.4"="float_mat_inv_3d.pointer_dereference.4"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+25: Theorem property_011:Spec.Property 10%nat "float_mat_inv_3d.pointer_dereference.5".
+26: Proof. change ("float_mat_inv_3d.pointer_dereference.5"="float_mat_inv_3d.pointer_dereference.5"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+27: Theorem property_012:Spec.Property 11%nat "float_mat_inv_3d.pointer_dereference.6".
+28: Proof. change ("float_mat_inv_3d.pointer_dereference.6"="float_mat_inv_3d.pointer_dereference.6"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+29: Theorem property_013:Spec.Property 12%nat "float_mat_inv_3d.array_bounds.1".
+30: Proof. change ("float_mat_inv_3d.array_bounds.1"="float_mat_inv_3d.array_bounds.1"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+31: Theorem property_014:Spec.Property 13%nat "float_mat_inv_3d.pointer_arithmetic.7".
+32: Proof. change ("float_mat_inv_3d.pointer_arithmetic.7"="float_mat_inv_3d.pointer_arithmetic.7"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+33: Theorem property_015:Spec.Property 14%nat "float_mat_inv_3d.pointer_arithmetic.8".
+34: Proof. change ("float_mat_inv_3d.pointer_arithmetic.8"="float_mat_inv_3d.pointer_arithmetic.8"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+35: Theorem property_016:Spec.Property 15%nat "float_mat_inv_3d.pointer_arithmetic.9".
+36: Proof. change ("float_mat_inv_3d.pointer_arithmetic.9"="float_mat_inv_3d.pointer_arithmetic.9"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+37: Theorem property_017:Spec.Property 16%nat "float_mat_inv_3d.pointer_arithmetic.10".
+38: Proof. change ("float_mat_inv_3d.pointer_arithmetic.10"="float_mat_inv_3d.pointer_arithmetic.10"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+39: Theorem property_018:Spec.Property 17%nat "float_mat_inv_3d.pointer_arithmetic.11".
+40: Proof. change ("float_mat_inv_3d.pointer_arithmetic.11"="float_mat_inv_3d.pointer_arithmetic.11"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+41: Theorem property_019:Spec.Property 18%nat "float_mat_inv_3d.pointer_arithmetic.12".
+42: Proof. change ("float_mat_inv_3d.pointer_arithmetic.12"="float_mat_inv_3d.pointer_arithmetic.12"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+43: Theorem property_020:Spec.Property 19%nat "float_mat_inv_3d.pointer_dereference.7".
+44: Proof. change ("float_mat_inv_3d.pointer_dereference.7"="float_mat_inv_3d.pointer_dereference.7"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+45: Theorem property_021:Spec.Property 20%nat "float_mat_inv_3d.pointer_dereference.8".
+46: Proof. change ("float_mat_inv_3d.pointer_dereference.8"="float_mat_inv_3d.pointer_dereference.8"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+47: Theorem property_022:Spec.Property 21%nat "float_mat_inv_3d.pointer_dereference.9".
+48: Proof. change ("float_mat_inv_3d.pointer_dereference.9"="float_mat_inv_3d.pointer_dereference.9"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+49: Theorem property_023:Spec.Property 22%nat "float_mat_inv_3d.pointer_dereference.10".
+50: Proof. change ("float_mat_inv_3d.pointer_dereference.10"="float_mat_inv_3d.pointer_dereference.10"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+51: Theorem property_024:Spec.Property 23%nat "float_mat_inv_3d.pointer_dereference.11".
+52: Proof. change ("float_mat_inv_3d.pointer_dereference.11"="float_mat_inv_3d.pointer_dereference.11"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+53: Theorem property_025:Spec.Property 24%nat "float_mat_inv_3d.pointer_dereference.12".
+54: Proof. change ("float_mat_inv_3d.pointer_dereference.12"="float_mat_inv_3d.pointer_dereference.12"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+55: Theorem property_026:Spec.Property 25%nat "float_mat_inv_3d.array_bounds.2".
+56: Proof. change ("float_mat_inv_3d.array_bounds.2"="float_mat_inv_3d.array_bounds.2"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+57: Theorem property_027:Spec.Property 26%nat "float_mat_inv_3d.array_bounds.3".
+58: Proof. change ("float_mat_inv_3d.array_bounds.3"="float_mat_inv_3d.array_bounds.3"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+59: Theorem property_028:Spec.Property 27%nat "float_mat_inv_3d.array_bounds.4".
+60: Proof. change ("float_mat_inv_3d.array_bounds.4"="float_mat_inv_3d.array_bounds.4"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+61: Theorem property_029:Spec.Property 28%nat "float_mat_inv_3d.pointer_arithmetic.13".
+62: Proof. change ("float_mat_inv_3d.pointer_arithmetic.13"="float_mat_inv_3d.pointer_arithmetic.13"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+63: Theorem property_030:Spec.Property 29%nat "float_mat_inv_3d.pointer_arithmetic.14".
+64: Proof. change ("float_mat_inv_3d.pointer_arithmetic.14"="float_mat_inv_3d.pointer_arithmetic.14"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+65: Theorem property_031:Spec.Property 30%nat "float_mat_inv_3d.pointer_arithmetic.15".
+
+FILE examples/models/sum3/rocq/cbmc_recheck/problem/Spec.v SHA256 1f1045772bcd04c924ed1685e9d84dfbdd70db8dfb298b981c2ee8cd0e87bb99
+1: From Stdlib Require Import ZArith.
+2: From compcert Require Import Integers Floats Values Csem Smallstep.
+3: From FiveSum3Proof Require Import SourceInvariant.
+4: 
+5: Definition ResultBitsGoal : Prop := forall m t v mf,
+6:  star Csem.step sum3_ge
+7:    (sum3_start (Vsingle (Float32.of_bits (Int.repr 1266679808)))
+8:                (Vsingle (Float32.of_bits (Int.repr 1065353216)))
+9:                (Vsingle (Float32.of_bits (Int.repr 3414163456))) m)
+10:    t (Returnstate v Kstop mf) ->
+11:  exists f, v = Vsingle f /\ Float32.to_bits f = Int.zero.
+12: 
+13: From Stdlib Require Import List ZArith.
+14: From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Smallstep.
+15: From FiveSum3Proof Require Import SourceInvariant.
+16: Import ListNotations.
+17: Local Open Scope Z_scope.
+18: 
+19: Definition bits_id : ident := 9001%positive.
+20: Definition bits_env (bb:block) : env := PTree.set bits_id (bb,tuint) empty_env.
+21: Definition bits_assertion : expr :=
+22:  Ebinop Oeq (Evalof (Evar bits_id tuint) tuint) (Eval (Vint Int.zero) tuint) tint.
+23: 
+24: (** The two objects are the final two locals in main. All preceding locals and
+25:     arbitrary caller memory are included in m. Allocations precede both calls. *)
+26: Inductive HarnessPrefix (m:mem) (a b c:float32) : block -> block -> mem -> val -> Prop :=
+27: | harness_prefix : forall mr br mh bb t1 v1 m1 t2 v2 m2,
+28:  Mem.alloc m 0 4 = (mr,br) -> Mem.alloc mr 0 4 = (mh,bb) ->
+29:  star Csem.step sum3_ge (sum3_start (Vsingle a)(Vsingle b)(Vsingle c) mh) t1 (Returnstate v1 Kstop m1) ->
+30:  star Csem.step sum3_ge
+31:   (sum3_start (Vsingle(Float32.of_bits(Int.repr 1266679808)))
+32:    (Vsingle(Float32.of_bits(Int.repr 1065353216)))
+33:    (Vsingle(Float32.of_bits(Int.repr 3414163456))) m1) t2 (Returnstate v2 Kstop m2) ->
+34:  HarnessPrefix m a b c br bb m2 v2.
+35: 
+36: (** CBMC's library uses internal pointer guards. Their portable memory-safety
+37:     content is object separation, live base/one-past pointers, and region
+38:     permissions; no C order is imposed between unrelated CompCert blocks. *)
+39: Record MemcpySafety (m:mem) (br bb:block) : Prop := {
+40:  memcpy_pointer_1 : br <> bb;
+41:  memcpy_pointer_arithmetic_1 : Mem.valid_pointer m br 0 = true;
+42:  memcpy_pointer_arithmetic_2 : Mem.weak_valid_pointer m bb 4 = true;
+43:  memcpy_pointer_2 : bb <> br;
+44:  memcpy_pointer_arithmetic_3 : Mem.valid_pointer m bb 0 = true;
+45:  memcpy_pointer_arithmetic_4 : Mem.weak_valid_pointer m br 4 = true;
+46:  main_precondition_instance_1 : br <> bb \/ 0+4 <= 0 \/ 0+4 <= 0;
+47:  main_precondition_instance_2 : Mem.range_perm m br 0 4 Cur Readable;
+48:  main_precondition_instance_3 : Mem.range_perm m bb 0 4 Cur Writable
+49: }.
+50: Definition ByteObservation (br bb:block) (m:mem) (v:val) : Prop :=
+51:  exists stored copied bytes,
+52:  Mem.store Mfloat32 m br 0 v = Some stored /\
+53:  MemcpySafety stored br bb /\
+54:  Mem.loadbytes stored br 0 4 = Some bytes /\
+55:  bytes = encode_val Mfloat32 v /\
+56:  extcall_memcpy_sem 4 1 (Genv.to_senv (Csem.genv_genv sum3_ge)) [Vptr bb Ptrofs.zero;Vptr br Ptrofs.zero] stored E0 Vundef copied /\
+57:  Mem.loadbytes copied bb 0 4 = Some bytes /\
+58:  Mem.load Mint32 copied bb 0 = Some(Vint Int.zero) /\
+59:  star Csem.step sum3_ge
+60:   (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+61:   (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop (bits_env bb) copied).
+62: Definition FullHarnessGoal : Prop := forall m (a b c:float32) br bb mf v,
+63:  HarnessPrefix m a b c br bb mf v -> ByteObservation br bb mf v.

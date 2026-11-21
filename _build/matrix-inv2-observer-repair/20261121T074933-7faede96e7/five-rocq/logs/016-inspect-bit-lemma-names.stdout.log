@@ -1,0 +1,32 @@
+  red; lia. lia. lia.
+Qed.
+
+(** Properties of conversions to/from in-memory representation.
+  The conversions are bijective (one-to-one). *)
+
+Theorem of_to_bits:
+  forall f, of_bits (to_bits f) = f.
+Proof.
+  intros; unfold of_bits, to_bits, bits_of_b32, b32_of_bits.
+  rewrite Int.unsigned_repr, binary_float_of_bits_of_binary_float; [reflexivity|].
+  generalize (bits_of_binary_float_range 23 8 __ __ f).
+  change (2^(23+8+1)) with (Int.max_unsigned + 1). lia.
+Qed.
+
+Theorem to_of_bits:
+  forall b, to_bits (of_bits b) = b.
+Proof.
+  intros; unfold of_bits, to_bits, bits_of_b32, b32_of_bits.
+  rewrite bits_of_binary_float_of_bits. apply Int.repr_unsigned.
+  apply Int.unsigned_range.
+  | |- context [ Int.sign_ext _ (Int.zero_ext _ _) ] => rewrite Int.sign_ext_zero_ext by lia
+  end.
+
+Lemma decode_encode_val_general:
+  forall v chunk1 chunk2,
+  decode_encode_val v chunk1 chunk2 (decode_val chunk2 (encode_val chunk1 v)).
+Proof.
+Opaque inj_value.
+  intros.
+  destruct v; destruct chunk1 eqn:C1; try (apply decode_val_undef);
+  destruct chunk2 eqn:C2; unfold decode_encode_val, decode_val, encode_val, Val.load_result;

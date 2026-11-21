@@ -1,0 +1,253 @@
+
+FILE paparazzi/relations/guidance_mode/support/allorder/PureDenotation.v SHA256 12456231c9097b3ccc26fdf1c8f1972aff42755d24eef28c76b1e460a590c317
+1: From Coq Require Import Bool List ZArith.
+2: From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+3: From FiveGuidanceSemantics Require Import SemanticsSupport.
+4: From FiveGuidanceAllOrder Require Import PureSyntax.
+5: Import ListNotations.
+6: 
+7: (** This denotation is used to establish uniqueness of normal executions.
+8:     Execution remains the complete error-preserving operational model. *)
+9: Definition quiet_world: world := World (fun _ _ => None) (fun _ _ _ => None) (fun _ _ _ _ => None).
+10: 
+11: Section DENOTATION.
+12: Variable ge: genv.
+13: Variable e: env.
+14: Variable m: mem.
+15: 
+16: Fixpoint pure_rval (a: expr): option val :=
+17:   match a with
+18:   | Eval v _ => Some v
+19:   | Evalof l ty =>
+20:       if type_eq ty (typeof l) then
+21:       match pure_lval l with
+22:       | Some (b,ofs,bf) =>
+23:           match Cexec.do_deref_loc ge quiet_world ty m b ofs bf with
+24:           | Some (_,_,v) => Some v | None => None end
+25:       | None => None end else None
+26:   | Eaddrof l _ =>
+27:       match pure_lval l with Some (b,ofs,Full) => Some (Vptr b ofs) | _ => None end
+28:   | Eunop op a _ =>
+29:       match pure_rval a with Some v => sem_unary_operation op v (typeof a) m | None => None end
+30:   | Ebinop op a b _ =>
+31:       match pure_rval a, pure_rval b with
+32:       | Some v, Some w => sem_binary_operation ge op v (typeof a) w (typeof b) m
+33:       | _,_ => None end
+34:   | Ecast a ty =>
+35:       match pure_rval a with Some v => sem_cast v (typeof a) ty m | None => None end
+36:   | Esizeof ty _ => Some (Vptrofs (Ptrofs.repr (sizeof ge ty)))
+37:   | Ealignof ty _ => Some (Vptrofs (Ptrofs.repr (alignof ge ty)))
+38:   | _ => None
+39:   end
+40: with pure_lval (a: expr): option (block * ptrofs * bitfield) :=
+41:   match a with
+42:   | Eloc b ofs bf _ => Some (b,ofs,bf)
+43:   | Evar id ty =>
+44:       match PTree.get id e with
+45:       | Some (b,ty') => if type_eq ty ty' then Some (b,Ptrofs.zero,Full) else None
+46:       | None => match Genv.find_symbol ge id with Some b => Some (b,Ptrofs.zero,Full) | None => None end end
+47:   | Ederef a _ =>
+48:       match pure_rval a with Some (Vptr b ofs) => Some (b,ofs,Full) | _ => None end
+49:   | Efield a id _ =>
+50:       match pure_rval a with
+51:       | Some (Vptr b ofs) =>
+52:           match typeof a with
+53:           | Tstruct sid _ =>
+54:               match PTree.get sid (genv_cenv ge) with
+55:               | Some co => match field_offset ge id (co_members co) with
+56:                 | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+57:                 | _ => None end
+58:               | None => None end
+59:           | Tunion sid _ =>
+60:               match PTree.get sid (genv_cenv ge) with
+61:               | Some co => match union_field_offset ge id (co_members co) with
+62:                 | OK (delta,bf) => Some (b,Ptrofs.add ofs (Ptrofs.repr delta),bf)
+63:                 | _ => None end
+64:               | None => None end
+65:           | _ => None end
+66:       | _ => None end
+67:   | _ => None
+68:   end.
+69: 
+70: Definition pure_eq (k: kind) (a b: expr): Prop :=
+71:   match k with RV => pure_rval a = pure_rval b | LV => pure_lval a = pure_lval b end.
+72: 
+73: Lemma context_type_eq:
+74:   forall from to C, context from to C -> forall a b,
+75:   typeof a = typeof b -> typeof (C a) = typeof (C b).
+76: Proof. induction 1; simpl; intros; auto. Qed.
+77: 
+78: Lemma pure_context_congr:
+79:   forall from to C, context from to C -> forall a b,
+80:   typeof a = typeof b -> pure_eq from a b -> pure_eq to (C a) (C b).
+81: Proof.
+82:   induction 1; simpl; intros a b HT HE; auto;
+83:     try (rewrite (IHcontext a b HT HE); reflexivity);
+84:     try (rewrite (context_type_eq _ _ _ H a b HT), (IHcontext a b HT HE); reflexivity).
+85: Qed.
+86: 
+87: End DENOTATION.
+88: 
+89: Lemma simple_context_hole:
+90:   forall from to C, context from to C -> forall a,
+91:   simple (C a) = true -> simple a = true.
+92: Proof.
+93:   induction 1; simpl; intros a HA; core_unpack; try discriminate; eauto.
+94: Qed.
+95: 
+96: Lemma pure_lred:
+97:   forall ge e a m a' m', lred ge e a m a' m' ->
+98:   m' = m /\ typeof a' = typeof a /\ simple a' = true /\
+99:   pure_lval ge e m a = pure_lval ge e m a'.
+100: Proof.
+101:   intros ge e a m a' m' H; inversion H; subst; simpl; repeat split; auto;
+102:     try rewrite H0; try rewrite H1; try rewrite H2; try rewrite dec_eq_true; auto.
+103: Qed.
+104: 
+105: Lemma pure_rred:
+106:   forall ge e a m t a' m', simple a = true -> rred ge a m t a' m' ->
+107:   m' = m /\ t = E0 /\ typeof a' = typeof a /\ simple a' = true /\
+108:   pure_rval ge e m a = pure_rval ge e m a'.
+109: Proof.
+110:   intros ge e a m t a' m' HA HR; inversion HR; subst; simpl in HA; core_unpack; try discriminate;
+
+FILE paparazzi/relations/guidance_mode/support/allorder/PureDenotation.v SHA256 12456231c9097b3ccc26fdf1c8f1972aff42755d24eef28c76b1e460a590c317
+
+FILE paparazzi/relations/guidance_mode/support/allorder/AtomicDenotation.v SHA256 ea27b03f6e1a0e6ddea6cce8031a9004d55aad037740ae8d609027c13e703f01
+1: From Stdlib Require Import Bool List ZArith.
+2: From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Determinism Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+3: From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+4: Import ListNotations.
+5: 
+6: Definition commit (ge:genv) (m:mem) (ty:type) (loc:block*ptrofs*bitfield) (v:val) (vty:type) : option(val*mem) :=
+7:  let '(b,ofs,bf):=loc in
+8:  match sem_cast v vty ty m with
+9:  | Some vc => match Cexec.do_assign_loc ge quiet_world ty m b ofs bf vc with
+10:    | Some (_,_,mf,vf)=>Some(vf,mf) | None=>None end
+11:  | None=>None end.
+12: Definition atomic_expr (a:expr):bool :=
+13:  match a with
+14:  | Eassign l r _ | Eassignop _ l r _ _ => simple l && simple r && nv(typeof l)
+15:  | _=>simple a end.
+16: Definition atomic_eval (ge:genv) (e:env) (m:mem) (a:expr):option(val*mem) :=
+17:  match a with
+18:  | Eassign l r ty =>
+19:    if type_eq (typeof l) ty then
+20:    match pure_lval ge e m l,pure_rval ge e m r with
+21:    | Some loc,Some v=>commit ge m (typeof l) loc v (typeof r)
+22:    | _,_=>None end else None
+23:  | Eassignop op l r tyres ty =>
+24:    if type_eq (typeof l) ty then
+25:    match pure_lval ge e m l,pure_rval ge e m r with
+26:    | Some(b,ofs,bf),Some vr=>
+27:      match Cexec.do_deref_loc ge quiet_world (typeof l) m b ofs bf with
+28:      | Some(_,_,vl)=>match sem_binary_operation ge op vl (typeof l) vr (typeof r) m with
+29:        | Some vo=>commit ge m (typeof l) (b,ofs,bf) vo tyres
+30:        | None=>None end
+31:      | None=>None end
+32:    | _,_=>None end else None
+33:  | _=>option_map (fun v=>(v,m)) (pure_rval ge e m a)
+34:  end.
+35: Lemma atomic_simple: forall a,simple a=true -> atomic_expr a=true.
+36: Proof. destruct a;simpl;auto;discriminate. Qed.
+37: Lemma atomic_eval_simple: forall ge e m a,simple a=true ->
+38:  atomic_eval ge e m a=option_map(fun v=>(v,m))(pure_rval ge e m a).
+39: Proof. destruct a;simpl;auto;discriminate. Qed.
+40: Lemma atomic_context_hole: forall from to C,context from to C -> forall a,
+41:  atomic_expr(C a)=true -> atomic_expr a=true.
+42: Proof. induction 1;simpl;intros a HA;core_unpack;try discriminate;eauto using atomic_simple,simple_context_hole. Qed.
+43: Lemma atomic_context_replace: forall from to C,context from to C -> forall a b,
+44:  typeof a=typeof b -> atomic_expr(C a)=true -> simple b=true -> atomic_expr(C b)=true.
+45: Proof.
+46:  induction 1;simpl;intros a b HT HA HB;core_unpack;try discriminate;core_build;
+47:  eauto using simple_context_replace,atomic_simple.
+48:  all: try (rewrite <-(context_type_eq _ _ _ H a b HT);assumption).
+49: Qed.
+50: Lemma atomic_effect_root: forall C,context RV RV C -> forall a,
+51:  atomic_expr(C a)=true -> simple a=false -> forall z,C z=z.
+52: Proof.
+53:  intros C HC a HA SA;inversion HC;subst;simpl in HA;core_unpack;try discriminate;auto;
+54:  exfalso;match goal with
+55:  | CT:Csem.context _ _ ?C,SI:simple(?C a)=true |- _=>
+56:  pose proof(simple_context_hole _ _ _ CT a SI);congruence end.
+57: Qed.
+58: Lemma atomic_context_congr: forall ge e m from C,
+59:  context from RV C -> forall a b,
+60:  typeof a=typeof b -> simple a=true -> simple b=true ->
+61:  pure_eq ge e m from a b ->
+62:  atomic_eval ge e m (C a)=atomic_eval ge e m (C b).
+63: Proof.
+64:  intros ge e m from C HC a b HT HA HB HE; inversion HC; subst;
+65:  try (repeat rewrite atomic_eval_simple by assumption; simpl in HE; rewrite HE; reflexivity).
+66:  all: try (match goal with
+67:  | |- atomic_eval ?ge ?e ?m ?A = atomic_eval ?ge ?e ?m ?B =>
+68:  change (option_map (fun v=>(v,m)) (pure_rval ge e m A) =
+69:          option_map (fun v=>(v,m)) (pure_rval ge e m B))
+70:  end; f_equal; exact (pure_context_congr ge e m _ _ _ HC a b HT HE)).
+71:  all: simpl;rewrite ?(context_type_eq _ _ _ H a b HT),
+72:  (pure_context_congr ge e m _ _ _ H a b HT HE);reflexivity.
+73: Qed.
+74: Lemma atomic_assign_head: forall ge e m l r ty t a' mf,
+75:  atomic_expr(Eassign l r ty)=true -> rred ge(Eassign l r ty)m t a' mf ->
+76:  t=E0 /\ atomic_eval ge e m(Eassign l r ty)=atomic_eval ge e mf a'.
+77: Proof.
+78:  intros ge e m l r ty t a' mf AT HR;inversion HR;subst;simpl in AT;core_unpack.
+79:  assert(TT:t=E0) by(eapply assign_loc_silent;eauto). subst t;split;auto.
+80:  cbn[atomic_eval pure_lval pure_rval commit typeof];rewrite dec_eq_true.
+81:  match goal with H:sem_cast _ _ _ _=Some _ |- _=>rewrite H end.
+82:  match goal with H:assign_loc _ _ _ _ _ _ _ E0 _ _ |- _=>
+83:  rewrite(do_assign_loc_complete ge quiet_world _ _ _ _ _ _ quiet_world E0 _ _ H (possible_trace_nil _)) end.
+84:  reflexivity.
+85: Qed.
+
+FILE paparazzi/relations/guidance_mode/support/entry/Entry.v SHA256 769eddc0e724d4505ed4d7e422f3fac716e274e1d0502c49d4f5557ea99ecd2b
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Coqlib Integers Floats AST Values Memory.
+3: From FivePaparazziState Require Import State MemorySupport.
+4: From FiveGuidanceEntry Require Import SoftwareSqrt.
+5: Local Open Scope Z_scope.
+6: 
+7: (** Source-order denotation of the two unchanged integration prefixes.
+8:     The fixed-point macro multiplies in binary32, then converts to signed64. *)
+9: Record vector : Type := vec { vx : float32; vy : float32 }.
+10: Definition norm2 (v : vector) : float32 :=
+11:  Float32.add (Float32.mul (vx v) (vx v)) (Float32.mul (vy v) (vy v)).
+12: Definition sqrt_binding : float32->float32 := software_sqrt.
+13: Definition saturation_branch (maximum : float32) (v : vector) : bool :=
+14:  Float32.cmp Cgt (norm2 v) (Float32.mul maximum maximum).
+15: Definition saturate_using (sqrt32 : float32->float32) (maximum : float32) (v : vector) : vector :=
+16:  if saturation_branch maximum v then
+17:    let factor := Float32.div maximum (sqrt32 (norm2 v)) in
+18:    vec (Float32.mul (vx v) factor) (Float32.mul (vy v) factor)
+19:  else v.
+20: Definition saturate : float32->vector->vector := saturate_using software_sqrt.
+21: Definition q37 : float32 := Float32.of_long (Int64.repr 137438953472).
+22: Definition pos_increment (speed timestep : float32) : option int64 :=
+23:  Float32.to_long (Float32.mul (Float32.mul speed timestep) q37).
+24: Definition signed_sum_ok (x y : int64) : Prop :=
+25:  Int64.min_signed <= Int64.signed x + Int64.signed y <= Int64.max_signed.
+26: Definition integration_safe (s : state) : Prop :=
+27:  exists dx dy, pos_increment (speed_x s) (dt s)=Some dx /\
+28:  pos_increment (speed_y s) (dt s)=Some dy /\
+29:  signed_sum_ok (pos_x s) dx /\ signed_sum_ok (pos_y s) dy.
+30: Definition integrated (s : state) (dx dy : int64) : state :=
+31:  mkstate (accel_x s) (accel_y s)
+32:   (Float32.add (speed_x s) (Float32.mul (accel_x s) (dt s)))
+33:   (Float32.add (speed_y s) (Float32.mul (accel_y s) (dt s)))
+34:   (Int64.add (pos_x s) dx) (Int64.add (pos_y s) dy)
+35:   (tau s) (omega s) (zeta s) (max_speed s)
+36:   (zeta_omega s) (omega_2 s) (inv_tau s) (dt s).
+37: Definition integrate (s : state) : option state :=
+38:  match pos_increment (speed_x s) (dt s), pos_increment (speed_y s) (dt s) with
+39:  | Some dx, Some dy => Some (integrated s dx dy)
+40:  | _,_ => None
+41:  end.
+42: Definition with_accel (s : state) (a : vector) : state :=
+43:  mkstate (vx a) (vy a) (speed_x s) (speed_y s) (pos_x s) (pos_y s)
+44:   (tau s) (omega s) (zeta s) (max_speed s)
+45:   (zeta_omega s) (omega_2 s) (inv_tau s) (dt s).
+46: Definition raw_speed_accel (s : state) (sp : vector) : vector :=
+47:  vec (Float32.mul (Float32.sub (speed_x s) (vx sp)) (Float32.neg (inv_tau s)))
+48:      (Float32.mul (Float32.sub (speed_y s) (vy sp)) (Float32.neg (inv_tau s))).
+49: Definition speed_update (maximum : float32) (s : state) (sp : vector) : option state :=
+50:  match integrate s with

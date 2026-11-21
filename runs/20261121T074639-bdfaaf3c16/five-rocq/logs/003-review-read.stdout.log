@@ -1,0 +1,144 @@
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/attempts/001/check.py SHA256 4f56f1561116b285b89fb4d989a40de9bcd569f41efd94350f294a692a7f3e68
+1: #!/usr/bin/env python3
+2: """Rebuild the frozen project closure and certify all exact requested goals."""
+3: from pathlib import Path
+4: import argparse,importlib.util,json
+5: root=Path(__file__).resolve().parents[7]
+6: attempt=Path(__file__).resolve().parent
+7: parser=argparse.ArgumentParser();parser.add_argument('--record-run');args=parser.parse_args()
+8: spec=importlib.util.spec_from_file_location('five_matrix_checker',root/'paparazzi/report/quat_rotation_paths/evidence_tools.py')
+9: checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
+10: config=json.loads((attempt/'checker-config.json').read_text());config['root']=str(root)
+11: if not args.record_run:config.pop('build',None)
+12: print(json.dumps(checker.check(config,record_run=args.record_run),indent=2))
+
+FILE paparazzi/relations/matrix_inverse_scale/support/Kernels.v SHA256 7d072811c27799869006b109c4a01651d14605796e24130b389b9acd3f3c8363
+1: From Stdlib Require Import List ZArith Lia Reals Lra Psatz.
+2: From compcert Require Import Integers Floats Values IEEE754_extra.
+3: From Flocq Require Import Core.Core IEEE754.Binary.
+4: From FiveMatrixInverseSupport Require Import Dyadic.
+5: Require FiveInv2Case.Contract FiveMatInv3Case.Scalar.
+6: Import ListNotations.
+7: Local Open Scope Z_scope.
+8: Module D2:=FiveInv2Case.Contract.
+9: Module D3:=FiveMatInv3Case.Scalar.
+10: Definition Diag2(x:float32)(i:Z):float32:=if (Z.eqb i 0||Z.eqb i 3)%bool then x else Float32.zero.
+11: Definition Diag3(x:float32)(i:Z):float32:=if (Z.eqb i 0||Z.eqb i 4||Z.eqb i 8)%bool then x else Float32.zero.
+12: Lemma det2_safe:forall k,-20<=k<=20 ->D2.Det(Diag2(power32 k))=power32(2*k).
+13: Proof.
+14:  intros k K;unfold D2.Det,Diag2;cbn.
+15:  change (Float32.sub(Float32.mul(power32 k)(power32 k))Float32.zero=power32(2*k)).
+16:  rewrite power_mul by lia;replace (k+k) with(2*k)by lia.
+17:  destruct(power_zeros(2*k)ltac:(lia))as[_[_[S _]]];exact S.
+18: Qed.
+19: Lemma minors_safe:forall k,-20<=k<=20 ->
+20:  D3.M00(Diag3(power32 k))=power32(2*k) /\
+21:  D3.M10(Diag3(power32 k))=Float32.zero /\
+22:  D3.M20(Diag3(power32 k))=Float32.zero /\
+23:  D3.M01(Diag3(power32 k))=Float32.zero /\
+24:  D3.M11(Diag3(power32 k))=power32(2*k) /\
+25:  D3.M21(Diag3(power32 k))=Float32.zero /\
+26:  D3.M02(Diag3(power32 k))=Float32.zero /\
+27:  D3.M12(Diag3(power32 k))=Float32.zero /\
+28:  D3.M22(Diag3(power32 k))=power32(2*k).
+29: Proof.
+30:  intros k K;destruct(power_zeros k ltac:(lia))as[MR[ML REST]].
+31:  destruct(power_zeros(2*k)ltac:(lia))as[_[_[SZ _]]].
+32:  repeat split;unfold D3.M00,D3.M10,D3.M20,D3.M01,D3.M11,D3.M21,D3.M02,D3.M12,D3.M22,Diag3;cbn;
+33:  rewrite ?MR,?ML;try reflexivity;
+34:  rewrite power_mul by lia;replace(k+k)with(2*k)by lia;exact SZ.
+35: Qed.
+36: Lemma det3_safe:forall k,-20<=k<=20 ->D3.Det(Diag3(power32 k))=power32(3*k).
+37: Proof.
+38:  intros k K;destruct(minors_safe k K)as[M00[M10[M20 REST]]].
+39:  unfold D3.Det;rewrite M00,M10,M20;unfold Diag3;cbn.
+40:  change(Float32.add(Float32.sub(Float32.mul(power32 k)(power32(2*k)))Float32.zero)Float32.zero=power32(3*k)).
+41:  rewrite power_mul by lia;replace(k+2*k)with(3*k)by lia.
+42:  destruct(power_zeros(3*k)ltac:(lia))as[_[_[SZ[AZ _]]]].
+43:  rewrite SZ;exact AZ.
+44: Qed.
+45: Lemma output2_safe:forall k,-20<=k<=20 ->
+46:  map(D2.Output(Diag2(power32 k)))[0;1;2;3]=
+47:  [power32(-k);Float32.neg Float32.zero;Float32.neg Float32.zero;power32(-k)].
+48: Proof.
+49:  intros k K.
+50:  change([Float32.div(power32 k)(D2.Det(Diag2(power32 k)));
+51:  Float32.div(Float32.neg Float32.zero)(D2.Det(Diag2(power32 k)));
+52:  Float32.div(Float32.neg Float32.zero)(D2.Det(Diag2(power32 k)));
+53:  Float32.div(power32 k)(D2.Det(Diag2(power32 k)))]=
+54:  [power32(-k);Float32.neg Float32.zero;Float32.neg Float32.zero;power32(-k)]).
+55:  rewrite det2_safe by exact K.
+56:  destruct(power_zeros(2*k)ltac:(lia))as[_[_[_[_[DZ[DN _]]]]]].
+57:  rewrite DN;rewrite power_div by lia;replace(k-2*k)with(-k)by lia;reflexivity.
+58: Qed.
+59: Lemma output3_safe:forall k,-20<=k<=20 ->
+60:  map(D3.Output(Diag3(power32 k)))[0;1;2;3;4;5;6;7;8]=
+61:  [power32(-k);Float32.neg Float32.zero;Float32.zero;
+62:  Float32.neg Float32.zero;power32(-k);Float32.neg Float32.zero;
+63:  Float32.zero;Float32.neg Float32.zero;power32(-k)].
+64: Proof.
+65:  intros k K;destruct(minors_safe k K)as[M00[M10[M20[M01[M11[M21[M02[M12 M22]]]]]]]].
+66:  unfold D3.Output;cbn[map];rewrite det3_safe by exact K.
+67:  rewrite M00,M10,M20,M01,M11,M21,M02,M12,M22.
+68:  destruct(power_zeros(3*k)ltac:(lia))as[_[_[_[_[DZ[DN _]]]]]].
+69:  rewrite DZ,DN;rewrite power_div by lia;replace(2*k-3*k)with(-k)by lia;reflexivity.
+70: Qed.
+71: 
+72: Definition one:float32:=Float32.of_bits(Int.repr 1065353216).
+73: Definition small:float32:=Float32.of_bits(Int.repr 998244352).
+74: Definition big2:float32:=Float32.of_bits(Int.repr 1904214016).
+75: Definition big3:float32:=Float32.of_bits(Int.repr 1484783616).
+76: Definition base2:=Diag2 one.
+77: Definition small2:=Diag2 small.
+78: Definition large2:=Diag2 big2.
+79: Definition base3:=Diag3 one.
+80: Definition small3:=Diag3 small.
+81: Definition large3:=Diag3 big3.
+82: Definition words2(f:Z->float32):list int:=map(fun i=>Float32.to_bits(D2.Output f i))[0;1;2;3].
+83: Definition words3(f:Z->float32):list int:=map(fun i=>Float32.to_bits(D3.Output f i))[0;1;2;3;4;5;6;7;8].
+84: Lemma base2_kernel:D2.Result base2=Vint Int.zero /\
+85:  Float32.to_bits(D2.Det base2)=Int.repr 1065353216 /\
+86:  words2 base2=map Int.repr[1065353216;2147483648;2147483648;1065353216].
+87: Proof. vm_compute;repeat split;reflexivity. Qed.
+88: Lemma small2_kernel:D2.Result small2=Vint Int.one /\
+89:  Float32.to_bits(D2.Det small2)=Int.repr 931135488.
+90: Proof. vm_compute;split;reflexivity. Qed.
+91: Lemma large2_kernel:D2.Result large2=Vint Int.zero /\
+92:  Float32.to_bits(D2.Det large2)=Int.repr 2139095040 /\
+93:  words2 large2=map Int.repr[0;2147483648;2147483648;0].
+94: Proof. vm_compute;repeat split;reflexivity. Qed.
+95: Lemma base3_kernel:D3.Status base3=Vint Int.zero /\
+96:  Float32.to_bits(D3.Det base3)=Int.repr 1065353216 /\
+97:  words3 base3=map Int.repr[1065353216;2147483648;0;2147483648;1065353216;2147483648;0;2147483648;1065353216].
+98: Proof. vm_compute;repeat split;reflexivity. Qed.
+99: Lemma small3_kernel:D3.Status small3=Vint Int.one /\
+100:  Float32.to_bits(D3.Det small3)=Int.repr 864026624.
+101: Proof. vm_compute;split;reflexivity. Qed.
+102: Lemma large3_kernel:D3.Status large3=Vint Int.zero /\
+103:  Float32.to_bits(D3.Det large3)=Int.repr 2139095040 /\
+104:  words3 large3=map Int.repr[0;2147483648;0;2147483648;0;2147483648;0;2147483648;0].
+105: Proof. vm_compute;repeat split;reflexivity. Qed.
+106: Definition residual2(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(D2.Output f 0))one.
+107: Definition residual3(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(D3.Output f 0))one.
+108: Lemma large2_residual:Float32.to_bits(residual2 large2)=Int.repr 3212836864.
+109: Proof. vm_compute;reflexivity. Qed.
+110: Lemma large3_residual:Float32.to_bits(residual3 large3)=Int.repr 3212836864.
+111: Proof. vm_compute;reflexivity. Qed.
+112: Lemma RefuteScaleStatus2:D2.Result base2<>D2.Result small2.
+113: Proof. vm_compute;discriminate. Qed.
+114: Lemma RefuteScaleStatus3:D3.Status base3<>D3.Status small3.
+115: Proof. vm_compute;discriminate. Qed.
+116: Definition SmallResidual(r:float32):bool:=
+117:  (Float32.cmp Cgt r(Float32.of_bits(Int.repr 3204448256)) &&
+118:  Float32.cmp Clt r(Float32.of_bits(Int.repr 1056964608)))%bool.
+119: Lemma RefuteLargeResidual2:D2.Result large2=Vint Int.zero /\SmallResidual(residual2 large2)=false.
+120: Proof. vm_compute;split;reflexivity. Qed.
+121: Lemma RefuteLargeResidual3:D3.Status large3=Vint Int.zero /\SmallResidual(residual3 large3)=false.
+122: Proof. vm_compute;split;reflexivity. Qed.
+123: Print Assumptions base2_kernel.
+124: Print Assumptions small2_kernel.
+125: Print Assumptions large2_kernel.
+126: Print Assumptions base3_kernel.
+127: Print Assumptions small3_kernel.
+128: Print Assumptions large3_kernel.

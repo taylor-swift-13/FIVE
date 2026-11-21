@@ -1,0 +1,11 @@
+    53	 intros e bpo bpi bo bi po pi f vs m id bx x rhs SEP OI EO EI E C TY R.
+    54	 assert(VA:Mem.valid_access m Mfloat32 bx 0 Writable).
+    55	 { apply Mem.valid_access_freeable_any;split;[intros z B;apply(core_free _ _ _ _ _ _ _ _ _ _ C id bx tfloat E);change(0<=z<4);exact B|exists 0;lia]. }
+    56	 destruct(Mem.valid_access_store m Mfloat32 bx 0(Vsingle x)VA)as[mf ST].
+    57	 exists mf;split;[exact ST|];split.
+    58	 - eapply assign_float;[reflexivity|exact TY| |exact R|change(0+4<=18446744073709551616);lia|exact ST].
+    59	   cbn[pure_lval];rewrite E,dec_eq_true;reflexivity.
+    60	 - destruct C as[FREE LO LI RD W K];constructor.
+    61	   + intros j bj tj EJ z B;eapply Mem.perm_store_1;[exact ST|eapply FREE;eauto].
+    62	   + erewrite Mem.load_store_other;[exact LO|exact ST|left;intro EQ;apply(local_slot_distinct e id bx Source._inv_out bpo(tarray tfloat 3)SEP E EO);symmetry;exact EQ].
+    63	   + erewrite Mem.load_store_other;[exact LI|exact ST|left;intro EQ;apply(local_slot_distinct e id bx Source._mat_in bpi(tarray tfloat 3)SEP E EI);symmetry;exact EQ].

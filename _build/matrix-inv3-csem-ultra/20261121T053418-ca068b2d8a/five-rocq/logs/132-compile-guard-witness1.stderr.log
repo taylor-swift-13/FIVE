@@ -1,0 +1,18 @@
+File "./paparazzi/models/float_mat_inv_3d/rocq/support/GuardWitness.v", line 23, characters 38-39:
+Error: Cannot infer this placeholder of type "Z" in
+environment:
+xs : list (Z * float32)
+m0 : mem
+bi : block
+f : Z -> float32
+RANGE : forall (i : Z) (x : float32), In (i, x) xs -> 0 <= i < 4 + 2
+RD : Reads m0 bi Ptrofs.zero 4 f
+ND : NoDup (map fst xs)
+POS : 0 < 4
+COVER : forall i : Z, 0 <= i < 4 + 2 -> In (i, GuardValue 4 i) xs
+VI : Mem.valid_block m0 bi
+ma : Mem.mem'
+bo : block
+A : Mem.alloc m0 0 (4 * (4 + 2)) = (ma, bo)
+NE : bo <> bi
+

@@ -1,0 +1,185 @@
+From Stdlib Require Import List String ZArith.
+From compcert Require Import AST Values Memory Events Globalenvs Determinism Ctypes Csyntax Csem Cexec Smallstep.
+From FivePprzFloatMatInv3d Require Import Source.
+Import ListNotations.
+Definition ge := Csem.globalenv Source.prog.
+Definition entry(args:list val)(m:mem):Csem.state :=
+  Callstate(Ctypes.Internal Source.f_float_mat_inv_3d)args Kstop m.
+Definition callback := string -> signature -> Senv.t -> world -> list val -> mem ->
+  option(world*trace*val*mem).
+Definition transitions(cb asm:callback)(w:world)(s:Csem.state):list Cexec.transition :=
+  Cexec.do_step ge cb asm w s.
+Definition model_step(cb asm:callback)(w:world)(_:unit)(s:Csem.state)(t:trace)(s':Csem.state):Prop :=
+  exists rule,In(TR rule t s')(transitions cb asm w s).
+Definition normal_return(s:Csem.state):Prop := exists v m,s=Returnstate v Kstop m.
+Definition source_error(s:Csem.state):Prop := ~normal_return s /\ nostep Csem.step ge s.
+Definition observe_bytes(m:mem)(b:block)(ofs n:Z) := Mem.loadbytes m b ofs n.
+(* This adapter is only for call-free, quiet cases with a checked coverage proof.
+   None means no implemented callback; it is NOT an automatic C error diagnosis.
+   Traceful worlds require a separately checked driver/world evolution. *)
+Definition no_external:callback := fun _ _ _ _ _ _ => None.
+Definition quiet_world:world := World(fun _ _=>None)(fun _ _ _=>None)(fun _ _ _ _=>None).
+Definition closed_transitions := transitions no_external no_external quiet_world.
+18:  Definition source_file := "/home/yangfp/five/paparazzi/models/float_mat_inv_3d/align/model/preprocessed.i".
+23:Definition ___builtin_annot_intval : ident := $"__builtin_annot_intval".
+45:Definition ___builtin_membar : ident := $"__builtin_membar".
+46:Definition ___builtin_memcpy_aligned : ident := $"__builtin_memcpy_aligned".
+75:Definition ___compcert_va_int32 : ident := $"__compcert_va_int32".
+76:Definition ___compcert_va_int64 : ident := $"__compcert_va_int64".
+77:Definition _det : ident := $"det".
+79:Definition _float_mat_inv_3d : ident := $"float_mat_inv_3d".
+80:Definition _inv_out : ident := $"inv_out".
+81:Definition _m00 : ident := $"m00".
+82:Definition _m01 : ident := $"m01".
+83:Definition _m02 : ident := $"m02".
+84:Definition _m10 : ident := $"m10".
+85:Definition _m11 : ident := $"m11".
+86:Definition _m12 : ident := $"m12".
+87:Definition _m20 : ident := $"m20".
+88:Definition _m21 : ident := $"m21".
+89:Definition _m22 : ident := $"m22".
+90:Definition _main : ident := $"main".
+91:Definition _mat_in : ident := $"mat_in".
+93:Definition f_float_mat_inv_3d := {|
+96:  fn_params := ((_inv_out, (tptr (tarray tfloat 3))) ::
+97:                (_mat_in, (tptr (tarray tfloat 3))) :: nil);
+98:  fn_vars := ((_m00, tfloat) :: (_m10, tfloat) :: (_m20, tfloat) ::
+99:              (_m01, tfloat) :: (_m11, tfloat) :: (_m21, tfloat) ::
+100:              (_m02, tfloat) :: (_m12, tfloat) :: (_m22, tfloat) ::
+101:              (_det, tfloat) :: nil);
+104:  (Sdo (Eassign (Evar _m00 tfloat)
+113:                         (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+125:                         (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+138:                         (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+150:                         (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+157:    (Sdo (Eassign (Evar _m10 tfloat)
+166:                           (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+178:                           (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+191:                           (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+203:                           (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+210:      (Sdo (Eassign (Evar _m20 tfloat)
+219:                             (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+231:                             (Evalof (Evar _mat_in (tptr (tarray tfloat 3)))
+From Stdlib Require Import Bool List.
+From compcert Require Import Values Memory Events Ctypes Csyntax Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceSemantics Require Import WeightedTermination.
+From FiveGuidanceAllOrder Require Import PureSyntax CallfreeExecution.
+
+Lemma normal_stmt_finite: forall s,
+ normal_stmt s=true -> finite_statement s=true.
+Proof. induction s;simpl;intros H;core_unpack;try discriminate;core_build;auto. Qed.
+Lemma normal_cont_finite: forall k,
+ normal_cont k=true -> finite_continuation k.
+Proof.
+ induction k;simpl;intros H;core_unpack;try discriminate;constructor;auto using normal_stmt_finite.
+Qed.
+Lemma normal_state_finite: forall s,
+ normal_state s=true -> finite_state s.
+Proof.
+ destruct s as[f st k e m|f a k e m|fd args k m|v k m|];simpl;intros H;core_unpack;try discriminate;
+ try (split;auto using normal_stmt_finite,normal_cont_finite).
+ - destruct k;simpl in H;core_unpack;try discriminate;constructor;auto using normal_cont_finite,normal_stmt_finite.
+ - destruct fd;destruct k;try discriminate;constructor.
+ - destruct k;try discriminate;constructor.
+Qed.
+Lemma normal_calls_budget: forall ge s,
+ normal_state s=true -> calls_within_budget (fun _=>0) ge s.
+Proof.
+ destruct s;cbn[calls_within_budget];intros N;try exact I.
+ intros C sub fd args ty CT EQ CR;exfalso.
+ eapply normal_no_callred;[exact N|exact CT|exact EQ|exact CR].
+Qed.
+Theorem normal_all_successors_terminate: forall ge s,
+ normal_state s=true -> Acc(successor ge)s.
+Proof.
+ intros ge;eapply(all_successors_accessible (fun _=>0) ge (fun s=>normal_state s=true)).
+ - exact normal_state_finite.
+ - exact(normal_calls_budget ge).
+ - intros s t next N [ES|SS].
+   + destruct s;inversion ES;subst;eapply normal_estep_backward in ES;eauto;exact(proj1 ES).
+   + eapply normal_sstep_preserved;eauto.
+Qed.
+Theorem defined_evaluator_no_error: forall ge initial result,
+ normal_state initial=true -> call_names initial ->
+ state_eval ge initial=Some result -> no_error ge initial.
+Proof.
+ intros ge initial result N CN EV t reached PATH [BAD STOP].
+ assert(INV:execution_invariant ge initial)by(repeat split;auto;exists result;exact EV).
+ destruct(invariant_progress ge reached (reachable_invariant ge initial t reached INV PATH))as[RET|[tr[next STEP]]].
+ - apply BAD;exact RET.
+ - exact(STOP tr next STEP).
+Qed.
+Theorem defined_evaluator_exact_return: forall ge initial v mf t v' mf',
+ normal_state initial=true -> state_eval ge initial=Some(v,mf) ->
+ star Csem.step ge initial t(Returnstate v' Kstop mf') -> v'=v /\ mf'=mf.
+Proof.
+ intros ge initial v mf t v' mf' N EV PATH.
+ pose proof(all_order_normal_correspondence ge initial t v' mf' N PATH)as EQ.
+ rewrite EV in EQ;inversion EQ;auto.
+Qed.
+Theorem defined_evaluator_safe_termination: forall ge initial result,
+ normal_state initial=true -> call_names initial ->
+ state_eval ge initial=Some result -> safe_termination ge initial.
+Proof.
+ intros;split;[eapply defined_evaluator_no_error;eauto|apply normal_all_successors_terminate;auto].
+Qed.
+Theorem defined_evaluator_return_exists: forall ge initial v mf,
+ normal_state initial=true -> call_names initial ->
+ state_eval ge initial=Some(v,mf) ->
+ exists t,star Csem.step ge initial t(Returnstate v Kstop mf).
+Proof.
+ intros ge initial v mf N CN EV.
+ pose proof(normal_all_successors_terminate ge initial N)as AC.
+ assert(INV:execution_invariant ge initial)by(repeat split;auto;exists(v,mf);exact EV).
+ revert INV N EV;induction AC as[s AC IH];intros INV N EV.
+ destruct(invariant_progress ge s INV)as[[v'[mf' EQ]]|[tr[next STEP]]].
+ - subst s;cbn[state_eval]in EV;inversion EV;subst;exists E0;constructor.
+ - destruct(normal_step_forward ge s tr next (v,mf) N EV STEP)as[NN EN].
+   destruct(IH next ltac:(exists tr;exact STEP)(normal_step_names ge s tr next N CN STEP)(invariant_preserved ge s tr next INV STEP)NN EN)as[tail PATH].
+   exists(tr**tail);eapply star_step;eauto.
+Qed.
+Print Assumptions normal_all_successors_terminate.
+Print Assumptions defined_evaluator_safe_termination.
+Print Assumptions defined_evaluator_return_exists.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation.
+Local Open Scope Z_scope.
+Lemma float_variable:forall ge e m id bx x,
+ e!id=Some(bx,tfloat)->Mem.load Mfloat32 m bx 0=Some(Vsingle x)->
+ pure_rval ge e m(Evalof(Evar id tfloat)tfloat)=Some(Vsingle x).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(4<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma pointer_variable:forall ge e m id bx b p ty,
+ e!id=Some(bx,tptr ty)->Mem.load Mptr m bx 0=Some(Vptr b p)->
+ pure_rval ge e m(Evalof(Evar id(tptr ty))(tptr ty))=Some(Vptr b p).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tptr noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(8<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma struct_field:forall ge e m ptr sid fid b p delta co,
+ pure_rval ge e m ptr=Some(Vptr b p)->
+ (genv_cenv ge)!sid=Some co->field_offset ge fid(co_members co)=OK(delta,Full)->
+ pure_lval ge e m(Efield(Evalof(Ederef ptr(Tstruct sid noattr))(Tstruct sid noattr))fid tfloat)=Some(b,Ptrofs.add p(Ptrofs.repr delta),Full).
+Proof.
+ intros;cbn[pure_lval pure_rval];rewrite ?dec_eq_true;cbn;fold(pure_rval ge e m ptr);rewrite H.
+ cbv[Cexec.do_deref_loc access_mode];cbn;rewrite H0,H1;reflexivity.
+Qed.
+Lemma assign_float:forall ge e m l r b p x mf,
+ typeof l=tfloat->typeof r=tfloat->
+ pure_lval ge e m l=Some(b,p,Full)->pure_rval ge e m r=Some(Vsingle x)->
+ Ptrofs.unsigned p+4<=Ptrofs.modulus->
+ Mem.store Mfloat32 m b(Ptrofs.unsigned p)(Vsingle x)=Some mf->
+ atomic_eval ge e m(Eassign l r tfloat)=Some(Vsingle x,mf).
+Proof.
+ intros ge e m l r b p x mf TL TR LL RR B ST.
+ cbn[atomic_eval];rewrite TL,dec_eq_true,LL,RR.
+ unfold commit;rewrite TR;cbv[sem_cast classify_cast Cexec.do_assign_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.storev].
+ rewrite zle_true by exact B;rewrite ST;reflexivity.
+Qed.
+Print Assumptions assign_float.

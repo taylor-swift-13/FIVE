@@ -1,0 +1,24 @@
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:12:Definition allowed := TableSupport.allowed Source.global_definitions.
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:15:Local Notation CE := (SourceClosure.core_expr ge allowed budget).
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:16:Local Notation CS := (SourceClosure.core_stmt ge allowed budget).
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:17:Local Notation SS := (SourceClosure.source_state ge allowed budget).
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:20:Lemma function_in_global:forall v fd,Genv.find_funct ge v=Some fd -> exists id,In(id,Gfun fd)Source.global_definitions.
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:30: SourceClosure.valid_call ge allowed budget (Tfunction [tfloat] tfloat cc_default) tfloat.
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:33: SourceClosure.valid_call ge allowed budget
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:48:Lemma internal_body:forall f,allowed(Internal f) -> CS(fn_body f).
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:57: allowed(External ef args ret cc) -> executable_builtin ef=true.
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:68:Proof. exact(SourceClosure.source_step_invariant ge allowed budget internal_body external_supported). Qed.
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:71:Proof. intros;apply(SourceTermination.source_all_successors_accessible ge allowed call_weight internal_body external_supported);apply entry_source. Qed.
+paparazzi/relations/guidance_mode/support/semantics/SpeedSource.v:74:Proof. exact(SourceClosure.source_do_step_exact ge allowed budget internal_body external_supported). Qed.
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:12:Definition allowed := TableSupport.allowed Source.global_definitions.
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:15:Local Notation CE := (SourceClosure.core_expr ge allowed budget).
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:16:Local Notation CS := (SourceClosure.core_stmt ge allowed budget).
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:17:Local Notation SS := (SourceClosure.source_state ge allowed budget).
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:20:Lemma function_in_global:forall v fd,Genv.find_funct ge v=Some fd -> exists id,In(id,Gfun fd)Source.global_definitions.
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:30: SourceClosure.valid_call ge allowed budget (Tfunction [tfloat] tfloat cc_default) tfloat.
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:33: SourceClosure.valid_call ge allowed budget
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:48:Lemma internal_body:forall f,allowed(Internal f) -> CS(fn_body f).
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:57: allowed(External ef args ret cc) -> executable_builtin ef=true.
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:68:Proof. exact(SourceClosure.source_step_invariant ge allowed budget internal_body external_supported). Qed.
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:71:Proof. intros;apply(SourceTermination.source_all_successors_accessible ge allowed call_weight internal_body external_supported);apply entry_source. Qed.
+paparazzi/relations/guidance_mode/support/semantics/AccelSource.v:74:Proof. exact(SourceClosure.source_do_step_exact ge allowed budget internal_body external_supported). Qed.

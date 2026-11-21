@@ -1,0 +1,64 @@
+1345-(** Converting a finite FP number to higher or equal precision preserves its value. *)
+1346-
+1347:Theorem Bconv_widen_exact:
+1348-  (prec2 >= prec1)%Z -> (emax2 >= emax1)%Z ->
+1349-  forall conv_nan m f,
+1350-  is_finite _ _ f = true ->
+1351-     B2R _ _ (Bconv conv_nan m f) = B2R _ _ f
+1352-  /\ is_finite _ _ (Bconv conv_nan m f) = true
+1353-  /\ Bsign _ _ (Bconv conv_nan m f) = Bsign _ _ f.
+1354-Proof.
+1355-  intros PREC EMAX; intros. generalize (Bconv_correct conv_nan m f H).
+1356-  assert (LT: (Rabs (B2R _ _ f) < bpow radix2 emax2)%R).
+1357-  {
+1358-    destruct f; try discriminate; simpl.
+1359-    rewrite Rabs_R0. apply bpow_gt_0.
+1360-    apply Rlt_le_trans with (bpow radix2 emax1).
+1361-    rewrite F2R_cond_Zopp. rewrite abs_cond_Ropp. rewrite <- F2R_Zabs. simpl Z.abs.
+1362-    eapply bounded_lt_emax; eauto.
+1363-    apply bpow_le. lia.
+1364-  }
+1365-  assert (EQ: round radix2 fexp2 (round_mode m) (B2R prec1 emax1 f) = B2R prec1 emax1 f).
+1366-  {
+1367-    apply round_generic. apply valid_rnd_round_mode. eapply generic_inclusion_le.
+1368-    5: apply generic_format_B2R. apply fexp_correct; auto. apply fexp_correct; auto.
+1369-    instantiate (1 := emax2). intros. unfold fexp, fexp2, FLT_exp. unfold emin, emin2. lia.
+1370-    apply Rlt_le; auto.
+1371-  }
+1372-  rewrite EQ. rewrite Rlt_bool_true by auto. auto.
+1299:Section Conversions.
+1300-
+1301-Variable prec1 emax1 prec2 emax2 : Z.
+1302-Context (prec1_gt_0_ : Prec_gt_0 prec1) (prec2_gt_0_ : Prec_gt_0 prec2).
+1303-Let emin1 := (3 - emax1 - prec1)%Z.
+1304-Let fexp1 := FLT_exp emin1 prec1.
+1305-Let emin2 := (3 - emax2 - prec2)%Z.
+1306-Let fexp2 := FLT_exp emin2 prec2.
+1307-Hypothesis Hmax1 : (prec1 < emax1)%Z.
+1308-Hypothesis Hmax2 : (prec2 < emax2)%Z.
+1309-Let binary_float1 := binary_float prec1 emax1.
+1310-Let binary_float2 := binary_float prec2 emax2.
+1311-
+1312-Definition Bconv (conv_nan: binary_float1 -> {x | is_nan prec2 emax2 x = true}) (md: mode) (f: binary_float1) : binary_float2 :=
+1313-  match f with
+1314-    | B754_nan _ _ _ _ _ => build_nan prec2 emax2 (conv_nan f)
+1315-    | B754_infinity _ _ s => B754_infinity _ _ s
+1316-    | B754_zero _ _ s => B754_zero _ _ s
+1317-    | B754_finite _ _ s m e _ => binary_normalize _ _ _ Hmax2 md (cond_Zopp s (Zpos m)) e s
+1318-  end.
+1319-
+728-  end.
+729-
+730:Theorem B2R_Babs :
+731-  forall abs_nan x,
+732-  B2R (Babs abs_nan x) = Rabs (B2R x).
+733-Proof.
+734-  intros abs_nan [sx|sx|sx plx Hx|sx mx ex Hx]; apply sym_eq ; try apply Rabs_R0.
+735-  simpl. rewrite <- F2R_abs. now destruct sx.
+736-Qed.
+737-
+738-Theorem is_finite_Babs :
+739-  forall abs_nan x,
+740-  is_finite (Babs abs_nan x) = is_finite x.
+741-Proof.
+742-  now intros abs_nan [| | |].

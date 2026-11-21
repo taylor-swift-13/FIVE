@@ -1,0 +1,43 @@
+Mem.loadbytes_storebytes_same:
+  forall (m1 : mem) (b : Values.block) (ofs : BinNums.Z)
+    (bytes : list memval) (m2 : mem),
+  Mem.storebytes m1 b ofs bytes = Some m2 ->
+  Mem.loadbytes m2 b ofs (BinInt.Z.of_nat (length bytes)) = Some bytes
+Mem.loadbytes_storebytes_other:
+  forall (m1 : mem) (b : Values.block) (ofs : BinNums.Z)
+    (bytes : list memval) (m2 : mem),
+  Mem.storebytes m1 b ofs bytes = Some m2 ->
+  forall (b' : Values.block) (ofs' len : BinNums.Z),
+  BinInt.Z.ge len BinNums.Z0 ->
+  b' <> b \/
+  BinInt.Z.le (BinInt.Z.add ofs' len) ofs \/
+  BinInt.Z.le (BinInt.Z.add ofs (BinInt.Z.of_nat (length bytes))) ofs' ->
+  Mem.loadbytes m2 b' ofs' len = Mem.loadbytes m1 b' ofs' len
+Mem.loadbytes_storebytes_disjoint:
+  forall (m1 : mem) (b : Values.block) (ofs : BinNums.Z)
+    (bytes : list memval) (m2 : mem),
+  Mem.storebytes m1 b ofs bytes = Some m2 ->
+  forall (b' : Values.block) (ofs' len : BinNums.Z),
+  BinInt.Z.ge len BinNums.Z0 ->
+  b' <> b \/
+  Intv.disjoint (ofs', BinInt.Z.add ofs' len)
+    (ofs, BinInt.Z.add ofs (BinInt.Z.of_nat (length bytes))) ->
+  Mem.loadbytes m2 b' ofs' len = Mem.loadbytes m1 b' ofs' len
+Mem.loadbytes_concat:
+  forall (m : mem) (b : Values.block) (ofs n1 n2 : BinNums.Z)
+    (bytes1 bytes2 : list memval),
+  Mem.loadbytes m b ofs n1 = Some bytes1 ->
+  Mem.loadbytes m b (BinInt.Z.add ofs n1) n2 = Some bytes2 ->
+  BinInt.Z.ge n1 BinNums.Z0 ->
+  BinInt.Z.ge n2 BinNums.Z0 ->
+  Mem.loadbytes m b ofs (BinInt.Z.add n1 n2) = Some (bytes1 ++ bytes2)%list
+Mem.loadbytes_split:
+  forall (m : mem) (b : Values.block) (ofs n1 n2 : BinNums.Z)
+    (bytes : list memval),
+  Mem.loadbytes m b ofs (BinInt.Z.add n1 n2) = Some bytes ->
+  BinInt.Z.ge n1 BinNums.Z0 ->
+  BinInt.Z.ge n2 BinNums.Z0 ->
+  exists bytes1 bytes2 : list memval,
+    Mem.loadbytes m b ofs n1 = Some bytes1 /\
+    Mem.loadbytes m b (BinInt.Z.add ofs n1) n2 = Some bytes2 /\
+    bytes = (bytes1 ++ bytes2)%list

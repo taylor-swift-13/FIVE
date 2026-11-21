@@ -1,0 +1,16 @@
+Mem.nextblock_store
+     : forall (chunk : AST.memory_chunk) (m1 : mem) 
+         (b : Values.block) (ofs : BinNums.Z) (v : Values.val) 
+         (m2 : mem),
+       Mem.store chunk m1 b ofs v = Some m2 ->
+       Mem.nextblock m2 = Mem.nextblock m1
+Mem.nextblock_free
+     : forall (m1 : mem) (bf : Values.block) (lo hi : BinNums.Z) (m2 : mem),
+       Mem.free m1 bf lo hi = Some m2 -> Mem.nextblock m2 = Mem.nextblock m1
+Mem.store_valid_block_1
+     : forall (chunk : AST.memory_chunk) (m1 : mem) 
+         (b : Values.block) (ofs : BinNums.Z) (v : Values.val) 
+         (m2 : mem),
+       Mem.store chunk m1 b ofs v = Some m2 ->
+       forall b' : Values.block,
+       Mem.valid_block m1 b' -> Mem.valid_block m2 b'

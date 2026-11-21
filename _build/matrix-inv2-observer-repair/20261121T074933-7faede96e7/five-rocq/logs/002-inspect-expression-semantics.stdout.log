@@ -1,0 +1,152 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Smallstep.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.
+From FiveLowpassSupport Require Import Expressions.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FivePprzFloatMatInv2d Require Import Source Execution.
+From FiveInv2Case Require Import Contract BuiltinFabs.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition Ptr(id:ident):expr:=Evalof(Evar id(tptr tfloat))(tptr tfloat).
+Definition Loc(id:ident)(i:Z):expr:=Ederef(Ebinop Oadd(Ptr id)(Eval(Vint(Int.repr i))tint)(tptr tfloat))tfloat.
+Definition Mat(i:Z):expr:=Evalof(Loc Source._mat_in i)tfloat.
+Definition Dvar:expr:=Evalof(Evar Source._det tfloat)tfloat.
+Definition DetExpr:expr:=Ebinop Osub(Ebinop Omul(Mat 0)(Mat 3)tfloat)(Ebinop Omul(Mat 1)(Mat 2)tfloat)tfloat.
+Definition DetAssign:expr:=Eassign(Evar Source._det tfloat)DetExpr tfloat.
+Definition OutExpr(i:Z):expr:=
+ if Z.eq_dec i 0 then Ebinop Odiv(Mat 3)Dvar tfloat else
+ if Z.eq_dec i 1 then Ebinop Odiv(Eunop Oneg(Mat 1)tfloat)Dvar tfloat else
+ if Z.eq_dec i 2 then Ebinop Odiv(Eunop Oneg(Mat 2)tfloat)Dvar tfloat else Ebinop Odiv(Mat 0)Dvar tfloat.
+Definition OutAssign(i:Z):expr:=Eassign(Loc Source._inv_out i)(OutExpr i)tfloat.
+Definition Return1:=Sreturn(Some(Eval(Vint Int.one)tint)).
+Definition Return0:=Sreturn(Some(Eval(Vint Int.zero)tint)).
+Definition Suffix:=Ssequence(Sdo(OutAssign 0))(Ssequence(Sdo(OutAssign 1))(Ssequence(Sdo(OutAssign 2))(Ssequence(Sdo(OutAssign 3))Return0))).
+Definition CallAbs:expr:=Ecall(Evalof(Evar Source.___builtin_fabsf fabs_type)fabs_type)(Econs Dvar Enil)tfloat.
+Definition Rest:=Ssequence(Sifthenelse(compare_abs CallAbs)Return1 Sskip)Suffix.
+Lemma body_syntax:fn_body Source.f_float_mat_inv_2d=Ssequence(Sdo DetAssign)Rest.
+Proof. reflexivity. Qed.
+Lemma location:forall e m id bp b p i,
+ e!id=Some(bp,tptr tfloat)->Mem.load Mptr m bp 0=Some(Vptr b p)->0<=i<4->
+ pure_lval Execution.ge e m(Loc id i)=Some(b,Ptrofs.add p(Ptrofs.repr(4*i)),Full).
+Proof. intros e m id bp b p i E L B.
+ assert(P:pure_rval Execution.ge e m(Ptr id)=Some(Vptr b p))by(unfold Ptr;eapply pointer_variable;eauto).
+ change(match(match pure_rval Execution.ge e m(Ptr id)with Some v=>sem_binary_operation Execution.ge Oadd v(tptr tfloat)(Vint(Int.repr i))tint m|None=>None end)with Some(Vptr bb pp)=>Some(bb,pp,Full)|_=>None end=Some(b,Ptrofs.add p(Ptrofs.repr(4*i)),Full)).
+ rewrite P;assert(C:i=0\/i=1\/i=2\/i=3)by lia;destruct C as [-> | [-> | [-> | ->]]];reflexivity. Qed.
+Lemma matrix_value:forall e m bp b p f i,
+ e!Source._mat_in=Some(bp,tptr tfloat)->Mem.load Mptr m bp 0=Some(Vptr b p)->Reads m b p 4 f->0<=i<4->
+ pure_rval Execution.ge e m(Mat i)=Some(Vsingle(f i)).
+Proof. intros e m bp b p f i E L RD B.
+ change(match pure_lval Execution.ge e m(Loc Source._mat_in i)with Some(bb,pp,bf)=>match Cexec.do_deref_loc Execution.ge quiet_world tfloat m bb pp bf with Some(_,_,v)=>Some v|None=>None end|None=>None end=Some(Vsingle(f i))).
+ rewrite(location _ _ _ _ _ _ _ E L B);cbv[Cexec.do_deref_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv].
+ rewrite(index_pointer p 4 i(proj1(proj2 RD))B);rewrite zle_true by(destruct RD as[_[NW _]];change Ptrofs.modulus with 18446744073709551616 in NW|-*;cbn[size_chunk];lia).
+ rewrite(proj2(proj2 RD)i B);reflexivity. Qed.
+Lemma rval_mul:forall e m a b x y,typeof a=tfloat->typeof b=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m b=Some(Vsingle y)->pure_rval Execution.ge e m(Ebinop Omul a b tfloat)=Some(Vsingle(Float32.mul x y)).
+Proof. intros;change(match pure_rval Execution.ge e m a,pure_rval Execution.ge e m b with Some v,Some w=>sem_binary_operation Execution.ge Omul v(typeof a)w(typeof b)m|_,_=>None end=Some(Vsingle(Float32.mul x y)));rewrite H,H0,H1,H2;reflexivity. Qed.
+Lemma rval_sub:forall e m a b x y,typeof a=tfloat->typeof b=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m b=Some(Vsingle y)->pure_rval Execution.ge e m(Ebinop Osub a b tfloat)=Some(Vsingle(Float32.sub x y)).
+Proof. intros;change(match pure_rval Execution.ge e m a,pure_rval Execution.ge e m b with Some v,Some w=>sem_binary_operation Execution.ge Osub v(typeof a)w(typeof b)m|_,_=>None end=Some(Vsingle(Float32.sub x y)));rewrite H,H0,H1,H2;reflexivity. Qed.
+Lemma rval_div:forall e m a b x y,typeof a=tfloat->typeof b=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m b=Some(Vsingle y)->pure_rval Execution.ge e m(Ebinop Odiv a b tfloat)=Some(Vsingle(Float32.div x y)).
+Proof. intros;change(match pure_rval Execution.ge e m a,pure_rval Execution.ge e m b with Some v,Some w=>sem_binary_operation Execution.ge Odiv v(typeof a)w(typeof b)m|_,_=>None end=Some(Vsingle(Float32.div x y)));rewrite H,H0,H1,H2;reflexivity. Qed.
+Lemma rval_neg:forall e m a x,typeof a=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m(Eunop Oneg a tfloat)=Some(Vsingle(Float32.neg x)).
+Proof. intros;change(match pure_rval Execution.ge e m a with Some v=>sem_unary_operation Oneg v(typeof a)m|_=>None end=Some(Vsingle(Float32.neg x)));rewrite H,H0;reflexivity. Qed.
+Lemma determinant_value:forall e m bp b p f,e!Source._mat_in=Some(bp,tptr tfloat)->Mem.load Mptr m bp 0=Some(Vptr b p)->Reads m b p 4 f->pure_rval Execution.ge e m DetExpr=Some(Vsingle(Det f)).
+Proof. intros;unfold DetExpr,Det;eapply rval_sub;try reflexivity;eapply rval_mul;try reflexivity;eapply matrix_value;eauto;lia. Qed.
+Lemma determinant_assign:forall e m bp bd b p f md,e!Source._mat_in=Some(bp,tptr tfloat)->e!Source._det=Some(bd,tfloat)->Mem.load Mptr m bp 0=Some(Vptr b p)->Reads m b p 4 f->Mem.store Mfloat32 m bd 0(Vsingle(Det f))=Some md->atomic_eval Execution.ge e m DetAssign=Some(Vsingle(Det f),md).
+Proof. intros e m bp bd b p f md EI ED LI RD ST;unfold DetAssign;eapply assign_float;try reflexivity.
+ - cbn[pure_lval];rewrite ED,dec_eq_true;reflexivity.
+ - eapply determinant_value;eauto.
+ - rewrite Ptrofs.unsigned_zero;change(4<=18446744073709551616);lia.
+ - rewrite Ptrofs.unsigned_zero;exact ST. Qed.
+Lemma out_value:forall e m bp bd b p f i,e!Source._mat_in=Some(bp,tptr tfloat)->e!Source._det=Some(bd,tfloat)->Mem.load Mptr m bp 0=Some(Vptr b p)->Mem.load Mfloat32 m bd 0=Some(Vsingle(Det f))->Reads m b p 4 f->0<=i<4->pure_rval Execution.ge e m(OutExpr i)=Some(Vsingle(Output f i)).
+Proof. intros e m bp bd b p f i EI ED LI LD RD B.
+ assert(D:pure_rval Execution.ge e m Dvar=Some(Vsingle(Det f)))by(unfold Dvar;eapply float_variable;eauto).
+ assert(C:i=0\/i=1\/i=2\/i=3)by lia;destruct C as [-> | [-> | [-> | ->]]];cbn[OutExpr Output];eapply rval_div;try reflexivity;try exact D;try(eapply rval_neg;try reflexivity);eapply matrix_value;eauto;lia. Qed.
+Lemma output_assign:forall e m bo bp bd out input po pi f i mf,e!Source._inv_out=Some(bo,tptr tfloat)->e!Source._mat_in=Some(bp,tptr tfloat)->e!Source._det=Some(bd,tfloat)->Mem.load Mptr m bo 0=Some(Vptr out po)->Mem.load Mptr m bp 0=Some(Vptr input pi)->Mem.load Mfloat32 m bd 0=Some(Vsingle(Det f))->WriteRegion m out po 4->Reads m input pi 4 f->0<=i<4->Mem.store Mfloat32 m out(Ptrofs.unsigned po+4*i)(Vsingle(Output f i))=Some mf->atomic_eval Execution.ge e m(OutAssign i)=Some(Vsingle(Output f i),mf).
+Proof. intros e m bo bp bd out input po pi f i mf EO EI ED LO LI LD W RD B ST;unfold OutAssign;eapply assign_float.
+ - reflexivity.
+ - unfold OutExpr;repeat destruct Z.eq_dec;reflexivity.
+ - eapply location;eauto.
+ - eapply out_value;eauto.
+ - rewrite(index_pointer po 4 i(proj1(proj2 W))B);destruct W as[_[NW _]];change Ptrofs.modulus with 18446744073709551616 in NW|-*;lia.
+ - rewrite(index_pointer po 4 i(proj1(proj2 W))B);exact ST. Qed.
+
+Lemma suffix_eval:forall e m bpo bpi bd bo bi po pi f mf,
+ e!Source._inv_out=Some(bpo,tptr tfloat)->e!Source._mat_in=Some(bpi,tptr tfloat)->e!Source._det=Some(bd,tfloat)->
+ Mem.load Mptr m bpo 0=Some(Vptr bo po)->Mem.load Mptr m bpi 0=Some(Vptr bi pi)->Mem.load Mfloat32 m bd 0=Some(Vsingle(Det f))->
+ WriteRegion m bo po 4->Reads m bi pi 4 f->bo<>bi->bo<>bpo->bo<>bpi->bo<>bd->
+ Writes m bo(Ptrofs.unsigned po)(Outputs f)mf->stmt_eval Execution.ge e tbool Suffix m=Some(Nreturn(Vint Int.zero),mf).
+Proof. intros e m bpo bpi bd bo bi po pi f mf EO EI ED LO LI LD W RD OI OP OPI OD WS.
+ unfold Outputs in WS;cbn[Writes]in WS;destruct WS as[m1[S0[m2[S1[m3[S2[m4[S3 EQ]]]]]]]];subst m4.
+ assert(W1:WriteRegion m1 bo po 4)by(eapply writable_store_preserved;[exact W|exact S0]).
+ assert(RD1:Reads m1 bi pi 4 f)by(eapply reads_store_preserved;[exact RD| |exact S0];congruence).
+ assert(LO1:Mem.load Mptr m1 bpo 0=Some(Vptr bo po))by(erewrite Mem.load_store_other by(exact S0||(left;congruence));exact LO).
+ assert(LI1:Mem.load Mptr m1 bpi 0=Some(Vptr bi pi))by(erewrite Mem.load_store_other by(exact S0||(left;congruence));exact LI).
+ assert(LD1:Mem.load Mfloat32 m1 bd 0=Some(Vsingle(Det f)))by(erewrite Mem.load_store_other by(exact S0||(left;congruence));exact LD).
+ assert(W2:WriteRegion m2 bo po 4)by(eapply writable_store_preserved;[exact W1|exact S1]).
+ assert(RD2:Reads m2 bi pi 4 f)by(eapply reads_store_preserved;[exact RD1| |exact S1];congruence).
+ assert(LO2:Mem.load Mptr m2 bpo 0=Some(Vptr bo po))by(erewrite Mem.load_store_other by(exact S1||(left;congruence));exact LO1).
+ assert(LI2:Mem.load Mptr m2 bpi 0=Some(Vptr bi pi))by(erewrite Mem.load_store_other by(exact S1||(left;congruence));exact LI1).
+ assert(LD2:Mem.load Mfloat32 m2 bd 0=Some(Vsingle(Det f)))by(erewrite Mem.load_store_other by(exact S1||(left;congruence));exact LD1).
+ assert(W3:WriteRegion m3 bo po 4)by(eapply writable_store_preserved;[exact W2|exact S2]).
+ assert(RD3:Reads m3 bi pi 4 f)by(eapply reads_store_preserved;[exact RD2| |exact S2];congruence).
+ assert(LO3:Mem.load Mptr m3 bpo 0=Some(Vptr bo po))by(erewrite Mem.load_store_other by(exact S2||(left;congruence));exact LO2).
+ assert(LI3:Mem.load Mptr m3 bpi 0=Some(Vptr bi pi))by(erewrite Mem.load_store_other by(exact S2||(left;congruence));exact LI2).
+ assert(LD3:Mem.load Mfloat32 m3 bd 0=Some(Vsingle(Det f)))by(erewrite Mem.load_store_other by(exact S2||(left;congruence));exact LD2).
+ assert(A0:atomic_eval Execution.ge e m(OutAssign 0)=Some(Vsingle(Output f 0),m1))by(eapply output_assign;eauto;lia).
+ assert(A1:atomic_eval Execution.ge e m1(OutAssign 1)=Some(Vsingle(Output f 1),m2))by(eapply output_assign;eauto;lia).
+ assert(A2:atomic_eval Execution.ge e m2(OutAssign 2)=Some(Vsingle(Output f 2),m3))by(eapply output_assign;eauto;lia).
+ assert(A3:atomic_eval Execution.ge e m3(OutAssign 3)=Some(Vsingle(Output f 3),mf))by(eapply output_assign;eauto;lia).
+ unfold Suffix;cbn[stmt_eval];rewrite A0,A1,A2,A3;reflexivity.
+Qed.
+Definition PureGuard(f:Z->float32):expr := compare_abs(Eval(Vsingle(Float32.abs(Det f)))tfloat).
+Lemma guard_value:forall e m f,pure_rval Execution.ge e m(PureGuard f)=Some(Vint(if Reject f then Int.one else Int.zero)).
+Proof. intros;change(Some(Val.of_bool(Reject f))=Some(Vint(if Reject f then Int.one else Int.zero)));destruct(Reject f);reflexivity. Qed.
+Lemma guard_bool:forall f m,bool_val(Vint(if Reject f then Int.one else Int.zero))tint m=Some(Reject f).
+Proof. intros;destruct(Reject f);reflexivity. Qed.
+Print Assumptions suffix_eval.
+Print Assumptions determinant_assign.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation.
+Local Open Scope Z_scope.
+Lemma float_variable:forall ge e m id bx x,
+ e!id=Some(bx,tfloat)->Mem.load Mfloat32 m bx 0=Some(Vsingle x)->
+ pure_rval ge e m(Evalof(Evar id tfloat)tfloat)=Some(Vsingle x).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(4<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma pointer_variable:forall ge e m id bx b p ty,
+ e!id=Some(bx,tptr ty)->Mem.load Mptr m bx 0=Some(Vptr b p)->
+ pure_rval ge e m(Evalof(Evar id(tptr ty))(tptr ty))=Some(Vptr b p).
+Proof.
+ intros;cbn[pure_rval pure_lval];rewrite H;rewrite ?dec_eq_true.
+ cbv[Cexec.do_deref_loc tptr noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv];
+ rewrite ?Ptrofs.unsigned_zero;try rewrite zle_true by(change(8<=18446744073709551616);lia);rewrite H0;reflexivity.
+Qed.
+Lemma struct_field:forall ge e m ptr sid fid b p delta co,
+ pure_rval ge e m ptr=Some(Vptr b p)->
+ (genv_cenv ge)!sid=Some co->field_offset ge fid(co_members co)=OK(delta,Full)->
+ pure_lval ge e m(Efield(Evalof(Ederef ptr(Tstruct sid noattr))(Tstruct sid noattr))fid tfloat)=Some(b,Ptrofs.add p(Ptrofs.repr delta),Full).
+Proof.
+ intros;cbn[pure_lval pure_rval];rewrite ?dec_eq_true;cbn;fold(pure_rval ge e m ptr);rewrite H.
+ cbv[Cexec.do_deref_loc access_mode];cbn;rewrite H0,H1;reflexivity.
+Qed.
+Lemma assign_float:forall ge e m l r b p x mf,
+ typeof l=tfloat->typeof r=tfloat->
+ pure_lval ge e m l=Some(b,p,Full)->pure_rval ge e m r=Some(Vsingle x)->
+ Ptrofs.unsigned p+4<=Ptrofs.modulus->
+ Mem.store Mfloat32 m b(Ptrofs.unsigned p)(Vsingle x)=Some mf->
+ atomic_eval ge e m(Eassign l r tfloat)=Some(Vsingle x,mf).
+Proof.
+ intros ge e m l r b p x mf TL TR LL RR B ST.
+ cbn[atomic_eval];rewrite TL,dec_eq_true,LL,RR.
+ unfold commit;rewrite TR;cbv[sem_cast classify_cast Cexec.do_assign_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.storev].
+ rewrite zle_true by exact B;rewrite ST;reflexivity.
+Qed.
+Print Assumptions assign_float.
+78:Definition large2:=Diag2 big2.
+91:Lemma large2_kernel:D2.Result large2=Vint Int.zero /\
+106:Definition residual2(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(D2.Output f 0))one.
+116:Definition SmallResidual(r:float32):bool:=
+125:Print Assumptions large2_kernel.

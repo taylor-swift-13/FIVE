@@ -1,0 +1,33 @@
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-778-  split; auto.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-779-Qed.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-780-
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v:781:Theorem load_loadbytes:
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-782-  forall chunk m b ofs v,
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-783-  load chunk m b ofs = Some v ->
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-784-  exists bytes, loadbytes m b ofs (size_chunk chunk) = Some bytes
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-785-             /\ v = decode_val chunk bytes.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-786-Proof.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-787-  intros. exploit load_valid_access; eauto. intros [A B].
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-788-  exploit load_result; eauto. intros.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-789-  exists (getN (size_chunk_nat chunk) ofs m.(mem_contents)#b); split.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-790-  unfold loadbytes. rewrite pred_dec_true; auto.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-791-  auto.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-792-Qed.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-793-
+--
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-901-Proof.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-902-  intros.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-903-  exploit load_valid_access; eauto. intros [A B]. simpl in *.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v:904:  exploit load_loadbytes. eexact H. simpl. intros [bytes [LB EQ]].
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-905-  change 8 with (4 + 4) in LB.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-906-  exploit loadbytes_split. eexact LB. lia. lia.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-907-  intros (bytes1 & bytes2 & LB1 & LB2 & APP).
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-908-  change 4 with (size_chunk Mint32) in LB1.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-909-  exploit loadbytes_load. eexact LB1. eauto with divide.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-910-  intros L1.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-911-  change 4 with (size_chunk Mint32) in LB2.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-912-  exploit loadbytes_load. eexact LB2. eauto with divide.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-913-  intros L2.
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-914-  exists (decode_val Mint32 (if Archi.big_endian then bytes1 else bytes2));
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-915-  exists (decode_val Mint32 (if Archi.big_endian then bytes2 else bytes1)).
+/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Memory.v-916-  split. destruct Archi.big_endian; auto.

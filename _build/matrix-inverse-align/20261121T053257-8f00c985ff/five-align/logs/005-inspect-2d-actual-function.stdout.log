@@ -1,0 +1,198 @@
+Definition f_float_mat_inv_2d := {|
+  fn_return := tbool;
+  fn_callconv := cc_default;
+  fn_params := ((_inv_out, (tptr tfloat)) :: (_mat_in, (tptr tfloat)) :: nil);
+  fn_vars := ((_det, tfloat) :: nil);
+  fn_body :=
+(Ssequence
+  (Sdo (Eassign (Evar _det tfloat)
+         (Ebinop Osub
+           (Ebinop Omul
+             (Evalof
+               (Ederef
+                 (Ebinop Oadd
+                   (Evalof (Evar _mat_in (tptr tfloat)) (tptr tfloat))
+                   (Eval (Vint (Int.repr 0)) tint) (tptr tfloat)) tfloat)
+               tfloat)
+             (Evalof
+               (Ederef
+                 (Ebinop Oadd
+                   (Evalof (Evar _mat_in (tptr tfloat)) (tptr tfloat))
+                   (Eval (Vint (Int.repr 3)) tint) (tptr tfloat)) tfloat)
+               tfloat) tfloat)
+           (Ebinop Omul
+             (Evalof
+               (Ederef
+                 (Ebinop Oadd
+                   (Evalof (Evar _mat_in (tptr tfloat)) (tptr tfloat))
+                   (Eval (Vint (Int.repr 1)) tint) (tptr tfloat)) tfloat)
+               tfloat)
+             (Evalof
+               (Ederef
+                 (Ebinop Oadd
+                   (Evalof (Evar _mat_in (tptr tfloat)) (tptr tfloat))
+                   (Eval (Vint (Int.repr 2)) tint) (tptr tfloat)) tfloat)
+               tfloat) tfloat) tfloat) tfloat))
+  (Ssequence
+    (Sifthenelse (Ebinop Olt
+                   (Ecall
+                     (Evalof
+                       (Evar _fabsf (Tfunction (tfloat :: nil) tfloat
+                                      cc_default))
+                       (Tfunction (tfloat :: nil) tfloat cc_default))
+                     (Econs (Evalof (Evar _det tfloat) tfloat) Enil) tfloat)
+                   (Eval (Vfloat (Float.of_bits (Int64.repr 4547007122018943789))) tdouble)
+                   tint)
+      (Sreturn (Some (Eval (Vint (Int.repr 1)) tint)))
+      Sskip)
+    (Ssequence
+      (Sdo (Eassign
+             (Ederef
+               (Ebinop Oadd
+                 (Evalof (Evar _inv_out (tptr tfloat)) (tptr tfloat))
+                 (Eval (Vint (Int.repr 0)) tint) (tptr tfloat)) tfloat)
+             (Ebinop Odiv
+               (Evalof
+                 (Ederef
+                   (Ebinop Oadd
+                     (Evalof (Evar _mat_in (tptr tfloat)) (tptr tfloat))
+                     (Eval (Vint (Int.repr 3)) tint) (tptr tfloat)) tfloat)
+                 tfloat) (Evalof (Evar _det tfloat) tfloat) tfloat) tfloat))
+      (Ssequence
+        (Sdo (Eassign
+               (Ederef
+                 (Ebinop Oadd
+                   (Evalof (Evar _inv_out (tptr tfloat)) (tptr tfloat))
+                   (Eval (Vint (Int.repr 1)) tint) (tptr tfloat)) tfloat)
+               (Ebinop Odiv
+                 (Eunop Oneg
+                   (Evalof
+                     (Ederef
+                       (Ebinop Oadd
+                         (Evalof (Evar _mat_in (tptr tfloat)) (tptr tfloat))
+                         (Eval (Vint (Int.repr 1)) tint) (tptr tfloat))
+                       tfloat) tfloat) tfloat)
+                 (Evalof (Evar _det tfloat) tfloat) tfloat) tfloat))
+        (Ssequence
+          (Sdo (Eassign
+                 (Ederef
+                   (Ebinop Oadd
+                     (Evalof (Evar _inv_out (tptr tfloat)) (tptr tfloat))
+                     (Eval (Vint (Int.repr 2)) tint) (tptr tfloat)) tfloat)
+                 (Ebinop Odiv
+                   (Eunop Oneg
+                     (Evalof
+                       (Ederef
+                         (Ebinop Oadd
+                           (Evalof (Evar _mat_in (tptr tfloat))
+                             (tptr tfloat)) (Eval (Vint (Int.repr 2)) tint)
+                           (tptr tfloat)) tfloat) tfloat) tfloat)
+                   (Evalof (Evar _det tfloat) tfloat) tfloat) tfloat))
+          (Ssequence
+            (Sdo (Eassign
+                   (Ederef
+                     (Ebinop Oadd
+                       (Evalof (Evar _inv_out (tptr tfloat)) (tptr tfloat))
+                       (Eval (Vint (Int.repr 3)) tint) (tptr tfloat)) tfloat)
+                   (Ebinop Odiv
+                     (Evalof
+                       (Ederef
+                         (Ebinop Oadd
+                           (Evalof (Evar _mat_in (tptr tfloat))
+                             (tptr tfloat)) (Eval (Vint (Int.repr 0)) tint)
+                           (tptr tfloat)) tfloat) tfloat)
+                     (Evalof (Evar _det tfloat) tfloat) tfloat) tfloat))
+            (Sreturn (Some (Eval (Vint (Int.repr 0)) tint)))))))))
+|}.
+
+Definition composites : list composite_definition :=
+nil.
+
+Definition global_definitions : list (ident * globdef fundef type) :=
+((___compcert_va_int32,
+   Gfun(External (EF_runtime "__compcert_va_int32"
+                   (mksignature (AST.Xptr :: nil) AST.Xint cc_default))
+     ((tptr tvoid) :: nil) tuint cc_default)) ::
+ (___compcert_va_int64,
+   Gfun(External (EF_runtime "__compcert_va_int64"
+                   (mksignature (AST.Xptr :: nil) AST.Xlong cc_default))
+     ((tptr tvoid) :: nil) tulong cc_default)) ::
+ (___compcert_va_float64,
+   Gfun(External (EF_runtime "__compcert_va_float64"
+                   (mksignature (AST.Xptr :: nil) AST.Xfloat cc_default))
+     ((tptr tvoid) :: nil) tdouble cc_default)) ::
+ (___compcert_va_composite,
+   Gfun(External (EF_runtime "__compcert_va_composite"
+                   (mksignature (AST.Xptr :: AST.Xlong :: nil) AST.Xptr
+                     cc_default)) ((tptr tvoid) :: tulong :: nil)
+     (tptr tvoid) cc_default)) ::
+ (___compcert_i64_dtos,
+   Gfun(External (EF_runtime "__compcert_i64_dtos"
+                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+     (tdouble :: nil) tlong cc_default)) ::
+ (___compcert_i64_dtou,
+   Gfun(External (EF_runtime "__compcert_i64_dtou"
+                   (mksignature (AST.Xfloat :: nil) AST.Xlong cc_default))
+     (tdouble :: nil) tulong cc_default)) ::
+ (___compcert_i64_stod,
+   Gfun(External (EF_runtime "__compcert_i64_stod"
+                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+     (tlong :: nil) tdouble cc_default)) ::
+ (___compcert_i64_utod,
+   Gfun(External (EF_runtime "__compcert_i64_utod"
+                   (mksignature (AST.Xlong :: nil) AST.Xfloat cc_default))
+     (tulong :: nil) tdouble cc_default)) ::
+ (___compcert_i64_stof,
+   Gfun(External (EF_runtime "__compcert_i64_stof"
+                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+     (tlong :: nil) tfloat cc_default)) ::
+ (___compcert_i64_utof,
+   Gfun(External (EF_runtime "__compcert_i64_utof"
+                   (mksignature (AST.Xlong :: nil) AST.Xsingle cc_default))
+     (tulong :: nil) tfloat cc_default)) ::
+ (___compcert_i64_sdiv,
+   Gfun(External (EF_runtime "__compcert_i64_sdiv"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_udiv,
+   Gfun(External (EF_runtime "__compcert_i64_udiv"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___compcert_i64_smod,
+   Gfun(External (EF_runtime "__compcert_i64_smod"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default)) ::
+ (___compcert_i64_umod,
+   Gfun(External (EF_runtime "__compcert_i64_umod"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tulong :: tulong :: nil) tulong
+     cc_default)) ::
+ (___compcert_i64_shl,
+   Gfun(External (EF_runtime "__compcert_i64_shl"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+ (___compcert_i64_shr,
+   Gfun(External (EF_runtime "__compcert_i64_shr"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tulong :: tint :: nil) tulong cc_default)) ::
+ (___compcert_i64_sar,
+   Gfun(External (EF_runtime "__compcert_i64_sar"
+                   (mksignature (AST.Xlong :: AST.Xint :: nil) AST.Xlong
+                     cc_default)) (tlong :: tint :: nil) tlong cc_default)) ::
+ (___compcert_i64_smulh,
+   Gfun(External (EF_runtime "__compcert_i64_smulh"
+                   (mksignature (AST.Xlong :: AST.Xlong :: nil) AST.Xlong
+                     cc_default)) (tlong :: tlong :: nil) tlong cc_default))
+Definition ___builtin_fabs : ident := $"__builtin_fabs".
+Definition ___builtin_fabsf : ident := $"__builtin_fabsf".
+Definition _fabsf : ident := $"fabsf".
+                       (Evar _fabsf (Tfunction (tfloat :: nil) tfloat
+ (___builtin_fabs,
+   Gfun(External (EF_builtin "__builtin_fabs"
+ (___builtin_fabsf,
+   Gfun(External (EF_builtin "__builtin_fabsf"
+ (_fabsf,
+   Gfun(External (EF_external "fabsf"
+(_float_mat_inv_2d :: _fabsf :: ___builtin_debug ::
+ ___builtin_fsqrt :: ___builtin_fabsf :: ___builtin_fabs ::

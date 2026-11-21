@@ -1,0 +1,127 @@
+944:Definition sem_cmp (c:comparison)
+945-                  (v1: val) (t1: type) (v2: val) (t2: type)
+946-                  (m: mem): option val :=
+947-  match classify_cmp t1 t2 with
+948-  | cmp_case_pp =>
+949-      cmp_ptr m c v1 v2
+950-  | cmp_case_pi si =>
+951-      match v2 with
+952-      | Vint n2 =>
+953-          let v2' := Vptrofs (ptrofs_of_int si n2) in
+954-          cmp_ptr m c v1 v2'
+955-      | Vptr b ofs =>
+956-          if Archi.ptr64 then None else cmp_ptr m c v1 v2
+957-      | _ =>
+958-          None
+959-      end
+960-  | cmp_case_ip si =>
+961-      match v1 with
+962-      | Vint n1 =>
+963-          let v1' := Vptrofs (ptrofs_of_int si n1) in
+964-          cmp_ptr m c v1' v2
+965-      | Vptr b ofs =>
+966-          if Archi.ptr64 then None else cmp_ptr m c v1 v2
+967-      | _ =>
+968-          None
+969-      end
+970-  | cmp_case_pl =>
+971-      match v2 with
+972-      | Vlong n2 =>
+973-          let v2' := Vptrofs (Ptrofs.of_int64 n2) in
+974-          cmp_ptr m c v1 v2'
+975-      | Vptr b ofs =>
+976-          if Archi.ptr64 then cmp_ptr m c v1 v2 else None
+977-      | _ =>
+978-          None
+979-      end
+980-  | cmp_case_lp =>
+981-      match v1 with
+982-      | Vlong n1 =>
+983-          let v1' := Vptrofs (Ptrofs.of_int64 n1) in
+984-          cmp_ptr m c v1' v2
+985-      | Vptr b ofs =>
+986-          if Archi.ptr64 then cmp_ptr m c v1 v2 else None
+987-      | _ =>
+988-          None
+989-      end
+990-  | cmp_default =>
+991-      sem_binarith
+992-        (fun sg n1 n2 =>
+993-            Some(Val.of_bool(match sg with Signed => Int.cmp c n1 n2 | Unsigned => Int.cmpu c n1 n2 end)))
+994-        (fun sg n1 n2 =>
+995-            Some(Val.of_bool(match sg with Signed => Int64.cmp c n1 n2 | Unsigned => Int64.cmpu c n1 n2 end)))
+996-        (fun n1 n2 =>
+997-            Some(Val.of_bool(Float.cmp c n1 n2)))
+998-        (fun n1 n2 =>
+999-            Some(Val.of_bool(Float32.cmp c n1 n2)))
+1000-        v1 t1 v2 t2 m
+1001-  end.
+1002-
+1003-(** ** Function applications *)
+1004-
+1005-Inductive classify_fun_cases : Type :=
+1006-  | fun_case_f (targs: list type) (tres: type) (cc: calling_convention) (**r (pointer to) function *)
+1007-  | fun_default.
+1008-
+1009-Definition classify_fun (ty: type) :=
+1010-  match ty with
+1011-  | Tfunction args res cc => fun_case_f args res cc
+1012-  | Tpointer (Tfunction args res cc) _ => fun_case_f args res cc
+1013-  | _ => fun_default
+1014-  end.
+1015-
+1016-(** ** Argument of a [switch] statement *)
+1017-
+1018-Inductive classify_switch_cases : Type :=
+1019-  | switch_case_i
+1020-  | switch_case_l
+1021-  | switch_default.
+1022-
+1023-Definition classify_switch (ty: type) :=
+1024-  match ty with
+1025-  | Tint _ _ _ => switch_case_i
+1026-  | Tlong _ _ => switch_case_l
+1027-  | _ => switch_default
+1028-  end.
+1029-
+1030-Definition sem_switch_arg (v: val) (ty: type): option Z :=
+1031-  match classify_switch ty with
+1032-  | switch_case_i =>
+1033-      match v with Vint n => Some(Int.unsigned n) | _ => None end
+1034-  | switch_case_l =>
+1035-      match v with Vlong n => Some(Int64.unsigned n) | _ => None end
+1036-  | switch_default =>
+1037-      None
+1038-  end.
+1039-
+591:Definition sem_binarith
+592-    (sem_int: signedness -> int -> int -> option val)
+593-    (sem_long: signedness -> int64 -> int64 -> option val)
+594-    (sem_float: float -> float -> option val)
+595-    (sem_single: float32 -> float32 -> option val)
+596-    (v1: val) (t1: type) (v2: val) (t2: type) (m: mem): option val :=
+597-  let c := classify_binarith t1 t2 in
+598-  let t := binarith_type c in
+599-  match sem_cast v1 t1 t m with
+600-  | None => None
+601-  | Some v1' =>
+602-  match sem_cast v2 t2 t m with
+603-  | None => None
+604-  | Some v2' =>
+605-  match c with
+606-  | bin_case_i sg =>
+607-      match v1', v2' with
+608-      | Vint n1, Vint n2 => sem_int sg n1 n2
+609-      | _,  _ => None
+610-      end
+611-  | bin_case_f =>
+612-      match v1', v2' with
+613-      | Vfloat n1, Vfloat n2 => sem_float n1 n2
+614-      | _,  _ => None
+615-      end
+616-  | bin_case_s =>
+617-      match v1', v2' with
+618-      | Vsingle n1, Vsingle n2 => sem_single n1 n2
+619-      | _,  _ => None
+620-      end
+621-  | bin_case_l sg =>

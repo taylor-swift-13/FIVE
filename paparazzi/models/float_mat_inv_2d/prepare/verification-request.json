@@ -1,0 +1,40 @@
+{
+  "schema": "five-verification-request/1",
+  "case_id": "float_mat_inv_2d",
+  "entry": "float_mat_inv_2d",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "requested_model": "gpt-6.1-sol",
+  "requested_reasoning_effort": "ultra",
+  "goals": [
+    "Original Csem no-error for valid separated initialized input and writable output matrix",
+    "Original Csem all-successor termination under that precondition",
+    "Universal exact Float32 operation call summary, actual output bytes and frame",
+    "Independent recheck of every actual CBMC emitted property and replay of every actual failed assertion trace",
+    "Cross-model scale invariance refutation and successful-result numerical reliability against ideal inverse/residual"
+  ],
+  "cbmc_scope": {
+    "safety": "arbitrary binary32 matrix in distinct valid typed arrays",
+    "numeric_witnesses": [
+      "identity",
+      "2^-8 identity",
+      "large finite diagonal identity scaling: 2^100 for 2d; 2^50 for 3d"
+    ],
+    "bounds": "No source loops or recursion; explicit harness loops unwound with assertions"
+  },
+  "execution_model_domain": {
+    "arguments": "all list val",
+    "memory": "all CompCert Mem.mem including invalid states"
+  },
+  "correspondence_boundary": "Entry body extracted unchanged; standard header declarations/macros. CompCert Csem is fixed semantics; no GCC binary equivalence claim."
+}

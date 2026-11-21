@@ -1,0 +1,48 @@
+  of the bitfield [bf] otherwise.
+*)
+
+Inductive assign_loc (ty: type) (m: mem) (b: block) (ofs: ptrofs):
+                              bitfield -> val -> trace -> mem -> val -> Prop :=
+  | assign_loc_value: forall v chunk m',
+      access_mode ty = By_value chunk ->
+      type_is_volatile ty = false ->
+      Mem.storev chunk m (Vptr b ofs) v = Some m' ->
+      assign_loc ty m b ofs Full v E0 m' v
+  | assign_loc_volatile: forall v chunk t m',
+      access_mode ty = By_value chunk -> type_is_volatile ty = true ->
+      volatile_store ge chunk m b ofs v t m' ->
+      assign_loc ty m b ofs Full v t m' v
+  | assign_loc_copy: forall b' ofs' bytes m',
+      access_mode ty = By_copy ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs') ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs) ->
+        E0 (Eval (Vptrofs (Ptrofs.repr (alignof ge ty1))) ty) m
+  | red_assign: forall b ofs ty1 bf v2 ty2 m v t m' v',
+      sem_cast v2 ty2 ty1 m = Some v ->
+      assign_loc ty1 m b ofs bf v t m' v' ->
+      rred (Eassign (Eloc b ofs bf ty1) (Eval v2 ty2) ty1) m
+         t (Eval v' ty1) m'
+  | red_assignop: forall op b ofs ty1 bf v2 ty2 tyres m t v1,
+      deref_loc ty1 m b ofs bf t v1 ->
+      rred (Eassignop op (Eloc b ofs bf ty1) (Eval v2 ty2) tyres ty1) m
+         t (Eassign (Eloc b ofs bf ty1)
+                    (Ebinop op (Eval v1 ty1) (Eval v2 ty2) tyres) ty1) m
+  | red_postincr: forall id b ofs ty bf m t v1 op,
+      deref_loc ty m b ofs bf t v1 ->
+      op = match id with Incr => Oadd | Decr => Osub end ->
+      rred (Epostincr id (Eloc b ofs bf ty) ty) m
+         t (Ecomma (Eassign (Eloc b ofs bf ty)
+      bool_val v (typeof r1) m = Some b ->
+      estep (ExprState f (C (Econdition r1 r2 r3 ty)) k e m)
+         E0 (ExprState f (C (Eparen (if b then r2 else r3) ty ty)) k e m)
+
+  | step_assign: forall f C l r ty k e m b ofs bf v v1 t m' v',
+      leftcontext RV RV C ->
+      eval_simple_lvalue e m l b ofs bf ->
+      eval_simple_rvalue e m r v ->
+      sem_cast v (typeof r) (typeof l) m = Some v1 ->
+      assign_loc ge (typeof l) m b ofs bf v1 t m' v' ->
+      ty = typeof l ->
+      estep (ExprState f (C (Eassign l r ty)) k e m)
+          t (ExprState f (C (Eval v' ty)) k e m')
+

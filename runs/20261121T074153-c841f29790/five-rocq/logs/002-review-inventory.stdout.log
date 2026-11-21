@@ -1,0 +1,520 @@
+
+CASE float_mat_inv_2d
+
+FILE paparazzi/models/float_mat_inv_2d/prepare/handoff.json
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "float_mat_inv_2d",
+  "stage": "five-prepare",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "paths_relative_to": "case root",
+  "entry": "float_mat_inv_2d",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/float_mat_inv_2d.c",
+      "sha256": "5ff0fbc7d7284628788464d5b8d505756da59d0cddba3b97afe2a7c8d25b85e4"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "f3b7ee50820d3c04164fab5fcd32c97627c6b9b06d5f466f872d73b34d38d59e"
+    },
+    {
+      "role": "verification_request",
+      "path": "prepare/verification-request.json",
+      "sha256": "21b5ad9d4d32d901a37b9e2dd2095283c0a3b8053a3ad2dc1f7b30f426f5e971"
+    }
+  ],
+  "limitations": [
+    "Explicit standard fabs intrinsic binding; original libm implementation equivalence remains trust boundary"
+  ],
+  "next_stage": "five-cbmc"
+}
+
+
+FILE paparazzi/models/float_mat_inv_2d/cbmc/handoff.json
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "float_mat_inv_2d",
+  "stage": "five-cbmc",
+  "status": "refuted",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "paths_relative_to": "case root",
+  "entry": "float_mat_inv_2d",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/float_mat_inv_2d.c",
+      "sha256": "5ff0fbc7d7284628788464d5b8d505756da59d0cddba3b97afe2a7c8d25b85e4"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "f3b7ee50820d3c04164fab5fcd32c97627c6b9b06d5f466f872d73b34d38d59e"
+    },
+    {
+      "role": "verification_request",
+      "path": "prepare/verification-request.json",
+      "sha256": "21b5ad9d4d32d901a37b9e2dd2095283c0a3b8053a3ad2dc1f7b30f426f5e971"
+    },
+    {
+      "role": "harness",
+      "path": "cbmc/harness.c",
+      "sha256": "cf242e5439b643b341544a3e70176932bfef62e898c660445cb0e130732784c3"
+    },
+    {
+      "role": "properties",
+      "path": "cbmc/properties.json",
+      "sha256": "0875a175250b797e1b8e3f769b4f5a5b2dd23a10da9661def339f2690373bc7f"
+    },
+    {
+      "role": "cbmc_json",
+      "path": "cbmc/results.json",
+      "sha256": "a849a57177e76cd7da8e99861af2032abe6710e2b6aba45a5bde6b270cc04763"
+    },
+    {
+      "role": "counterexamples",
+      "path": "cbmc/counterexamples.json",
+      "sha256": "3aafc5193e6d7ab1f39bda8b87635c013559b77ab8ab4a04b77ddd27c70be8fe"
+    },
+    {
+      "role": "command",
+      "path": "cbmc/command.json",
+      "sha256": "79d33d05250d8d546757694336cd0a20feba75114d4a3497f7bcb04c0d0f8f0a"
+    },
+    {
+      "role": "scope",
+      "path": "cbmc/scope.json",
+      "sha256": "847a4a002ecd2214870f1fd9c9e4f04915abc5f3ed06972df6f31fbe6cbe2d54"
+    }
+  ],
+  "limitations": [
+    "Two actual numerical assertions refuted; this is not a program-correctness result",
+    "Memory and local checks hold only under actual typed separate harness allocations; full execution model is unrestricted"
+  ],
+  "next_stage": "five-align"
+}
+
+
+FILE paparazzi/models/float_mat_inv_2d/align/handoff.json
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "float_mat_inv_2d",
+  "stage": "five-align",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case root",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/float_mat_inv_2d.c",
+      "sha256": "5ff0fbc7d7284628788464d5b8d505756da59d0cddba3b97afe2a7c8d25b85e4"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "f3b7ee50820d3c04164fab5fcd32c97627c6b9b06d5f466f872d73b34d38d59e"
+    },
+    {
+      "role": "verification_request",
+      "path": "prepare/verification-request.json",
+      "sha256": "21b5ad9d4d32d901a37b9e2dd2095283c0a3b8053a3ad2dc1f7b30f426f5e971"
+    },
+    {
+      "role": "execution_request",
+      "path": "align/request.json",
+      "sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9"
+    },
+    {
+      "role": "backend_manifest",
+      "path": "align/model/compcert-manifest.json",
+      "sha256": "bfd37ae7eeef42d51324ef53b57f0d073dea46c919972a76a52ab4a6bc9c11e4"
+    },
+    {
+      "role": "source_ast",
+      "path": "align/model/Source.v",
+      "sha256": "9cc1524a49e10a888c1381d5e77f6042748ebf43d2a8c2deaa7dcfd63b65e2a4"
+    },
+    {
+      "role": "execution",
+      "path": "align/model/Execution.v",
+      "sha256": "03a7039fe82bf6df94795cd66ad95f1807dee7683cb40c32551aaa2f060c772e"
+    },
+    {
+      "role": "pending_precondition",
+      "path": "align/model/proof/Precondition.v",
+      "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933"
+    },
+    {
+      "role": "pending_obligations",
+      "path": "align/model/proof/Obligations.v",
+      "sha256": "d821a95d55fbf6d69898e2d4c71fc4a84d76c06bf1dbf86380577c27241f4cb9"
+    },
+    {
+      "role": "pending_proofs",
+      "path": "align/model/proof/Proofs.v",
+      "sha256": "04c48d99a280386f10471e1493f35a47f8dcfc39811991ac117baf44af9ad66a"
+    },
+    {
+      "role": "spec_map",
+      "path": "align/spec-map.json",
+      "sha256": "3d5513154a88c32f0c21cf68d47668be69ac02eebefbf51a13e15f8db22709a9"
+    },
+    {
+      "role": "cbmc_properties",
+      "path": "cbmc/properties.json",
+      "sha256": "0875a175250b797e1b8e3f769b4f5a5b2dd23a10da9661def339f2690373bc7f"
+    },
+    {
+      "role": "cbmc_json",
+      "path": "cbmc/results.json",
+      "sha256": "a849a57177e76cd7da8e99861af2032abe6710e2b6aba45a5bde6b270cc04763"
+    },
+    {
+      "role": "cbmc_counterexamples",
+      "path": "cbmc/counterexamples.json",
+      "sha256": "3aafc5193e6d7ab1f39bda8b87635c013559b77ab8ab4a04b77ddd27c70be8fe"
+    },
+    {
+      "role": "cbmc_harness",
+      "path": "cbmc/harness.c",
+      "sha256": "cf242e5439b643b341544a3e70176932bfef62e898c660445cb0e130732784c3"
+    }
+  ],
+  "limitations": [
+    "Generated unrestricted model is not a proved theorem",
+    "Original libm to explicitly supported intrinsic correspondence is an explicit trust boundary",
+    "All actual CBMC IDs mapped; independent proof and exact failed-trace replay pending"
+  ],
+  "next_stage": "five-rocq",
+  "namespace": "FivePprzFloatMatInv2d",
+  "function": "f_float_mat_inv_2d",
+  "source_audit": "_build/matrix-inverse-align/20261121T054220-ae567c83c2/five-align/evidence/inv2-source-audit.json"
+}
+
+
+FOLDER rocq/cbmc_recheck/problem
+rocq/cbmc_recheck/problem/Spec.v
+rocq/cbmc_recheck/problem/status.json
+rocq/cbmc_recheck/problem/report.md
+
+FOLDER rocq/cbmc_recheck/attempts/001
+rocq/cbmc_recheck/attempts/001/checker-config.json
+rocq/cbmc_recheck/attempts/001/check.py
+rocq/cbmc_recheck/attempts/001/goal-index.json
+rocq/cbmc_recheck/attempts/001/Proof.v
+rocq/cbmc_recheck/attempts/001/report.md
+rocq/cbmc_recheck/attempts/001/evidence/original-trace-values.json
+
+FOLDER rocq/support
+rocq/support/Observer.v
+rocq/support/Expressions.v
+rocq/support/Closure.v
+rocq/support/Contract.v
+rocq/support/Certificates.v
+rocq/support/TraceInputs.v
+rocq/support/Body.v
+rocq/support/BuiltinFabs.v
+rocq/support/ExactReplay.v
+rocq/support/MemoryEffects.v
+rocq/support/Call.v
+rocq/support/Replay.v
+rocq/support/RecheckSupport.v
+rocq/support/Memcpy16.v
+
+CASE float_mat_inv_3d
+
+FILE paparazzi/models/float_mat_inv_3d/prepare/handoff.json
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "float_mat_inv_3d",
+  "stage": "five-prepare",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "paths_relative_to": "case root",
+  "entry": "float_mat_inv_3d",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/float_mat_inv_3d.c",
+      "sha256": "68ede3a9167c9a8c036eadfd24fd9ee590183f2b282e8594eee165d8e6a07d3f"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "66206542f2015b0b4f3bcbfe3cb201343c58556dacb604987547a4e813ca6cd9"
+    },
+    {
+      "role": "verification_request",
+      "path": "prepare/verification-request.json",
+      "sha256": "1bf288a452661e934013a8c666df5389766113853a0a33da722ee74d4cc4ef6e"
+    }
+  ],
+  "limitations": [
+    "Explicit standard fabs intrinsic binding; original libm implementation equivalence remains trust boundary"
+  ],
+  "next_stage": "five-cbmc"
+}
+
+
+FILE paparazzi/models/float_mat_inv_3d/cbmc/handoff.json
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "float_mat_inv_3d",
+  "stage": "five-cbmc",
+  "status": "refuted",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "paths_relative_to": "case root",
+  "entry": "float_mat_inv_3d",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/float_mat_inv_3d.c",
+      "sha256": "68ede3a9167c9a8c036eadfd24fd9ee590183f2b282e8594eee165d8e6a07d3f"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "66206542f2015b0b4f3bcbfe3cb201343c58556dacb604987547a4e813ca6cd9"
+    },
+    {
+      "role": "verification_request",
+      "path": "prepare/verification-request.json",
+      "sha256": "1bf288a452661e934013a8c666df5389766113853a0a33da722ee74d4cc4ef6e"
+    },
+    {
+      "role": "harness",
+      "path": "cbmc/harness.c",
+      "sha256": "07d7bd838edd6624f6ca2aaad6fd90bdf0f45264f98f0502a6c40ea775b89b57"
+    },
+    {
+      "role": "properties",
+      "path": "cbmc/properties.json",
+      "sha256": "c5b780b2210614af765940d9ac75e2ea6239e84e25bf093dfa781edb08b83c51"
+    },
+    {
+      "role": "cbmc_json",
+      "path": "cbmc/results.json",
+      "sha256": "d23a0c57064a48a3242d78e29b90c370bb2cd67535fc7ee3e193b2ba4160323f"
+    },
+    {
+      "role": "counterexamples",
+      "path": "cbmc/counterexamples.json",
+      "sha256": "8e3317d44a4d54ae865d629b7f5672345a97fad7d78b2c79f86c3bb00f4aed49"
+    },
+    {
+      "role": "command",
+      "path": "cbmc/command.json",
+      "sha256": "46b6b12a3f3347f688923d3a637361b01211cd4a2ab74e5dc990936ce14aa38d"
+    },
+    {
+      "role": "scope",
+      "path": "cbmc/scope.json",
+      "sha256": "3bbb1c60e170224846024ae06b07855bfef9b0f6493524ffbf26b8fb101ff9c2"
+    }
+  ],
+  "limitations": [
+    "Two actual numerical assertions refuted; this is not a program-correctness result",
+    "Memory and local checks hold only under actual typed separate harness allocations; full execution model is unrestricted"
+  ],
+  "next_stage": "five-align"
+}
+
+
+FILE paparazzi/models/float_mat_inv_3d/align/handoff.json
+{
+  "schema": "five-stage-handoff/1",
+  "case_id": "float_mat_inv_3d",
+  "stage": "five-align",
+  "status": "passed",
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even",
+    "nan_policy": "CompCert Floats and target Archi definitions; hashes bind exact policy",
+    "trust_boundary": "CompCert C semantics; no automatic GCC binary or hardware equivalence"
+  },
+  "paths_relative_to": "case root",
+  "outputs": [
+    {
+      "role": "prepared_c",
+      "path": "prepare/source/float_mat_inv_3d.c",
+      "sha256": "68ede3a9167c9a8c036eadfd24fd9ee590183f2b282e8594eee165d8e6a07d3f"
+    },
+    {
+      "role": "bindings",
+      "path": "prepare/source/bindings.json",
+      "sha256": "66206542f2015b0b4f3bcbfe3cb201343c58556dacb604987547a4e813ca6cd9"
+    },
+    {
+      "role": "verification_request",
+      "path": "prepare/verification-request.json",
+      "sha256": "1bf288a452661e934013a8c666df5389766113853a0a33da722ee74d4cc4ef6e"
+    },
+    {
+      "role": "execution_request",
+      "path": "align/request.json",
+      "sha256": "cae512a533acdd3818c82a5f6462c6e449532d0f9fc64f1c2ea9c20ca19106c9"
+    },
+    {
+      "role": "backend_manifest",
+      "path": "align/model/compcert-manifest.json",
+      "sha256": "60ef26b57977f9db5308a4717775e9b6249beacf7b6b59dab077ef6709b98908"
+    },
+    {
+      "role": "source_ast",
+      "path": "align/model/Source.v",
+      "sha256": "8a5457ea6fc48aa16b627d174d6b1174e89b06f1212f995ecff82ffdf4b1f6db"
+    },
+    {
+      "role": "execution",
+      "path": "align/model/Execution.v",
+      "sha256": "b39e1b5ecaeaad262a7295ad1864bce57c2547ff1f7f30ae589c02bafb30b3cf"
+    },
+    {
+      "role": "pending_precondition",
+      "path": "align/model/proof/Precondition.v",
+      "sha256": "6fde969151ee4cc1fd9eef30e63c447e056cabf85ec30564434e80d6069c6933"
+    },
+    {
+      "role": "pending_obligations",
+      "path": "align/model/proof/Obligations.v",
+      "sha256": "2f6a1d6c7127b20e698209d66d3b9865659878f47eece7e265cdc01ff6802923"
+    },
+    {
+      "role": "pending_proofs",
+      "path": "align/model/proof/Proofs.v",
+      "sha256": "a6506a37a1fc544ee0c36da9fd4d5db001c4ed07d6fc84bd3b14008e4817928d"
+    },
+    {
+      "role": "spec_map",
+      "path": "align/spec-map.json",
+      "sha256": "f6640a5cb60964be0668a95356ad1b3a65b0eb4dad364dca28ce2d6cfc3c90d8"
+    },
+    {
+      "role": "cbmc_properties",
+      "path": "cbmc/properties.json",
+      "sha256": "c5b780b2210614af765940d9ac75e2ea6239e84e25bf093dfa781edb08b83c51"
+    },
+    {
+      "role": "cbmc_json",
+      "path": "cbmc/results.json",
+      "sha256": "d23a0c57064a48a3242d78e29b90c370bb2cd67535fc7ee3e193b2ba4160323f"
+    },
+    {
+      "role": "cbmc_counterexamples",
+      "path": "cbmc/counterexamples.json",
+      "sha256": "8e3317d44a4d54ae865d629b7f5672345a97fad7d78b2c79f86c3bb00f4aed49"
+    },
+    {
+      "role": "cbmc_harness",
+      "path": "cbmc/harness.c",
+      "sha256": "07d7bd838edd6624f6ca2aaad6fd90bdf0f45264f98f0502a6c40ea775b89b57"
+    }
+  ],
+  "limitations": [
+    "Generated unrestricted model is not a proved theorem",
+    "Original libm to explicitly supported intrinsic correspondence is an explicit trust boundary",
+    "All actual CBMC IDs mapped; independent proof and exact failed-trace replay pending"
+  ],
+  "next_stage": "five-rocq",
+  "namespace": "FivePprzFloatMatInv3d",
+  "function": "f_float_mat_inv_3d",
+  "source_audit": "_build/matrix-inverse-align/20261121T054220-ae567c83c2/five-align/evidence/inv3-source-audit.json"
+}
+
+
+FOLDER rocq/cbmc_recheck/problem
+rocq/cbmc_recheck/problem/Spec.v
+rocq/cbmc_recheck/problem/status.json
+
+FOLDER rocq/cbmc_recheck/attempts/001
+rocq/cbmc_recheck/attempts/001/checker-config.json
+rocq/cbmc_recheck/attempts/001/check.py
+rocq/cbmc_recheck/attempts/001/property-bindings.json
+rocq/cbmc_recheck/attempts/001/Proof.v
+rocq/cbmc_recheck/attempts/001/evidence/trace-inputs.json
+
+FOLDER rocq/support
+rocq/support/MatrixAccess.v
+rocq/support/Observer.v
+rocq/support/PairExtend.v
+rocq/support/Contract.v
+rocq/support/TraceInputs.v
+rocq/support/GuardWitness.v
+rocq/support/Expression.v
+rocq/support/LocalMemory.v
+rocq/support/Scalar.v
+rocq/support/Assertions.v
+rocq/support/Output.v
+rocq/support/SequentialReplay.v
+rocq/support/Call.v
+rocq/support/MatrixMemory.v
+rocq/support/RecheckSupport.v
+rocq/support/Memcpy36.v

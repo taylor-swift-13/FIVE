@@ -1,0 +1,147 @@
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/support/Observer.v SHA256 da86c593e4f9353a79dc09a218b3c45577d3c493fcbdb1d50232e8a19b163f6f
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.
+3: From FiveMatInv3Case Require Import MatrixMemory.
+4: From FiveInv2Case Require Import Memcpy16.
+5: Import ListNotations.
+6: Local Open Scope Z_scope.
+7: Lemma append_cut:forall(A:Type)(a b c d:list A),length a=length c->a++b=c++d->a=c /\b=d.
+8: Proof. intros A a;induction a as[|x a IH];intros b c d LEN EQ;destruct c as[|y c];simpl in LEN;try discriminate.
+9:  - simpl in EQ;auto.
+10:  - simpl in EQ;injection EQ as XY EQ;subst y;destruct(IH b c d ltac:(lia)EQ)as[-> ->];auto. Qed.
+11: Lemma same_bytes_cell:forall m1 b1 m2 b2 bytes z,
+12:  Mem.loadbytes m1 b1 0 16=Some bytes->Mem.loadbytes m2 b2 0 16=Some bytes->0<=z->z+4<=16->
+13:  Mem.loadbytes m1 b1 z 4=Mem.loadbytes m2 b2 z 4.
+14: Proof.
+15:  intros m1 b1 m2 b2 bytes z A B Z LIMIT.
+16:  replace 16 with(z+(16-z))in A,B by lia.
+17:  destruct(Mem.loadbytes_split _ _ _ _ _ _ A ltac:(lia)ltac:(lia))as[a[rest[RA[RR EA]]]].
+18:  destruct(Mem.loadbytes_split _ _ _ _ _ _ B ltac:(lia)ltac:(lia))as[c[tail[RC[RT EC]]]].
+19:  assert(L:length a=length c)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RA),(Mem.loadbytes_length _ _ _ _ _ RC);reflexivity).
+20:  destruct(append_cut _ a rest c tail L ltac:(congruence))as[_ EQ];subst tail.
+21:  replace(0+z)with z in RR,RT by lia.
+22:  replace(16-z)with(4+(12-z))in RR,RT by lia.
+23:  destruct(Mem.loadbytes_split _ _ _ _ _ _ RR ltac:(lia)ltac:(lia))as[d[ds[RD[RDS ED]]]].
+24:  destruct(Mem.loadbytes_split _ _ _ _ _ _ RT ltac:(lia)ltac:(lia))as[f[fs[RF[RFS EF]]]].
+25:  assert(L':length d=length f)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RD),(Mem.loadbytes_length _ _ _ _ _ RF);reflexivity).
+26:  destruct(append_cut _ d ds f fs L' ltac:(congruence))as[EQ _];subst f;congruence.
+27: Qed.
+28: Lemma memcpy_word_observation:forall m src dst mf bytes f,
+29:  Mem.loadbytes m src 0 16=Some bytes->Mem.storebytes m dst 0 bytes=Some mf->
+30:  (forall i,0<=i<4->Mem.loadbytes m src(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))->
+31:  forall i,0<=i<4->Mem.load Mint32 mf dst(4*i)=Some(Vint(Float32.to_bits(f i))).
+32: Proof.
+33:  intros m src dst mf bytes f RD ST CELLS i I.
+34:  pose proof(Mem.loadbytes_length _ _ _ _ _ RD)as LEN;change(length bytes=16%nat)in LEN.
+35:  pose proof(Mem.loadbytes_storebytes_same _ _ _ _ _ ST)as ALL;rewrite LEN in ALL;change(Mem.loadbytes mf dst 0 16=Some bytes)in ALL.
+36:  pose proof(same_bytes_cell m src mf dst bytes(4*i)RD ALL ltac:(lia)ltac:(lia))as EQ.
+37:  assert(C:Mem.loadbytes mf dst(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))by(rewrite <-EQ;apply CELLS;exact I).
+38:  pose proof(Mem.loadbytes_load Mint32 mf dst(4*i)_ C ltac:(change(4|4*i);exists i;lia))as LOAD.
+39:  pose proof(decode_encode_val_general(Vsingle(f i))Mfloat32 Mint32)as DE.
+40:  change(decode_val Mint32(encode_val Mfloat32(Vsingle(f i)))=Vint(Float32.to_bits(f i)))in DE;rewrite DE in LOAD;exact LOAD.
+41: Qed.
+42: Print Assumptions memcpy_word_observation.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/support/Observer.v SHA256 7cb4f501234dcdb284562391c125da8e9282d1d9ff39f3c425e91af8de185725
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.
+3: From FiveMatInv3Case Require Import MatrixMemory Memcpy36.
+4: Import ListNotations.
+5: Local Open Scope Z_scope.
+6: Lemma append_cut:forall(A:Type)(a b c d:list A),length a=length c->a++b=c++d->a=c /\b=d.
+7: Proof. intros A a;induction a as[|x a IH];intros b c d LEN EQ;destruct c as[|y c];simpl in LEN;try discriminate.
+8:  - simpl in EQ;auto.
+9:  - simpl in EQ;injection EQ as XY EQ;subst y;destruct(IH b c d ltac:(lia)EQ)as[-> ->];auto. Qed.
+10: Lemma same_bytes_cell:forall m1 b1 m2 b2 bytes z,
+11:  Mem.loadbytes m1 b1 0 36=Some bytes->Mem.loadbytes m2 b2 0 36=Some bytes->0<=z->z+4<=36->
+12:  Mem.loadbytes m1 b1 z 4=Mem.loadbytes m2 b2 z 4.
+13: Proof.
+14:  intros m1 b1 m2 b2 bytes z A B Z LIMIT.
+15:  replace 36 with(z+(36-z))in A,B by lia.
+16:  destruct(Mem.loadbytes_split _ _ _ _ _ _ A ltac:(lia)ltac:(lia))as[a[rest[RA[RR EA]]]].
+17:  destruct(Mem.loadbytes_split _ _ _ _ _ _ B ltac:(lia)ltac:(lia))as[c[tail[RC[RT EC]]]].
+18:  assert(L:length a=length c)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RA),(Mem.loadbytes_length _ _ _ _ _ RC);reflexivity).
+19:  destruct(append_cut _ a rest c tail L ltac:(congruence))as[_ EQ];subst tail.
+20:  replace(0+z)with z in RR,RT by lia.
+21:  replace(36-z)with(4+(32-z))in RR,RT by lia.
+22:  destruct(Mem.loadbytes_split _ _ _ _ _ _ RR ltac:(lia)ltac:(lia))as[d[ds[RD[RDS ED]]]].
+23:  destruct(Mem.loadbytes_split _ _ _ _ _ _ RT ltac:(lia)ltac:(lia))as[f[fs[RF[RFS EF]]]].
+24:  assert(L':length d=length f)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RD),(Mem.loadbytes_length _ _ _ _ _ RF);reflexivity).
+25:  destruct(append_cut _ d ds f fs L' ltac:(congruence))as[EQ _];subst f;congruence.
+26: Qed.
+27: Lemma memcpy_word_observation:forall m src dst mf bytes f,
+28:  Mem.loadbytes m src 0 36=Some bytes->Mem.storebytes m dst 0 bytes=Some mf->
+29:  (forall i,0<=i<9->Mem.loadbytes m src(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))->
+30:  forall i,0<=i<9->Mem.load Mint32 mf dst(4*i)=Some(Vint(Float32.to_bits(f i))).
+31: Proof.
+32:  intros m src dst mf bytes f RD ST CELLS i I.
+33:  pose proof(Mem.loadbytes_length _ _ _ _ _ RD)as LEN;change(length bytes=36%nat)in LEN.
+34:  pose proof(Mem.loadbytes_storebytes_same _ _ _ _ _ ST)as ALL;rewrite LEN in ALL;change(Mem.loadbytes mf dst 0 36=Some bytes)in ALL.
+35:  pose proof(same_bytes_cell m src mf dst bytes(4*i)RD ALL ltac:(lia)ltac:(lia))as EQ.
+36:  assert(C:Mem.loadbytes mf dst(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))by(rewrite <-EQ;apply CELLS;exact I).
+37:  pose proof(Mem.loadbytes_load Mint32 mf dst(4*i)_ C ltac:(change(4|4*i);exists i;lia))as LOAD.
+38:  pose proof(decode_encode_val_general(Vsingle(f i))Mfloat32 Mint32)as DE.
+39:  change(decode_val Mint32(encode_val Mfloat32(Vsingle(f i)))=Vint(Float32.to_bits(f i)))in DE;rewrite DE in LOAD;exact LOAD.
+40: Qed.
+41: Print Assumptions memcpy_word_observation.
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/support/TraceInputs.v SHA256 8da28338229b201b6be37c472402e65a70458132e4e6df1997920bd293db07d8
+1: From Stdlib Require Import List ZArith.
+2: From compcert Require Import Integers Floats Values.
+3: From FiveInv2Case Require Import Contract.
+4: Import ListNotations.
+5: Local Open Scope Z_scope.
+6: Definition trace_input_words:list Z := [4272023241;1066696119;15406124;1877109524].
+7: Definition trace_input(i:Z):float32:=Float32.of_bits(Int.repr(nth(Z.to_nat i)trace_input_words 0)).
+8: Definition trace_output_words:list Z := [2147483648;0;0;0].
+9: Definition initial_fixture(i:Z):float32:=Float32.of_bits(Int.repr(if Z.eq_dec i 0 then 1099431936 else if Z.eq_dec i 3 then 1099431936 else 0)).
+10: Definition initial_guarded(_:Z):float32:=Float32.of_bits Int.zero.
+11: Theorem original_arbitrary_trace_kernel:Result trace_input=Vint Int.zero /\Float32.to_bits(Det trace_input)=Int.repr 4286578688 /\
+12:  map(fun i=>Float32.to_bits(Output trace_input i))[0;1;2;3]=map Int.repr trace_output_words.
+13: Proof. vm_compute;repeat split;reflexivity. Qed.
+14: Theorem original_initial_fixture_words:map(fun i=>Float32.to_bits(initial_fixture i))[0;1;2;3]=map Int.repr[1099431936;0;0;1099431936].
+15: Proof. vm_compute;reflexivity. Qed.
+16: Print Assumptions original_arbitrary_trace_kernel.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/support/TraceInputs.v SHA256 d173c5fb36873457b6a9b7adbe9b2fe568894845a1feeb790af4f261028f7a96
+1: From Stdlib Require Import List ZArith.
+2: From compcert Require Import Integers Floats AST Values.
+3: From FiveMatInv3Case Require Import Scalar.
+4: Import ListNotations.
+5: Local Open Scope Z_scope.
+6: Definition arbitrary_words_0:list Z:=[3528688771;1493278778;2151094387;2151377975;2129459503;3901882368;4153000531;4286840832;7025870].
+7: Definition arbitrary_0(i:Z):float32:=Float32.of_bits(Int.repr(nth(Z.to_nat i)arbitrary_words_0 0)).
+8: Lemma arbitrary_rejects_0:Accept arbitrary_0=false.
+9: Proof. vm_compute;reflexivity. Qed.
+10: Definition arbitrary_words_1:list Z:=[3528688771;1493278778;2151094387;2151377975;2129459503;3901882368;4153000531;4286840832;7025870].
+11: Definition arbitrary_1(i:Z):float32:=Float32.of_bits(Int.repr(nth(Z.to_nat i)arbitrary_words_1 0)).
+12: Lemma arbitrary_rejects_1:Accept arbitrary_1=false.
+13: Proof. vm_compute;reflexivity. Qed.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/functional/problem/Spec.v SHA256 32101481abffbff60e2079f28e0ff372106f8ade293d1cf49577ac1337183c25
+1: From Stdlib Require Import ZArith.
+2: From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.
+3: From FivePprzFloatMatInv3d Require Import Execution.
+4: From FiveMatInv3Case Require Import Contract.
+5: Definition Post(m mf:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop:=
+6:  OutputBytes m mf bo po f /\ Frame m mf bo po /\ WriteRegion mf bo po 9 /\ OldBlocks m mf /\ OldAccess m mf /\
+7:  Mem.loadbytes mf bi(Ptrofs.unsigned pi)36=Mem.loadbytes m bi(Ptrofs.unsigned pi)36.
+8: Definition NormalCall:Prop:=forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+9:  exists mf,(exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Status f)Kstop mf))/\Post m mf bo bi po pi f.
+10: Definition AllNormalObservations:Prop:=forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+11:  forall t v mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate v Kstop mf)->v=Status f /\Post m mf bo bi po pi f.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/no_error/problem/Spec.v SHA256 451dc871e1818b084b6cd7f47c18208bcbd343ba06157b4e3beb757c0883dacf
+1: From compcert Require Import Values Memory.
+2: From FiveShared.verification Require Import Obligations.
+3: From FivePprzFloatMatInv3d Require Import Execution.
+4: From FiveMatInv3Case Require Import Contract.
+5: Definition NoError:Prop:=forall args m,FunctionalPre args m->no_error Execution.ge(Execution.entry args m).
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/no_error/problem/Spec.v SHA256 f2bd284cd9a4fd8cf96877d96709ba268ed0cf2908685023e22ebd629eb47fc9
+1: From compcert Require Import Values Memory Csem.
+2: From FiveShared.verification Require Import Obligations.
+3: From FivePprzFloatMatInv2d Require Import Execution.
+4: From FiveInv2Case Require Import Contract.
+5: Definition NoError:Prop:=forall args m,Precondition args m->no_error Execution.ge(Execution.entry args m).

@@ -1,0 +1,101 @@
+WORKER_SESSION /mnt/c/Users/50635/.codex/sessions/2026/11/21/rollout-2026-11-21T13-28-05-01a1fc93-76e8-7851-bb45-94b22e20ae52.jsonl 01a1fc93-76e8-7851-bb45-94b22e20ae52
+ABS_OPERATOR Inductive unary_operation : Type :=
+  | Onotbool : unary_operation          (**r boolean negation ([!] in C) *)
+  | Onotint : unary_operation           (**r integer complement ([~] in C) *)
+  | Oneg : unary_operation              (**r opposite (unary [-]) *)
+  | Oabsfloat : unary_operation.        (**r floating-point absolute value *)
+
+Inductive binary_operation : Type :=
+  | Oadd : binary_operation             (**r addition (binary [+]) *)
+  | Osub : binary_operation             (**r subtraction (binary [-]) *)
+  | Omul : binary_operation             (**r multiplication (binary [*]) *)
+  | Odiv : binary_operation             (**r division ([
+Definition sem_absfloat (v: val) (ty: type) : option val :=
+  match classify_neg ty with
+  | neg_case_i sg =>
+      match v with
+      | Vint n => Some (Vfloat (Float.abs (cast_int_float sg n)))
+      | _ => None
+      end
+  | neg_case_f =>
+      match v with
+      | Vfloat f => Some (Vfloat (Float.abs f))
+      | _ => None
+      end
+  | neg_case_s =>
+      match v with
+      | Vsingle f => Some (Vfloat (Float.abs (Float.of_single f)))
+      | _ => None
+      end
+  | neg_case_l sg =>
+      match v with
+      | Vlong n => Some (Vfloat (Float.abs (cast_long_float sg n)))
+      | _ => None
+      end
+  | neg_default => None
+  end.
+
+(** *** Bitwise complement *)
+
+Inductive classify_notint_cases : Type :=
+  | notint_case_i(s: signedness)              (**r int *)
+  | notint_case_l(s: signedness)              (**r long *)
+  | notint_default.
+
+Definition classify_notint (ty: type) : classify_notint_cases :=
+  match ty with
+  | Tint I32 Unsigned _ => notint_case_i Unsigned
+  | Tint _ _ _ => notint_case_i Signed
+  | Tlong si _ => notint_case_l si
+  | _ => notint_default
+  end.
+
+Definition sem_notint (v: val) (ty: type): option val :=
+  match classify_notint ty with
+  | notint_case_i sg =>
+      match v with
+      | Vint n => Some (Vint (Int.not n))
+      | _ => None
+      end
+  | notint_cas
+Definition sem_unary_operation
+            (op: unary_operation) (v: val) (ty: type) (m: mem): option val :=
+  match op with
+  | Onotbool => sem_notbool v ty m
+  | Onotint => sem_notint v ty
+  | Oneg => sem_neg v ty
+  | Oabsfloat => sem_absfloat v ty
+  end.
+
+Definition sem_binary_operation
+    (cenv: composite_env)
+    (op: binary_operation)
+    (v1: val) (t1: type) (v2: val) (t2:type)
+    (m: mem): option val :=
+  match op with
+  | Oadd => sem_add cenv v1 t1 v2 t2 m
+  | Osub => sem_sub cenv v1 t1 v2 t2 m
+  | Omul => sem_mul v1 t1 v2 t2 m
+  | Omod => sem_mod v1 t1 v2 t2 m
+  | Odiv => sem_div v1 t1 v2 t2 m
+  | Oand => sem_and v1 t1 v2 t2 m
+  | Oor  => sem_or v1 t1 v2 t2 m
+  | Oxor  => sem_xor v1 t1 v2 t2 m
+  | Oshl => sem_shl v1 t1 v2 t2
+  | Oshr  => sem_shr v1 t1 v2 t2
+  | Oeq => sem_cmp Ceq v1 t1 v2 t2 m
+  | One => sem_cmp Cne v1 t1 v2 t2 m
+  | Olt => sem_cmp Clt v1 t1 v2 t2 m
+  | Ogt => sem_cmp Cgt v1 t1 v2 t2 m
+  | Ole => sem_cmp Cle v1 t1 v2 t2 m
+  | Oge => sem_cmp Cge v1 t1 v2 t2 m
+  end.
+
+Definition sem_incrdecr (cenv: composite_env) (id: incr_or_decr) (v: val) (ty: type) (m: mem) :=
+  match id with
+  | Incr => sem_add cenv v ty (Vint Int.one) type_int32s m
+  | Decr => sem_sub cenv v ty (Vint Int.one) type_int32s m
+  end.
+
+Definition incrdecr_type (ty: type) :=
+  match type

@@ -1,0 +1,26 @@
+23:Lemma allocation_valid_block : forall vars e m b,
+24: Mem.valid_block m b -> Mem.valid_block(snd(Cexec.do_alloc_variables ge e m vars))b.
+28: eapply Mem.valid_block_alloc;eauto.
+39:Definition env_valid (m:mem)(e:env):Prop := forall id b ty,e!id=Some(b,ty)->Mem.valid_block m b.
+49: - eapply Mem.valid_block_alloc;[exact A|eapply VALID;exact LOOK].
+58:   + eapply Mem.valid_block_alloc;[exact A|eapply VALID;exact LOOK].
+71: ~Mem.valid_block m b /\
+72: Mem.valid_block(snd(Cexec.do_alloc_variables ge e m vars))b /\
+83:     * apply allocation_valid_block;eapply Mem.valid_new_block;exact A.
+87:   + intro OLD;apply FRESH;eapply Mem.valid_block_alloc;[exact A|exact OLD].
+997:Theorem nextblock_store:
+1008:  unfold valid_block; intros. rewrite nextblock_store; auto.
+1014:  unfold valid_block; intros. rewrite nextblock_store in H; auto.
+1474:Theorem nextblock_storebytes:
+1487:  unfold valid_block; intros. rewrite nextblock_storebytes; auto.
+1493:  unfold valid_block; intros. rewrite nextblock_storebytes in H; auto.
+2909:  rewrite (nextblock_store _ _ _ _ _ _ H0).
+2910:  rewrite (nextblock_store _ _ _ _ _ _ A).
+2923:  rewrite (nextblock_store _ _ _ _ _ _ H0). auto.
+2962:  rewrite (nextblock_storebytes _ _ _ _ _ H0).
+2963:  rewrite (nextblock_storebytes _ _ _ _ _ A).
+2976:  rewrite (nextblock_storebytes _ _ _ _ _ H0). auto.
+4498:- rewrite (nextblock_store _ _ _ _ _ _ H). apply Ple_refl.
+4525:- rewrite (nextblock_storebytes _ _ _ _ _ H). apply Ple_refl.
+4624:  Mem.nextblock_store
+4636:  Mem.nextblock_storebytes

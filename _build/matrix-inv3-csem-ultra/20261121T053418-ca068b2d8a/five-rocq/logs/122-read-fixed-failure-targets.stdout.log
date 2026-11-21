@@ -1,0 +1,34 @@
+95:Lemma base3_kernel:D3.Status base3=Vint Int.zero /\
+96- Float32.to_bits(D3.Det base3)=Int.repr 1065353216 /\
+97- words3 base3=map Int.repr[1065353216;2147483648;0;2147483648;1065353216;2147483648;0;2147483648;1065353216].
+98-Proof. vm_compute;repeat split;reflexivity. Qed.
+99:Lemma small3_kernel:D3.Status small3=Vint Int.one /\
+100- Float32.to_bits(D3.Det small3)=Int.repr 864026624.
+101-Proof. vm_compute;split;reflexivity. Qed.
+102:Lemma large3_kernel:D3.Status large3=Vint Int.zero /\
+103- Float32.to_bits(D3.Det large3)=Int.repr 2139095040 /\
+104- words3 large3=map Int.repr[0;2147483648;0;2147483648;0;2147483648;0;2147483648;0].
+105-Proof. vm_compute;repeat split;reflexivity. Qed.
+106-Definition residual2(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(D2.Output f 0))one.
+107-Definition residual3(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(D3.Output f 0))one.
+108-Lemma large2_residual:Float32.to_bits(residual2 large2)=Int.repr 3212836864.
+109-Proof. vm_compute;reflexivity. Qed.
+110:Lemma large3_residual:Float32.to_bits(residual3 large3)=Int.repr 3212836864.
+111-Proof. vm_compute;reflexivity. Qed.
+112-Lemma RefuteScaleStatus2:D2.Result base2<>D2.Result small2.
+113-Proof. vm_compute;discriminate. Qed.
+114:Lemma RefuteScaleStatus3:D3.Status base3<>D3.Status small3.
+115-Proof. vm_compute;discriminate. Qed.
+116:Definition SmallResidual(r:float32):bool:=
+117- (Float32.cmp Cgt r(Float32.of_bits(Int.repr 3204448256)) &&
+118- Float32.cmp Clt r(Float32.of_bits(Int.repr 1056964608)))%bool.
+119-Lemma RefuteLargeResidual2:D2.Result large2=Vint Int.zero /\SmallResidual(residual2 large2)=false.
+120-Proof. vm_compute;split;reflexivity. Qed.
+121:Lemma RefuteLargeResidual3:D3.Status large3=Vint Int.zero /\SmallResidual(residual3 large3)=false.
+122-Proof. vm_compute;split;reflexivity. Qed.
+123-Print Assumptions base2_kernel.
+124-Print Assumptions small2_kernel.
+125-Print Assumptions large2_kernel.
+126:Print Assumptions base3_kernel.
+127:Print Assumptions small3_kernel.
+128:Print Assumptions large3_kernel.

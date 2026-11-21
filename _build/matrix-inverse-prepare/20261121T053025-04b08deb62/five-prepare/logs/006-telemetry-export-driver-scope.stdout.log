@@ -1,0 +1,92 @@
+338:    def finish(self, verdict, summary, required_roles, missing=None):
+339-        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+340-            raise ValueError('Invalid verification verdict')
+341-        metadata = self.read('run.json')
+342-        boundary=metadata.get('codex_usage_boundary')
+343-        if boundary and not boundary.get('after'):
+344-            try:
+345-                from codex_usage import snapshot, receipt
+346-                import tempfile
+347-                boundary['after']=snapshot(boundary['session_file'])
+348-                metadata['codex_usage_boundary']=boundary
+349-                dump(self.folder/'run.json',metadata)
+350-                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+351-                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+352-                    usage_file=Path(temporary)/'usage.json'
+353-                    dump(usage_file,usage)
+354-                    self.import_tokens(usage_file)
+355-                metadata=self.read('run.json')
+356-            except Exception as usage_error:
+357-                metadata=self.read('run.json')
+358-                metadata['tokens']={'status':'unavailable','source':{'kind':'codex-session-event','reference':boundary['session_file']},'events':[],'reason':str(usage_error)}
+359-                metadata['usage_capture_error']=str(usage_error)
+360-                dump(self.folder/'run.json',metadata)
+361-        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+362-        dump(self.folder/'run.json',metadata)
+363-        roles = {}
+364-        for role, path in required_roles.items():
+365-            try:
+366-                roles[role] = {'status':'present',**self.capture(path,role)}
+367-            except FileNotFoundError:
+368-                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+369-        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+370-             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+371-        # Child runs are linked (normally nested under stages/), never copied twice.
+372-        metrics = self.refresh_metrics()
+373-        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+374-        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+375-             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+376-             'note':'A passed verifier result does not imply all requested measurements are available.'})
+377-        from cost_audit import audit_run
+378-        cost_audit = audit_run(self.folder)
+379-        metadata = self.read('run.json')
+380-        metadata['cost_audit'] = cost_audit
+381-        if cost_audit['status'] != 'complete':
+382-            metadata['completeness']['measurements'] = 'partial'
+383-            metrics['measurement_status'] = 'partial'
+384-            dump(self.folder/'metrics.json',metrics)
+385-        dump(self.folder/'run.json',metadata)
+386-        self.render()
+387-        print(f'ARTIFACTS: {self.folder}',flush=True)
+388-
+389-    def render(self):
+390-        metrics = self.read('metrics.json')
+391-        meta = self.read('run.json')
+392-        result = meta.get('result',{'verdict':'running','summary':''})
+393-        peak = metrics['memory']['peak_process_tree_rss_sampled_bytes']
+394-        text = f"# {meta['skill']} / {meta['run_id']}\n\nVerification: {result['verdict']}\n\n{result['summary']}\n\n"
+395-        text += f"Wall time: {metrics['time']['wall_seconds']:.6f} s\n\nCPU tool time: {metrics['time']['cpu_tool_seconds']} s\n\nObserved tool-tree RSS peak: {peak if peak is not None else 'unavailable'} bytes\n\nModel tokens: {metrics['tokens']['status']}; total={metrics['tokens']['total_tokens']}\n\nMeasurement completeness: {metrics['measurement_status']}\n\n"
+396-        text += 'run.json contains scope, input/output hashes, commands, token evidence and remaining obligations. metrics.json contains resource measurements and their limits.\n'
+397-        if meta.get('cost_audit'):
+398-            text += '\nCost evidence audit: '+meta['cost_audit']['status']+'\n'
+399-            for issue in meta['cost_audit'].get('issues',[]):
+400-                text += '\n- '+issue+'\n'
+401-        (self.folder/'report.md').write_text(text)
+402-        inventory = []
+403-        for path in sorted(self.folder.rglob('*')):
+#!/usr/bin/env python3
+"""Generate/audit original CompCert executable models; never approve from generation alone."""
+import argparse,json
+from compcert_backend import export,audit,tool_paths,target_of
+
+def main():
+ p=argparse.ArgumentParser(description=__doc__);s=p.add_subparsers(dest='action',required=True)
+ s.add_parser('target')
+ e=s.add_parser('export');e.add_argument('--source',required=True);e.add_argument('--function',required=True)
+ e.add_argument('--output',required=True);e.add_argument('--namespace',default='FiveCompCert')
+ e.add_argument('--include-dir',action='append',default=[]);e.add_argument('--define',action='append',default=[])
+ e.add_argument('--struct-passing',action='store_true');e.add_argument('--request');e.add_argument('--session');e.add_argument('--clightgen');e.add_argument('--compcert-lib')
+ a=s.add_parser('audit');a.add_argument('--manifest',required=True)
+ args=p.parse_args()
+ if args.action=='target':
+  print(json.dumps(target_of(tool_paths()[1]),indent=2));return
+ if args.action=='export':
+  m=export(args.source,args.function,args.output,args.namespace,args.include_dir,args.define,args.request,args.session,args.clightgen,args.compcert_lib,frontend_options=['-fstruct-passing'] if args.struct_passing else [])
+  goals=m['generated_obligations']
+  print(json.dumps({'status':'generated','backend':m['backend'],'coverage_status':m['coverage_status'],
+   'obligations':{'status':goals['status'],'precondition':goals['precondition_status'],
+                  'proofs':goals['proof_status']},'delivery_accepted':False},indent=2))
+ elif args.action=='audit':print(json.dumps(audit(args.manifest),indent=2))
+
+if __name__=='__main__':main()
+18:  m=export(args.source,args.function,args.output,args.namespace,args.include_dir,args.define,args.request,args.session,args.clightgen,args.compcert_lib,frontend_options=['-fstruct-passing'] if args.struct_passing else [])

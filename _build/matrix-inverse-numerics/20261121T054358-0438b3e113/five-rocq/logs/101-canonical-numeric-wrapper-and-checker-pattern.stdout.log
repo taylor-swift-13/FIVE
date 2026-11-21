@@ -1,0 +1,30 @@
+From Stdlib Require Import ZArith.
+From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.
+From FivePprzFloatMatInv2d Require Import Execution.
+From FiveInv2Case Require Import Contract.
+Definition NormalCall:Prop:=forall m bo bi po pi f,Inputs m bo bi po pi f->exists t mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Result f)Kstop mf)/\Post m mf bo bi po pi f.
+Definition AllReturns:Prop:=forall m bo bi po pi f,Inputs m bo bi po pi f->forall t result mf,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->result=Result f/\Post m mf bo bi po pi f.
+Definition Nonvacuity:Prop:=forall f:Z->float32,exists m bo bi,Inputs m bo bi Ptrofs.zero Ptrofs.zero f.
+From FiveInv2Functional Require Import Spec.
+From FiveInv2Case Require Import Contract Call.
+From FiveMatrixInverseSupport Require Import Witness.
+Theorem normal_call:Spec.NormalCall.
+Proof. intros m bo bi po pi f IN;destruct(call_summary m bo bi po pi f IN)as[mf[[t PATH][POST OTHER]]];exists t,mf;auto. Qed.
+Theorem all_returns:Spec.AllReturns.
+Proof. intros m bo bi po pi f IN t result mf PATH;destruct(call_summary m bo bi po pi f IN)as[after[EX[POST[SAFE ALL]]]];destruct(ALL t result mf PATH)as[R M];subst result mf;auto. Qed.
+Theorem nonvacuity:Spec.Nonvacuity.
+Proof. exact matrix4_inhabited. Qed.
+Print Assumptions normal_call.
+Print Assumptions all_returns.
+Print Assumptions nonvacuity.
+from pathlib import Path
+import importlib.util,json
+here=Path(__file__).resolve().parent
+root=here.parents[4]
+spec=importlib.util.spec_from_file_location("checker",root/"paparazzi/report/quat_rotation_paths/evidence_tools.py")
+m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+print(m.check(json.loads((here/"check-config.json").read_text())))
+certificate-kernel-evidence.json
+gate-kernel-evidence.json
+goal-validation.json
+kernel-evidence.json

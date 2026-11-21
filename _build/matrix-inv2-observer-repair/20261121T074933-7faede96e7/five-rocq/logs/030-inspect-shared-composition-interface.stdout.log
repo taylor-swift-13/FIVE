@@ -1,0 +1,308 @@
+9:Definition ObserverFunction:=Source.f_float_mat_inv_3d.
+90:Definition CopiedObservation(m:mem)(src dst:block)(f:Z->float32)(ws:list Z):Prop:=
+113:Definition FixedObserver(f:Z->float32)(ws:list Z):Prop:=forall m bo bi pi,
+124:Definition ComposedAssert4:=FixedObserver base3 BaseWords.
+125:Theorem composed_assertion4:ComposedAssert4.
+127:Definition ComposedAssert8:=FixedObserver large3 LargeWords.
+128:Theorem composed_assertion8:ComposedAssert8.
+149:Definition ResidualExpression(input output:block):expr:=Ebinop Osub
+151:Definition ResidualRead(b:block):expr:=Evalof(Eloc b Ptrofs.zero Full tfloat)tfloat.
+152:Definition ResidualAssignment(input output residual:block):expr:=
+154:Definition ResidualAssertion(residual:block):expr:=Eseqor
+250:Definition ScaleReplay(f:Z->float32):Prop:=exists m og ig ob ib os is0 ol il ml,
+259:Definition ResidualReplay(f:Z->float32):Prop:=exists m0 m og ig ob ib os is0 ol il br ml obs,
+281:Definition ComposedRefutation9:Prop:=ScaleReplay arbitrary_0 /\ScaleReplay arbitrary_1.
+282:Theorem composed_refutation9:ComposedRefutation9.
+284:Definition ComposedRefutation10:Prop:=ResidualReplay arbitrary_0 /\ResidualReplay arbitrary_1.
+285:Theorem composed_refutation10:ComposedRefutation10.
+Qed.
+Definition FixedObserver(f:Z->float32)(ws:list Z):Prop:=forall m bo bi pi,
+ bo<>bi->WriteRegion m bo Ptrofs.zero 9->Reads m bi pi 9 f->forall t v mf,
+ star Csem.step Execution.ge(Execution.entry(Args bo bi Ptrofs.zero pi)m)t(Returnstate v Kstop mf)->
+ forall dst,CopyPre mf bo dst->CopiedObservation mf bo dst f ws.
+Theorem fixed_observer:forall f ws,Accept f=true->words3 f=map Int.repr ws->length ws=9%nat->FixedObserver f ws.
+Proof.
+ intros f ws ACCEPT WORD LEN m bo bi pi NE W RD t v mf PATH dst PRE.
+ destruct(FiveMatInv3Functional.Proof.all_normal_observations m bo bi Ptrofs.zero pi f NE W RD t v mf PATH)as[V[BYTES REST]].
+ apply copied_observation;try assumption.
+ intros i I;unfold OutputBytes in BYTES;rewrite ACCEPT in BYTES;pose proof(BYTES i I)as B;rewrite Ptrofs.unsigned_zero,Z.add_0_l in B;exact B.
+Qed.
+Definition ComposedAssert4:=FixedObserver base3 BaseWords.
+Theorem composed_assertion4:ComposedAssert4.
+Proof. apply fixed_observer;[vm_compute;reflexivity|exact(proj2(proj2 base3_kernel))|reflexivity]. Qed.
+Definition ComposedAssert8:=FixedObserver large3 LargeWords.
+Theorem composed_assertion8:ComposedAssert8.
+Proof. apply fixed_observer;[vm_compute;reflexivity|exact(proj2(proj2 large3_kernel))|reflexivity]. Qed.
+Print Assumptions composed_assertion4.
+Print Assumptions composed_assertion8.
+
+
+
+
+
+
+
+
+(** Exact failing assertions: bool statuses undergo the original C integer
+    promotions; all real literals retain binary32 type. *)
+Definition ScaleAssertion:expr:=Ebinop Oeq
+ (Ecast(Eval(Status base3)type_bool)tint)(Ecast(Eval(Status small3)type_bool)tint)tint.
+Lemma scale_assertion_false:forall m,Reduces m ScaleAssertion(Eval(Vint Int.zero)tint).
+Proof.
+ intro m;apply reduces_simple;unfold ScaleAssertion;rewrite(proj1 base3_kernel),(proj1 small3_kernel).
+ eapply esr_binop;[eapply esr_cast;[constructor|reflexivity]|eapply esr_cast;[constructor|reflexivity]|reflexivity].
+Qed.
+Definition ResidualExpression(input output:block):expr:=Ebinop Osub
+ (Ebinop Omul(Cell input 0 tfloat)(Cell output 0 tfloat)tfloat)(Eval(Vsingle one)tfloat)tfloat.
+Definition ResidualRead(b:block):expr:=Evalof(Eloc b Ptrofs.zero Full tfloat)tfloat.
+Definition ResidualAssignment(input output residual:block):expr:=
+ Eassign(Eloc residual Ptrofs.zero Full tfloat)(ResidualExpression input output)tfloat.
+Definition ResidualAssertion(residual:block):expr:=Eseqor
+ (Ebinop One(Ecast(Eval(Status large3)type_bool)tint)(Eval(Vint Int.zero)tint)tint)
+ (Eseqand(Ebinop Ogt(ResidualRead residual)(Eunop Oneg(Eval(Vsingle(Float32.of_bits(Int.repr 1056964608)))tfloat)tfloat)tint)
+ (Ebinop Olt(ResidualRead residual)(Eval(Vsingle(Float32.of_bits(Int.repr 1056964608)))tfloat)tint)tint)tint.
+Lemma residual_expression_value:forall m input output,
+ Mem.load Mfloat32 m input 0=Some(Vsingle(large3 0))->
+ Mem.load Mfloat32 m output 0=Some(Vsingle(Output large3 0))->
+ eval_simple_rvalue Execution.ge empty_env m(ResidualExpression input output)(Vsingle(residual3 large3)).
+Proof.
+ intros m input output IN OUT;unfold ResidualExpression,residual3.
+ eapply esr_binop with(v1:=Vsingle(Float32.mul(large3 0)(Output large3 0)))(v2:=Vsingle one).
+ - eapply esr_binop;[apply cell_single_value;[lia|exact IN]|apply cell_single_value;[lia|exact OUT]|reflexivity].
+ - constructor.
+ - reflexivity.
+Qed.
+Lemma residual_read_value:forall m b,Mem.load Mfloat32 m b 0=Some(Vsingle(residual3 large3))->
+ eval_simple_rvalue Execution.ge empty_env m(ResidualRead b)(Vsingle(residual3 large3)).
+Proof. intros m b L;unfold ResidualRead;eapply esr_rvalof;[constructor|reflexivity|reflexivity|].
+ eapply deref_loc_value;[reflexivity|reflexivity|];unfold Mem.loadv;rewrite Ptrofs.unsigned_zero,zle_true;[exact L|change(4<=18446744073709551616);lia]. Qed.
+Lemma residual_assertion_false:forall m b,Mem.load Mfloat32 m b 0=Some(Vsingle(residual3 large3))->
+ Reduces m(ResidualAssertion b)(Eval(Vint Int.zero)tint).
+Proof.
+ intros m b L;unfold ResidualAssertion;apply reduces_or_false.
+ - apply reduces_simple;rewrite(proj1 large3_kernel);eapply esr_binop;[eapply esr_cast;[constructor|reflexivity]|constructor|reflexivity].
+ - apply reduces_and_false;apply reduces_simple.
+   eapply esr_binop with(v1:=Vsingle(residual3 large3))(v2:=Vsingle(Float32.neg(Float32.of_bits(Int.repr 1056964608)))).
+   + apply residual_read_value;exact L.
+   + eapply esr_unop;[constructor|reflexivity].
+   + vm_compute;reflexivity.
+Qed.
+Lemma residual_assignment_steps:forall m input output b obs,
+ Mem.load Mfloat32 m input 0=Some(Vsingle(large3 0))->
+ Mem.load Mfloat32 m output 0=Some(Vsingle(Output large3 0))->
+ Mem.store Mfloat32 m b 0(Vsingle(residual3 large3))=Some obs->
+ star Csem.step Execution.ge(ExprState ObserverFunction(ResidualAssignment input output b)Kstop empty_env m)E0
+ (ExprState ObserverFunction(Eval(Vsingle(residual3 large3))tfloat)Kstop empty_env obs).
+Proof.
+ intros m input output b obs IN OUT STORE;unfold ResidualAssignment.
+ eapply star_trans with(s2:=ExprState ObserverFunction(Eassign(Eloc b Ptrofs.zero Full tfloat)(Eval(Vsingle(residual3 large3))tfloat)tfloat)Kstop empty_env m).
+ - exact(reduces_simple m(ResidualExpression input output)(Vsingle(residual3 large3))
+   (residual_expression_value m input output IN OUT)(fun x=>Eassign(Eloc b Ptrofs.zero Full tfloat)x tfloat)(ctx_assign_right _ _ _ _ (ctx_top RV))).
+ - apply star_one;left;eapply step_rred with(C:=fun x=>x);[|constructor].
+   eapply red_assign;[reflexivity|].
+   eapply assign_loc_value;[reflexivity|reflexivity|].
+   unfold Mem.storev;rewrite Ptrofs.unsigned_zero;rewrite zle_true;[exact STORE|change(4<=18446744073709551616);lia].
+ - reflexivity.
+Qed.
+Definition CompletedPrefix(f:Z->float32)(m:mem)(og ig ob ib os is0 ol il:block)(ml:mem):Prop:=exists ma mb ms,
+ NormalCall m og ig(Ptrofs.repr 4)f ma /\FiveMatInv3Functional.Spec.Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero f /\
+ NormalCall ma ob ib Ptrofs.zero base3 mb /\FiveMatInv3Functional.Spec.Post ma mb ob ib Ptrofs.zero Ptrofs.zero base3 /\
+ NormalCall mb os is0 Ptrofs.zero small3 ms /\FiveMatInv3Functional.Spec.Post mb ms os is0 Ptrofs.zero Ptrofs.zero small3 /\
+ NormalCall ms ol il Ptrofs.zero large3 ml /\FiveMatInv3Functional.Spec.Post ms ml ol il Ptrofs.zero Ptrofs.zero large3.
+Lemma prefix_exists:forall f m og ig ob ib os is0 ol il,Layout f m og ig ob ib os is0 ol il->
+ exists ml,CompletedPrefix f m og ig ob ib os is0 ol il ml.
+Proof. intros f m og ig ob ib os is0 ol il L;destruct(original_sequential_calls f m og ig ob ib os is0 ol il L)as[ma[mb[ms[ml C]]]];exists ml,ma,mb,ms;exact C. Qed.
+Lemma load_single_bytes:forall m b z v,Mem.loadbytes m b z 4=Some(encode_val Mfloat32(Vsingle v))->(4|z)->
+ Mem.load Mfloat32 m b z=Some(Vsingle v).
+Proof.
+ intros m b z v B AL;pose proof(Mem.loadbytes_load Mfloat32 m b z _ B AL)as L.
+ pose proof(decode_encode_val_similar(Vsingle v)Mfloat32 Mfloat32 _ eq_refl eq_refl(decode_encode_val_general(Vsingle v)Mfloat32 Mfloat32))as DE.
+ change(decode_val Mfloat32(encode_val Mfloat32(Vsingle v))=Vsingle v)in DE;rewrite DE in L;exact L.
+Qed.
+Lemma prefix_large_loads:forall f m og ig ob ib os is0 ol il ml,
+ Layout f m og ig ob ib os is0 ol il->CompletedPrefix f m og ig ob ib os is0 ol il ml->
+ Mem.load Mfloat32 ml il 0=Some(Vsingle(large3 0))/\Mem.load Mfloat32 ml ol 0=Some(Vsingle(Output large3 0)).
+Proof.
+ intros f m og ig ob ib os is0 ol il ml[G[B[S[L SEP]]]][ma[mb[ms[PG[QG[PB[QB[PS[QS[PL QL]]]]]]]]]];destruct SEP.
+ assert(LA:Ready ma ol il Ptrofs.zero large3 SequentialReplay.OldFixed)by(eapply post_preserves_ready;eauto).
+ assert(LB:Ready mb ol il Ptrofs.zero large3 SequentialReplay.OldFixed)by(eapply post_preserves_ready;eauto).
+ assert(LS:Ready ms ol il Ptrofs.zero large3 SequentialReplay.OldFixed)by(eapply post_preserves_ready;eauto).
+ destruct LS as[NE[W[RD RO]]].
+ destruct QL as[BY[FR[WF[VB[AC INPUT]]]]].
+ split.
+ - pose proof(proj2(proj2 RD)0 ltac:(lia))as IN;rewrite Ptrofs.unsigned_zero in IN;change(Mem.load Mfloat32 ms il 0=Some(Vsingle(large3 0)))in IN.
+   eapply frame_load_kept;[exact FR|exact(reads_valid ms il Ptrofs.zero 9 large3 ltac:(lia)RD)|left;congruence|exact IN].
+ - unfold OutputBytes in BY;assert(A:Accept large3=true)by(vm_compute;reflexivity);rewrite A in BY.
+   pose proof(BY 0 ltac:(lia))as CELL;rewrite Ptrofs.unsigned_zero in CELL;change(Mem.loadbytes ml ol 0 4=Some(encode_val Mfloat32(Vsingle(Output large3 0))))in CELL.
+   apply load_single_bytes;[exact CELL|exists 0;lia].
+Qed.
+Lemma post_access_preserved:forall m mf bo bi po pi f ch b z p,
+ FiveMatInv3Functional.Spec.Post m mf bo bi po pi f->Mem.valid_access m ch b z p->Mem.valid_access mf ch b z p.
+Proof. intros m mf bo bi po pi f ch b z p[BY[FR[WF[VB[AC INPUT]]]]]VA;apply AC;[eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|destruct p;constructor]|exact VA]. Qed.
+Lemma prefix_access_preserved:forall f m og ig ob ib os is0 ol il ml ch b z p,
+ CompletedPrefix f m og ig ob ib os is0 ol il ml->Mem.valid_access m ch b z p->Mem.valid_access ml ch b z p.
+Proof.
+ intros f m og ig ob ib os is0 ol il ml ch b z p[ma[mb[ms[PG[QG[PB[QB[PS[QS[PL QL]]]]]]]]]]VA.
+ eapply post_access_preserved;[exact QL|];eapply post_access_preserved;[exact QS|];eapply post_access_preserved;[exact QB|];eapply post_access_preserved;[exact QG|exact VA].
+Qed.
+Lemma layout_alloc:forall f m og ig ob ib os is0 ol il ma b,
+ Layout f m og ig ob ib os is0 ol il->Mem.alloc m 0 4=(ma,b)->Layout f ma og ig ob ib os is0 ol il.
+Proof.
+ intros f m og ig ob ib os is0 ol il ma b[G[B[S[L SEP]]]]A.
+ assert(LP:LoadPreserved m ma)by(intros ch bx z VB;apply Mem.load_alloc_unchanged with(lo:=0)(hi:=4)(b:=b);assumption).
+ assert(AP:AccessPreserved m ma)by(intros ch bx z p VA;eapply Mem.valid_access_alloc_other;eauto).
+ split;[eapply guarded_preserved;eauto|];split;[eapply ready_preserved;eauto|];split;[eapply ready_preserved;eauto|];split;[eapply ready_preserved;eauto|exact SEP].
+Qed.
+Definition ScaleReplay(f:Z->float32):Prop:=exists m og ig ob ib os is0 ol il ml,
+ Layout f m og ig ob ib os is0 ol il /\CompletedPrefix f m og ig ob ib os is0 ol il ml /\
+ Reduces ml ScaleAssertion(Eval(Vint Int.zero)tint).
+Theorem scale_replay:forall f:Z->float32,ScaleReplay f.
+Proof.
+ intro f;destruct(layout_inhabited f)as[m[og[ig[ob[ib[os[is0[ol[il L]]]]]]]]].
+ destruct(prefix_exists f m og ig ob ib os is0 ol il L)as[ml P].
+ exists m,og,ig,ob,ib,os,is0,ol,il,ml;split;[exact L|];split;[exact P|apply scale_assertion_false].
+Qed.
+Definition ResidualReplay(f:Z->float32):Prop:=exists m0 m og ig ob ib os is0 ol il br ml obs,
+ Mem.alloc m0 0 4=(m,br) /\Layout f m og ig ob ib os is0 ol il /\CompletedPrefix f m og ig ob ib os is0 ol il ml /\
+ Mem.load Mfloat32 ml il 0=Some(Vsingle(large3 0)) /\Mem.load Mfloat32 ml ol 0=Some(Vsingle(Output large3 0)) /\
+ Mem.store Mfloat32 ml br 0(Vsingle(residual3 large3))=Some obs /\
+ Float32.to_bits(residual3 large3)=Int.repr 3212836864 /\
+ star Csem.step Execution.ge(ExprState ObserverFunction(ResidualAssignment il ol br)Kstop empty_env ml)E0
+ (ExprState ObserverFunction(Eval(Vsingle(residual3 large3))tfloat)Kstop empty_env obs) /\
+ Reduces obs(ResidualAssertion br)(Eval(Vint Int.zero)tint).
+Theorem residual_replay:forall f:Z->float32,ResidualReplay f.
+Proof.
+ intro f;destruct(layout_inhabited f)as[m0[og[ig[ob[ib[os[is0[ol[il L0]]]]]]]]].
+ destruct(Mem.alloc m0 0 4)as[m br]eqn:A.
+ assert(L:Layout f m og ig ob ib os is0 ol il)by(eapply layout_alloc;eauto).
+ destruct(prefix_exists f m og ig ob ib os is0 ol il L)as[ml P].
+ destruct(prefix_large_loads f m og ig ob ib os is0 ol il ml L P)as[IN OUT].
+ assert(W:Mem.valid_access ml Mfloat32 br 0 Writable).
+ { eapply prefix_access_preserved;[exact P|];eapply Mem.valid_access_freeable_any;eapply Mem.valid_access_alloc_same;[exact A|lia|change(0+4<=4);lia|exists 0;lia]. }
+ destruct(Mem.valid_access_store ml Mfloat32 br 0(Vsingle(residual3 large3))W)as[obs STORE].
+ exists m0,m,og,ig,ob,ib,os,is0,ol,il,br,ml,obs;split;[exact A|];split;[exact L|];split;[exact P|];split;[exact IN|];split;[exact OUT|];split;[exact STORE|];split;[exact large3_residual|];split.
+ - apply residual_assignment_steps;assumption.
+ - apply residual_assertion_false;erewrite Mem.load_store_same by exact STORE;reflexivity.
+Qed.
+Definition ComposedRefutation9:Prop:=ScaleReplay arbitrary_0 /\ScaleReplay arbitrary_1.
+Theorem composed_refutation9:ComposedRefutation9.
+Proof. split;apply scale_replay. Qed.
+Definition ComposedRefutation10:Prop:=ResidualReplay arbitrary_0 /\ResidualReplay arbitrary_1.
+Theorem composed_refutation10:ComposedRefutation10.
+Proof. split;apply residual_replay. Qed.
+Print Assumptions composed_refutation9.
+Print Assumptions composed_refutation10.
+
+
+
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.
+Import ListNotations.
+Local Open Scope Z_scope.
+Record CopyPre(m:mem)(src dst:block):Prop := {
+ copy_separated:src<>dst;
+ copy_readable:Mem.range_perm m src 0 16 Cur Readable;
+ copy_writable:Mem.range_perm m dst 0 16 Cur Writable
+}.
+Record MemcpySafety(m:mem)(src dst:block):Prop := {
+ pointer_1:src<>dst;
+ pointer_arithmetic_1:Mem.valid_pointer m src 0=true;
+ pointer_arithmetic_2:Mem.weak_valid_pointer m dst 16=true;
+ pointer_2:dst<>src;
+ pointer_arithmetic_3:Mem.valid_pointer m dst 0=true;
+ pointer_arithmetic_4:Mem.weak_valid_pointer m src 16=true;
+ precondition_1:src<>dst \/ 0+16<=0 \/0+16<=0;
+ precondition_2:Mem.range_perm m src 0 16 Cur Readable;
+ precondition_3:Mem.range_perm m dst 0 16 Cur Writable
+}.
+Definition CopyFrame(m mf:mem)(dst:block):Prop :=forall b ofs n,
+ b<>dst \/ofs+n<=0 \/16<=ofs ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Lemma copy_pre_safety:forall m src dst,CopyPre m src dst->MemcpySafety m src dst.
+Proof.
+ intros m src dst[NE RD WR];constructor;auto.
+ - apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RD;lia|constructor].
+ - apply Mem.weak_valid_pointer_spec;right;apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply WR;change(0<=16-1<16);lia|constructor].
+ - apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply WR;lia|constructor].
+ - apply Mem.weak_valid_pointer_spec;right;apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RD;change(0<=16-1<16);lia|constructor].
+Qed.
+Theorem copy16_exact:forall se m src dst,CopyPre m src dst->
+ exists mf bytes,MemcpySafety m src dst /\Mem.loadbytes m src 0 16=Some bytes /\length bytes=16%nat /\
+ Mem.storebytes m dst 0 bytes=Some mf /\
+ extcall_memcpy_sem 16 1 se[Vptr dst Ptrofs.zero;Vptr src Ptrofs.zero]m E0 Vundef mf /\
+ Mem.loadbytes mf dst 0 16=Some bytes /\CopyFrame m mf dst.
+Proof.
+ intros se m src dst P;destruct(Mem.range_perm_loadbytes m src 0 16(copy_readable _ _ _ P))as[bytes READ].
+ pose proof(Mem.loadbytes_length _ _ _ _ _ READ)as LEN;change(length bytes=16%nat)in LEN.
+ assert(W:Mem.range_perm m dst 0(0+Z.of_nat(length bytes))Cur Writable)by(rewrite LEN;exact(copy_writable _ _ _ P)).
+ destruct(Mem.range_perm_storebytes _ _ _ _ W)as[mf STORE].
+ exists mf,bytes;split;[apply copy_pre_safety;exact P|];split;[exact READ|];split;[exact LEN|];split;[exact STORE|];split.
+ - econstructor;try rewrite Ptrofs.unsigned_zero;try exact READ;try exact STORE;try(left;reflexivity);try lia;try(exists 16;reflexivity);try(intros;exists 0;reflexivity);left;exact(copy_separated _ _ _ P).
+ - split.
+   + pose proof(Mem.loadbytes_storebytes_same _ _ _ _ _ STORE)as H;rewrite LEN in H;exact H.
+   + intros b ofs n OUT;destruct(zle n 0).
+     * repeat rewrite Mem.loadbytes_empty by assumption;reflexivity.
+     * eapply Mem.loadbytes_storebytes_other;[exact STORE|lia|];rewrite LEN;exact OUT.
+Qed.
+Lemma copy16_preserves_pre:forall m mf changed src dst bytes,
+ Mem.storebytes m changed 0 bytes=Some mf->src<>changed->dst<>changed->CopyPre m src dst->CopyPre mf src dst.
+Proof. intros m mf changed src dst bytes ST SC DC[NE RD WR];constructor;auto.
+ - intros z B;eapply Mem.perm_storebytes_1;[exact ST|apply RD;exact B].
+ - intros z B;eapply Mem.perm_storebytes_1;[exact ST|apply WR;exact B]. Qed.
+Theorem two_copy16_exact:forall se m sa da sb db,
+ CopyPre m sa da->CopyPre m sb db->sb<>da->db<>da->
+ exists ma mb ba bb,MemcpySafety m sa da /\MemcpySafety ma sb db /\
+ Mem.loadbytes m sa 0 16=Some ba /\Mem.loadbytes ma sb 0 16=Some bb /\
+ Mem.storebytes m da 0 ba=Some ma /\Mem.storebytes ma db 0 bb=Some mb /\
+ extcall_memcpy_sem 16 1 se[Vptr da Ptrofs.zero;Vptr sa Ptrofs.zero]m E0 Vundef ma /\
+ extcall_memcpy_sem 16 1 se[Vptr db Ptrofs.zero;Vptr sb Ptrofs.zero]ma E0 Vundef mb /\
+ Mem.loadbytes mb da 0 16=Some ba /\Mem.loadbytes mb db 0 16=Some bb /\
+ CopyFrame m ma da /\CopyFrame ma mb db.
+Proof.
+ intros se m sa da sb db PA PB SD DD.
+ destruct(copy16_exact se m sa da PA)as[ma[ba[SAFEA[RA[LA[SA[CA[BA FA]]]]]]]].
+ assert(PB':CopyPre ma sb db)by(eapply copy16_preserves_pre;eauto).
+ destruct(copy16_exact se ma sb db PB')as[mb[bb[SAFEB[RB[LB[SB[CB[BB FB]]]]]]]].
+ exists ma,mb,ba,bb;split;[exact SAFEA|];split;[exact SAFEB|];split;[exact RA|];split;[exact RB|];split;[exact SA|];split;[exact SB|];split;[exact CA|];split;[exact CB|];split.
+ - rewrite(FB da 0 16 ltac:(left;congruence));exact BA.
+ - split;[exact BB|];split;assumption.
+Qed.
+      "kind": "KAssertion 7%nat",
+      "target": "Assert7",
+      "proof": "assertion7",
+      "theorem": "property_205",
+      "status": "proved",
+      "description": "finite large diagonal call reports success",
+      "index": 204
+    },
+    {
+      "id": "main.assertion.8",
+      "kind": "KAssertion 8%nat",
+      "target": "Assert8",
+      "proof": "assertion8",
+      "theorem": "property_206",
+      "status": "proved",
+      "description": "overflow determinant exact signedzero output bits",
+      "index": 205
+    },
+    {
+      "id": "main.assertion.9",
+      "kind": "KAssertion 9%nat",
+      "target": "Refutation9",
+      "proof": "refutation9",
+      "theorem": "property_207",
+      "status": "refuted",
+      "description": "positive scaling preserves inverse status",
+      "index": 206
+    },
+    {
+      "id": "main.assertion.10",
+      "kind": "KAssertion 10%nat",
+      "target": "Refutation10",
+      "proof": "refutation10",
+      "theorem": "property_208",
+      "status": "refuted",
+      "description": "successful wellconditioned inverse has residual component below half",
+      "index": 207
+    }
+  ]
+}

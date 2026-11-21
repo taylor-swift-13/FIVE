@@ -1,0 +1,12 @@
+    74	 Mem.load Mptr m bpo 0=Some(Vptr bo po)->Mem.load Mptr m bpi 0=Some(Vptr bi pi)->Mem.load Mfloat32 m bd 0=Some(Vsingle(Det f))->
+    75	 WriteRegion m bo po 4->Reads m bi pi 4 f->bo<>bi->bo<>bpo->bo<>bpi->bo<>bd->
+    76	 Writes m bo(Ptrofs.unsigned po)(Outputs f)mf->stmt_eval Execution.ge e tbool Suffix m=Some(Nreturn(Vint Int.zero),mf).
+    77	Proof. intros e m bpo bpi bd bo bi po pi f mf EO EI ED LO LI LD W RD OI OP OPI OD WS.
+    78	 unfold Outputs in WS;cbn[Writes]in WS;destruct WS as[m1[S0[m2[S1[m3[S2[m4[S3 EQ]]]]]]]];subst m4.
+    79	 assert(W1:WriteRegion m1 bo po 4)by(eapply writable_store_preserved;[exact W|exact S0]).
+    80	 assert(RD1:Reads m1 bi pi 4 f)by(eapply reads_store_preserved;[exact RD|congruence|exact S0]).
+    81	 assert(LO1:Mem.load Mptr m1 bpo 0=Some(Vptr bo po))by(erewrite Mem.load_store_other by(exact S0||(left;congruence));exact LO).
+    82	 assert(LI1:Mem.load Mptr m1 bpi 0=Some(Vptr bi pi))by(erewrite Mem.load_store_other by(exact S0||(left;congruence));exact LI).
+    83	 assert(LD1:Mem.load Mfloat32 m1 bd 0=Some(Vsingle(Det f)))by(erewrite Mem.load_store_other by(exact S0||(left;congruence));exact LD).
+    84	 assert(W2:WriteRegion m2 bo po 4)by(eapply writable_store_preserved;[exact W1|exact S1]).
+    85	 assert(RD2:Reads m2 bi pi 4 f)by(eapply reads_store_preserved;[exact RD1|congruence|exact S1]).

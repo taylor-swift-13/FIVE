@@ -1,0 +1,51 @@
+     1	From Stdlib Require Import ZArith Reals Lia Lra Psatz.
+     2	From compcert Require Import Integers Floats Values.
+     3	From Flocq Require Import Core.Core IEEE754.Binary.
+     4	From FiveMatrixInverseSupport Require Import Dyadic Kernels.
+     5	Local Open Scope Z_scope.
+     6	Local Transparent Float.cmp Float.compare Float.abs.
+     7	Definition Threshold2:Floats.float:=Float.of_bits(Int64.repr 4547007122018943789).
+     8	Definition Epsilon:float32:=Float32.of_bits(Int.repr 872415232).
+     9	Lemma threshold2_finite:is_finite 53 1024 Threshold2=true.
+    10	Proof. vm_compute;reflexivity. Qed.
+    11	Lemma threshold2_bounds:
+    12	 (bpow radix2(-14)<B2R 53 1024 Threshold2 /\B2R 53 1024 Threshold2<bpow radix2(-12))%R.
+    13	Proof. change(/16384<7378697629483821/73786976294838206464 /\7378697629483821/73786976294838206464< /4096)%R;split;lra. Qed.
+    14	Lemma epsilon_finite:finite32 Epsilon.
+    15	Proof. vm_compute;reflexivity. Qed.
+    16	Lemma epsilon_real:real32 Epsilon=bpow radix2(-23).
+    17	Proof. change(8388608/70368744177664= /8388608)%R;field. Qed.
+    18	Lemma reject2_safe:forall k,-20<=k<=20 ->
+    19	 D2.Reject(Diag2(power32 k))=Z.ltb k(-6).
+    20	Proof.
+    21	 intros k K;unfold D2.Reject;rewrite det2_safe by exact K.
+    22	 destruct(power_zeros(2*k)ltac:(lia))as[_[_[_[_[_[_ ABS]]]]]];rewrite ABS.
+    23	 pose proof(double_widen(power32(2*k))(power_finite(2*k)ltac:(lia)))as[R F].
+    24	 change(Float.cmp Clt(Float.of_single(power32(2*k)))Threshold2=Z.ltb k(-6)).
+    25	 unfold Float.cmp,Float.compare.
+    26	 rewrite Bcompare_correct by assumption || exact threshold2_finite.
+    27	 rewrite R,power_real by lia.
+    28	 destruct threshold2_bounds as[LO HI].
+    29	 destruct(Z.ltb k(-6))eqn:E.
+    30	 - apply Z.ltb_lt in E;rewrite Rcompare_Lt;[reflexivity|].
+    31	   eapply Rle_lt_trans;[apply bpow_le;lia|exact LO].
+    32	 - apply Z.ltb_ge in E;rewrite Rcompare_Gt;[reflexivity|].
+    33	   eapply Rlt_le_trans;[exact HI|apply bpow_le;lia].
+    34	Qed.
+    35	Lemma accept3_safe:forall k,-20<=k<=20 ->
+    36	 D3.Accept(Diag3(power32 k))=Z.leb(-7)k.
+    37	Proof.
+    38	 intros k K;unfold D3.Accept;rewrite det3_safe by exact K.
+    39	 pose proof(double_widen(power32(3*k))(power_finite(3*k)ltac:(lia)))as[R F].
+    40	 pose proof(double_widen Epsilon epsilon_finite)as[RE FE].
+    41	 change(Float.cmp Cgt(Float.abs(Float.of_single(power32(3*k))))(Float.of_single Epsilon)=Z.leb(-7)k).
+    42	 unfold Float.cmp,Float.compare.
+    43	 rewrite Bcompare_correct by(first[rewrite is_finite_Babs;exact F|exact FE]).
+    44	 rewrite B2R_Babs,R,RE,epsilon_real,power_real by lia.
+    45	 rewrite Rabs_pos_eq by(apply Rlt_le;apply bpow_gt_0).
+    46	 destruct(Z.leb(-7)k)eqn:E.
+    47	 - apply Z.leb_le in E;rewrite Rcompare_Gt;[reflexivity|apply bpow_lt;lia].
+    48	 - apply Z.leb_gt in E;rewrite Rcompare_Lt;[reflexivity|apply bpow_lt;lia].
+    49	Qed.
+    50	Print Assumptions reject2_safe.
+    51	Print Assumptions accept3_safe.

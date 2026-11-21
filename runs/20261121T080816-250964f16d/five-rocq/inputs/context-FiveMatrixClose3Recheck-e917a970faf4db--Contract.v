@@ -1,0 +1,28 @@
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveMatInv3Case Require Import MatrixMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition Det(f:Z->float32):float32 := Float32.sub(Float32.mul(f 0)(f 3))(Float32.mul(f 1)(f 2)).
+Definition Reject(f:Z->float32):bool := Float.cmp Clt(Float.of_single(Float32.abs(Det f)))(Float.of_bits(Int64.repr 4547007122018943789)).
+Definition Result(f:Z->float32):val := Vint(if Reject f then Int.one else Int.zero).
+Definition Output(f:Z->float32)(i:Z):float32 :=
+ if Z.eq_dec i 0 then Float32.div(f 3)(Det f) else
+ if Z.eq_dec i 1 then Float32.div(Float32.neg(f 1))(Det f) else
+ if Z.eq_dec i 2 then Float32.div(Float32.neg(f 2))(Det f) else Float32.div(f 0)(Det f).
+Definition Outputs(f:Z->float32):list(Z*float32):=[(0,Output f 0);(1,Output f 1);(2,Output f 2);(3,Output f 3)].
+Definition Args(bo bi:block)(po pi:ptrofs):list val := [Vptr bo po;Vptr bi pi].
+Definition Inputs(m:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ bo<>bi /\ WriteRegion m bo po 4 /\ Reads m bi pi 4 f.
+Definition Precondition(args:list val)(m:mem):Prop := exists bo bi po pi f,args=Args bo bi po pi /\ Inputs m bo bi po pi f.
+Definition Frame(m mf:mem)(bo:block)(po:ptrofs):Prop := forall b z n,Mem.valid_block m b->
+ b<>bo \/ z+n<=Ptrofs.unsigned po \/ Ptrofs.unsigned po+16<=z ->Mem.loadbytes mf b z n=Mem.loadbytes m b z n.
+Definition Encoded(f:Z->float32):list memval :=
+ encode_val Mfloat32(Vsingle(Output f 0))++encode_val Mfloat32(Vsingle(Output f 1))++
+ encode_val Mfloat32(Vsingle(Output f 2))++encode_val Mfloat32(Vsingle(Output f 3)).
+Definition Post(m mf:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ WriteRegion mf bo po 4 /\ Reads mf bi pi 4 f /\ Frame m mf bo po /\
+ (forall b,Mem.valid_block m b->Mem.valid_block mf b) /\
+ (Mem.loadbytes mf bo(Ptrofs.unsigned po)16=
+ if Reject f then Mem.loadbytes m bo(Ptrofs.unsigned po)16 else Some(Encoded f)) /\
+ (forall ch b z perm,Mem.valid_block m b->Mem.valid_access m ch b z perm->Mem.valid_access mf ch b z perm).

@@ -1,0 +1,159 @@
+78:Lemma pure_context_congr:
+96:Lemma pure_lred:
+105:Lemma pure_rred:
+142:  flat_eval ge e m a = match pure_rval ge e m a with Some v => Some (v,m) | None => None end.
+49:  | Eseqand _ _ _ => false
+50:  | Eseqor _ _ _ => false
+167:  | lctx_seqand: forall k C r2 ty,
+168:      leftcontext k RV C -> leftcontext k RV (fun x => Eseqand (C x) r2 ty)
+169:  | lctx_seqor: forall k C r2 ty,
+170:      leftcontext k RV C -> leftcontext k RV (fun x => Eseqor (C x) r2 ty)
+239:  | step_seqand_true: forall f C r1 r2 ty k e m v,
+243:      estep (ExprState f (C (Eseqand r1 r2 ty)) k e m)
+245:  | step_seqand_false: forall f C r1 r2 ty k e m v,
+249:      estep (ExprState f (C (Eseqand r1 r2 ty)) k e m)
+252:  | step_seqor_true: forall f C r1 r2 ty k e m v,
+256:      estep (ExprState f (C (Eseqor r1 r2 ty)) k e m)
+258:  | step_seqor_false: forall f C r1 r2 ty k e m v,
+262:      estep (ExprState f (C (Eseqor r1 r2 ty)) k e m)
+534:  | Eseqand (Eval v1 ty1) r2 ty =>
+536:  | Eseqor (Eval v1 ty1) r2 ty =>
+1027:  | Eseqand r1 r2 _ => simple r1 = true
+1028:  | Eseqor r1 r2 _ => simple r1 = true
+1084:(* seqand *)
+1085:  Kind. Rec H RV C (fun x => Eseqand x r2 ty). Base.
+1086:(* seqor *)
+1087:  Kind. Rec H RV C (fun x => Eseqor x r2 ty). Base.
+1148:(* seqand true *)
+1150:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqand x r2 ty)); eauto.
+1151:  left. apply step_rred; eauto. apply red_seqand_true; auto. traceEq.
+1152:(* seqand false *)
+1154:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqand x r2 ty)); eauto.
+1155:  left. apply step_rred; eauto. apply red_seqand_false; auto. traceEq.
+1156:(* seqor true *)
+1158:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqor x r2 ty)); eauto.
+1159:  left. apply step_rred; eauto. apply red_seqor_true; auto. traceEq.
+1160:(* seqor false *)
+1162:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqor x r2 ty)); eauto.
+1163:  left. apply step_rred; eauto. apply red_seqor_false; auto. traceEq.
+1288:(* seqand *)
+1289:  exploit (simple_can_eval_rval f k e m b1 (fun x => C(Eseqand x b2 ty))); eauto.
+1293:  econstructor; econstructor; eapply step_seqand_true; eauto.
+1294:  econstructor; econstructor; eapply step_seqand_false; eauto.
+1295:(* seqor *)
+1296:  exploit (simple_can_eval_rval f k e m b1 (fun x => C(Eseqor x b2 ty))); eauto.
+260:  | red_seqand_true: forall v1 ty1 r2 ty m,
+262:      rred (Eseqand (Eval v1 ty1) r2 ty) m
+264:  | red_seqand_false: forall v1 ty1 r2 ty m,
+266:      rred (Eseqand (Eval v1 ty1) r2 ty) m
+268:  | red_seqor_true: forall v1 ty1 r2 ty m,
+270:      rred (Eseqor (Eval v1 ty1) r2 ty) m
+272:  | red_seqor_false: forall v1 ty1 r2 ty m,
+274:      rred (Eseqor (Eval v1 ty1) r2 ty) m
+370:  | ctx_seqand: forall k C r2 ty,
+371:      context k RV C -> context k RV (fun x => Eseqand (C x) r2 ty)
+372:  | ctx_seqor: forall k C r2 ty,
+373:      context k RV C -> context k RV (fun x => Eseqor (C x) r2 ty)
+paparazzi/relations/guidance_mode/support/allorder/PureProgress.v:16: (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+paparazzi/relations/guidance_mode/support/allorder/PureProgress.v:148: simple a=true -> pure_rval ge e m a=Some v -> Csem.not_stuck ge e a m.
+paparazzi/relations/guidance_mode/support/allorder/PureProgress.v:160: simple a=true -> pure_rval ge e m a<>None -> imm_safe ge e RV a m.
+From Stdlib Require Import Bool List ZArith Classical.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress AtomicDenotation AtomicProgress ContinuationLift.
+Import ListNotations.
+Fixpoint block_stmt(s:statement):bool :=
+ match s with
+ | Sskip=>true | Sdo a=>atomic_expr a
+ | Ssequence a b=>block_stmt a && block_stmt b
+ | Sifthenelse a b c=>simple a && block_stmt b && block_stmt c
+ | _=>false end.
+Fixpoint block_cont(k:cont):bool :=
+ match k with Kstop=>true|Kseq s k=>block_stmt s && block_cont k|_=>false end.
+Definition block_state(s:Csem.state):bool :=
+ match s with
+ | State _ st k _ _=>block_stmt st && block_cont k
+ | ExprState _ a(Kdo k)_ _=>atomic_expr a && block_cont k
+ | ExprState _ a(Kifthenelse b c k)_ _=>simple a && block_stmt b && block_stmt c && block_cont k
+ | _=>false end.
+Fixpoint block_eval(ge:genv)(e:env)(s:statement)(m:mem):option mem :=
+ match s with
+ | Sskip=>Some m
+ | Sdo a=>option_map snd(atomic_eval ge e m a)
+ | Ssequence a b=>match block_eval ge e a m with Some ma=>block_eval ge e b ma|None=>None end
+ | Sifthenelse a b c=>
+   match pure_rval ge e m a with
+   | Some v=>match bool_val v(typeof a)m with Some bv=>block_eval ge e(if bv then b else c)m|None=>None end
+   | None=>None end
+ | _=>None end.
+Fixpoint block_tail(ge:genv)(e:env)(k:cont)(m:mem):option mem :=
+ match k with
+ | Kstop=>Some m
+ | Kseq s k=>match block_eval ge e s m with Some ma=>block_tail ge e k ma|None=>None end
+ | _=>None end.
+Definition block_denotation(ge:genv)(s:Csem.state):option mem :=
+ match s with
+ | State _ st k e m=>match block_eval ge e st m with Some ma=>block_tail ge e k ma|None=>None end
+ | ExprState _ a(Kdo k)e m=>match atomic_eval ge e m a with Some(_,ma)=>block_tail ge e k ma|None=>None end
+ | ExprState _ a(Kifthenelse b c k)e m=>
+   match pure_rval ge e m a with
+   | Some v=>match bool_val v(typeof a)m with
+     | Some bv=>match block_eval ge e(if bv then b else c)m with Some ma=>block_tail ge e k ma|None=>None end
+     | None=>None end
+   | None=>None end
+ | _=>None end.
+Definition block_done(s:Csem.state):Prop :=
+ exists f e m,s=State f Sskip Kstop e m.
+Lemma block_stmt_normal:forall s,block_stmt s=true -> CallfreeExecution.normal_stmt s=true.
+Proof. induction s;simpl;intros;core_unpack;try discriminate;core_build;eauto. Qed.
+Lemma block_cont_normal:forall k,block_cont k=true -> CallfreeExecution.normal_cont k=true.
+Proof. induction k;simpl;intros;core_unpack;try discriminate;core_build;eauto using block_stmt_normal. Qed.
+Lemma block_state_normal:forall s,block_state s=true -> CallfreeExecution.normal_state s=true.
+Proof.
+ destruct s;simpl;intros;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+ destruct k;simpl in *;core_unpack;try discriminate;core_build;
+ eauto using block_stmt_normal,block_cont_normal.
+Qed.
+Lemma block_estep:forall ge f a k e m t next,
+ block_state(ExprState f a k e m)=true ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ (next=Stuckstate \/
+ block_state next=true /\
+ block_denotation ge(ExprState f a k e m)=block_denotation ge next).
+Proof.
+ intros ge f a k e m t next BL STEP.
+ destruct k;simpl in BL;try discriminate;core_unpack.
+ - match goal with AT:atomic_expr a=true |- _=>
+   destruct(atomic_estep ge f a(Kdo k)e m t next AT STEP)
+    as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN;auto.
+ - match goal with SI:simple a=true |- _=>
+   destruct(simple_estep ge f a(Kifthenelse s s0 k)e m t next SI STEP)
+    as[BAD|[a'[EQ[TY[SA DEN]]]]] end.
+   + auto.
+   + subst next;right;split;[simpl;core_build;auto|].
+     cbn[block_denotation];rewrite DEN,<-TY;auto.
+Qed.
+Lemma block_sstep:forall ge s t next,
+ block_state s=true -> ~block_done s -> Csem.sstep ge s t next ->
+ block_state next=true /\ block_denotation ge s=block_denotation ge next.
+Proof.
+ intros ge s t next BL ND STEP;inversion STEP;subst;simpl in BL;core_unpack;try discriminate.
+ all: try solve[split;[simpl;core_build;auto|reflexivity]].
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(atomic_eval ge e m x)as [[v ma]|];reflexivity.
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(block_eval ge e s1 m);reflexivity.
+ - split;[simpl;core_build;auto|].
+   cbn[block_denotation block_eval];destruct(pure_rval ge e m a);[destruct(bool_val v(typeof a)m)|];reflexivity.
+ - split;[destruct b;simpl;core_build;auto|].
+   cbn[block_denotation pure_rval typeof];rewrite H;reflexivity.
+ - destruct k;simpl in BL;core_unpack;try discriminate.
+   + exfalso;apply ND;unfold block_done;eauto.
+   + contradiction.
+Qed.
+
+Lemma block_expression_not_stuck:forall ge f a k e m mf,
+ block_state(ExprState f a k e m)=true ->

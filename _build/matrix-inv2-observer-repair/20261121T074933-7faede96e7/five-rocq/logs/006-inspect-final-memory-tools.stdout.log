@@ -1,0 +1,103 @@
+(* var global *)
+  FinishL.
+(* deref *)
+  Steps H0 (fun x => C(Ederef x ty)). FinishL.
+(* field struct *)
+  Steps H0 (fun x => C(Efield x f0 ty)). rewrite H1 in *. FinishL.
+(* field union *)
+  Steps H0 (fun x => C(Efield x f0 ty)). rewrite H1 in *. FinishL.
+Qed.
+
+Lemma eval_simple_rvalue_steps:
+  forall a v, eval_simple_rvalue e m a v ->
+  forall C, context RV RV C ->
+  star Csem.step ge (ExprState f (C a) k e m)
+                E0 (ExprState f (C (Eval v (typeof a))) k e m).
+Proof. exact (proj1 eval_simple_steps). Qed.
+
+Lemma eval_simple_lvalue_steps:
+  forall a b ofs bf, eval_simple_lvalue e m a b ofs bf ->
+  forall C, context LV RV C ->
+  star Csem.step ge (ExprState f (C a) k e m)
+                E0 (ExprState f (C (Eloc b ofs bf (typeof a))) k e m).
+Proof. exact (proj2 eval_simple_steps). Qed.
+
+Corollary eval_simple_rvalue_safe:
+  forall C a v,
+Fixpoint Writes(m:mem)(b:block)(base:Z)(xs:list(Z*float32))(mf:mem):Prop :=
+ match xs with []=>mf=m|(i,x)::tail=>exists m1,Mem.store Mfloat32 m b(base+4*i)(Vsingle x)=Some m1 /\ Writes m1 b base tail mf end.
+Lemma writes_exist:forall xs m b p n,WriteRegion m b p n->(forall i x,In(i,x)xs->0<=i<n)->exists mf,Writes m b(Ptrofs.unsigned p)xs mf.
+Proof. induction xs as[|[i x]xs IH];intros m b p n W B;[exists m;reflexivity|].
+ destruct(writable_store m b p n i x W(B i x(or_introl eq_refl)))as[m1 ST].
+ destruct(IH m1 b p n(writable_store_preserved _ _ _ _ _ _ _ _ _ W ST)ltac:(intros j y IN;apply B with y;right;exact IN))as[mf REST].
+ exists mf,m1;auto.
+Qed.
+
+Lemma writes_permissions:forall xs m b base mf,Writes m b base xs mf->
+ forall q z k perm,Mem.perm m q z k perm->Mem.perm mf q z k perm.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q z k perm P;cbn[Writes]in WR;[subst mf;exact P|].
+ destruct WR as[m1[ST REST]];eapply IH;[exact REST|];eapply Mem.perm_store_1;eauto. Qed.
+Lemma writes_access:forall xs m b base mf,Writes m b base xs mf->
+ forall ch q z perm,Mem.valid_access m ch q z perm->Mem.valid_access mf ch q z perm.
+Proof. intros xs m b base mf WR ch q z perm[P AL];split;auto;intros off B;eapply writes_permissions;[exact WR|];apply P;exact B. Qed.
+Lemma writes_writable:forall xs m b base mf p n,Writes m b base xs mf->
+ WriteRegion m b p n->WriteRegion mf b p n.
+Proof. intros xs m b base mf p n WR[AL[NW RP]];repeat split;auto;intros z B;eapply writes_permissions;[exact WR|apply RP;exact B]. Qed.
+Lemma writes_unaffected:forall xs m b base mf,Writes m b base xs mf->
+ forall q z n,(forall i x,In(i,x)xs->q<>b \/ z+n<=base+4*i \/ base+4*i+4<=z)->
+ Mem.loadbytes mf q z n=Mem.loadbytes m q z n.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q z n OUT;cbn[Writes]in WR;[subst mf;reflexivity|].
+ destruct WR as[m1[ST REST]].
+ rewrite(IH m1 b base mf REST q z n ltac:(intros j y IN;apply OUT with y;right;exact IN)).
+ eapply Mem.loadbytes_store_other;[exact ST|];pose proof(OUT i x(or_introl eq_refl));cbn[size_chunk];tauto. Qed.
+Lemma writes_frame:forall xs m b p n mf,Writes m b(Ptrofs.unsigned p)xs mf->
+ (forall i x,In(i,x)xs->0<=i<n)->forall q z count,
+ q<>b \/ z+count<=Ptrofs.unsigned p \/ Ptrofs.unsigned p+4*n<=z->
+ Mem.loadbytes mf q z count=Mem.loadbytes m q z count.
+Proof. intros xs m b p n mf WR B q z count OUT;eapply writes_unaffected;[exact WR|].
+ intros i x IN;specialize(B i x IN);destruct OUT as[NE|[L|R]];[left;exact NE|right;left;lia|right;right;lia]. Qed.
+Lemma writes_bytes:forall xs m b base mf,Writes m b base xs mf->NoDup(map fst xs)->
+ forall i x,In(i,x)xs->Mem.loadbytes mf b(base+4*i)4=Some(encode_val Mfloat32(Vsingle x)).
+Proof. induction xs as[|[j y]xs IH];intros m b base mf WR ND i x IN;[contradiction|].
+ destruct WR as[m1[ST REST]];inversion ND as[|head tail NIN ND'];subst;destruct IN as[EQ|IN].
+ - inversion EQ;subst j y.
+   rewrite(writes_unaffected xs m1 b base mf REST b(base+4*i)4).
+   + exact(Mem.loadbytes_store_same _ _ _ _ _ _ ST).
+   + intros j y IN;assert(j<>i)by(intro EJI;subst j;apply NIN;apply in_map with (f:=@fst Z float32) in IN;exact IN).
+     right;destruct(Z_lt_ge_dec i j);[left|right];lia.
+ - eapply IH;eauto.
+Qed.
+Lemma writes_reads_other:forall xs m b base mf,Writes m b base xs mf->
+ forall q p n f,Reads m q p n f->q<>b->Reads mf q p n f.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q p n f RD NE;cbn[Writes]in WR;[subst mf;exact RD|].
+ destruct WR as[m1[ST REST]];eapply IH;[exact REST|eapply reads_store_preserved;eauto|exact NE]. Qed.
+Print Assumptions writes_bytes.
+Print Assumptions writes_frame.
+Observer.glob
+Observer.v
+Observer.vo
+RecheckSupport.glob
+RecheckSupport.v
+RecheckSupport.vo
+Replay.glob
+Replay.v
+Replay.vo
+TraceInputs.glob
+TraceInputs.v
+TraceInputs.vo
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats Values.
+From FiveInv2Case Require Import Contract.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition trace_input_words:list Z := [4272023241;1066696119;15406124;1877109524].
+Definition trace_input(i:Z):float32:=Float32.of_bits(Int.repr(nth(Z.to_nat i)trace_input_words 0)).
+Definition trace_output_words:list Z := [2147483648;0;0;0].
+Definition initial_fixture(i:Z):float32:=Float32.of_bits(Int.repr(if Z.eq_dec i 0 then 1099431936 else if Z.eq_dec i 3 then 1099431936 else 0)).
+Definition initial_guarded(_:Z):float32:=Float32.of_bits Int.zero.
+Theorem original_arbitrary_trace_kernel:Result trace_input=Vint Int.zero /\Float32.to_bits(Det trace_input)=Int.repr 4286578688 /\
+ map(fun i=>Float32.to_bits(Output trace_input i))[0;1;2;3]=map Int.repr trace_output_words.
+Proof. vm_compute;repeat split;reflexivity. Qed.
+Theorem original_initial_fixture_words:map(fun i=>Float32.to_bits(initial_fixture i))[0;1;2;3]=map Int.repr[1099431936;0;0;1099431936].
+Proof. vm_compute;reflexivity. Qed.
+Print Assumptions original_arbitrary_trace_kernel.

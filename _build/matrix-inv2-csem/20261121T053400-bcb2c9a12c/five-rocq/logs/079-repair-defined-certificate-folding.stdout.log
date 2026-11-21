@@ -1,0 +1,22 @@
+From Stdlib Require Import List Classical.
+From compcert Require Import Values Memory Events Ctypes Csyntax Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveGuidanceAllOrder Require Import CallfreeExecution PhaseComposition BlockExecution.
+Definition Defined(ge:genv)(v:val)(mf:mem)(s:Csem.state):Prop := normal_state s=true /\ call_names s /\ state_eval ge s=Some(v,mf).
+Lemma defined_certificate:forall ge v mf,certificate ge(Defined ge v mf)(Returnstate v Kstop mf).
+Proof. intros ge v mf;split.
+ - intros s[N[CN EV]].
+   destruct(invariant_progress ge s ltac:(repeat split;eauto))as[[vr[mr EQ]]|[t[next ST]]].
+   + subst s;cbn[state_eval]in EV;inversion EV;left;reflexivity.
+   + right;exists t,next;split;auto;destruct(normal_step_forward ge s t next(v,mf)N EV ST)as[NN EN];unfold Defined;split;[exact NN|];split;[eapply normal_step_names;eauto|exact EN].
+ - intros s t next[N[CN EV]]NF ST;destruct(normal_step_forward ge s t next(v,mf)N EV ST)as[NN EN];unfold Defined;split;[exact NN|];split;[eapply normal_step_names;eauto|exact EN].
+Qed.
+Lemma join_certificate:forall ge P Q middle target,certificate ge P middle->certificate ge Q target->Q middle->certificate ge(fun s=>P s\/Q s)target.
+Proof. intros ge P Q middle target[PP PC][QP QC]QI;split.
+ - intros s[PS|QS].
+   + destruct(PP s PS)as[EQ|[t[next[ST PN]]]];[subst s;destruct(QP middle QI)as[EQ|[t[next[ST QN]]]]|];eauto 8.
+   + destruct(QP s QS)as[EQ|[t[next[ST QN]]]];eauto 8.
+ - intros s t next[PS|QS]NF ST.
+   + destruct(classic(s=middle))as[EQ|NE];[subst s;right;eapply QC;eauto|left;eapply PC;eauto].
+   + right;eapply QC;eauto.
+Qed.

@@ -1,0 +1,68 @@
+3 goals
+  
+  ge : genv
+  e : env
+  caller : function
+  k : cont
+  yes, no : statement
+  ifunction, idet : ident
+  bfunction, bdet : block
+  d : float32
+  m : mem
+  function_global : e ! ifunction = None
+  function_symbol : Genv.find_symbol ge ifunction = Some bfunction
+  function_find :
+    Genv.find_funct ge (Vptr bfunction Ptrofs.zero) = Some fabs_fd
+  det_local : e ! idet = Some (bdet, tfloat)
+  det_load : Mem.load Mfloat32 m bdet 0 = Some (Vsingle d)
+  rule : string
+  t : trace
+  next : Csem.state
+  IN :
+    In (TR rule t next)
+      (map (expr_final_state caller (Kifthenelse yes no k) e)
+         (map
+            (fun z : (expr -> expr) * reduction =>
+             (fun x : expr =>
+              Ebinop Olt (fst z x) (Eval (Vfloat threshold) tdouble) tint,
+              snd z))
+            (incontext
+               (fun x : exprlist =>
+                Ecall
+                  (Evalof
+                     (Evar ifunction
+                        (Tfunction [Tfloat F32 noattr] 
+                           (Tfloat F32 noattr) cc_default))
+                     (Tfunction [Tfloat F32 noattr] 
+                        (Tfloat F32 noattr) cc_default))
+                  x (Tfloat F32 noattr))
+               (incontext2 (fun x : expr => Econs x Enil)
+                  match
+                    match
+                      (if zle 4 Ptrofs.modulus
+                       then Mem.load Mfloat32 m bdet 0
+                       else None)
+                    with
+                    | Some v => Some (quiet_world, E0, v)
+                    | None => None
+                    end
+                  with
+                  | Some (_, t, v) =>
+                      topred
+                        (Rred "red_rvalof" (Eval v (Tfloat F32 noattr)) m t)
+                  | None => stuck
+                  end
+                  (fun x : exprlist =>
+                   Econs
+                     (Evalof (Eloc bdet Ptrofs.zero Full (Tfloat F32 noattr))
+                        (Tfloat F32 noattr))
+                     x)
+                  [])) ++
+          []))
+  ============================
+  t = E0 /\ pre_or_called next
+
+goal 2 is:
+ t = E0 /\ pre_or_called next
+goal 3 is:
+ t = E0 /\ pre_or_called next

@@ -1,0 +1,28 @@
+File "/home/yangfp/five/_build/matrix-inv2-csem/development/20261121T140320734789/FiveInv2Case/MemoryEffects.v", line 40, characters 149-151:
+Error:
+In environment
+m : mem
+bo : block
+po : ptrofs
+f : Z -> float32
+me : mem
+BR : Writes m bo (Ptrofs.unsigned po) (Outputs f) me
+L0 :
+  Mem.loadbytes me bo (Ptrofs.unsigned po) 4 =
+  Some (encode_val Mfloat32 (Vsingle (Output f 0)))
+L1 :
+  Mem.loadbytes me bo (Ptrofs.unsigned po + 4) 4 =
+  Some (encode_val Mfloat32 (Vsingle (Output f 1)))
+L2 :
+  Mem.loadbytes me bo (Ptrofs.unsigned po + 8) 4 =
+  Some (encode_val Mfloat32 (Vsingle (Output f 2)))
+L3 :
+  Mem.loadbytes me bo (Ptrofs.unsigned po + 12) 4 =
+  Some (encode_val Mfloat32 (Vsingle (Output f 3)))
+The term "L3" has type
+ "Mem.loadbytes me bo (Ptrofs.unsigned po + 12) 4 =
+  Some (encode_val Mfloat32 (Vsingle (Output f 3)))"
+while it is expected to have type
+ "Mem.loadbytes me bo (Ptrofs.unsigned po + (4 + 4) + 4) 4 =
+  Some (encode_val Mfloat32 (Vsingle (Output f 3)))".
+

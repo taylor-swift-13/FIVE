@@ -1,0 +1,70 @@
+{
+  "schema": "five-source-bindings/1",
+  "entry": "float_mat_inv_2d",
+  "entry_signature": "bool float_mat_inv_2d(float inv_out[4], const float mat_in[4])",
+  "original_source": {
+    "path": "_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.c",
+    "sha256": "68f0476a5cdfef046f71e11eed7146aef2e14d9ed2d2f3a140bd8f5c46b39c00",
+    "repository": "https://github.com/paparazzi/paparazzi",
+    "commit": "abfee3dd56eeab12c528635504a429db3daf409a"
+  },
+  "prepared_source": {
+    "path": "prepare/source/float_mat_inv_2d.c",
+    "sha256": "073ccb03ade6c9af02b29cd438e768f5af6bd6fb0a1cba8e0394e4ac91e34e04"
+  },
+  "preparation": "Exact selected entry body; unrelated functions removed; standard header dependency closure retained. Copyright/license notice retained.",
+  "dependencies": [
+    {
+      "header": "stdbool.h",
+      "required": "bool"
+    },
+    {
+      "header": "math.h",
+      "required": "fabsf"
+    }
+  ],
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "c_dialect": "C99 declarations and bool, actual tool defaults retained",
+  "preprocessor_arguments": [],
+  "frontend_options": [],
+  "external_call_bindings": [
+    {
+      "original": "fabsf",
+      "actual": "Original standard math declaration; compiler builtin recognition subject to actual AST audit",
+      "redirection": null
+    }
+  ],
+  "redirections": [],
+  "external_environment": [],
+  "call_closure": {
+    "entry": "float_mat_inv_2d",
+    "function_definitions": [
+      "float_mat_inv_2d"
+    ],
+    "direct_callees": [
+      "fabsf"
+    ],
+    "indirect_calls": [],
+    "global_variables": [],
+    "required_headers_or_macros": [
+      "stdbool.h",
+      "math.h"
+    ]
+  },
+  "correspondence_obligations": [
+    "Source extraction and frontend trust boundary",
+    "Preserve fabs casts, literal types, all operation order, NaN and signedzero semantics",
+    "Rocq rechecks actual CBMC results independently"
+  ]
+}

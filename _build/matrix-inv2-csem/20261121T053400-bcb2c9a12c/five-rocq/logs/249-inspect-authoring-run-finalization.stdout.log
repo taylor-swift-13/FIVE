@@ -1,0 +1,136 @@
+338:    def finish(self, verdict, summary, required_roles, missing=None):
+339-        if verdict not in {'passed','failed','timeout','blocked','interrupted'}:
+340-            raise ValueError('Invalid verification verdict')
+341-        metadata = self.read('run.json')
+342-        boundary=metadata.get('codex_usage_boundary')
+343-        if boundary and not boundary.get('after'):
+344-            try:
+345-                from codex_usage import snapshot, receipt
+346-                import tempfile
+347-                boundary['after']=snapshot(boundary['session_file'])
+348-                metadata['codex_usage_boundary']=boundary
+349-                dump(self.folder/'run.json',metadata)
+350-                usage=receipt(boundary['session_file'],boundary['before'],boundary['after'])
+351-                with tempfile.TemporaryDirectory(prefix='five-token-receipt-') as temporary:
+352-                    usage_file=Path(temporary)/'usage.json'
+353-                    dump(usage_file,usage)
+354-                    self.import_tokens(usage_file)
+355-                metadata=self.read('run.json')
+356-            except Exception as usage_error:
+357-                metadata=self.read('run.json')
+358-                metadata['tokens']={'status':'unavailable','source':{'kind':'codex-session-event','reference':boundary['session_file']},'events':[],'reason':str(usage_error)}
+359-                metadata['usage_capture_error']=str(usage_error)
+360-                dump(self.folder/'run.json',metadata)
+361-        metadata.update({'status':verdict,'finished_at':utc(),'finish_epoch':time.time()})
+362-        dump(self.folder/'run.json',metadata)
+363-        roles = {}
+364-        for role, path in required_roles.items():
+365-            try:
+366-                roles[role] = {'status':'present',**self.capture(path,role)}
+367-            except FileNotFoundError:
+368-                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+369-        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+370-             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+371-        # Child runs are linked (normally nested under stages/), never copied twice.
+372-        metrics = self.refresh_metrics()
+373-        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+374-        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+375-             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+376-             'note':'A passed verifier result does not imply all requested measurements are available.'})
+377-        from cost_audit import audit_run
+378-        cost_audit = audit_run(self.folder)
+379-        metadata = self.read('run.json')
+380-        metadata['cost_audit'] = cost_audit
+381-        if cost_audit['status'] != 'complete':
+382-            metadata['completeness']['measurements'] = 'partial'
+383-            metrics['measurement_status'] = 'partial'
+384-            dump(self.folder/'metrics.json',metrics)
+385-        dump(self.folder/'run.json',metadata)
+386-        self.render()
+387-        print(f'ARTIFACTS: {self.folder}',flush=True)
+388-
+389-    def render(self):
+390-        metrics = self.read('metrics.json')
+391-        meta = self.read('run.json')
+392-        result = meta.get('result',{'verdict':'running','summary':''})
+393-        peak = metrics['memory']['peak_process_tree_rss_sampled_bytes']
+394-        text = f"# {meta['skill']} / {meta['run_id']}\n\nVerification: {result['verdict']}\n\n{result['summary']}\n\n"
+395-        text += f"Wall time: {metrics['time']['wall_seconds']:.6f} s\n\nCPU tool time: {metrics['time']['cpu_tool_seconds']} s\n\nObserved tool-tree RSS peak: {peak if peak is not None else 'unavailable'} bytes\n\nModel tokens: {metrics['tokens']['status']}; total={metrics['tokens']['total_tokens']}\n\nMeasurement completeness: {metrics['measurement_status']}\n\n"
+396-        text += 'run.json contains scope, input/output hashes, commands, token evidence and remaining obligations. metrics.json contains resource measurements and their limits.\n'
+397-        if meta.get('cost_audit'):
+398-            text += '\nCost evidence audit: '+meta['cost_audit']['status']+'\n'
+399-            for issue in meta['cost_audit'].get('issues',[]):
+400-                text += '\n- '+issue+'\n'
+401-        (self.folder/'report.md').write_text(text)
+402-        inventory = []
+403-        for path in sorted(self.folder.rglob('*')):
+404-            if path.is_file() and path != self.folder/'run.json' and not path.name.endswith('.tmp'):
+405-                inventory.append({'path':str(path.relative_to(self.folder)),'bytes':path.stat().st_size,'sha256':sha(path)})
+406-        meta = self.read('run.json')
+407-        meta['artifacts'] = inventory
+408-        dump(self.folder/'run.json',meta)
+409-
+410-
+411-def main():
+412-    parser = argparse.ArgumentParser(description=__doc__)
+413-    sub = parser.add_subparsers(dest='action',required=True)
+414-    start = sub.add_parser('start')
+415-    start.add_argument('--base',required=True)
+416-    start.add_argument('--skill',required=True)
+417-    start.add_argument('--scope',required=True)
+418-    start.add_argument('--input',action='append',default=[])
+        for path in sorted(self.folder.rglob('*')):
+            if path.is_file() and path != self.folder/'run.json' and not path.name.endswith('.tmp'):
+                inventory.append({'path':str(path.relative_to(self.folder)),'bytes':path.stat().st_size,'sha256':sha(path)})
+        meta = self.read('run.json')
+        meta['artifacts'] = inventory
+        dump(self.folder/'run.json',meta)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='action',required=True)
+    start = sub.add_parser('start')
+    start.add_argument('--base',required=True)
+    start.add_argument('--skill',required=True)
+    start.add_argument('--scope',required=True)
+    start.add_argument('--input',action='append',default=[])
+    start.add_argument('--parent')
+    start.add_argument('--session',help='Explicit current actor Codex session JSONL, to track model-token event boundaries')
+    command = sub.add_parser('exec')
+    command.add_argument('--run',required=True)
+    command.add_argument('--label',required=True)
+    command.add_argument('--timeout',type=float,default=180)
+    command.add_argument('argv',nargs=argparse.REMAINDER)
+    tokens = sub.add_parser('tokens')
+    tokens.add_argument('--run',required=True)
+    tokens.add_argument('--receipt',required=True)
+    finish = sub.add_parser('finish')
+    finish.add_argument('--run',required=True)
+    finish.add_argument('--verdict',required=True)
+    finish.add_argument('--summary',required=True)
+    finish.add_argument('--outputs',required=True,help='JSON map of output role to path')
+    args = parser.parse_args()
+    if args.action == 'start':
+        run = Run.start(args.base,args.skill,[(f'input-{i}',p) for i,p in enumerate(args.input)],json.loads(Path(args.scope).read_text()),args.parent,'skill-session',usage_session=args.session)
+        print(run.folder)
+    else:
+        run = Run(args.run)
+        if args.action == 'exec':
+            argv = args.argv[1:] if args.argv[:1]==['--'] else args.argv
+            run.command(argv,args.label,args.timeout)
+        elif args.action == 'tokens':
+            run.import_tokens(args.receipt)
+            if run.read('run.json').get('result'):
+                # Token updates invalidate ancestor bundles; refresh child first,
+                # then refresh/finalize each parent explicitly.
+                completeness = run.read('completeness.json')
+                completeness['measurements'] = run.read('metrics.json')['measurement_status']
+                dump(run.folder/'completeness.json',completeness)
+                run.render()
+        else:
+            run.finish(args.verdict,args.summary,json.loads(Path(args.outputs).read_text()))
+
+
+if __name__ == '__main__':
+    main()

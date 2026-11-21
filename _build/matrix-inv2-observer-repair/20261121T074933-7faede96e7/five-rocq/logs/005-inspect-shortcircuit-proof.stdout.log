@@ -1,0 +1,383 @@
+From Stdlib Require Import Bool List ZArith Lia.
+From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceSemantics Require Import SemanticsSupport.
+From FiveGuidanceAllOrder Require Import PureSyntax.
+From FiveGuidanceAllOrder Require Import PureDenotation.
+Import ListNotations.
+
+Ltac option_cases E :=
+ repeat match type of E with
+ | context [match ?x with _ => _ end] =>
+   let EQ := fresh "EQ" in destruct x eqn:EQ; try discriminate
+ end.
+
+Lemma pure_eval_big : forall a ge e m,
+ simple a=true ->
+ (forall v, pure_rval ge e m a=Some v -> eval_simple_rvalue ge e m a v) /\
+ (forall b ofs bf, pure_lval ge e m a=Some(b,ofs,bf) -> eval_simple_lvalue ge e m a b ofs bf).
+Proof.
+ induction a; intros ge e m SIMPLE; simpl in SIMPLE; core_unpack; try discriminate;
+ repeat match goal with
+ | IH: forall ge e m, simple ?a=true -> _ /\ _ |- _ =>
+   let R:=fresh "RV" in let L:=fresh "LV" in
+   pose proof (IH ge e m ltac:(assumption)) as [R L]; clear IH
+ end;
+ split; intros; cbn [pure_rval pure_lval] in H; try discriminate.
+ - inversion H; subst; constructor.
+ - option_cases H; inversion H; subst; eauto using esl_var_local, esl_var_global.
+ - option_cases H; inversion H; subst; eauto using esl_field_struct, esl_field_union.
+ - option_cases H; inversion H; subst.
+   match goal with D: do_deref_loc _ _ _ _ _ _ _ = Some _ |- _ =>
+    destruct (do_deref_loc_sound _ _ _ _ _ _ _ _ _ _ D) as [DR PT]
+   end.
+   assert (SIL: t = E0) by (eapply deref_loc_silent; eauto; unfold nv; congruence).
+   subst t. econstructor; eauto; try (symmetry; assumption).
+   apply negb_true_iff; assumption.
+ - option_cases H; inversion H; subst; eauto using esl_deref.
+ - option_cases H; inversion H; subst; eauto using esr_addrof.
+ - option_cases H; eauto using esr_unop.
+ - option_cases H; eauto using esr_binop.
+ - option_cases H; eauto using esr_cast.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+ - inversion H; subst; constructor.
+Qed.
+
+Definition literal (k:kind) (a:expr) : bool :=
+ match k,a with RV,Eval _ _ | LV,Eloc _ _ _ _=>true | _,_=>false end.
+
+Lemma lift_immediate : forall ge e m from to C a,
+ context from to C -> literal from a=false -> imm_safe ge e from a m ->
+ imm_safe ge e to (C a) m.
+Proof.
+ intros ge e m from to C a CT NL IS; inversion IS; subst; try discriminate.
+ - eapply imm_safe_lred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+ - eapply imm_safe_rred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+ - eapply imm_safe_callred with (C:=fun x=>C(C0 x)); eauto using Cstrategy.context_compose.
+Qed.
+
+Lemma literal_r_inv : forall a, literal RV a=true -> exists v ty,a=Eval v ty.
+Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+Lemma literal_l_inv : forall a, literal LV a=true -> exists b ofs bf ty,a=Eloc b ofs bf ty.
+Proof. destruct a; simpl; intros; try discriminate; eauto. Qed.
+
+Ltac invert_literal_eval :=
+ repeat match goal with
+ | H:eval_simple_rvalue _ _ _ (Eval _ _) _ |- _ => inversion H; subst; clear H
+ | H:eval_simple_lvalue _ _ _ (Eloc _ _ _ _) _ _ _ |- _ => inversion H; subst; clear H
+ end.
+Lemma big_immediate : forall ge e m,
+ (forall a v,eval_simple_rvalue ge e m a v -> imm_safe ge e RV a m) /\
+ (forall a b ofs bf,eval_simple_lvalue ge e m a b ofs bf -> imm_safe ge e LV a m).
+Proof.
+ intros ge e m; apply eval_simple_rvalue_lvalue_ind; intros.
+ - constructor.
+ - destruct (literal LV l) eqn:LIT.
+   + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     eapply red_rvalof; eauto.
+   + eapply lift_immediate with (from:=LV) (C:=fun x=>Evalof x ty); eauto.
+     constructor; constructor.
+ - destruct (literal LV l) eqn:LIT.
+   + destruct (literal_l_inv _ LIT) as [bl[ol[bfl[tl LITERAL_EQ]]]]; subst l.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     constructor.
+   + eapply lift_immediate with (from:=LV) (C:=fun x=>Eaddrof x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1.
+     invert_literal_eval; cbn [typeof] in *; subst. eapply imm_safe_rred with (C:=fun x=>x); [|constructor].
+     econstructor; eassumption.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Eunop op x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:L1.
+   + destruct (literal_r_inv _ L1) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+     destruct (literal RV r2) eqn:L2.
+     * destruct (literal_r_inv _ L2) as [vr2[tr2 LITERAL_EQ2]]; subst r2. invert_literal_eval; cbn [typeof] in *; subst.
+       eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+     * eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op _ x ty); eauto.
+       constructor; constructor.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ebinop op x r2 ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r1) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r1. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ecast x ty); eauto.
+     constructor; constructor.
+ - eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. constructor.
+ - eapply imm_safe_rred with (C:=fun x=>x); [|constructor]. constructor.
+ - constructor.
+ - eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. econstructor; eassumption.
+ - eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_var_global; eauto.
+ - destruct (literal RV r) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. constructor.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Ederef x ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_field_struct; eauto.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Efield x f ty); eauto.
+     constructor; constructor.
+ - destruct (literal RV r) eqn:LIT.
+   + destruct (literal_r_inv _ LIT) as [vr[tr LITERAL_EQ]]; subst r. invert_literal_eval; cbn [typeof] in *; subst.
+     eapply imm_safe_lred with (C:=fun x=>x); [|constructor]. eapply red_field_union; eauto.
+   + eapply lift_immediate with (from:=RV) (C:=fun x=>Efield x f ty); eauto.
+     constructor; constructor.
+Qed.
+
+Definition big_defined (ge:genv) (e:env) (m:mem) (k:kind) (a:expr) : Prop :=
+ match k with
+
+Fixpoint seq_of_labeled_statement (sl: labeled_statements) : statement :=
+  match sl with
+  | LSnil => Sskip
+  | LScons _ s sl' => Ssequence s (seq_of_labeled_statement sl')
+  end.
+
+(** Extract the values from a list of function arguments *)
+
+Inductive cast_arguments (m: mem): exprlist -> list type -> list val -> Prop :=
+  | cast_args_nil:
+      cast_arguments m Enil nil nil
+  | cast_args_cons: forall v ty el targ1 targs v1 vl,
+      sem_cast v ty targ1 m = Some v1 -> cast_arguments m el targs vl ->
+      cast_arguments m (Econs (Eval v ty) el) (targ1 :: targs) (v1 :: vl).
+
+(** ** Reduction semantics for expressions *)
+
+Section EXPR.
+
+Variable e: env.
+
+(** The semantics of expressions follows the popular Wright-Felleisen style.
+  It is a small-step semantics that reduces one redex at a time.
+  We first define head reductions (at the top of an expression, then
+  use reduction contexts to define reduction within an expression. *)
+
+(** Head reduction for l-values. *)
+
+Inductive lred: expr -> mem -> expr -> mem -> Prop :=
+  | red_var_local: forall x ty m b,
+      e!x = Some(b, ty) ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_var_global: forall x ty m b,
+      e!x = None ->
+      Genv.find_symbol ge x = Some b ->
+      lred (Evar x ty) m
+           (Eloc b Ptrofs.zero Full ty) m
+  | red_deref: forall b ofs ty1 ty m,
+      lred (Ederef (Eval (Vptr b ofs) ty1) ty) m
+           (Eloc b ofs Full ty) m
+  | red_field_struct: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tstruct id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m
+  | red_field_union: forall b ofs id co a f ty m delta bf,
+      ge.(genv_cenv)!id = Some co ->
+      union_field_offset ge f (co_members co) = OK (delta, bf) ->
+      lred (Efield (Eval (Vptr b ofs) (Tunion id a)) f ty) m
+           (Eloc b (Ptrofs.add ofs (Ptrofs.repr delta)) bf ty) m.
+
+(** Head reductions for r-values *)
+
+Inductive rred: expr -> mem -> trace -> expr -> mem -> Prop :=
+  | red_rvalof: forall b ofs bf ty m t v,
+      deref_loc ty m b ofs bf t v ->
+      rred (Evalof (Eloc b ofs bf ty) ty) m
+         t (Eval v ty) m
+  | red_addrof: forall b ofs ty1 ty m,
+      rred (Eaddrof (Eloc b ofs Full ty1) ty) m
+        E0 (Eval (Vptr b ofs) ty) m
+  | red_unop: forall op v1 ty1 ty m v,
+      sem_unary_operation op v1 ty1 m = Some v ->
+      rred (Eunop op (Eval v1 ty1) ty) m
+        E0 (Eval v ty) m
+  | red_binop: forall op v1 ty1 v2 ty2 ty m v,
+      sem_binary_operation ge op v1 ty1 v2 ty2 m = Some v ->
+      rred (Ebinop op (Eval v1 ty1) (Eval v2 ty2) ty) m
+        E0 (Eval v ty) m
+  | red_cast: forall ty v1 ty1 m v,
+      sem_cast v1 ty1 ty m = Some v ->
+      rred (Ecast (Eval v1 ty1) ty) m
+        E0 (Eval v ty) m
+  | red_seqand_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_seqand_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqand (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.zero) ty) m
+  | red_seqor_true: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some true ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eval (Vint Int.one) ty) m
+  | red_seqor_false: forall v1 ty1 r2 ty m,
+      bool_val v1 ty1 m = Some false ->
+      rred (Eseqor (Eval v1 ty1) r2 ty) m
+        E0 (Eparen r2 type_bool ty) m
+  | red_condition: forall v1 ty1 r1 r2 ty b m,
+      bool_val v1 ty1 m = Some b ->
+      rred (Econdition (Eval v1 ty1) r1 r2 ty) m
+        E0 (Eparen (if b then r1 else r2) ty ty) m
+  | red_sizeof: forall ty1 ty m,
+  | lctx_paren: forall k C tycast ty,
+      leftcontext k RV C -> leftcontext k RV (fun x => Eparen (C x) tycast ty)
+
+with leftcontextlist: kind -> (expr -> exprlist) -> Prop :=
+  | lctx_list_head: forall k C el,
+      leftcontext k RV C -> leftcontextlist k (fun x => Econs (C x) el)
+  | lctx_list_tail: forall k C e1,
+      simple e1 = true -> leftcontextlist k C ->
+      leftcontextlist k (fun x => Econs e1 (C x)).
+
+Lemma leftcontext_context:
+  forall k1 k2 C, leftcontext k1 k2 C -> context k1 k2 C
+with leftcontextlist_contextlist:
+  forall k C, leftcontextlist k C -> contextlist k C.
+Proof.
+  induction 1; constructor; auto.
+  induction 1; constructor; auto.
+Qed.
+
+Local Hint Resolve leftcontext_context : core.
+
+(** Strategy for reducing expressions. We reduce the leftmost innermost
+  non-simple subexpression, evaluating its arguments (which are necessarily
+  simple expressions) with the big-step semantics.
+  If there are none, the whole expression is simple and is evaluated in
+  one big step. *)
+
+Inductive estep: state -> trace -> state -> Prop :=
+
+  | step_expr: forall f r k e m v ty,
+      eval_simple_rvalue e m r v ->
+      match r with Eval _ _ => False | _ => True end ->
+      ty = typeof r ->
+      estep (ExprState f r k e m)
+         E0 (ExprState f (Eval v ty) k e m)
+
+  | step_rvalof_volatile: forall f C l ty k e m b ofs bf t v,
+      leftcontext RV RV C ->
+      eval_simple_lvalue e m l b ofs bf ->
+      deref_loc ge ty m b ofs bf t v ->
+      ty = typeof l -> type_is_volatile ty = true ->
+      estep (ExprState f (C (Evalof l ty)) k e m)
+          t (ExprState f (C (Eval v ty)) k e m)
+
+  | step_seqand_true: forall f C r1 r2 ty k e m v,
+      leftcontext RV RV C ->
+      eval_simple_rvalue e m r1 v ->
+      bool_val v (typeof r1) m = Some true ->
+      estep (ExprState f (C (Eseqand r1 r2 ty)) k e m)
+         E0 (ExprState f (C (Eparen r2 type_bool ty)) k e m)
+  | step_seqand_false: forall f C r1 r2 ty k e m v,
+      leftcontext RV RV C ->
+      eval_simple_rvalue e m r1 v ->
+      bool_val v (typeof r1) m = Some false ->
+      estep (ExprState f (C (Eseqand r1 r2 ty)) k e m)
+         E0 (ExprState f (C (Eval (Vint Int.zero) ty)) k e m)
+
+  | step_seqor_true: forall f C r1 r2 ty k e m v,
+      leftcontext RV RV C ->
+      eval_simple_rvalue e m r1 v ->
+      bool_val v (typeof r1) m = Some true ->
+      estep (ExprState f (C (Eseqor r1 r2 ty)) k e m)
+         E0 (ExprState f (C (Eval (Vint Int.one) ty)) k e m)
+  | step_seqor_false: forall f C r1 r2 ty k e m v,
+      leftcontext RV RV C ->
+      eval_simple_rvalue e m r1 v ->
+      bool_val v (typeof r1) m = Some false ->
+      estep (ExprState f (C (Eseqor r1 r2 ty)) k e m)
+         E0 (ExprState f (C (Eparen r2 type_bool ty)) k e m)
+
+  | step_condition: forall f C r1 r2 r3 ty k e m v b,
+      leftcontext RV RV C ->
+      eval_simple_rvalue e m r1 v ->
+      bool_val v (typeof r1) m = Some b ->
+      estep (ExprState f (C (Econdition r1 r2 r3 ty)) k e m)
+         E0 (ExprState f (C (Eparen (if b then r2 else r3) ty ty)) k e m)
+
+  | step_assign: forall f C l r ty k e m b ofs bf v v1 t m' v',
+      leftcontext RV RV C ->
+      eval_simple_lvalue e m l b ofs bf ->
+      eval_simple_rvalue e m r v ->
+(* rparen *)
+  Kind. Rec H RV C (fun x => (Eparen x tycast ty)). Base.
+(* cons *)
+  destruct (H RV (fun x => C (Econs x rl))) as [A | [C' [a' [A [B D]]]]].
+    eapply contextlist'_head; eauto. auto.
+  destruct (H0 (fun x => C (Econs r1 x))) as [A' | [C' [a' [A' [B D]]]]].
+    eapply contextlist'_tail; eauto. auto.
+  rewrite A; rewrite A'; auto.
+  right; exists (fun x => Econs r1 (C' x)); exists a'. rewrite A'; eauto.
+  right; exists (fun x => Econs (C' x) rl); exists a'. rewrite A; eauto.
+Qed.
+
+Lemma decompose_topexpr:
+  forall a,
+  safe (ExprState f a k e m) ->
+       simple a = true
+    \/ exists C, exists a', a = C a' /\ simple_side_effect a' /\ leftcontext RV RV C.
+Proof.
+  intros. eapply (proj1 decompose_expr). apply ctx_top. auto.
+Qed.
+
+End DECOMPOSITION.
+
+(** Simulation for expressions. *)
+
+Lemma estep_simulation:
+  forall S t S',
+  estep S t S' -> plus Csem.step ge S t S'.
+Proof.
+  intros. inv H.
+(* simple *)
+  exploit eval_simple_rvalue_steps; eauto. simpl; intros STEPS.
+  exploit star_inv; eauto. intros [[EQ1 EQ2] | A]; eauto.
+  inversion EQ1. rewrite <- H2 in H1; contradiction.
+(* valof volatile *)
+  eapply plus_right.
+  eapply eval_simple_lvalue_steps with (C := fun x => C(Evalof x (typeof l))); eauto.
+  left. apply step_rred; eauto. econstructor; eauto. auto.
+(* seqand true *)
+  eapply plus_right.
+  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqand x r2 ty)); eauto.
+  left. apply step_rred; eauto. apply red_seqand_true; auto. traceEq.
+(* seqand false *)
+  eapply plus_right.
+  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqand x r2 ty)); eauto.
+  left. apply step_rred; eauto. apply red_seqand_false; auto. traceEq.
+(* seqor true *)
+  eapply plus_right.
+  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqor x r2 ty)); eauto.
+  left. apply step_rred; eauto. apply red_seqor_true; auto. traceEq.
+(* seqor false *)
+  eapply plus_right.
+  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqor x r2 ty)); eauto.
+  left. apply step_rred; eauto. apply red_seqor_false; auto. traceEq.
+(* condition *)
+  eapply plus_right.
+  eapply eval_simple_rvalue_steps with (C := fun x => C(Econdition x r2 r3 ty)); eauto.
+  left; apply step_rred; eauto. constructor; auto. auto.
+(* assign *)
+  eapply star_plus_trans.
+  eapply eval_simple_lvalue_steps with (C := fun x => C(Eassign x r (typeof l))); eauto.
+745:Lemma eval_simple_rvalue_steps:
+765:  intros. eapply safe_steps; eauto. eapply eval_simple_rvalue_steps; eauto.
+983:  eapply eval_simple_rvalue_steps with (C := fun x => C(Econs x rl)); eauto.
+1141:  exploit eval_simple_rvalue_steps; eauto. simpl; intros STEPS.
+1150:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqand x r2 ty)); eauto.
+1154:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqand x r2 ty)); eauto.
+1158:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqor x r2 ty)); eauto.
+1162:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eseqor x r2 ty)); eauto.
+1166:  eapply eval_simple_rvalue_steps with (C := fun x => C(Econdition x r2 r3 ty)); eauto.
+1172:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eassign (Eloc b ofs bf (typeof l)) x (typeof l))); eauto.
+1179:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eassignop op (Eloc b ofs bf (typeof l)) x tyres (typeof l))); eauto.
+1191:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eassignop op (Eloc b ofs bf (typeof l)) x tyres (typeof l))); eauto.
+1246:  eapply eval_simple_rvalue_steps with (C := fun x => C(Ecomma x r2 (typeof r2))); eauto.
+1250:  eapply eval_simple_rvalue_steps with (C := fun x => C(Eparen x tycast ty)); eauto.
+1255:  eapply eval_simple_rvalue_steps with (C := fun x => C(Ecall x rargs ty)); eauto.

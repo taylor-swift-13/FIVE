@@ -1,0 +1,246 @@
+From Stdlib Require Import Bool List Classical.
+From compcert Require Import Coqlib Maps AST Values Memory Events Ctypes Csyntax Csem Smallstep.
+Import ListNotations.
+Definition certificate(ge:genv)(P:Csem.state->Prop)(target:Csem.state):Prop :=
+ (forall s,P s ->s=target \/ exists t next,Csem.step ge s t next /\ P next) /\
+ (forall s t next,P s ->s<>target ->Csem.step ge s t next ->P next).
+Definition unique_transition(ge:genv)(from to:Csem.state):Prop :=
+ Csem.step ge from E0 to /\
+ forall t next,Csem.step ge from t next ->t=E0 /\ next=to.
+Theorem chain_certificate:forall ge P Q middle initial target,
+ certificate ge P middle -> certificate ge Q target ->
+ unique_transition ge middle initial ->Q initial ->
+ certificate ge(fun s=>P s \/ Q s)target.
+Proof.
+ intros ge P Q middle initial target[PP PC][QP QC][BRIDGE UNIQUE]QI.
+ split.
+ - intros s[PS|QS].
+   + destruct(PP s PS)as[EQ|[t[next[STEP PN]]]].
+     * subst s;right;exists E0,initial;split;auto.
+     * right;exists t,next;split;auto.
+   + destruct(QP s QS)as[EQ|[t[next[STEP QN]]]].
+     * auto.
+     * right;exists t,next;split;auto.
+ - intros s t next[PS|QS]NF STEP.
+   + destruct(classic(s=middle))as[EQ|NE].
+     * subst;destruct(UNIQUE _ _ STEP);subst;auto.
+     * left;eapply PC;eauto.
+   + right;eapply QC;eauto.
+Qed.
+Theorem singleton_bridge_certificate:forall ge initial target,
+ unique_transition ge initial target ->
+ certificate ge(fun s=>s=initial \/ s=target)target.
+Proof.
+ intros ge initial target[STEP UNIQUE];split.
+ - intros s[EQ|EQ];[subst s;right;exists E0,target;split;auto|auto].
+ - intros s t next[EQ|EQ]NF ST;subst;try contradiction.
+   destruct(UNIQUE _ _ ST);subst;auto.
+Qed.
+Theorem certificate_reachable:forall ge P target initial,
+ certificate ge P target ->P initial ->nostep Csem.step ge target ->
+ forall t reached,star Csem.step ge initial t reached ->P reached.
+Proof.
+ intros ge P target initial[PR CL]PI STOP t reached PATH.
+ revert PI;induction PATH;intros PI;auto.
+ apply IHPATH;destruct(classic(s1=target))as[EQ|NE].
+ - subst;exfalso;eapply STOP;eauto.
+ - eapply CL;eauto.
+Qed.
+Theorem certificate_no_error:forall ge P target initial,
+ certificate ge P target ->P initial ->nostep Csem.step ge target ->
+ forall t reached,star Csem.step ge initial t reached ->
+ reached=target \/ exists tr next,Csem.step ge reached tr next.
+Proof.
+ intros ge P target initial CERT PI STOP t reached PATH.
+ pose proof(certificate_reachable ge P target initial CERT PI STOP t reached PATH)as INV.
+ destruct(proj1 CERT reached INV)as[EQ|[tr[next[STEP PN]]]];[auto|right;eauto].
+Qed.
+Theorem certificate_normal_unique:forall ge P v mf initial,
+ certificate ge P(Returnstate v Kstop mf) ->P initial ->
+ forall t v' mf',star Csem.step ge initial t(Returnstate v' Kstop mf') ->
+ v'=v /\ mf'=mf.
+Proof.
+ intros ge P v mf initial CERT PI t v' mf' PATH.
+ assert(STOP:nostep Csem.step ge(Returnstate v Kstop mf)).
+ { intros tr next[ES|SS];inversion ES||inversion SS. }
+ destruct(certificate_no_error ge P _ initial CERT PI STOP t _ PATH)as[EQ|[tr[next STEP]]].
+ - inversion EQ;auto.
+ - destruct STEP as[ES|SS];inversion ES||inversion SS.
+Qed.
+Print Assumptions chain_certificate.
+Print Assumptions certificate_no_error.
+Print Assumptions certificate_normal_unique.
+ exists b ofs bf vl vr,
+ pure_lval ge e m l=Some(b,ofs,bf) /\
+ pure_rval ge e m r=Some vr /\
+ deref_loc ge(typeof l)m b ofs bf E0 vl.
+Proof.
+ intros ge e m op l r tr ty v mf AT EV.
+ simpl in AT;core_unpack.
+ unfold atomic_eval in EV;option_cases EV.
+ match goal with D:do_deref_loc _ _ _ _ _ _ _=Some _ |- _=>
+ destruct(do_deref_loc_sound _ _ _ _ _ _ _ _ _ _ D) as [DR PT]
+ end.
+ assert(TT:t=E0) by(eapply deref_loc_silent;eauto);subst t.
+ eauto 12.
+Qed.
+
+Lemma assignop_immediate: forall ge e m op l r tr ty v mf,
+ atomic_expr(Eassignop op l r tr ty)=true ->
+ atomic_eval ge e m(Eassignop op l r tr ty)=Some(v,mf) ->
+ imm_safe ge e RV(Eassignop op l r tr ty)m.
+Proof.
+ intros ge e m op l r tr ty v mf AT EV.
+ pose proof(assignop_data ge e m op l r tr ty v mf AT EV) as [b[ofs[bf[vl[vr[LL[RR LOAD]]]]]]].
+ simpl in AT;core_unpack.
+ pose proof(proj2(pure_eval_big l ge e m ltac:(assumption)) _ _ _ LL) as BL.
+ pose proof(proj1(pure_eval_big r ge e m ltac:(assumption)) _ RR) as BR.
+ destruct(literal LV l) eqn:LITL.
+ - destruct(literal_l_inv _ LITL) as [bl[ol[bfl[tl LE]]]];subst l.
+   invert_literal_eval;cbn[typeof] in *;subst.
+   destruct(literal RV r) eqn:LITR.
+   + destruct(literal_r_inv _ LITR) as [vr0[tr0 RE]];subst r.
+     invert_literal_eval;cbn[typeof] in *;subst.
+     eapply imm_safe_rred with(C:=fun x=>x);[|constructor].
+     unfold atomic_eval in EV;cbn[typeof pure_lval pure_rval] in EV;destruct(type_eq tl ty);try discriminate.
+     subst ty;eapply red_assignop;exact LOAD.
+   + eapply lift_immediate with(from:=RV)(C:=fun x=>Eassignop op _ x tr ty);eauto.
+     constructor;constructor.
+     eapply(proj1(big_immediate ge e m));exact BR.
+ - eapply lift_immediate with(from:=LV)(C:=fun x=>Eassignop op x r tr ty);eauto.
+   constructor;constructor.
+   eapply(proj2(big_immediate ge e m));exact BL.
+Qed.
+
+Lemma atomic_not_stuck: forall ge e m a v mf,
+ atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) -> Csem.not_stuck ge e a m.
+Proof.
+ intros ge e m a v mf AT EV.
+ destruct a;try solve[
+ rewrite atomic_eval_simple in EV by assumption;
+ destruct(pure_rval ge e m _)eqn:E;try discriminate;
+ eapply pure_not_stuck;eauto].
+ - rewrite atomic_assign_flat in EV.
+   eapply flat_not_stuck;[simpl in *;core_unpack;core_build;eauto|exact EV].
+ - pose proof(assignop_data _ _ _ _ _ _ _ _ _ _ AT EV) as [b[ofs[bf[vl[vr[LL[RR LOAD]]]]]]].
+   simpl in AT;core_unpack.
+   intros k C sub CT EQ;inversion CT;subst;try discriminate.
+   + cbn in EQ;subst sub;eapply assignop_immediate;eauto;simpl;core_build;eauto.
+   + inversion EQ;subst.
+     match type of LL with pure_lval _ _ _ ?l=Some _=>
+     pose proof(proj2(pure_eval_big l ge e m ltac:(assumption)) _ _ _ LL) as BE end.
+     match goal with CT:Csem.context _ LV _ |- _=>
+      pose proof(big_context_hole _ _ _ CT sub ge e m ltac:(assumption)
+        ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k;unfold big_defined in HS.
+     * destruct HS as [bb[oo[bff HO]]];eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w HO];eapply(proj1(big_immediate ge e m));eauto.
+   + inversion EQ;subst.
+     match type of RR with pure_rval _ _ _ ?r=Some _=>
+     pose proof(proj1(pure_eval_big r ge e m ltac:(assumption)) _ RR) as BE end.
+     match goal with CT:Csem.context _ RV _ |- _=>
+      pose proof(big_context_hole _ _ _ CT sub ge e m ltac:(assumption)
+        ltac:(unfold big_defined;eauto)) as HS end.
+     destruct k;unfold big_defined in HS.
+     * destruct HS as [bb[oo[bff HO]]];eapply(proj2(big_immediate ge e m));eauto.
+     * destruct HS as [w HO];eapply(proj1(big_immediate ge e m));eauto.
+Qed.
+Print Assumptions atomic_not_stuck.
+
+Lemma atomic_defined_estep: forall ge f a k e m t next v mf,
+ atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) ->
+ Csem.estep ge(ExprState f a k e m)t next ->
+ exists a' m',next=ExprState f a' k e m' /\ t=E0 /\
+ atomic_expr a'=true /\ atomic_eval ge e m' a'=Some(v,mf).
+Proof.
+ intros ge f a k e m t next v mf AT EV STEP.
+ destruct(atomic_estep ge f a k e m t next AT STEP) as [BAD|[a'[m'[EQ[TT[SI DEN]]]]]].
+ - subst next;inversion STEP;subst.
+   exfalso;match goal with H:~imm_safe _ _ _ _ _,CT:Csem.context _ _ _ |- _=>
+      apply H;eapply atomic_not_stuck;[exact AT|exact EV|exact CT|reflexivity] end.
+ - exists a',m';repeat split;auto;congruence.
+Qed.
+Theorem all_order_atomic_expression: forall ge f a k e m t next v mf,
+ atomic_expr a=true -> atomic_eval ge e m a=Some(v,mf) ->
+ star Csem.estep ge (ExprState f a k e m)t next ->
+ exists a' m',next=ExprState f a' k e m' /\ t=E0 /\
+ atomic_expr a'=true /\ atomic_eval ge e m' a'=Some(v,mf) /\
+ Csem.not_stuck ge e a' m'.
+Proof.
+ intros ge f a k e m t next v mf AT EV STEPS.
+ remember(ExprState f a k e m) as start eqn:START.
+ revert a m AT EV START.
+ induction STEPS;intros a m AT EV START;subst.
+ - exists a,m;repeat split;auto;eapply atomic_not_stuck;eauto.
+ - destruct(atomic_defined_estep _ _ _ _ _ _ _ _ _ _ AT EV H)
+   as [a'[m'[MID[TT[SI DEN]]]]];subst s2.
+   specialize(IHSTEPS a' m' SI DEN eq_refl).
+   destruct IHSTEPS as [af[mm[END[T0[SF[DF SAFE]]]]]].
+   exists af,mm;repeat split;auto.
+   rewrite TT,T0;reflexivity.
+Qed.
+Print Assumptions all_order_atomic_expression.
+199-Proof.
+200- intros ge0 f a k0 e0 m0 t next[ES|SS];[inversion ES|].
+201- inversion SS;subst;auto;
+202- repeat match goal with H:_\/_ |- _=>destruct H end;discriminate.
+203-Qed.
+204:Lemma return_call_step_unique:forall ge v f e C ty k m t next,
+205- Csem.step ge(Returnstate v(Kcall f e C ty k)m)t next ->
+206- t=E0 /\ next=ExprState f(C(Eval v ty))k e m.
+207-Proof. intros ge0 v f e0 C ty k0 m0 t next[ES|SS];[inversion ES|inversion SS;subst;auto]. Qed.
+208-Definition factor_invariant(s:Csem.state):Prop :=
+209- (s=State caller(Sdo(pre_expr false Rvar Rvar Rvar))k e m) \/
+210- (exists lr ms rs ns,s=pre_state lr ms rs ns) \/
+211- (exists lr ms,callee_invariant ge(leaf_frame lr ms)(Vsingle root)leaf_mem s) \/
+212- block_context_invariant ge k caller e final_mem s.
+213-
+214-Theorem factor_all_successors:forall s t next,
+215- factor_invariant s ->s<>State caller Sskip k e final_mem ->
+216- Csem.step ge s t next ->factor_invariant next.
+217-Proof.
+218- intros s t next[START|[PRE|[CALLEE|POST]]]NF STEP.
+219- - subst s;destruct(do_step_unique _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next.
+220-   right;left;exists false,Rvar,Rvar,Rvar;reflexivity.
+221- - destruct PRE as[lr[ms[rs[ns EQ]]]];subst s.
+222-   destruct(pre_all_successors lr ms rs ns t next STEP)as[TT[PRE|CALL]].
+223-   + right;left;exact PRE.
+224-   + destruct CALL as[lr'[ms' EQ]];subst next.
+225-     right;right;left;exists lr',ms';apply leaf_certificate.
+226- - destruct CALLEE as[lr[ms CERT]].
+227-   destruct(classic(s=Returnstate(Vsingle root)(leaf_frame lr ms)leaf_mem))as[RET|NR].
+228:   + subst s;destruct(return_call_step_unique _ _ _ _ _ _ _ _ _ _ STEP)as[TT EQ];subst next.
+229-     right;right;right;apply post_certificate.
+230-   + right;right;left;exists lr,ms.
+231-     eapply callee_invariant_all_successors;[exact I|exact CERT|exact NR|exact STEP].
+232- - right;right;right;eapply block_context_all_successors;eauto.
+233-Qed.
+234-Theorem factor_progress:forall s,
+235- factor_invariant s ->
+236- s=State caller Sskip k e final_mem \/
+237- exists t next,Csem.step ge s t next /\ factor_invariant next.
+238-Proof.
+239- intros s[START|[PRE|[CALLEE|POST]]].
+240- - subst s;right;exists E0,(pre_state false Rvar Rvar Rvar);split.
+241-   + right;apply step_do_1.
+242-   + right;left;exists false,Rvar,Rvar,Rvar;reflexivity.
+243- - destruct PRE as[lr[ms[rs[ns EQ]]]];subst s.
+244-   destruct(pre_progress lr ms rs ns)as[t[next[STEP CLASS]]].
+245-   right;exists t,next;split;auto.
+246-   destruct CLASS as[PRE|[lr'[ms' EQ]]].
+247-   + right;left;exact PRE.
+248-   + subst next;right;right;left;exists lr',ms';apply leaf_certificate.
+249- - destruct CALLEE as[lr[ms CERT]].
+250-   destruct(callee_invariant_progress ge(leaf_frame lr ms)(Vsingle root)leaf_mem s I CERT)
+251-    as[RET|[t[next[STEP CERT']]]].
+252-   + subst s;right;exists E0,(ExprState caller(post_expr lr ms)(Kdo k)e leaf_mem);split.
+253-     * right;apply step_returnstate.
+254-     * right;right;right;apply post_certificate.
+255-   + right;exists t,next;split;auto;right;right;left;eauto.
+256- - destruct(block_context_progress ge k caller e final_mem s POST)as[DONE|[t[next[STEP CERT]]]].
+257-   + auto.
+258-   + right;exists t,next;split;auto;right;right;right;exact CERT.
+259-Qed.
+260-Print Assumptions factor_all_successors.
+261-Print Assumptions factor_progress.
+262-End FACTOR.

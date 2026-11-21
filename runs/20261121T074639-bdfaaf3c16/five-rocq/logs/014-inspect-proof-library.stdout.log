@@ -1,0 +1,30 @@
+-rw-r--r-- 1 yangfp yangfp 10736 Nov 21 13:37 paparazzi/models/float_mat_inv_3d/align/model/Execution.vo
+
+_build/matrix-finish-ultra/20261121T073618-308ea3486a/five-rocq/evidence/checked/FivePprzFloatMatInv3d:
+total 384
+-rw-r--r-- 1 yangfp yangfp   6766 Nov 21 15:51 Execution.glob
+-rw-r--r-- 1 yangfp yangfp   1511 Nov 21 15:51 Execution.v
+-rw-r--r-- 1 yangfp yangfp  10793 Nov 21 15:51 Execution.vo
+-rw-r--r-- 1 yangfp yangfp 214038 Nov 21 15:44 Source.glob
+-rw-r--r-- 1 yangfp yangfp  61963 Nov 21 15:44 Source.v
+-rw-r--r-- 1 yangfp yangfp  85176 Nov 21 15:44 Source.vo
+160:        result = _compile(config, root, attempt, run, build, order, certificate_source)
+166:def _compile(config, root, attempt, run, build, order, certificate_source):
+174:    nsmap = {prefix: build / prefix for prefix in namespaces}
+189:        if run:
+191:            _safe_capture(run, snapshot, 'compiled-' + namespace + '-' + name)
+198:        if run:
+199:            _safe_capture(run, path, 'context-' + namespace + '-' + hashlib.sha256(str(path).encode()).hexdigest()[:14])
+202:        if run:
+203:            return run.command(argv, label, timeout=config.get('timeout', 600), cwd=str(root))
+204:        subprocess.run(argv, cwd=root, check=True)
+208:        earlier = run.read('commands.json') if run else []
+216:    if run:
+217:        _safe_capture(run, certificate, 'certificate-' + namespace)
+222:    if not run:
+225:    runpath = str(run.folder.relative_to(root))
+228:    receipt = {'kind': 'rocq-kernel-check', 'run': runpath, 'command_id': kernel_record['id'], 'theorems': [row['theorem'] for row in config['goal_bindings']], 'statement_artifacts': statements, 'dependency_sha256': dependencies}
+248:    validation = {'schema': 'five-proof-validation/1', 'index': {'path': str(provenance.relative_to(root)), 'sha256': digest(provenance)}, 'inputs': list(bound.values()), 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'goal_bindings': config['goal_bindings'], 'certificate': {'path': certpath, 'sha256': digest(certificate), 'module': certificate_module, 'imports': config['imports'], 'run': runpath, 'compile_command_id': compile_record['id'], 'kernel_command_id': kernel_record['id'], 'kernel_evidence': str((evidence / 'certificate-kernel-evidence.json').relative_to(root))}}
+250:    return {'status': 'passed', 'compiled_modules': len(sources), 'run': runpath, 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'gate_kernel_evidence': str((evidence / 'gate-kernel-evidence.json').relative_to(root)), 'goal_validation': str((evidence / 'goal-validation.json').relative_to(root)), 'print_assumptions_stdout': str((run.folder / compile_record['stdout']).relative_to(root))}
+256:    parser.add_argument('--record-run')
+258:    print(json.dumps(check(json.loads(Path(arguments.config).read_text()), arguments.record_run), indent=2))

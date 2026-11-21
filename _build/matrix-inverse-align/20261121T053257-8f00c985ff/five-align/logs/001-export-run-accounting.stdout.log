@@ -1,0 +1,116 @@
+82:def export(source,function,output,namespace='FiveCompCert',include_dirs=(),defines=(),
+83-           request=None,session=None,clightgen=None,lib=None,frontend_options=()):
+84-    if not re.fullmatch(r'f_[A-Za-z_][A-Za-z_0-9]*',function):raise ValueError('Function must be exported f_NAME identifier')
+85-    if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*',namespace):raise ValueError('Invalid Rocq namespace')
+86-    if any(option not in {'-fstruct-passing'} for option in frontend_options):raise ValueError('Unsupported frontend option')
+87-    source=Path(source).resolve();output=Path(output).resolve()
+88-    if not source.is_file():raise FileNotFoundError(source)
+89-    if output==source.parent:raise ValueError('Use a separate generated output directory')
+90-    exe,library=tool_paths(clightgen,lib)
+91-    target=target_of(library)
+92-    if request:
+93-        fixed=json.loads(Path(request).read_text())
+94-        if fixed.get('purpose')!='execution-translation' or fixed.get('execution_backend')!='compcert-csyntax-cexec' or fixed.get('target')!=target or not fixed.get('domain'):
+95-            raise RuntimeError('Frozen request must select this CompCert target and full execution purpose/domain')
+96-    if (target['arch'],target['model'],target['system'],target['endianness'])!=('x86','64','linux','little'):
+97-        raise RuntimeError('Current FIVE standard is CompCert x86-64 Linux little-endian; explicitly port target before exporting')
+98-    output.mkdir(parents=True,exist_ok=True)
+99-    manifest_path=output/'compcert-manifest.json'
+100-    save(manifest_path,{'schema':SCHEMA,'status':'preparing'})
+101-    run=Run.start(ROOT/'runs','five-align',[('original-c',source)],
+102-      {'kind':'automatic-compcert-export','purpose':'execution-translation','source':ref(source),
+103-       'target':target,'scope':'Generate AST and executable Cexec wrapper, not certify whole-execution correspondence or independent approval'},
+104-      invocation_kind='skill-session' if session else 'tool-replay',usage_session=session)
+105-    cpp=[*[('-I'+str(Path(p).resolve())) for p in include_dirs],*[('-D'+d) for d in defines]]
+106-    try:
+107-        c=run.command([str(exe),*cpp,'-E',str(source)],'compcert-preprocess',cwd=source.parent)
+108-        (output/'preprocessed.i').write_bytes((run.folder/c['stdout']).read_bytes())
+109-        run.command([str(exe),*frontend_options,'-csyntax','-o',str(output/'Source.v'),str(output/'preprocessed.i')],
+110-                    'compcert-export-csyntax',cwd=source.parent)
+111-        validate_ast_target((output/'Source.v').read_text(),target)
+112-        (output/'Execution.v').write_text(wrapper(namespace,function))
+113-        (output/'Extraction.v').write_text(f'From Stdlib Require Import Extraction ExtrOcamlBasic ExtrOcamlString.\nFrom {namespace} Require Import Execution.\nExtraction Language OCaml.\nExtraction "{(output/"execution.ml").as_posix()}" entry transitions closed_transitions.\n')
+114-        run.command([sys.executable,str(ROOT/'scripts/generate-obligations.py'),
+115-          '--source-module',namespace+'.Source','--function',function,
+116-          '--precondition-module',namespace+'.proof.Precondition',
+117-          '--output',str(output/'proof/Obligations.v')],
+118-          'generate-pending-safety-termination',cwd=output)
+119-        rocq=shutil.which('rocq')
+120-        if not rocq:raise RuntimeError('Rocq unavailable')
+121-        for name in ['Source','Execution','Extraction']:
+122-            run.command([rocq,'compile','-Q',str(output),namespace,str(output/(name+'.v'))],
+123-                        'compile-'+name,cwd=output)
+124-        # Build the shared proposition definitions in isolation; do not leave
+125-        # library caches or require execution of the exported model.
+126-        with tempfile.TemporaryDirectory(prefix='five-obligation-support-') as td:
+127-            shared=Path(td)/'shared'
+128-            support=shared/'verification/Obligations.v'
+129-            support.parent.mkdir(parents=True)
+130-            shutil.copyfile(ROOT/'shared/verification/Obligations.v',support)
+131-            flags=['-Q',str(output),namespace,'-Q',str(shared),'FiveShared']
+132-            run.command([rocq,'compile',*flags,str(support)],'compile-obligation-definitions',cwd=output)
+133-            for name in ['Precondition','Obligations','Proofs']:
+134-                run.command([rocq,'compile',*flags,str(output/'proof'/(name+'.v'))],
+135-                            'compile-pending-'+name,cwd=output)
+136-            run.command([rocq,'check','-silent',*flags,namespace+'.Source',namespace+'.Execution',
+137-                         namespace+'.proof.Obligations',namespace+'.proof.Proofs'],
+138-                        'kernel-check-generated-wrapper-and-goal-definitions',cwd=output)
+139-        arch='x86_64/Archi.v'
+140-        semantic={str(library/p):sha(library/p) for p in [*SEMANTIC_FILES,arch]}
+141-        files={n:{'path':ref(output/n),'sha256':sha(output/n)} for n in
+142-               ['preprocessed.i','Source.v','Execution.v','Extraction.v','execution.ml',
+143-                'proof/Precondition.v','proof/Obligations.v','proof/Proofs.v']}
+144-        manifest={'schema':SCHEMA,'status':'generated','backend':'compcert-csyntax-cexec',
+145-          'source':{'path':ref(source),'sha256':sha(source)},'cpp_arguments':cpp,'frontend_options':list(frontend_options),'cpp_cwd':str(source.parent),
+146-          'tool':{'path':str(exe),'sha256':sha(exe)},'formal_library':str(library),'semantic_dependencies':semantic,'target':target,
+147-          'namespace':namespace,'function':function,'files':files,
+148-          'ast_semantic_sha256':digest_text(normalized_ast((output/'Source.v').read_text())),
+149-          'request':{'path':ref(request),'sha256':sha(request)} if request else None,
+150-          'generation_run':ref(run.folder),'coverage_status':'pending',
+151-          'generated_obligations':{'schema':'five-pending-obligations/1',
+152-           'goals':['no_error_goal','termination_goal'],
+153-           'precondition_status':'pending-authoring-or-review',
+154-           'proof_status':'not-attempted','status':'generated-and-typechecked',
+155-           'pending_obligations':['LLM-authored explicit precondition','no-error proof','all-executions termination proof'],
+156-           'generation_scope':'Parameterized propositions only; no concrete precondition or proof inferred',
+157-           'dependencies':{ref(ROOT/p):sha(ROOT/p) for p in
+158-             ['scripts/generate-obligations.py','shared/verification/Obligations.v']}},
+159-          'pending_obligations':['source/frontend trust boundary','all-reachable Cexec/Csem correspondence',
+160-           'external callbacks, builtins and world coverage','normal/error and byte observations',
+161-           'CBMC specification re-verification in Rocq','all alignment issues resolved'],
+162-          'execution_modes':{'relation':'original Csem','step':'original Cexec.do_step with all successors',
+163-           'rocq_vm':'not guaranteed; opaque memory-permission well-founded proofs may obstruct reduction',
+164-           'extraction':'execution.ml generated by standard Rocq Extraction; runtime/toolchain is a separate trust boundary'}}
+165-        save(manifest_path,manifest)
+166-        run.finish('passed','CompCert model and parameterized safety/termination targets generated and checked. Precondition authoring and program proofs were not attempted; full delivery remains pending.',
+167-          {'manifest':manifest_path,'ast':output/'Source.v','execution':output/'Execution.v',
+168-           'precondition-interface':output/'proof/Precondition.v',
+169-           'unproved-goals':output/'proof/Obligations.v','proof-authoring-file':output/'proof/Proofs.v'})
+170-        return manifest
+171-    except Exception as exc:
+172-        save(manifest_path,{'schema':SCHEMA,'status':'failed','reason':str(exc),'generation_run':ref(run.folder)})
+173-        run.finish('failed',str(exc),{});raise
+174-
+175-def audit(manifest_path,run=None):
+176-    manifest_path=Path(manifest_path).resolve();m=json.loads(manifest_path.read_text())
+177-    if m.get('schema')!=SCHEMA or m.get('status')!='generated' or m.get('backend')!='compcert-csyntax-cexec':
+178-        raise RuntimeError('Missing successful automatic CompCert export')
+179-    bindings={ref(manifest_path):sha(manifest_path)}
+180-    library=Path(m['formal_library'])
+181-    expected_dependencies={str(library/p) for p in [*SEMANTIC_FILES,'x86_64/Archi.v']}
+182-    if set(m['semantic_dependencies'])!=expected_dependencies or target_of(library)!=m['target']:
+183-        raise RuntimeError('Incomplete/mismatched CompCert semantics or target configuration')
+184-    for row in [m['source'],m['tool'],*m['files'].values()]:
+185-        p=resolve(row['path'])
+186-        if not p.is_file() or sha(p)!=row['sha256']:raise RuntimeError('Stale CompCert input/output/tool: '+str(p))
+187-        bindings[ref(p)]=row['sha256']
+188-    for name,digest in m['semantic_dependencies'].items():
+189-        if sha(resolve(name))!=digest:raise RuntimeError('Stale CompCert semantic dependency: '+name)
+190-        bindings[ref(name)]=digest
+191-    if m.get('request'):
+192-        row=m['request']
+193-        if sha(resolve(row['path']))!=row['sha256']:raise RuntimeError('Changed original request')
+194-        bindings[row['path']]=row['sha256']
+195-    expected=wrapper(m['namespace'],m['function'])
+196-    validate_ast_target(resolve(m['files']['Source.v']['path']).read_text(),m['target'])
+197-    if resolve(m['files']['Execution.v']['path']).read_text()!=expected:

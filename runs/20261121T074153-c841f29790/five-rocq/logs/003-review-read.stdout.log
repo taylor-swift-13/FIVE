@@ -1,0 +1,822 @@
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v SHA256 ad7bd7b7fd160935385a9af54746cbc71dae58244efd70158a27ba91c23e3f3c
+1: From Stdlib Require Import List ZArith.
+2: From compcert Require Import Integers Floats AST Values Memory Memdata Events Csem Smallstep.
+3: From FiveShared.verification Require Import Obligations.
+4: From FiveMatInv3Case Require Import MatrixMemory.
+5: From FivePprzFloatMatInv2d Require Import Execution.
+6: From FiveInv2Case Require Import Contract RecheckSupport Memcpy16 Replay ExactReplay.
+7: From FiveMatrixInverseSupport Require Import Kernels.
+8: Import ListNotations.
+9: Local Open Scope Z_scope.
+10: Definition CopyGuard(k:nat):Prop:=forall m src dst,CopyPre m src dst->
+11:  match k with
+12:  |0%nat=>forall order:Prop,~(src=dst/\order)
+13:  |1%nat=>Mem.valid_pointer m src 0=true
+14:  |2%nat=>Mem.weak_valid_pointer m dst 16=true
+15:  |3%nat=>forall order:Prop,~(dst=src/\order)
+16:  |4%nat=>Mem.valid_pointer m dst 0=true
+17:  |5%nat=>Mem.weak_valid_pointer m src 16=true
+18:  |6%nat=>src<>dst \/0+16<=0\/0+16<=0
+19:  |7%nat=>Mem.range_perm m src 0 16 Cur Readable
+20:  |_=>Mem.range_perm m dst 0 16 Cur Writable end.
+21: Definition CaseStatus(f:Z->float32)(expected:val):Prop:=forall m bo bi po pi,Inputs m bo bi po pi f->forall t result mf,
+22:  star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->result=expected.
+23: Definition CaseWords(f:Z->float32)(words:list Z):Prop:=forall m bo bi pi,Inputs m bo bi Ptrofs.zero pi f->forall t result mf,
+24:  star Csem.step Execution.ge(Execution.entry(Args bo bi Ptrofs.zero pi)m)t(Returnstate result Kstop mf)->forall dst bytes obs,
+25:  Mem.loadbytes mf bo 0 16=Some bytes->Mem.storebytes mf dst 0 bytes=Some obs->
+26:  map(fun i=>Mem.load Mint32 obs dst(4*i))[0;1;2;3]=map(fun w=>Some(Vint(Int.repr w)))words.
+27: Definition CasePreserves(f:Z->float32):Prop:=forall m bo bi po pi,Inputs m bo bi po pi f->forall t result mf,
+28:  star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->
+29:  Mem.loadbytes mf bo(Ptrofs.unsigned po)16=Mem.loadbytes m bo(Ptrofs.unsigned po)16.
+30: Definition Assertion1:Prop:=forall m bo bi po pi f,Inputs m bo bi po pi f->forall t result mf,
+31:  star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->result=Vint Int.zero\/result=Vint Int.one.
+32: Definition Assertion2:Prop:=forall m bo bi pi f before after,Inputs m bo bi(Ptrofs.repr 4)pi f->
+33:  Mem.load Mint32 m bo 0=Some(Vint before)->Mem.load Mint32 m bo 20=Some(Vint after)->forall t result mf,
+34:  star Csem.step Execution.ge(Execution.entry(Args bo bi(Ptrofs.repr 4)pi)m)t(Returnstate result Kstop mf)->
+35:  Frame m mf bo(Ptrofs.repr 4)/\Mem.load Mint32 mf bo 0=Some(Vint before)/\Mem.load Mint32 mf bo 20=Some(Vint after).
+36: (* Actual property: float_mat_inv_2d.pointer_arithmetic.1; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)0 *)
+37: Definition P001:Prop:=SourceGuards 0 false.
+38: (* Actual property: float_mat_inv_2d.pointer_arithmetic.2; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)0 *)
+39: Definition P002:Prop:=SourceGuards 0 false.
+40: (* Actual property: float_mat_inv_2d.pointer_arithmetic.3; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)0 *)
+41: Definition P003:Prop:=SourceGuards 0 false.
+42: (* Actual property: float_mat_inv_2d.pointer_arithmetic.4; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)0 *)
+43: Definition P004:Prop:=SourceGuards 0 false.
+44: (* Actual property: float_mat_inv_2d.pointer_arithmetic.5; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)0 *)
+45: Definition P005:Prop:=SourceGuards 0 false.
+46: (* Actual property: float_mat_inv_2d.pointer_arithmetic.6; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)0 *)
+47: Definition P006:Prop:=SourceGuards 0 false.
+48: (* Actual property: float_mat_inv_2d.pointer_dereference.1; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)0] *)
+49: Definition P007:Prop:=SourceGuards 0 false.
+50: (* Actual property: float_mat_inv_2d.pointer_dereference.2; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)0] *)
+51: Definition P008:Prop:=SourceGuards 0 false.
+52: (* Actual property: float_mat_inv_2d.pointer_dereference.3; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)0] *)
+53: Definition P009:Prop:=SourceGuards 0 false.
+54: (* Actual property: float_mat_inv_2d.pointer_dereference.4; SUCCESS. dereference failure: dead object in mat_in[(signed long int)0] *)
+55: Definition P010:Prop:=SourceGuards 0 false.
+56: (* Actual property: float_mat_inv_2d.pointer_dereference.5; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)0] *)
+57: Definition P011:Prop:=SourceGuards 0 false.
+58: (* Actual property: float_mat_inv_2d.pointer_dereference.6; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)0] *)
+59: Definition P012:Prop:=SourceGuards 0 false.
+60: (* Actual property: float_mat_inv_2d.pointer_arithmetic.7; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)3 *)
+61: Definition P013:Prop:=SourceGuards 3 false.
+62: (* Actual property: float_mat_inv_2d.pointer_arithmetic.8; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)3 *)
+63: Definition P014:Prop:=SourceGuards 3 false.
+64: (* Actual property: float_mat_inv_2d.pointer_arithmetic.9; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)3 *)
+65: Definition P015:Prop:=SourceGuards 3 false.
+66: (* Actual property: float_mat_inv_2d.pointer_arithmetic.10; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)3 *)
+67: Definition P016:Prop:=SourceGuards 3 false.
+68: (* Actual property: float_mat_inv_2d.pointer_arithmetic.11; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)3 *)
+69: Definition P017:Prop:=SourceGuards 3 false.
+70: (* Actual property: float_mat_inv_2d.pointer_arithmetic.12; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)3 *)
+71: Definition P018:Prop:=SourceGuards 3 false.
+72: (* Actual property: float_mat_inv_2d.pointer_dereference.7; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)3] *)
+73: Definition P019:Prop:=SourceGuards 3 false.
+74: (* Actual property: float_mat_inv_2d.pointer_dereference.8; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)3] *)
+75: Definition P020:Prop:=SourceGuards 3 false.
+76: (* Actual property: float_mat_inv_2d.pointer_dereference.9; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)3] *)
+77: Definition P021:Prop:=SourceGuards 3 false.
+78: (* Actual property: float_mat_inv_2d.pointer_dereference.10; SUCCESS. dereference failure: dead object in mat_in[(signed long int)3] *)
+79: Definition P022:Prop:=SourceGuards 3 false.
+80: (* Actual property: float_mat_inv_2d.pointer_dereference.11; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)3] *)
+81: Definition P023:Prop:=SourceGuards 3 false.
+82: (* Actual property: float_mat_inv_2d.pointer_dereference.12; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)3] *)
+83: Definition P024:Prop:=SourceGuards 3 false.
+84: (* Actual property: float_mat_inv_2d.pointer_arithmetic.13; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)1 *)
+85: Definition P025:Prop:=SourceGuards 1 false.
+86: (* Actual property: float_mat_inv_2d.pointer_arithmetic.14; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)1 *)
+87: Definition P026:Prop:=SourceGuards 1 false.
+88: (* Actual property: float_mat_inv_2d.pointer_arithmetic.15; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)1 *)
+89: Definition P027:Prop:=SourceGuards 1 false.
+90: (* Actual property: float_mat_inv_2d.pointer_arithmetic.16; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)1 *)
+91: Definition P028:Prop:=SourceGuards 1 false.
+92: (* Actual property: float_mat_inv_2d.pointer_arithmetic.17; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)1 *)
+93: Definition P029:Prop:=SourceGuards 1 false.
+94: (* Actual property: float_mat_inv_2d.pointer_arithmetic.18; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)1 *)
+95: Definition P030:Prop:=SourceGuards 1 false.
+96: (* Actual property: float_mat_inv_2d.pointer_dereference.13; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)1] *)
+97: Definition P031:Prop:=SourceGuards 1 false.
+98: (* Actual property: float_mat_inv_2d.pointer_dereference.14; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)1] *)
+99: Definition P032:Prop:=SourceGuards 1 false.
+100: (* Actual property: float_mat_inv_2d.pointer_dereference.15; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)1] *)
+101: Definition P033:Prop:=SourceGuards 1 false.
+102: (* Actual property: float_mat_inv_2d.pointer_dereference.16; SUCCESS. dereference failure: dead object in mat_in[(signed long int)1] *)
+103: Definition P034:Prop:=SourceGuards 1 false.
+104: (* Actual property: float_mat_inv_2d.pointer_dereference.17; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)1] *)
+105: Definition P035:Prop:=SourceGuards 1 false.
+106: (* Actual property: float_mat_inv_2d.pointer_dereference.18; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)1] *)
+107: Definition P036:Prop:=SourceGuards 1 false.
+108: (* Actual property: float_mat_inv_2d.pointer_arithmetic.19; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)2 *)
+109: Definition P037:Prop:=SourceGuards 2 false.
+110: (* Actual property: float_mat_inv_2d.pointer_arithmetic.20; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)2 *)
+111: Definition P038:Prop:=SourceGuards 2 false.
+112: (* Actual property: float_mat_inv_2d.pointer_arithmetic.21; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)2 *)
+113: Definition P039:Prop:=SourceGuards 2 false.
+114: (* Actual property: float_mat_inv_2d.pointer_arithmetic.22; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)2 *)
+115: Definition P040:Prop:=SourceGuards 2 false.
+116: (* Actual property: float_mat_inv_2d.pointer_arithmetic.23; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)2 *)
+117: Definition P041:Prop:=SourceGuards 2 false.
+118: (* Actual property: float_mat_inv_2d.pointer_arithmetic.24; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)2 *)
+119: Definition P042:Prop:=SourceGuards 2 false.
+120: (* Actual property: float_mat_inv_2d.pointer_dereference.19; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)2] *)
+121: Definition P043:Prop:=SourceGuards 2 false.
+122: (* Actual property: float_mat_inv_2d.pointer_dereference.20; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)2] *)
+123: Definition P044:Prop:=SourceGuards 2 false.
+124: (* Actual property: float_mat_inv_2d.pointer_dereference.21; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)2] *)
+125: Definition P045:Prop:=SourceGuards 2 false.
+126: (* Actual property: float_mat_inv_2d.pointer_dereference.22; SUCCESS. dereference failure: dead object in mat_in[(signed long int)2] *)
+127: Definition P046:Prop:=SourceGuards 2 false.
+128: (* Actual property: float_mat_inv_2d.pointer_dereference.23; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)2] *)
+129: Definition P047:Prop:=SourceGuards 2 false.
+130: (* Actual property: float_mat_inv_2d.pointer_dereference.24; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)2] *)
+131: Definition P048:Prop:=SourceGuards 2 false.
+132: (* Actual property: float_mat_inv_2d.pointer_arithmetic.25; SUCCESS. pointer arithmetic: pointer NULL in inv_out + (signed long int)0 *)
+133: Definition P049:Prop:=SourceGuards 0 true.
+134: (* Actual property: float_mat_inv_2d.pointer_arithmetic.26; SUCCESS. pointer arithmetic: pointer invalid in inv_out + (signed long int)0 *)
+135: Definition P050:Prop:=SourceGuards 0 true.
+136: (* Actual property: float_mat_inv_2d.pointer_arithmetic.27; SUCCESS. pointer arithmetic: deallocated dynamic object in inv_out + (signed long int)0 *)
+137: Definition P051:Prop:=SourceGuards 0 true.
+138: (* Actual property: float_mat_inv_2d.pointer_arithmetic.28; SUCCESS. pointer arithmetic: dead object in inv_out + (signed long int)0 *)
+139: Definition P052:Prop:=SourceGuards 0 true.
+140: (* Actual property: float_mat_inv_2d.pointer_arithmetic.29; SUCCESS. pointer arithmetic: pointer outside object bounds in inv_out + (signed long int)0 *)
+141: Definition P053:Prop:=SourceGuards 0 true.
+142: (* Actual property: float_mat_inv_2d.pointer_arithmetic.30; SUCCESS. pointer arithmetic: invalid integer address in inv_out + (signed long int)0 *)
+143: Definition P054:Prop:=SourceGuards 0 true.
+144: (* Actual property: float_mat_inv_2d.pointer_dereference.25; SUCCESS. dereference failure: pointer NULL in inv_out[(signed long int)0] *)
+145: Definition P055:Prop:=SourceGuards 0 true.
+146: (* Actual property: float_mat_inv_2d.pointer_dereference.26; SUCCESS. dereference failure: pointer invalid in inv_out[(signed long int)0] *)
+147: Definition P056:Prop:=SourceGuards 0 true.
+148: (* Actual property: float_mat_inv_2d.pointer_dereference.27; SUCCESS. dereference failure: deallocated dynamic object in inv_out[(signed long int)0] *)
+149: Definition P057:Prop:=SourceGuards 0 true.
+150: (* Actual property: float_mat_inv_2d.pointer_dereference.28; SUCCESS. dereference failure: dead object in inv_out[(signed long int)0] *)
+151: Definition P058:Prop:=SourceGuards 0 true.
+152: (* Actual property: float_mat_inv_2d.pointer_dereference.29; SUCCESS. dereference failure: pointer outside object bounds in inv_out[(signed long int)0] *)
+153: Definition P059:Prop:=SourceGuards 0 true.
+154: (* Actual property: float_mat_inv_2d.pointer_dereference.30; SUCCESS. dereference failure: invalid integer address in inv_out[(signed long int)0] *)
+155: Definition P060:Prop:=SourceGuards 0 true.
+156: (* Actual property: float_mat_inv_2d.pointer_arithmetic.31; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)3 *)
+157: Definition P061:Prop:=SourceGuards 3 false.
+158: (* Actual property: float_mat_inv_2d.pointer_arithmetic.32; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)3 *)
+159: Definition P062:Prop:=SourceGuards 3 false.
+160: (* Actual property: float_mat_inv_2d.pointer_arithmetic.33; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)3 *)
+161: Definition P063:Prop:=SourceGuards 3 false.
+162: (* Actual property: float_mat_inv_2d.pointer_arithmetic.34; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)3 *)
+163: Definition P064:Prop:=SourceGuards 3 false.
+164: (* Actual property: float_mat_inv_2d.pointer_arithmetic.35; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)3 *)
+165: Definition P065:Prop:=SourceGuards 3 false.
+166: (* Actual property: float_mat_inv_2d.pointer_arithmetic.36; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)3 *)
+167: Definition P066:Prop:=SourceGuards 3 false.
+168: (* Actual property: float_mat_inv_2d.pointer_dereference.31; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)3] *)
+169: Definition P067:Prop:=SourceGuards 3 false.
+170: (* Actual property: float_mat_inv_2d.pointer_dereference.32; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)3] *)
+171: Definition P068:Prop:=SourceGuards 3 false.
+172: (* Actual property: float_mat_inv_2d.pointer_dereference.33; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)3] *)
+173: Definition P069:Prop:=SourceGuards 3 false.
+174: (* Actual property: float_mat_inv_2d.pointer_dereference.34; SUCCESS. dereference failure: dead object in mat_in[(signed long int)3] *)
+175: Definition P070:Prop:=SourceGuards 3 false.
+176: (* Actual property: float_mat_inv_2d.pointer_dereference.35; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)3] *)
+177: Definition P071:Prop:=SourceGuards 3 false.
+178: (* Actual property: float_mat_inv_2d.pointer_dereference.36; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)3] *)
+179: Definition P072:Prop:=SourceGuards 3 false.
+180: (* Actual property: float_mat_inv_2d.pointer_arithmetic.37; SUCCESS. pointer arithmetic: pointer NULL in inv_out + (signed long int)1 *)
+181: Definition P073:Prop:=SourceGuards 1 true.
+182: (* Actual property: float_mat_inv_2d.pointer_arithmetic.38; SUCCESS. pointer arithmetic: pointer invalid in inv_out + (signed long int)1 *)
+183: Definition P074:Prop:=SourceGuards 1 true.
+184: (* Actual property: float_mat_inv_2d.pointer_arithmetic.39; SUCCESS. pointer arithmetic: deallocated dynamic object in inv_out + (signed long int)1 *)
+185: Definition P075:Prop:=SourceGuards 1 true.
+186: (* Actual property: float_mat_inv_2d.pointer_arithmetic.40; SUCCESS. pointer arithmetic: dead object in inv_out + (signed long int)1 *)
+187: Definition P076:Prop:=SourceGuards 1 true.
+188: (* Actual property: float_mat_inv_2d.pointer_arithmetic.41; SUCCESS. pointer arithmetic: pointer outside object bounds in inv_out + (signed long int)1 *)
+189: Definition P077:Prop:=SourceGuards 1 true.
+190: (* Actual property: float_mat_inv_2d.pointer_arithmetic.42; SUCCESS. pointer arithmetic: invalid integer address in inv_out + (signed long int)1 *)
+191: Definition P078:Prop:=SourceGuards 1 true.
+192: (* Actual property: float_mat_inv_2d.pointer_dereference.37; SUCCESS. dereference failure: pointer NULL in inv_out[(signed long int)1] *)
+193: Definition P079:Prop:=SourceGuards 1 true.
+194: (* Actual property: float_mat_inv_2d.pointer_dereference.38; SUCCESS. dereference failure: pointer invalid in inv_out[(signed long int)1] *)
+195: Definition P080:Prop:=SourceGuards 1 true.
+196: (* Actual property: float_mat_inv_2d.pointer_dereference.39; SUCCESS. dereference failure: deallocated dynamic object in inv_out[(signed long int)1] *)
+197: Definition P081:Prop:=SourceGuards 1 true.
+198: (* Actual property: float_mat_inv_2d.pointer_dereference.40; SUCCESS. dereference failure: dead object in inv_out[(signed long int)1] *)
+199: Definition P082:Prop:=SourceGuards 1 true.
+200: (* Actual property: float_mat_inv_2d.pointer_dereference.41; SUCCESS. dereference failure: pointer outside object bounds in inv_out[(signed long int)1] *)
+201: Definition P083:Prop:=SourceGuards 1 true.
+202: (* Actual property: float_mat_inv_2d.pointer_dereference.42; SUCCESS. dereference failure: invalid integer address in inv_out[(signed long int)1] *)
+203: Definition P084:Prop:=SourceGuards 1 true.
+204: (* Actual property: float_mat_inv_2d.pointer_arithmetic.43; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)1 *)
+205: Definition P085:Prop:=SourceGuards 1 false.
+206: (* Actual property: float_mat_inv_2d.pointer_arithmetic.44; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)1 *)
+207: Definition P086:Prop:=SourceGuards 1 false.
+208: (* Actual property: float_mat_inv_2d.pointer_arithmetic.45; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)1 *)
+209: Definition P087:Prop:=SourceGuards 1 false.
+210: (* Actual property: float_mat_inv_2d.pointer_arithmetic.46; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)1 *)
+211: Definition P088:Prop:=SourceGuards 1 false.
+212: (* Actual property: float_mat_inv_2d.pointer_arithmetic.47; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)1 *)
+213: Definition P089:Prop:=SourceGuards 1 false.
+214: (* Actual property: float_mat_inv_2d.pointer_arithmetic.48; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)1 *)
+215: Definition P090:Prop:=SourceGuards 1 false.
+216: (* Actual property: float_mat_inv_2d.pointer_dereference.43; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)1] *)
+217: Definition P091:Prop:=SourceGuards 1 false.
+218: (* Actual property: float_mat_inv_2d.pointer_dereference.44; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)1] *)
+219: Definition P092:Prop:=SourceGuards 1 false.
+220: (* Actual property: float_mat_inv_2d.pointer_dereference.45; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)1] *)
+221: Definition P093:Prop:=SourceGuards 1 false.
+222: (* Actual property: float_mat_inv_2d.pointer_dereference.46; SUCCESS. dereference failure: dead object in mat_in[(signed long int)1] *)
+223: Definition P094:Prop:=SourceGuards 1 false.
+224: (* Actual property: float_mat_inv_2d.pointer_dereference.47; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)1] *)
+225: Definition P095:Prop:=SourceGuards 1 false.
+226: (* Actual property: float_mat_inv_2d.pointer_dereference.48; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)1] *)
+227: Definition P096:Prop:=SourceGuards 1 false.
+228: (* Actual property: float_mat_inv_2d.pointer_arithmetic.49; SUCCESS. pointer arithmetic: pointer NULL in inv_out + (signed long int)2 *)
+229: Definition P097:Prop:=SourceGuards 2 true.
+230: (* Actual property: float_mat_inv_2d.pointer_arithmetic.50; SUCCESS. pointer arithmetic: pointer invalid in inv_out + (signed long int)2 *)
+231: Definition P098:Prop:=SourceGuards 2 true.
+232: (* Actual property: float_mat_inv_2d.pointer_arithmetic.51; SUCCESS. pointer arithmetic: deallocated dynamic object in inv_out + (signed long int)2 *)
+233: Definition P099:Prop:=SourceGuards 2 true.
+234: (* Actual property: float_mat_inv_2d.pointer_arithmetic.52; SUCCESS. pointer arithmetic: dead object in inv_out + (signed long int)2 *)
+235: Definition P100:Prop:=SourceGuards 2 true.
+236: (* Actual property: float_mat_inv_2d.pointer_arithmetic.53; SUCCESS. pointer arithmetic: pointer outside object bounds in inv_out + (signed long int)2 *)
+237: Definition P101:Prop:=SourceGuards 2 true.
+238: (* Actual property: float_mat_inv_2d.pointer_arithmetic.54; SUCCESS. pointer arithmetic: invalid integer address in inv_out + (signed long int)2 *)
+239: Definition P102:Prop:=SourceGuards 2 true.
+240: (* Actual property: float_mat_inv_2d.pointer_dereference.49; SUCCESS. dereference failure: pointer NULL in inv_out[(signed long int)2] *)
+241: Definition P103:Prop:=SourceGuards 2 true.
+242: (* Actual property: float_mat_inv_2d.pointer_dereference.50; SUCCESS. dereference failure: pointer invalid in inv_out[(signed long int)2] *)
+243: Definition P104:Prop:=SourceGuards 2 true.
+244: (* Actual property: float_mat_inv_2d.pointer_dereference.51; SUCCESS. dereference failure: deallocated dynamic object in inv_out[(signed long int)2] *)
+245: Definition P105:Prop:=SourceGuards 2 true.
+246: (* Actual property: float_mat_inv_2d.pointer_dereference.52; SUCCESS. dereference failure: dead object in inv_out[(signed long int)2] *)
+247: Definition P106:Prop:=SourceGuards 2 true.
+248: (* Actual property: float_mat_inv_2d.pointer_dereference.53; SUCCESS. dereference failure: pointer outside object bounds in inv_out[(signed long int)2] *)
+249: Definition P107:Prop:=SourceGuards 2 true.
+250: (* Actual property: float_mat_inv_2d.pointer_dereference.54; SUCCESS. dereference failure: invalid integer address in inv_out[(signed long int)2] *)
+251: Definition P108:Prop:=SourceGuards 2 true.
+252: (* Actual property: float_mat_inv_2d.pointer_arithmetic.55; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)2 *)
+253: Definition P109:Prop:=SourceGuards 2 false.
+254: (* Actual property: float_mat_inv_2d.pointer_arithmetic.56; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)2 *)
+255: Definition P110:Prop:=SourceGuards 2 false.
+256: (* Actual property: float_mat_inv_2d.pointer_arithmetic.57; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)2 *)
+257: Definition P111:Prop:=SourceGuards 2 false.
+258: (* Actual property: float_mat_inv_2d.pointer_arithmetic.58; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)2 *)
+259: Definition P112:Prop:=SourceGuards 2 false.
+260: (* Actual property: float_mat_inv_2d.pointer_arithmetic.59; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)2 *)
+261: Definition P113:Prop:=SourceGuards 2 false.
+262: (* Actual property: float_mat_inv_2d.pointer_arithmetic.60; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)2 *)
+263: Definition P114:Prop:=SourceGuards 2 false.
+264: (* Actual property: float_mat_inv_2d.pointer_dereference.55; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)2] *)
+265: Definition P115:Prop:=SourceGuards 2 false.
+266: (* Actual property: float_mat_inv_2d.pointer_dereference.56; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)2] *)
+267: Definition P116:Prop:=SourceGuards 2 false.
+268: (* Actual property: float_mat_inv_2d.pointer_dereference.57; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)2] *)
+269: Definition P117:Prop:=SourceGuards 2 false.
+270: (* Actual property: float_mat_inv_2d.pointer_dereference.58; SUCCESS. dereference failure: dead object in mat_in[(signed long int)2] *)
+271: Definition P118:Prop:=SourceGuards 2 false.
+272: (* Actual property: float_mat_inv_2d.pointer_dereference.59; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)2] *)
+273: Definition P119:Prop:=SourceGuards 2 false.
+274: (* Actual property: float_mat_inv_2d.pointer_dereference.60; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)2] *)
+275: Definition P120:Prop:=SourceGuards 2 false.
+276: (* Actual property: float_mat_inv_2d.pointer_arithmetic.61; SUCCESS. pointer arithmetic: pointer NULL in inv_out + (signed long int)3 *)
+277: Definition P121:Prop:=SourceGuards 3 true.
+278: (* Actual property: float_mat_inv_2d.pointer_arithmetic.62; SUCCESS. pointer arithmetic: pointer invalid in inv_out + (signed long int)3 *)
+279: Definition P122:Prop:=SourceGuards 3 true.
+280: (* Actual property: float_mat_inv_2d.pointer_arithmetic.63; SUCCESS. pointer arithmetic: deallocated dynamic object in inv_out + (signed long int)3 *)
+281: Definition P123:Prop:=SourceGuards 3 true.
+282: (* Actual property: float_mat_inv_2d.pointer_arithmetic.64; SUCCESS. pointer arithmetic: dead object in inv_out + (signed long int)3 *)
+283: Definition P124:Prop:=SourceGuards 3 true.
+284: (* Actual property: float_mat_inv_2d.pointer_arithmetic.65; SUCCESS. pointer arithmetic: pointer outside object bounds in inv_out + (signed long int)3 *)
+285: Definition P125:Prop:=SourceGuards 3 true.
+286: (* Actual property: float_mat_inv_2d.pointer_arithmetic.66; SUCCESS. pointer arithmetic: invalid integer address in inv_out + (signed long int)3 *)
+287: Definition P126:Prop:=SourceGuards 3 true.
+288: (* Actual property: float_mat_inv_2d.pointer_dereference.61; SUCCESS. dereference failure: pointer NULL in inv_out[(signed long int)3] *)
+289: Definition P127:Prop:=SourceGuards 3 true.
+290: (* Actual property: float_mat_inv_2d.pointer_dereference.62; SUCCESS. dereference failure: pointer invalid in inv_out[(signed long int)3] *)
+291: Definition P128:Prop:=SourceGuards 3 true.
+292: (* Actual property: float_mat_inv_2d.pointer_dereference.63; SUCCESS. dereference failure: deallocated dynamic object in inv_out[(signed long int)3] *)
+293: Definition P129:Prop:=SourceGuards 3 true.
+294: (* Actual property: float_mat_inv_2d.pointer_dereference.64; SUCCESS. dereference failure: dead object in inv_out[(signed long int)3] *)
+295: Definition P130:Prop:=SourceGuards 3 true.
+296: (* Actual property: float_mat_inv_2d.pointer_dereference.65; SUCCESS. dereference failure: pointer outside object bounds in inv_out[(signed long int)3] *)
+297: Definition P131:Prop:=SourceGuards 3 true.
+298: (* Actual property: float_mat_inv_2d.pointer_dereference.66; SUCCESS. dereference failure: invalid integer address in inv_out[(signed long int)3] *)
+299: Definition P132:Prop:=SourceGuards 3 true.
+300: (* Actual property: float_mat_inv_2d.pointer_arithmetic.67; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)0 *)
+301: Definition P133:Prop:=SourceGuards 0 false.
+302: (* Actual property: float_mat_inv_2d.pointer_arithmetic.68; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)0 *)
+303: Definition P134:Prop:=SourceGuards 0 false.
+304: (* Actual property: float_mat_inv_2d.pointer_arithmetic.69; SUCCESS. pointer arithmetic: deallocated dynamic object in mat_in + (signed long int)0 *)
+305: Definition P135:Prop:=SourceGuards 0 false.
+306: (* Actual property: float_mat_inv_2d.pointer_arithmetic.70; SUCCESS. pointer arithmetic: dead object in mat_in + (signed long int)0 *)
+307: Definition P136:Prop:=SourceGuards 0 false.
+308: (* Actual property: float_mat_inv_2d.pointer_arithmetic.71; SUCCESS. pointer arithmetic: pointer outside object bounds in mat_in + (signed long int)0 *)
+309: Definition P137:Prop:=SourceGuards 0 false.
+310: (* Actual property: float_mat_inv_2d.pointer_arithmetic.72; SUCCESS. pointer arithmetic: invalid integer address in mat_in + (signed long int)0 *)
+311: Definition P138:Prop:=SourceGuards 0 false.
+312: (* Actual property: float_mat_inv_2d.pointer_dereference.67; SUCCESS. dereference failure: pointer NULL in mat_in[(signed long int)0] *)
+313: Definition P139:Prop:=SourceGuards 0 false.
+314: (* Actual property: float_mat_inv_2d.pointer_dereference.68; SUCCESS. dereference failure: pointer invalid in mat_in[(signed long int)0] *)
+315: Definition P140:Prop:=SourceGuards 0 false.
+316: (* Actual property: float_mat_inv_2d.pointer_dereference.69; SUCCESS. dereference failure: deallocated dynamic object in mat_in[(signed long int)0] *)
+317: Definition P141:Prop:=SourceGuards 0 false.
+318: (* Actual property: float_mat_inv_2d.pointer_dereference.70; SUCCESS. dereference failure: dead object in mat_in[(signed long int)0] *)
+319: Definition P142:Prop:=SourceGuards 0 false.
+320: (* Actual property: float_mat_inv_2d.pointer_dereference.71; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)0] *)
+321: Definition P143:Prop:=SourceGuards 0 false.
+322: (* Actual property: float_mat_inv_2d.pointer_dereference.72; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)0] *)
+323: Definition P144:Prop:=SourceGuards 0 false.
+324: (* Actual property: main.assertion.1; SUCCESS. return status is boolean for arbitrary binary32 matrix *)
+325: Definition P145:Prop:=Assertion1.
+326: (* Actual property: main.assertion.2; SUCCESS. arbitrary matrix call preserves surrounding frame words *)
+327: Definition P146:Prop:=Assertion2.
+328: (* Actual property: memcpy.pointer_arithmetic.1; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )small_before + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+329: Definition P147:Prop:=CopyGuard 2%nat.
+330: (* Actual property: memcpy.pointer.1; SUCCESS. same object violation in (const unsigned char * )(const void * )small_out >= (const unsigned char * )(void * )small_before + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+331: Definition P148:Prop:=CopyGuard 0%nat.
+332: (* Actual property: memcpy.pointer_arithmetic.2; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )small_out *)
+333: Definition P149:Prop:=CopyGuard 1%nat.
+334: (* Actual property: memcpy.pointer_arithmetic.3; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+335: Definition P150:Prop:=CopyGuard 5%nat.
+336: (* Actual property: memcpy.pointer.2; SUCCESS. same object violation in (const unsigned char * )(void * )small_before >= (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+337: Definition P151:Prop:=CopyGuard 3%nat.
+338: (* Actual property: memcpy.pointer_arithmetic.4; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )small_before *)
+339: Definition P152:Prop:=CopyGuard 4%nat.
+340: (* Actual property: main.precondition_instance.1; SUCCESS. memcpy src/dst overlap *)
+341: Definition P153:Prop:=CopyGuard 6%nat.
+342: (* Actual property: main.precondition_instance.2; SUCCESS. memcpy source region readable *)
+343: Definition P154:Prop:=CopyGuard 7%nat.
+344: (* Actual property: main.precondition_instance.3; SUCCESS. memcpy destination region writeable *)
+345: Definition P155:Prop:=CopyGuard 8%nat.
+346: (* Actual property: memcpy.pointer_arithmetic.5; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )base_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+347: Definition P156:Prop:=CopyGuard 2%nat.
+348: (* Actual property: memcpy.pointer.3; SUCCESS. same object violation in (const unsigned char * )(const void * )base_out >= (const unsigned char * )(void * )base_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+349: Definition P157:Prop:=CopyGuard 0%nat.
+350: (* Actual property: memcpy.pointer_arithmetic.6; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )base_out *)
+351: Definition P158:Prop:=CopyGuard 1%nat.
+352: (* Actual property: memcpy.pointer_arithmetic.7; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )base_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+353: Definition P159:Prop:=CopyGuard 5%nat.
+354: (* Actual property: memcpy.pointer.4; SUCCESS. same object violation in (const unsigned char * )(void * )base_words >= (const unsigned char * )(const void * )base_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+355: Definition P160:Prop:=CopyGuard 3%nat.
+356: (* Actual property: memcpy.pointer_arithmetic.8; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )base_words *)
+357: Definition P161:Prop:=CopyGuard 4%nat.
+358: (* Actual property: main.precondition_instance.4; SUCCESS. memcpy src/dst overlap *)
+359: Definition P162:Prop:=CopyGuard 6%nat.
+360: (* Actual property: main.precondition_instance.5; SUCCESS. memcpy source region readable *)
+361: Definition P163:Prop:=CopyGuard 7%nat.
+362: (* Actual property: main.precondition_instance.6; SUCCESS. memcpy destination region writeable *)
+363: Definition P164:Prop:=CopyGuard 8%nat.
+364: (* Actual property: memcpy.pointer_arithmetic.9; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )small_after + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+365: Definition P165:Prop:=CopyGuard 2%nat.
+366: (* Actual property: memcpy.pointer.5; SUCCESS. same object violation in (const unsigned char * )(const void * )small_out >= (const unsigned char * )(void * )small_after + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+367: Definition P166:Prop:=CopyGuard 0%nat.
+368: (* Actual property: memcpy.pointer_arithmetic.10; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )small_out *)
+369: Definition P167:Prop:=CopyGuard 1%nat.
+370: (* Actual property: memcpy.pointer_arithmetic.11; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+371: Definition P168:Prop:=CopyGuard 5%nat.
+372: (* Actual property: memcpy.pointer.6; SUCCESS. same object violation in (const unsigned char * )(void * )small_after >= (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+373: Definition P169:Prop:=CopyGuard 3%nat.
+374: (* Actual property: memcpy.pointer_arithmetic.12; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )small_after *)
+375: Definition P170:Prop:=CopyGuard 4%nat.
+376: (* Actual property: main.precondition_instance.7; SUCCESS. memcpy src/dst overlap *)
+377: Definition P171:Prop:=CopyGuard 6%nat.
+378: (* Actual property: main.precondition_instance.8; SUCCESS. memcpy source region readable *)
+379: Definition P172:Prop:=CopyGuard 7%nat.
+380: (* Actual property: main.precondition_instance.9; SUCCESS. memcpy destination region writeable *)
+381: Definition P173:Prop:=CopyGuard 8%nat.
+382: (* Actual property: memcpy.pointer_arithmetic.13; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )large_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+383: Definition P174:Prop:=CopyGuard 2%nat.
+384: (* Actual property: memcpy.pointer.7; SUCCESS. same object violation in (const unsigned char * )(const void * )large_out >= (const unsigned char * )(void * )large_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+385: Definition P175:Prop:=CopyGuard 0%nat.
+386: (* Actual property: memcpy.pointer_arithmetic.14; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )large_out *)
+387: Definition P176:Prop:=CopyGuard 1%nat.
+388: (* Actual property: memcpy.pointer_arithmetic.15; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )large_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+389: Definition P177:Prop:=CopyGuard 5%nat.
+390: (* Actual property: memcpy.pointer.8; SUCCESS. same object violation in (const unsigned char * )(void * )large_words >= (const unsigned char * )(const void * )large_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+391: Definition P178:Prop:=CopyGuard 3%nat.
+392: (* Actual property: memcpy.pointer_arithmetic.16; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )large_words *)
+393: Definition P179:Prop:=CopyGuard 4%nat.
+394: (* Actual property: main.precondition_instance.10; SUCCESS. memcpy src/dst overlap *)
+395: Definition P180:Prop:=CopyGuard 6%nat.
+396: (* Actual property: main.precondition_instance.11; SUCCESS. memcpy source region readable *)
+397: Definition P181:Prop:=CopyGuard 7%nat.
+398: (* Actual property: main.precondition_instance.12; SUCCESS. memcpy destination region writeable *)
+399: Definition P182:Prop:=CopyGuard 8%nat.
+400: (* Actual property: main.assertion.3; SUCCESS. identity call succeeds *)
+401: Definition P183:Prop:=CaseStatus base2(Vint Int.zero).
+402: (* Actual property: main.assertion.4; SUCCESS. identity exact signedzero output bits *)
+403: Definition P184:Prop:=CaseWords base2[1065353216;2147483648;2147483648;1065353216].
+404: (* Actual property: main.assertion.5; SUCCESS. small conditionone diagonal call rejects *)
+405: Definition P185:Prop:=CaseStatus small2(Vint Int.one).
+406: (* Actual property: main.assertion.6; SUCCESS. rejected call preserves every output byte *)
+407: Definition P186:Prop:=CasePreserves small2.
+408: (* Actual property: main.assertion.7; SUCCESS. finite large diagonal call reports success *)
+409: Definition P187:Prop:=CaseStatus large2(Vint Int.zero).
+410: (* Actual property: main.assertion.8; SUCCESS. overflow determinant exact signedzero output bits *)
+411: Definition P188:Prop:=CaseWords large2[0;2147483648;2147483648;0].
+412: (* Actual property: main.assertion.9; FAILURE. positive scaling preserves inverse status *)
+413: Definition P189:Prop:=OriginalReplay /\ Result base2<>Result small2 /\ TraceNonempty.
+414: (* Actual property: main.assertion.10; FAILURE. successful wellconditioned inverse has residual component below half *)
+415: Definition P190:Prop:=OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864 /\ TraceNonempty.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/problem/Spec.v SHA256 9954c892d8d87c2e1b6232088d0cbdf86eb85d520abafce5474f4cb0f66bb7bc
+1: From Stdlib Require Import List String.
+2: From FiveMatInv3Case Require Import RecheckSupport Assertions.
+3: Import ListNotations.
+4: Local Open Scope string_scope.
+5: Inductive PropertyKind:=KSource|KCopy(kind:CopyKind)|KAssertion(n:nat).
+6: Definition Claim(k:PropertyKind):Prop:=match k with
+7:  |KSource=>SourceGuards|KCopy kind=>CopyClaim kind
+8:  |KAssertion n=>match n with 1=>Assert1|2=>Assert2|3=>Assert3|4=>Assert4|5=>Assert5|6=>Assert6|7=>Assert7|8=>Assert8|9=>Refutation9|10=>Refutation10|_=>False end end.
+9: Definition Ledger:list(string*PropertyKind):=[
+10:  ("float_mat_inv_3d.pointer_arithmetic.1",KSource);
+11:  ("float_mat_inv_3d.pointer_arithmetic.2",KSource);
+12:  ("float_mat_inv_3d.pointer_arithmetic.3",KSource);
+13:  ("float_mat_inv_3d.pointer_arithmetic.4",KSource);
+14:  ("float_mat_inv_3d.pointer_arithmetic.5",KSource);
+15:  ("float_mat_inv_3d.pointer_arithmetic.6",KSource);
+16:  ("float_mat_inv_3d.pointer_dereference.1",KSource);
+17:  ("float_mat_inv_3d.pointer_dereference.2",KSource);
+18:  ("float_mat_inv_3d.pointer_dereference.3",KSource);
+19:  ("float_mat_inv_3d.pointer_dereference.4",KSource);
+20:  ("float_mat_inv_3d.pointer_dereference.5",KSource);
+21:  ("float_mat_inv_3d.pointer_dereference.6",KSource);
+22:  ("float_mat_inv_3d.array_bounds.1",KSource);
+23:  ("float_mat_inv_3d.pointer_arithmetic.7",KSource);
+24:  ("float_mat_inv_3d.pointer_arithmetic.8",KSource);
+25:  ("float_mat_inv_3d.pointer_arithmetic.9",KSource);
+26:  ("float_mat_inv_3d.pointer_arithmetic.10",KSource);
+27:  ("float_mat_inv_3d.pointer_arithmetic.11",KSource);
+28:  ("float_mat_inv_3d.pointer_arithmetic.12",KSource);
+29:  ("float_mat_inv_3d.pointer_dereference.7",KSource);
+30:  ("float_mat_inv_3d.pointer_dereference.8",KSource);
+31:  ("float_mat_inv_3d.pointer_dereference.9",KSource);
+32:  ("float_mat_inv_3d.pointer_dereference.10",KSource);
+33:  ("float_mat_inv_3d.pointer_dereference.11",KSource);
+34:  ("float_mat_inv_3d.pointer_dereference.12",KSource);
+35:  ("float_mat_inv_3d.array_bounds.2",KSource);
+36:  ("float_mat_inv_3d.array_bounds.3",KSource);
+37:  ("float_mat_inv_3d.array_bounds.4",KSource);
+38:  ("float_mat_inv_3d.pointer_arithmetic.13",KSource);
+39:  ("float_mat_inv_3d.pointer_arithmetic.14",KSource);
+40:  ("float_mat_inv_3d.pointer_arithmetic.15",KSource);
+41:  ("float_mat_inv_3d.pointer_arithmetic.16",KSource);
+42:  ("float_mat_inv_3d.pointer_arithmetic.17",KSource);
+43:  ("float_mat_inv_3d.pointer_arithmetic.18",KSource);
+44:  ("float_mat_inv_3d.pointer_dereference.13",KSource);
+45:  ("float_mat_inv_3d.pointer_dereference.14",KSource);
+46:  ("float_mat_inv_3d.pointer_dereference.15",KSource);
+47:  ("float_mat_inv_3d.pointer_dereference.16",KSource);
+48:  ("float_mat_inv_3d.pointer_dereference.17",KSource);
+49:  ("float_mat_inv_3d.pointer_dereference.18",KSource);
+50:  ("float_mat_inv_3d.array_bounds.5",KSource);
+51:  ("float_mat_inv_3d.array_bounds.6",KSource);
+52:  ("float_mat_inv_3d.array_bounds.7",KSource);
+53:  ("float_mat_inv_3d.array_bounds.8",KSource);
+54:  ("float_mat_inv_3d.array_bounds.9",KSource);
+55:  ("float_mat_inv_3d.pointer_arithmetic.19",KSource);
+56:  ("float_mat_inv_3d.pointer_arithmetic.20",KSource);
+57:  ("float_mat_inv_3d.pointer_arithmetic.21",KSource);
+58:  ("float_mat_inv_3d.pointer_arithmetic.22",KSource);
+59:  ("float_mat_inv_3d.pointer_arithmetic.23",KSource);
+60:  ("float_mat_inv_3d.pointer_arithmetic.24",KSource);
+61:  ("float_mat_inv_3d.pointer_dereference.19",KSource);
+62:  ("float_mat_inv_3d.pointer_dereference.20",KSource);
+63:  ("float_mat_inv_3d.pointer_dereference.21",KSource);
+64:  ("float_mat_inv_3d.pointer_dereference.22",KSource);
+65:  ("float_mat_inv_3d.pointer_dereference.23",KSource);
+66:  ("float_mat_inv_3d.pointer_dereference.24",KSource);
+67:  ("float_mat_inv_3d.array_bounds.10",KSource);
+68:  ("float_mat_inv_3d.pointer_arithmetic.25",KSource);
+69:  ("float_mat_inv_3d.pointer_arithmetic.26",KSource);
+70:  ("float_mat_inv_3d.pointer_arithmetic.27",KSource);
+71:  ("float_mat_inv_3d.pointer_arithmetic.28",KSource);
+72:  ("float_mat_inv_3d.pointer_arithmetic.29",KSource);
+73:  ("float_mat_inv_3d.pointer_arithmetic.30",KSource);
+74:  ("float_mat_inv_3d.pointer_dereference.25",KSource);
+75:  ("float_mat_inv_3d.pointer_dereference.26",KSource);
+76:  ("float_mat_inv_3d.pointer_dereference.27",KSource);
+77:  ("float_mat_inv_3d.pointer_dereference.28",KSource);
+78:  ("float_mat_inv_3d.pointer_dereference.29",KSource);
+79:  ("float_mat_inv_3d.pointer_dereference.30",KSource);
+80:  ("float_mat_inv_3d.array_bounds.11",KSource);
+81:  ("float_mat_inv_3d.pointer_arithmetic.31",KSource);
+82:  ("float_mat_inv_3d.pointer_arithmetic.32",KSource);
+83:  ("float_mat_inv_3d.pointer_arithmetic.33",KSource);
+84:  ("float_mat_inv_3d.pointer_arithmetic.34",KSource);
+85:  ("float_mat_inv_3d.pointer_arithmetic.35",KSource);
+86:  ("float_mat_inv_3d.pointer_arithmetic.36",KSource);
+87:  ("float_mat_inv_3d.pointer_dereference.31",KSource);
+88:  ("float_mat_inv_3d.pointer_dereference.32",KSource);
+89:  ("float_mat_inv_3d.pointer_dereference.33",KSource);
+90:  ("float_mat_inv_3d.pointer_dereference.34",KSource);
+91:  ("float_mat_inv_3d.pointer_dereference.35",KSource);
+92:  ("float_mat_inv_3d.pointer_dereference.36",KSource);
+93:  ("float_mat_inv_3d.array_bounds.12",KSource);
+94:  ("float_mat_inv_3d.pointer_arithmetic.37",KSource);
+95:  ("float_mat_inv_3d.pointer_arithmetic.38",KSource);
+96:  ("float_mat_inv_3d.pointer_arithmetic.39",KSource);
+97:  ("float_mat_inv_3d.pointer_arithmetic.40",KSource);
+98:  ("float_mat_inv_3d.pointer_arithmetic.41",KSource);
+99:  ("float_mat_inv_3d.pointer_arithmetic.42",KSource);
+100:  ("float_mat_inv_3d.pointer_dereference.37",KSource);
+101:  ("float_mat_inv_3d.pointer_dereference.38",KSource);
+102:  ("float_mat_inv_3d.pointer_dereference.39",KSource);
+103:  ("float_mat_inv_3d.pointer_dereference.40",KSource);
+104:  ("float_mat_inv_3d.pointer_dereference.41",KSource);
+105:  ("float_mat_inv_3d.pointer_dereference.42",KSource);
+106:  ("float_mat_inv_3d.array_bounds.13",KSource);
+107:  ("float_mat_inv_3d.pointer_arithmetic.43",KSource);
+108:  ("float_mat_inv_3d.pointer_arithmetic.44",KSource);
+109:  ("float_mat_inv_3d.pointer_arithmetic.45",KSource);
+110:  ("float_mat_inv_3d.pointer_arithmetic.46",KSource);
+111:  ("float_mat_inv_3d.pointer_arithmetic.47",KSource);
+112:  ("float_mat_inv_3d.pointer_arithmetic.48",KSource);
+113:  ("float_mat_inv_3d.pointer_dereference.43",KSource);
+114:  ("float_mat_inv_3d.pointer_dereference.44",KSource);
+115:  ("float_mat_inv_3d.pointer_dereference.45",KSource);
+116:  ("float_mat_inv_3d.pointer_dereference.46",KSource);
+117:  ("float_mat_inv_3d.pointer_dereference.47",KSource);
+118:  ("float_mat_inv_3d.pointer_dereference.48",KSource);
+119:  ("float_mat_inv_3d.array_bounds.14",KSource);
+120:  ("float_mat_inv_3d.pointer_arithmetic.49",KSource);
+121:  ("float_mat_inv_3d.pointer_arithmetic.50",KSource);
+122:  ("float_mat_inv_3d.pointer_arithmetic.51",KSource);
+123:  ("float_mat_inv_3d.pointer_arithmetic.52",KSource);
+124:  ("float_mat_inv_3d.pointer_arithmetic.53",KSource);
+125:  ("float_mat_inv_3d.pointer_arithmetic.54",KSource);
+126:  ("float_mat_inv_3d.pointer_dereference.49",KSource);
+127:  ("float_mat_inv_3d.pointer_dereference.50",KSource);
+128:  ("float_mat_inv_3d.pointer_dereference.51",KSource);
+129:  ("float_mat_inv_3d.pointer_dereference.52",KSource);
+130:  ("float_mat_inv_3d.pointer_dereference.53",KSource);
+131:  ("float_mat_inv_3d.pointer_dereference.54",KSource);
+132:  ("float_mat_inv_3d.array_bounds.15",KSource);
+133:  ("float_mat_inv_3d.pointer_arithmetic.55",KSource);
+134:  ("float_mat_inv_3d.pointer_arithmetic.56",KSource);
+135:  ("float_mat_inv_3d.pointer_arithmetic.57",KSource);
+136:  ("float_mat_inv_3d.pointer_arithmetic.58",KSource);
+137:  ("float_mat_inv_3d.pointer_arithmetic.59",KSource);
+138:  ("float_mat_inv_3d.pointer_arithmetic.60",KSource);
+139:  ("float_mat_inv_3d.pointer_dereference.55",KSource);
+140:  ("float_mat_inv_3d.pointer_dereference.56",KSource);
+141:  ("float_mat_inv_3d.pointer_dereference.57",KSource);
+142:  ("float_mat_inv_3d.pointer_dereference.58",KSource);
+143:  ("float_mat_inv_3d.pointer_dereference.59",KSource);
+144:  ("float_mat_inv_3d.pointer_dereference.60",KSource);
+145:  ("float_mat_inv_3d.array_bounds.16",KSource);
+146:  ("float_mat_inv_3d.pointer_arithmetic.61",KSource);
+147:  ("float_mat_inv_3d.pointer_arithmetic.62",KSource);
+148:  ("float_mat_inv_3d.pointer_arithmetic.63",KSource);
+149:  ("float_mat_inv_3d.pointer_arithmetic.64",KSource);
+150:  ("float_mat_inv_3d.pointer_arithmetic.65",KSource);
+151:  ("float_mat_inv_3d.pointer_arithmetic.66",KSource);
+152:  ("float_mat_inv_3d.pointer_dereference.61",KSource);
+153:  ("float_mat_inv_3d.pointer_dereference.62",KSource);
+154:  ("float_mat_inv_3d.pointer_dereference.63",KSource);
+155:  ("float_mat_inv_3d.pointer_dereference.64",KSource);
+156:  ("float_mat_inv_3d.pointer_dereference.65",KSource);
+157:  ("float_mat_inv_3d.pointer_dereference.66",KSource);
+158:  ("float_mat_inv_3d.array_bounds.17",KSource);
+159:  ("float_mat_inv_3d.pointer_arithmetic.67",KSource);
+160:  ("float_mat_inv_3d.pointer_arithmetic.68",KSource);
+161:  ("float_mat_inv_3d.pointer_arithmetic.69",KSource);
+162:  ("float_mat_inv_3d.pointer_arithmetic.70",KSource);
+163:  ("float_mat_inv_3d.pointer_arithmetic.71",KSource);
+164:  ("float_mat_inv_3d.pointer_arithmetic.72",KSource);
+165:  ("float_mat_inv_3d.pointer_dereference.67",KSource);
+166:  ("float_mat_inv_3d.pointer_dereference.68",KSource);
+167:  ("float_mat_inv_3d.pointer_dereference.69",KSource);
+168:  ("float_mat_inv_3d.pointer_dereference.70",KSource);
+169:  ("float_mat_inv_3d.pointer_dereference.71",KSource);
+170:  ("float_mat_inv_3d.pointer_dereference.72",KSource);
+171:  ("float_mat_inv_3d.array_bounds.18",KSource);
+172:  ("main.assertion.1",KAssertion 1%nat);
+173:  ("main.assertion.2",KAssertion 2%nat);
+174:  ("memcpy.pointer_arithmetic.1",KCopy DestinationEndLive);
+175:  ("memcpy.pointer.1",KCopy SameForward);
+176:  ("memcpy.pointer_arithmetic.2",KCopy SourceLive);
+177:  ("memcpy.pointer_arithmetic.3",KCopy SourceEndLive);
+178:  ("memcpy.pointer.2",KCopy SameReverse);
+179:  ("memcpy.pointer_arithmetic.4",KCopy DestinationLive);
+180:  ("main.precondition_instance.1",KCopy NoOverlap);
+181:  ("main.precondition_instance.2",KCopy ReadableSource);
+182:  ("main.precondition_instance.3",KCopy WritableDestination);
+183:  ("memcpy.pointer_arithmetic.5",KCopy DestinationEndLive);
+184:  ("memcpy.pointer.3",KCopy SameForward);
+185:  ("memcpy.pointer_arithmetic.6",KCopy SourceLive);
+186:  ("memcpy.pointer_arithmetic.7",KCopy SourceEndLive);
+187:  ("memcpy.pointer.4",KCopy SameReverse);
+188:  ("memcpy.pointer_arithmetic.8",KCopy DestinationLive);
+189:  ("main.precondition_instance.4",KCopy NoOverlap);
+190:  ("main.precondition_instance.5",KCopy ReadableSource);
+191:  ("main.precondition_instance.6",KCopy WritableDestination);
+192:  ("memcpy.pointer_arithmetic.9",KCopy DestinationEndLive);
+193:  ("memcpy.pointer.5",KCopy SameForward);
+194:  ("memcpy.pointer_arithmetic.10",KCopy SourceLive);
+195:  ("memcpy.pointer_arithmetic.11",KCopy SourceEndLive);
+196:  ("memcpy.pointer.6",KCopy SameReverse);
+197:  ("memcpy.pointer_arithmetic.12",KCopy DestinationLive);
+198:  ("main.precondition_instance.7",KCopy NoOverlap);
+199:  ("main.precondition_instance.8",KCopy ReadableSource);
+200:  ("main.precondition_instance.9",KCopy WritableDestination);
+201:  ("memcpy.pointer_arithmetic.13",KCopy DestinationEndLive);
+202:  ("memcpy.pointer.7",KCopy SameForward);
+203:  ("memcpy.pointer_arithmetic.14",KCopy SourceLive);
+204:  ("memcpy.pointer_arithmetic.15",KCopy SourceEndLive);
+205:  ("memcpy.pointer.8",KCopy SameReverse);
+206:  ("memcpy.pointer_arithmetic.16",KCopy DestinationLive);
+207:  ("main.precondition_instance.10",KCopy NoOverlap);
+208:  ("main.precondition_instance.11",KCopy ReadableSource);
+209:  ("main.precondition_instance.12",KCopy WritableDestination);
+210:  ("main.assertion.3",KAssertion 3%nat);
+211:  ("main.assertion.4",KAssertion 4%nat);
+212:  ("main.assertion.5",KAssertion 5%nat);
+213:  ("main.assertion.6",KAssertion 6%nat);
+214:  ("main.assertion.7",KAssertion 7%nat);
+215:  ("main.assertion.8",KAssertion 8%nat);
+216:  ("main.assertion.9",KAssertion 9%nat);
+217:  ("main.assertion.10",KAssertion 10%nat)].
+218: Definition Property(index:nat)(id:string):Prop:=match nth_error Ledger index with Some(recorded,kind)=>recorded=id /\Claim kind|None=>False end.
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/support/RecheckSupport.v SHA256 9a481e620f883655d9d5c751df678b61ab3ea3a992d4ae75236c046487143a43
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Ctypes Csem Smallstep.
+3: From FiveShared.verification Require Import Obligations.
+4: From FiveMatInv3Case Require Import MatrixMemory.
+5: From FivePprzFloatMatInv2d Require Import Execution.
+6: From FiveInv2Case Require Import Contract Call MemoryEffects Body Memcpy16 Observer TraceInputs.
+7: Import ListNotations.
+8: Local Open Scope Z_scope.
+9: Record AddressFacts(m:mem)(b:block)(p:ptrofs)(i:Z)(perm:permission):Prop:={
+10:  address_nonnull:Vptr b(Ptrofs.add p(Ptrofs.repr(4*i)))<>Vnullptr;
+11:  address_live:Mem.valid_block m b;
+12:  address_typed:Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+4*i)perm;
+13:  address_nowrap:Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr(4*i)))=Ptrofs.unsigned p+4*i;
+14:  address_bounds:0<=i<4
+15: }.
+16: Definition SourceGuards(i:Z)(output:bool):Prop :=forall m bo bi po pi f,Inputs m bo bi po pi f->0<=i<4->
+17:  no_error Execution.ge(Execution.entry(Args bo bi po pi)m)/\
+18:  if output then AddressFacts m bo po i Writable else AddressFacts m bi pi i Readable.
+19: Theorem source_guards:forall i output,SourceGuards i output.
+20: Proof. intros i output m bo bi po pi f IN B;destruct(call_summary m bo bi po pi f IN)as[mf[PATH[POST[SAFE ALL]]]];split;[exact SAFE|].
+21:  destruct IN as[NE[W RD]];destruct output;constructor;try discriminate;try exact B.
+22:  - exact(writable_valid m bo po 4 ltac:(lia)W).
+23:  - eapply writable_access;eauto.
+24:  - eapply index_pointer;[exact(proj1(proj2 W))|exact B].
+25:  - exact(reads_valid m bi pi 4 f ltac:(lia)RD).
+26:  - eapply Mem.load_valid_access;exact(proj2(proj2 RD)i B).
+27:  - eapply index_pointer;[exact(proj1(proj2 RD))|exact B]. Qed.
+28: Lemma same_bytes_cell_at:forall m1 b1 base1 m2 b2 base2 bytes z,
+29:  Mem.loadbytes m1 b1 base1 16=Some bytes->Mem.loadbytes m2 b2 base2 16=Some bytes->0<=z->z+4<=16->
+30:  Mem.loadbytes m1 b1(base1+z)4=Mem.loadbytes m2 b2(base2+z)4.
+31: Proof. intros m1 b1 base1 m2 b2 base2 bytes z A B Z LIMIT.
+32:  replace 16 with(z+(16-z))in A,B by lia.
+33:  destruct(Mem.loadbytes_split _ _ _ _ _ _ A ltac:(lia)ltac:(lia))as[a[rest[RA[RR EA]]]].
+34:  destruct(Mem.loadbytes_split _ _ _ _ _ _ B ltac:(lia)ltac:(lia))as[c[tail[RC[RT EC]]]].
+35:  assert(L:length a=length c)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RA),(Mem.loadbytes_length _ _ _ _ _ RC);reflexivity).
+36:  destruct(append_cut _ a rest c tail L ltac:(congruence))as[_ EQ];subst tail.
+37:  replace(16-z)with(4+(12-z))in RR,RT by lia.
+38:  destruct(Mem.loadbytes_split _ _ _ _ _ _ RR ltac:(lia)ltac:(lia))as[d[ds[RD[RDS ED]]]].
+39:  destruct(Mem.loadbytes_split _ _ _ _ _ _ RT ltac:(lia)ltac:(lia))as[f[fs[RF[RFS EF]]]].
+40:  assert(L':length d=length f)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RD),(Mem.loadbytes_length _ _ _ _ _ RF);reflexivity).
+41:  destruct(append_cut _ d ds f fs L' ltac:(congruence))as[EQ _];subst f;congruence. Qed.
+42: Lemma successful_post_cells:forall m mf bo bi po pi f,Post m mf bo bi po pi f->Reject f=false->forall i,0<=i<4->
+43:  Mem.loadbytes mf bo(Ptrofs.unsigned po+4*i)4=Some(encode_val Mfloat32(Vsingle(Output f i))).
+44: Proof. intros m mf bo bi po pi f POST REJ i B.
+45:  destruct POST as[W[RD[FR[VB[BY AC]]]]];rewrite REJ in BY.
+46:  destruct(Mem.alloc Mem.empty 0 16)as[ma br]eqn:AL.
+47:  assert(WR:WriteRegion ma br Ptrofs.zero 4).
+48:  { unfold WriteRegion;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[change(16<=18446744073709551616);lia|intros z R;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact AL|lia]|constructor]]. }
+49:  destruct(writes_exist(Outputs f)ma br Ptrofs.zero 4 WR(output_bounds f))as[mr WS].
+50:  assert(BR:Branch ma br Ptrofs.zero f mr)by(unfold Branch;rewrite REJ;exact WS).
+51:  pose proof(branch_bytes ma br Ptrofs.zero f mr BR)as REF;rewrite REJ,Ptrofs.unsigned_zero in REF.
+52:  pose proof(same_bytes_cell_at mf bo(Ptrofs.unsigned po)mr br 0(Encoded f)(4*i)BY REF ltac:(lia)ltac:(lia))as EQ.
+53:  rewrite EQ;replace(0+4*i)with(Ptrofs.unsigned Ptrofs.zero+4*i)by(rewrite Ptrofs.unsigned_zero;lia).
+54:  eapply writes_bytes;[exact WS|apply output_nodup|].
+55:  assert(C:i=0\/i=1\/i=2\/i=3)by lia;destruct C as [-> | [-> | [-> | ->]]];unfold Outputs;repeat first[left;reflexivity|right]. Qed.
+56: Theorem successful_copy_words:forall m mf bo bi pi f dst bytes obs,
+57:  Post m mf bo bi Ptrofs.zero pi f->Reject f=false->Mem.loadbytes mf bo 0 16=Some bytes->Mem.storebytes mf dst 0 bytes=Some obs->
+58:  forall i,0<=i<4->Mem.load Mint32 obs dst(4*i)=Some(Vint(Float32.to_bits(Output f i))).
+59: Proof. intros m mf bo bi pi f dst bytes obs POST REJ READ STORE i B;eapply memcpy_word_observation;[exact READ|exact STORE| |exact B].
+60:  intros j J;replace(4*j)with(Ptrofs.unsigned Ptrofs.zero+4*j)by(rewrite Ptrofs.unsigned_zero;lia);eapply successful_post_cells;eauto. Qed.
+61: Theorem post_preserves_other_inputs:forall m mf bo bi po pi f out input outp inp g,
+62:  Post m mf bo bi po pi f->Inputs m out input outp inp g->out<>bo->input<>bo->Inputs mf out input outp inp g.
+63: Proof. intros m mf bo bi po pi f out input outp inp g[W[RD[FR[VB[BY AC]]]]][NE[WO RI]]OO IO;split;[exact NE|];split.
+64:  - destruct WO as[AL[NW RP]];repeat split;auto;intros z B.
+65:    assert(V:Mem.valid_block m out)by(eapply(writable_valid m out outp 4 ltac:(lia));repeat split;eauto).
+66:    assert(VA:Mem.valid_access m Mint8unsigned out z Writable)by(split;[intros off R;apply RP;cbn[size_chunk]in R;lia|change(1|z);exists z;lia]).
+67:    pose proof(AC Mint8unsigned out z Writable V VA)as[PF ALIGN];apply PF;cbn[size_chunk];lia.
+68:  - destruct RI as[AL[NW L]];repeat split;auto;intros i B.
+69:    destruct(Mem.load_loadbytes Mfloat32 m input(Ptrofs.unsigned inp+4*i)(Vsingle(g i))(L i B))as[bytes[LB DE]].
+70:    assert(VI:Mem.valid_block m input)by(eapply(reads_valid m input inp 4 g ltac:(lia));repeat split;eauto).
+71:    assert(LBF:Mem.loadbytes mf input(Ptrofs.unsigned inp+4*i)4=Some bytes)by(rewrite FR by(auto);exact LB).
+72:    pose proof(Mem.loadbytes_load Mfloat32 mf input(Ptrofs.unsigned inp+4*i)bytes LBF ltac:(change(4|Ptrofs.unsigned inp+4*i);destruct AL as[k K];exists(k+i);lia))as LF;rewrite <-DE in LF;exact LF.
+73: Qed.
+74: Print Assumptions source_guards.
+75: Print Assumptions successful_copy_words.
+76: 
+77: Theorem frame_load_kept:forall m mf bo po b ofs ch v,Frame m mf bo po->Mem.valid_block m b->
+78:  (b<>bo\/ofs+size_chunk ch<=Ptrofs.unsigned po\/Ptrofs.unsigned po+16<=ofs)->Mem.load ch m b ofs=Some v->Mem.load ch mf b ofs=Some v.
+79: Proof. intros m mf bo po b ofs ch v FR VB OUT LD.
+80:  destruct(Mem.load_loadbytes ch m b ofs v LD)as[bytes[LB DE]].
+81:  assert(LBF:Mem.loadbytes mf b ofs(size_chunk ch)=Some bytes)by(rewrite FR by assumption;exact LB).
+82:  pose proof(Mem.load_valid_access _ _ _ _ _ LD)as[RP AL].
+83:  pose proof(Mem.loadbytes_load ch mf b ofs bytes LBF AL)as LF;rewrite <-DE in LF;exact LF. Qed.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/support/RecheckSupport.v SHA256 1d6a05b885d568d58e61293a462c3b547eacd77480fdae72739bbd4d34cc51c9
+1: From Stdlib Require Import List String ZArith Lia.
+2: From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Csem Smallstep.
+3: From FiveShared.verification Require Import Obligations.
+4: From FivePprzFloatMatInv3d Require Import Execution.
+5: From FiveMatInv3Case Require Import Contract MatrixMemory Scalar Call Memcpy36 Observer TraceInputs.
+6: From FiveMatrixInverseSupport Require Import Kernels Witness.
+7: Require FiveMatInv3NoError.Spec FiveMatInv3NoError.Proof FiveMatInv3Functional.Spec FiveMatInv3Functional.Proof.
+8: Import ListNotations.
+9: Local Open Scope Z_scope.
+10: Lemma valid_cell_live:forall m ch b z p,Mem.valid_access m ch b z p->size_chunk ch=4->perm_order p Nonempty->
+11:  Mem.valid_pointer m b z=true /\Mem.weak_valid_pointer m b(z+4)=true.
+12: Proof. intros m ch b z p[RP AL]SZ PO;split.
+13:  - apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RP;rewrite SZ;lia|exact PO].
+14:  - apply Mem.weak_valid_pointer_spec;right;apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RP;rewrite SZ;lia|exact PO]. Qed.
+15: Definition SourceGuards:Prop:=FiveMatInv3NoError.Spec.NoError /\
+16:  forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+17:  Mem.valid_block m bo /\Mem.valid_block m bi /\
+18:  forall r c,0<=r<3->0<=c<3->0<=3*r+c<9 /\
+19:  Mem.valid_access m Mfloat32 bi(Ptrofs.unsigned pi+4*(3*r+c))Readable /\
+20:  Mem.valid_access m Mfloat32 bo(Ptrofs.unsigned po+4*(3*r+c))Writable /\
+21:  Mem.valid_pointer m bi(Ptrofs.unsigned pi+4*(3*r+c))=true /\
+22:  Mem.weak_valid_pointer m bi(Ptrofs.unsigned pi+4*(3*r+c)+4)=true /\
+23:  Mem.valid_pointer m bo(Ptrofs.unsigned po+4*(3*r+c))=true /\
+24:  Mem.weak_valid_pointer m bo(Ptrofs.unsigned po+4*(3*r+c)+4)=true.
+25: Theorem source_guards:SourceGuards.
+26: Proof. split;[exact FiveMatInv3NoError.Proof.no_error_proved|].
+27:  intros m bo bi po pi f NE W R;split;[exact(writable_valid m bo po 9 ltac:(lia)W)|];split;[exact(reads_valid m bi pi 9 f ltac:(lia)R)|].
+28:  intros r c RR CC;assert(B:0<=3*r+c<9)by lia.
+29:  pose proof(Mem.load_valid_access _ _ _ _ _(proj2(proj2 R)(3*r+c)B))as RI.
+30:  pose proof(writable_access m bo po 9(3*r+c)W B)as WO.
+31:  destruct(valid_cell_live _ _ _ _ _ RI eq_refl ltac:(constructor))as[RL RE].
+32:  destruct(valid_cell_live _ _ _ _ _ WO eq_refl ltac:(constructor))as[WL WE].
+33:  split;[exact B|];split;[exact RI|];split;[exact WO|];auto.
+34: Qed.
+35: Inductive CopyKind:=SameForward|SourceLive|DestinationEndLive|SameReverse|DestinationLive|SourceEndLive|NoOverlap|ReadableSource|WritableDestination.
+36: Definition CopyGuard(m:mem)(src dst:block)(kind:CopyKind):Prop:=forall(order1 order2:Prop),match kind with
+37:  |SameForward=>(True /\~(dst<>src))->False
+38:  |SourceLive=>(True /\~(dst<>src))->Mem.valid_pointer m src 0=true
+39:  |DestinationEndLive=>(True /\~(dst<>src))->Mem.weak_valid_pointer m dst 36=true
+40:  |SameReverse=>~(dst<>src \/order1)->False
+41:  |DestinationLive=>~(dst<>src \/order1)->Mem.valid_pointer m dst 0=true
+42:  |SourceEndLive=>~(dst<>src \/order1)->Mem.weak_valid_pointer m src 36=true
+43:  |NoOverlap=>(dst<>src \/order1)\/order2
+44:  |ReadableSource=>Mem.range_perm m src 0 36 Cur Readable
+45:  |WritableDestination=>Mem.range_perm m dst 0 36 Cur Writable end.
+46: Lemma copy_safety_guard:forall m src dst kind,MemcpySafety m src dst->CopyGuard m src dst kind.
+47: Proof. intros m src dst kind S a b;destruct S;destruct kind;cbn;tauto. Qed.
+48: Definition CopyClaim(kind:CopyKind):Prop:=forall se m src dst,CopyPre m src dst->
+49:  exists mf bytes,MemcpySafety m src dst /\Mem.loadbytes m src 0 36=Some bytes /\
+50:  Mem.storebytes m dst 0 bytes=Some mf /\extcall_memcpy_sem 36 1 se[Vptr dst Ptrofs.zero;Vptr src Ptrofs.zero]m E0 Vundef mf /\
+51:  Mem.loadbytes mf dst 0 36=Some bytes /\CopyFrame m mf dst /\CopyGuard m src dst kind.
+52: Theorem copy_claim:forall kind,CopyClaim kind.
+53: Proof. intros kind se m src dst P;destruct(copy36_exact se m src dst P)as[mf[bytes[S[R[L[ST[CALL[BYTES FR]]]]]]]].
+54:  exists mf,bytes;split;[exact S|];split;[exact R|];split;[exact ST|];split;[exact CALL|];split;[exact BYTES|];split;[exact FR|];apply copy_safety_guard;exact S. Qed.
+55: Definition FixedOutcome(f:Z->float32)(status:val):Prop:=
+56:  (forall m bo bi po pi,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+57:  exists mf,(exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate status Kstop mf))/\FiveMatInv3Functional.Spec.Post m mf bo bi po pi f) /\
+58:  (forall m bo bi po pi,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->forall t v mf,
+59:  star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate v Kstop mf)->v=status /\FiveMatInv3Functional.Spec.Post m mf bo bi po pi f).
+60: Lemma fixed_outcome:forall f status,Status f=status->FixedOutcome f status.
+61: Proof. intros f status EQ;split.
+62:  - intros m bo bi po pi NE W RD;rewrite <-EQ;apply FiveMatInv3Functional.Proof.normal_call;assumption.
+63:  - intros m bo bi po pi NE W RD t v mf PATH;rewrite <-EQ;eapply FiveMatInv3Functional.Proof.all_normal_observations;eauto. Qed.
+64: Definition InitPairs(old:Z->float32):list(Z*float32):=[(0,old 0);(1,old 1);(2,old 2);(3,old 3);(4,old 4);(5,old 5);(6,old 6);(7,old 7);(8,old 8)].
+65: Definition Initialized(m:mem)(bo bi:block)(f old:Z->float32):Prop:=bo<>bi /\WriteRegion m bo Ptrofs.zero 9 /\Reads m bi Ptrofs.zero 9 f /\
+66:  forall i,0<=i<9->Mem.loadbytes m bo(4*i)4=Some(encode_val Mfloat32(Vsingle(old i))).
+67: Lemma initialized_exists:forall f old,exists m bo bi,Initialized m bo bi f old.
+68: Proof.
+69:  intros f old;destruct(matrix9_inhabited f)as[mi[bo[bi[NE[WO RI]]]]].
+70:  destruct(writes_exist(InitPairs old)mi bo Ptrofs.zero 9 WO)as[m WR].
+71:  { intros i x IN;unfold InitPairs in IN;cbn in IN;repeat destruct IN as[IN|IN];try contradiction;inversion IN;lia. }
+72:  exists m,bo,bi;split;[exact NE|];split;[eapply writes_writable;[exact WR|exact WO]|];split.
+73:  - eapply writes_reads_other;[exact WR|exact RI|congruence].
+74:  - intros i I;replace(4*i)with(Ptrofs.unsigned Ptrofs.zero+4*i)by(rewrite Ptrofs.unsigned_zero;lia);eapply writes_bytes;[exact WR|unfold InitPairs;repeat constructor;simpl;intuition discriminate|].
+75:    assert(i=0\/i=1\/i=2\/i=3\/i=4\/i=5\/i=6\/i=7\/i=8)by lia;repeat destruct H as[H|H];subst i;unfold InitPairs;repeat(first[left;reflexivity|right]).
+76: Qed.
+77: Definition CallReplay(f old:Z->float32)(status:val):Prop:=exists m bo bi mf t,
+78:  Initialized m bo bi f old /\star Csem.step Execution.ge(Execution.entry(Args bo bi Ptrofs.zero Ptrofs.zero)m)t(Returnstate status Kstop mf) /\
+79:  FiveMatInv3Functional.Spec.Post m mf bo bi Ptrofs.zero Ptrofs.zero f.
+80: Theorem call_replay:forall f old status,Status f=status->CallReplay f old status.
+81: Proof. intros f old status EQ;destruct(initialized_exists f old)as[m[bo[bi[NE[W[R CELLS]]]]]].
+82:  destruct(FiveMatInv3Functional.Proof.normal_call m bo bi Ptrofs.zero Ptrofs.zero f NE W R)as[mf[[t PATH]POST]].
+83:  exists m,bo,bi,mf,t;split;[split;[exact NE|];split;[exact W|];split;[exact R|exact CELLS]|];split;[rewrite <-EQ;exact PATH|exact POST]. Qed.
+84: Definition OldFixed(i:Z):float32:=Diag3(Float32.of_bits(Int.repr 1099431936))i.
+85: Definition OldArbitrary(_:Z):float32:=Float32.zero.
+86: Theorem original_calls_replay:
+87:  CallReplay arbitrary_0 OldArbitrary(Vint Int.one) /\CallReplay arbitrary_1 OldArbitrary(Vint Int.one) /\
+88:  CallReplay base3 OldFixed(Vint Int.zero) /\CallReplay small3 OldFixed(Vint Int.one) /\CallReplay large3 OldFixed(Vint Int.zero).
+89: Proof. repeat split;apply call_replay.
+90:  - unfold Status;rewrite arbitrary_rejects_0;reflexivity.
+91:  - unfold Status;rewrite arbitrary_rejects_1;reflexivity.
+92:  - exact(proj1 base3_kernel).
+93:  - exact(proj1 small3_kernel).
+94:  - exact(proj1 large3_kernel).
+95: Qed.
+96: Print Assumptions source_guards.
+97: Print Assumptions copy_claim.
+98: Print Assumptions original_calls_replay.

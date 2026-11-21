@@ -1,0 +1,102 @@
+TASK_BOUNDARY 2026-11-21T07:29:45.897Z 25
+NUMERIC_CURRENT_ACCEPTED 6
+VALIDATION_KEYS ['schema', 'index', 'inputs', 'kernel_evidence', 'goal_bindings', 'certificate']
+VALIDATION_SOURCE_COUNT 0
+RUN _build/matrix-inverse-root/20261121T052714-268eb04a78/five-verify running 4 ['schema', 'run_id', 'skill', 'parent', 'started_at', 'start_epoch', 'invocation_kind', 'status', 'timing_scope', 'children', 'environment', 'scope', 'tokens', 'commands', 'inputs', 'codex_usage_boundary']
+RUN _build/matrix-completion-root/20261121T073402-fc2055b161/five-verify running 2 ['schema', 'run_id', 'skill', 'parent', 'started_at', 'start_epoch', 'invocation_kind', 'status', 'timing_scope', 'children', 'environment', 'scope', 'tokens', 'commands', 'inputs', 'codex_usage_boundary']
+HANDOFF float_mat_inv_2d prepare passed 3
+HANDOFF float_mat_inv_2d cbmc refuted 9
+HANDOFF float_mat_inv_2d align passed 15
+HANDOFF float_mat_inv_3d prepare passed 3
+HANDOFF float_mat_inv_3d cbmc refuted 9
+HANDOFF float_mat_inv_3d align passed 15
+REPLAY_SCHEMA_EXAMPLE paparazzi/models/float_quat_vmult/rocq/spec-recheck.json {
+  "property_id": "main.assertion.1",
+  "cbmc_status": "FAILURE",
+  "status": "refuted",
+  "scope": {
+    "assumptions": [
+      "valid separately allocated disjoint source/destination objects",
+      "initialized finite components with abs(q_i)<=1 and abs(v_i)<=1024 for relation BMC"
+    ],
+    "source_location": {
+      "comment": "candidate1 all output binary32 bits equal",
+      "file": "/home/yangfp/five/paparazzi/report/quat_rotation_paths/cbmc/harness.c",
+      "function": "main",
+      "line": "17",
+      "pragma": [
+        "checked:bounds-check",
+        "checked:pointer-check",
+        "checked:div-by-zero-check",
+        "checked:signed-overflow-check",
+        "checked:undefined-shift-check",
+        "checked:pointer-primitive-check"
+      ],
+      "propertyClass": "assertion",
+      "propertyId": "main.assertion.1",
+      "workingDirectory": "/home/yangfp/five"
+    },
+    "observation": "All original source-site/runtime guards and complete output/copy bytes with actual memory frame; failure uses the actual solver trace and actual Csem short-circuit assertion false.",
+    "memory": "shared disjoint original q,v,direct output,matrix,composed output and two 12-byte memcpy destinations",
+    "call_scope": "all three original entry bodies, one call each; memcpy actual CBMC library adapter; no loops in entries",
+    "bounds": {
+      "unwind": 1
+    },
+    "original_property_id": "main.assertion.1",
+    "description": "candidate1 all output binary32 bits equal",
+    "source_harness_sha256": {
+      "paparazzi/models/float_quat_vmult/prepare/source/float_quat_vmult.c": "64c3359619e2f8de1f8c0b16ace92ab01c969fb7d408981bd68ba0fb7b8d80ff",
+      "paparazzi/models/float_quat_vmult/prepare/source/quat_types.h": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f",
+      "paparazzi/models/float_quat_vmult/prepare/source/bindings.json": "5008c2ce102edfcd6cc97811fa3d71172ce3292f305d606e2de9da37459189a0",
+      "paparazzi/models/float_quat_vmult/prepare/verification-request.json": "3f19a534aed0ba5746eedfb4cc81b00000870b10efdc8897ef10f5597855f68f",
+      "paparazzi/models/float_rmat_of_quat/prepare/source/float_rmat_of_quat.c": "5d5e765cf53bd21025c740ed40c0ef5d7f2650b85c30fd125911826efb03e44e",
+      "paparazzi/models/float_rmat_of_quat/prepare/source/quat_types.h": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f",
+      "paparazzi/models/float_rmat_of_quat/prepare/source/bindings.json": "6a1e6fdf04b07b8c752cf2bb0cc4a39120676db2d34163fb80b07203fc1aeb74",
+      "paparazzi/models/float_rmat_of_quat/prepare/verification-request.json": "fc3bc143c703c6713d8e04b6ce24167e82d3b2c9bcb3cd8f08a5ed9ad256782a",
+      "paparazzi/models/float_rmat_vmult/prepare/source/float_rmat_vmult.c": "468a207dd8dd04f0da2f5425a49e3a33db4c49eaeab003be650c883772284ab7",
+      "paparazzi/models/float_rmat_vmult/prepare/source/quat_types.h": "b8d33304e002cef484dfd48c5e2cb0eab8e4a7ac751587950386a0cc19d9c08f",
+      "paparazzi/models/float_rmat_vmult/prepare/source/bindings.json": "cb0b59bc67ea0a02bc51c9a820bd92f57026534388da31dc2fdde583b29feb23",
+      "paparazzi/models/float_rmat_vmult/prepare/verification-request.json": "dfc28ffe6913f37092e1271cf295a3aa5a4f4e56feb369d5d0fafac3f086a7ec",
+      "paparazzi/report/quat_rotation_paths/cbmc/harness.c": "a91cc67a3f67657841ab527fa62f456219acf9f7748cf52927215d7f22d83fdb"
+    },
+    "original_domain": "The unchanged original harness: finite q components in [-1,1], finite v components in [-1024,1024]; valid disjoint local objects; one original call per entry; memcpy size12; no source loop/recursion.",
+    "proved_domain": "Source96/87/99 guards use explicit typed initialized/readable/writable distinct-object preconditions with arbitrary binary32 values, stronger than the original finite input range. The shared18 are the real two-copy protocol observers under their explicit memory preconditions, established by the checked protocol witnesses.",
+    "cbmc_bounds": {
+      "entry": "main",
+      "unwind": 1,
+      "unwinding_assertions": true,
+      "source_loops": false,
+      "source_recursion": false
+    },
+    "command_scope": {
+      "run": "_build/quat-rotation-ultra/evidence-support/20261120T105115-4d1225361c/five-cbmc",
+      "command_id": "001-cbmc-unchanged-general-query",
+      "argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "/home/yangfp/five/paparazzi/report/quat_rotation_paths/cbmc/harness.c",
+        "-I",
+        "/home/yangfp/five",
+        "--function",
+        "main",
+        "--64",
+        "--little-endian",
+        "--floatbv",
+        "--bounds-check",
+        "--pointer-check",
+        "--signed-overflow-check",
+        "--undefined-shift-check",
+        "--unwind",
+        "1",
+        "--unwinding-assertions",
+        "--trace",
+        "--json-ui"
+      ]
+    },
+    "mapped_statement": "FiveQuatRotation.Spec.ActualAssertionFalse"
+  },
+  "theorem": "FiveQuatRotation.Proof.actual_assertion_replayed",
+  "evidence": [
+    "paparazzi/relations/quat_rotation_paths/attempts/001/evidence/gate-kernel-evidence.json"
+  ],
+  "counterexample_replay": "paparazzi/models/float_quat_vmult/rocq/report/evidence/actual-counterexample-replay.json"
+}

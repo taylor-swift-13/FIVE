@@ -1,0 +1,86 @@
+72-            token = row.get('token', {})
+73-            if all(isinstance(token.get(k), int) for k in ('input', 'output', 'total')):
+74-                self.require(token['total'] == token['input'] + token['output'], f'token sum: {path}')
+75-            refs = list(row.get('evidence', []))
+76-            case_base = path.parents[2] if path.parent.name == 'report' else None
+77-            def reference(ref):
+78-                # Stage evidence is case-relative in the reference handoff;
+79:                # proof-attempt evidence is relative to its costs.json.
+80-                if case_base and ref.split('/', 1)[0] in ('prepare', 'cbmc', 'align', 'rocq'):
+81-                    return case_base / ref
+82-                return path.parent / ref
+83-            if row.get('shared_costs'):
+84-                refs.append(row['shared_costs'])
+85-            if proof:
+86-                agent = row.get('agent', {})
+87:                requested_effort = agent.get('requested_reasoning_effort')
+88-                self.require(agent.get('model') == 'gpt-6.1-sol' and
+89-                             requested_effort in self.allowed_proof_efforts and
+90:                             agent.get('actual_reasoning_effort') == requested_effort, f'proof runtime model/effort: {path}')
+91:                runtime_ref = agent.get('evidence') or agent.get('runtime_evidence') or next(
+92:                    (ref for ref in refs if Path(ref).name in ('runtime-metadata.json', 'runtime-config.json')), None)
+93:                self.require(bool(runtime_ref), f'missing runtime receipt: {path}')
+94:                if runtime_ref:
+95:                    runtime = self.read(reference(runtime_ref))
+96:                    events = runtime if isinstance(runtime, list) else runtime.get('selected_runtime_metadata')
+97-                    if isinstance(events, list):
+98-                        actual = next((r for r in events if r.get('type') == 'turn_context'), {})
+99-                    else:
+100:                        actual = runtime.get('actual', runtime)
+101-                    self.require(actual.get('model') == 'gpt-6.1-sol' and
+102:                                 (actual.get('effort') or actual.get('actual_reasoning_effort')) == requested_effort,
+103:                                 f'actual runtime receipt mismatch: {reference(runtime_ref)}')
+104-            if row.get('status') == 'not_measured':
+105-                self.require(all(value is None for group in ('time', 'token', 'memory')
+106-                                 for value in row.get(group, {}).values()) and
+107-                             bool(row.get('measurement_scope') or row.get('missing_reason')),
+108-                             f'unexplained historical measurement absence: {path}')
+109-            elif row.get('status') not in ('not_run', 'not_applicable'):
+110-                self.require(bool(refs), f'missing cost evidence: {path}')
+111-            for ref in refs:
+112-                self.file(reference(ref))
+113-
+114-    def proof_problem(self, problem):
+115-        problem = Path(problem)
+--
+122-        active = (problem / status.get('active_attempt', 'MISSING')).resolve()
+123-        attempts = sorted((problem.parent / 'attempts').glob('[0-9]*'))
+124-        self.require(active in [p.resolve() for p in attempts], f'active attempt not retained: {problem}')
+125-        for attempt in attempts:
+126-            self.file(attempt / 'Proof.v')
+127-            self.file(attempt / 'check.py')
+128-            self.links(attempt / 'report.md')
+129:            self.costs(attempt / 'costs.json', proof=True)
+130-        if not active.is_dir():
+131-            return
+132-        self.active.append(active)
+133-        if status.get('status') not in ('proved', 'refuted'):
+134-            try:
+135-                from example_proof_gate import input_index
+136-                input_index(self.root, active)
+137-            except Exception as exc:
+138-                self.errors.append(f'active input index failed: {active}: {exc}')
+139-        closed = status.get('status') in ('proved', 'refuted')
+140-        report = (active / 'report.md').read_text() if (active / 'report.md').is_file() else ''
+141-        self.require(closed or not re.search(r'\bCOMPLETE\b', report), f'false COMPLETE for open problem: {problem}')
+--
+149-            proof = re.sub(r'\(\*.*?\*\)', '', proof, flags=re.S)
+150-            self.require(not re.search(r'\b(?:Admitted|admit|Axiom|Axioms)\b', proof), f'unproved active proof: {active}')
+151-
+152-    def case(self, case):
+153-        for stage in ('prepare', 'cbmc', 'align', 'rocq'):
+154-            directory = case / stage
+155-            self.links(directory / 'report/report.md')
+156:            self.costs(directory / 'report/costs.json')
+157-            handoff = self.read(directory / 'handoff.json')
+158-            self.require(handoff.get('schema') == 'five-stage-handoff/1', f'handoff schema: {directory}')
+159-            self.bound(case, handoff.get('outputs', []))
+160-        manifest = self.read(case / 'align/model/compcert-manifest.json')
+161-        self.require(manifest.get('backend') == 'compcert-csyntax-cexec', f'execution backend: {case}')
+162-        self.require(bool(manifest.get('target')) and bool(manifest.get('semantic_dependencies')),
+163-                     f'missing target/semantic dependencies: {case}')
+164-        self.bound(self.root, [manifest.get('source', {}), manifest.get('tool', {})])
+165-        self.bound(self.root, list(manifest.get('files', {}).values()))
+166-        self.bound(self.root, [{'path': name, 'sha256': digest}
+167-                              for name, digest in manifest.get('semantic_dependencies', {}).items()])
+168-        for name in ('no_error', 'termination', 'cbmc_recheck'):

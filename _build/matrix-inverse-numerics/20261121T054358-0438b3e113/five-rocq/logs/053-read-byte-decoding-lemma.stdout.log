@@ -1,0 +1,47 @@
+575-  | |- context [ Int.sign_ext _ (Int.zero_ext _ _) ] => rewrite Int.sign_ext_zero_ext by lia
+576-  end.
+577-
+578:Lemma decode_encode_val_general:
+579-  forall v chunk1 chunk2,
+580-  decode_encode_val v chunk1 chunk2 (decode_val chunk2 (encode_val chunk1 v)).
+581-Proof.
+582-Opaque inj_value.
+583-  intros.
+584-  destruct v; destruct chunk1 eqn:C1; try (apply decode_val_undef);
+585-  destruct chunk2 eqn:C2; unfold decode_encode_val, decode_val, encode_val, Val.load_result;
+586-  repeat solve_decode_encode_val_general.
+587-- rewrite Float.of_to_bits; auto.
+588-- rewrite Float32.of_to_bits; auto.
+589-Qed.
+590-
+591:Lemma decode_encode_val_similar:
+592-  forall v1 chunk1 chunk2 v2,
+593-  type_of_chunk chunk1 = type_of_chunk chunk2 ->
+594-  size_chunk chunk1 = size_chunk chunk2 ->
+595-  decode_encode_val v1 chunk1 chunk2 v2 ->
+596-  v2 = Val.load_result chunk2 v1.
+597-Proof.
+598-  intros until v2; intros TY SZ DE.
+599-  unfold decode_encode_val in DE; destruct chunk1; destruct chunk2;
+600-  simpl in TY; try discriminate; simpl in SZ; try extlia;
+601-  destruct v1; auto.
+602-Qed.
+603-
+604-Lemma decode_val_xtype:
+605-  forall chunk cl,
+606-  Val.has_rettype (decode_val chunk cl) (xtype_of_chunk chunk).
+607-Proof.
+608-  intros. unfold decode_val.
+609-  destruct (proj_bytes cl).
+610-- destruct chunk; simpl; rewrite ? Int.sign_ext_idem, ? Int.zero_ext_idem by lia; auto.
+611-  destruct (Val.norm_bool_cases (Vint (Int.zero_ext 8 (Int.repr (decode_int l))))) as [A | [A | A]]; rewrite A; simpl; auto.
+612-- Local Opaque Val.load_result.
+613-  destruct chunk, Archi.ptr64; (apply Val.load_result_xtype || exact I).
+614-Qed.
+615-
+616-Lemma decode_val_type:
+617-  forall chunk cl,
+618-  Val.has_type (decode_val chunk cl) (type_of_chunk chunk).
+619-Proof.
+620-  intros. rewrite <- proj_xtype_of_chunk.
+621-  apply Val.has_proj_xtype. apply decode_val_xtype.

@@ -1,0 +1,80 @@
+1458:Theorem storebytes_valid_access_1:
+1459-  forall chunk' b' ofs' p,
+1460-  valid_access m1 chunk' b' ofs' p -> valid_access m2 chunk' b' ofs' p.
+1461-Proof.
+1462-  intros. inv H. constructor; try red; auto with mem.
+1463-Qed.
+1464-
+1465-Theorem storebytes_valid_access_2:
+--
+1472:Local Hint Resolve storebytes_valid_access_1 storebytes_valid_access_2: mem.
+1473-
+1474-Theorem nextblock_storebytes:
+1475-  nextblock m2 = nextblock m1.
+1476-Proof.
+1477-  intros.
+1478-  unfold storebytes in STORE.
+1479-  destruct (range_perm_dec m1 b ofs (ofs + Z.of_nat (length bytes)) Cur Writable);
+--
+1550:Theorem load_storebytes_other:
+1551-  forall chunk b' ofs',
+1552-  b' <> b
+1553-  \/ ofs' + size_chunk chunk <= ofs
+1554-  \/ ofs + Z.of_nat (length bytes) <= ofs' ->
+1555-  load chunk m2 b' ofs' = load chunk m1 b' ofs'.
+1556-Proof.
+1557-  intros. unfold load.
+--
+1758:Theorem valid_access_alloc_same:
+1759-  forall chunk ofs,
+1760-  lo <= ofs -> ofs + size_chunk chunk <= hi -> (align_chunk chunk | ofs) ->
+1761-  valid_access m2 chunk b ofs Freeable.
+1762-Proof.
+1763-  intros. constructor; auto with mem.
+1764-  red; intros. apply perm_alloc_2. lia.
+1765-Qed.
+--
+1767:Local Hint Resolve valid_access_alloc_other valid_access_alloc_same: mem.
+1768-
+1769-Theorem valid_access_alloc_inv:
+1770-  forall chunk b' ofs p,
+1771-  valid_access m2 chunk b' ofs p ->
+1772-  if eq_block b' b
+1773-  then lo <= ofs /\ ofs + size_chunk chunk <= hi /\ (align_chunk chunk | ofs)
+1774-  else valid_access m1 chunk b' ofs p.
+--
+1835:Theorem loadbytes_alloc_unchanged:
+1836-  forall b' ofs n,
+1837-  valid_block m1 b' ->
+1838-  loadbytes m2 b' ofs n = loadbytes m1 b' ofs n.
+1839-Proof.
+1840-  intros. unfold loadbytes.
+1841-  destruct (range_perm_dec m1 b' ofs (ofs + n) Cur Readable).
+1842-  rewrite pred_dec_true.
+--
+1866:Local Hint Resolve valid_access_alloc_other valid_access_alloc_same: mem.
+1867-
+1868-(** ** Properties related to [free]. *)
+1869-
+1870-Theorem range_perm_free:
+1871-  forall m1 b lo hi,
+1872-  range_perm m1 b lo hi Cur Freeable ->
+1873-  { m2: mem | free m1 b lo hi = Some m2 }.
+--
+4634:  Mem.storebytes_valid_access_1
+4635-  Mem.storebytes_valid_access_2
+4636-  Mem.nextblock_storebytes
+4637-  Mem.storebytes_valid_block_1
+4638-  Mem.storebytes_valid_block_2
+4639-  Mem.nextblock_alloc
+4640-  Mem.alloc_result
+4641-  Mem.valid_block_alloc
+--
+4650:  Mem.valid_access_alloc_same
+4651-  Mem.valid_access_alloc_inv
+4652-  Mem.range_perm_free
+4653-  Mem.free_range_perm
+4654-  Mem.nextblock_free
+4655-  Mem.valid_block_free_1
+4656-  Mem.valid_block_free_2
+4657-  Mem.perm_free_1

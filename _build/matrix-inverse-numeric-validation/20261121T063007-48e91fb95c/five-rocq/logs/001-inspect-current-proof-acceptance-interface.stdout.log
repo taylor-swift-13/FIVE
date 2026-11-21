@@ -1,0 +1,86 @@
+68:def validate_current(root, problem, active, status):
+69-    from compcert_gate import kernel_record
+70-    root = Path(root).resolve()
+71-    path = active / 'evidence/goal-validation.json'
+72-    data = json.loads(path.read_text())
+73-    if data.get('schema') != 'five-proof-validation/1':
+74-        raise ValueError('unsupported current proof validation schema')
+75-    def checked(row):
+76-        if not isinstance(row, dict) or not isinstance(row.get('path'), str):
+77-            raise ValueError('malformed current binding')
+78-        source = (root / row['path']).resolve()
+79-        if not source.is_relative_to(root) or not source.is_file() or digest(source) != row.get('sha256'):
+80-            raise ValueError('stale/missing current binding: ' + str(source))
+81-        return source
+82-    index, historical = input_index(root, active)
+83-    if checked(data.get('index')) != index:
+84-        raise ValueError('wrong input index binding')
+85-    rows = data.get('inputs')
+86-    if not isinstance(rows, list) or not rows:
+87-        raise ValueError('missing current input bindings')
+88-    current, snapshots = {}, {}
+89-    for row in rows:
+90-        source = checked(row)
+91-        if source in current:
+92-            raise ValueError('duplicate current input')
+93-        current[source] = row['sha256']
+94-        if row.get('snapshot'):
+95-            snapshot = (root / row['snapshot']).resolve()
+96-            if not snapshot.is_relative_to(root) or not snapshot.is_file() or digest(snapshot) != row['sha256']:
+97-                raise ValueError('current source differs from compiled snapshot: ' + str(source))
+98-            if snapshot in snapshots:
+99-                raise ValueError('ambiguous compiled snapshot')
+100-            snapshots[snapshot] = source
+101-    required = set(historical) | {problem / 'Spec.v', active / 'Proof.v', active / 'check.py'}
+102-    if not required.issubset(current):
+103-        raise ValueError('current bindings omit indexed/proof/spec/checker inputs')
+104-    # Old manifest histories are immutable, but current executable sources must
+105-    # still match their original index as well as their fresh compiled snapshot.
+106-    for source, old_hash in historical.items():
+107-        if source.suffix in ('.v', '.c') and current[source] != old_hash:
+108-            raise ValueError('source differs from retained input index: ' + str(source))
+109-    if not {problem / 'Spec.v', active / 'Proof.v'}.issubset(set(snapshots.values())):
+110-        raise ValueError('current Proof/Spec missing compiled snapshots')
+111-    receipt_ref = data['kernel_evidence']
+112-    kernel_record(root, receipt_ref)
+113-    receipt = json.loads((root / receipt_ref).read_text())
+114-    dependencies = {(root / name).resolve(): value for name, value in receipt['dependency_sha256'].items()}
+115-    if set(dependencies) != set(snapshots):
+116-        raise ValueError('current source bindings do not cover exact kernel dependency closure')
+117-    if any(current[snapshots[p]] != value for p, value in dependencies.items()):
+118-        raise ValueError('kernel dependency hash differs from current source')
+119-    proof_run = json.loads((root / receipt['run'] / 'run.json').read_text())
+120-    def full_compile(command):
+121-        # Reference full-build shape only: load paths, harmless output flags,
+122-        # and exactly one source. Output/module overrides can leave stale .vo
+123-        # files at the path later consumed by the kernel, so fail closed.
+124-        argv = command.get('argv', [])
+125-        if not argv or command.get('status') != 'passed' or command.get('exit_code') != 0:
+126-            return False
+127-        if Path(argv[0]).name == 'rocq' and argv[1:2] == ['compile']:
+128-            args = argv[2:]
+129-        elif Path(argv[0]).name == 'coqc':
+130-            args = argv[1:]
+131-        else:
+132-            return False
+133-        sources = 0
+134-        i = 0
+135-        while i < len(args):
+136-            if args[i] in ('-Q', '-R') and i + 2 < len(args):
+137-                i += 3
+138-            elif args[i] == '-I' and i + 1 < len(args):
+139-                i += 2
+140-            elif args[i] in ('-q', '-quiet', '-time'):
+141-                i += 1
+142-            elif not args[i].startswith('-') and args[i].endswith('.v'):
+143-                sources += 1
+144-                i += 1
+145-            else:
+146-                return False
+147-        return sources == 1
+148-    compiled = set()
+149-    for command in proof_run.get('commands', []):
+150-        argv = command.get('argv', [])
+151-        if full_compile(command):
+152-            compiled.update((Path(command['cwd']) / arg).resolve() for arg in argv[1:] if arg.endswith('.v'))
+153-    if not set(dependencies).issubset(compiled):

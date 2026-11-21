@@ -1,0 +1,32 @@
+File "/home/yangfp/five/paparazzi/relations/matrix_inverse_scale/support/Witness.v", line 36, characters 12-37:
+Error:
+In environment
+n : Z
+xs : list (Z * float32)
+f : Z -> float32
+N : 0 < n
+LIMIT : 4 * n <= Ptrofs.modulus
+B : forall (i : Z) (x : float32), In (i, x) xs -> 0 <= i < n
+ND : NoDup (map fst xs)
+COVER : forall i : Z, 0 <= i < n -> In (i, f i) xs
+ma : Mem.mem'
+bo : block
+AO : Mem.alloc Mem.empty 0 (4 * n) = (ma, bo)
+mi : Mem.mem'
+bi : block
+AI : Mem.alloc ma 0 (4 * n) = (mi, bi)
+NE : bo <> bi
+WI : WriteRegion mi bi Ptrofs.zero n
+WO : WriteRegion mi bo Ptrofs.zero n
+m : mem
+WR : Writes mi bi (Ptrofs.unsigned Ptrofs.zero) xs m
+i : Z
+I : 0 <= i < n
+BYTES :
+  Mem.loadbytes m bi (4 * i) 4 = Some (encode_val Mfloat32 (Vsingle (f i)))
+LOAD :
+  Mem.load Mfloat32 m bi (4 * i) =
+  Some (decode_val Mfloat32 (encode_val Mfloat32 (Vsingle (f i))))
+Unable to unify "?v2 = Val.load_result ?chunk2 ?v1" with
+ "decode_val Mfloat32 (encode_val Mfloat32 (Vsingle (f i))) = Vsingle (f i)".
+

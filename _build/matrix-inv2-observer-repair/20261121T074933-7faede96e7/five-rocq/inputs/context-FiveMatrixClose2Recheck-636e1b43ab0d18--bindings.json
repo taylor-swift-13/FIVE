@@ -1,0 +1,338 @@
+{
+  "schema": "five-source-bindings/1",
+  "entry": "float_mat_inv_2d",
+  "entry_signature": "bool float_mat_inv_2d(float inv_out[4], const float mat_in[4])",
+  "original_source": {
+    "path": "_build/paparazzi/upstream/sw/airborne/math/pprz_algebra_float.c",
+    "sha256": "68f0476a5cdfef046f71e11eed7146aef2e14d9ed2d2f3a140bd8f5c46b39c00",
+    "repository": "https://github.com/paparazzi/paparazzi",
+    "commit": "abfee3dd56eeab12c528635504a429db3daf409a"
+  },
+  "prepared_source": {
+    "path": "prepare/source/float_mat_inv_2d.c",
+    "sha256": "5ff0fbc7d7284628788464d5b8d505756da59d0cddba3b97afe2a7c8d25b85e4"
+  },
+  "preparation": "Exact selected entry body; unrelated functions removed; standard header dependency closure retained. Copyright/license notice retained.",
+  "dependencies": [
+    {
+      "header": "stdbool.h",
+      "required": "bool",
+      "actual_header_sha256": [
+        {
+          "path": "/home/yangfp/.opam/five/lib/compcert/include/stdbool.h",
+          "sha256": "538dd2199192325ca856e5186576e0d4e6330b260aee28d939290cc9c21b2f9d"
+        },
+        {
+          "path": "/usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h",
+          "sha256": "41031ce86be4980880bc346e81b4beac61f78b46ad8010a81e1b4a107b81f7c4"
+        }
+      ]
+    },
+    {
+      "header": "math.h",
+      "required": "fabsf",
+      "actual_header_sha256": [
+        {
+          "path": "/usr/include/math.h",
+          "sha256": "0ef4474f13d4ffa8be9ef726a1a1ca1b392d1590bb44fca1e208df3c65c8cf78"
+        },
+        {
+          "path": "/usr/include/math.h",
+          "sha256": "0ef4474f13d4ffa8be9ef726a1a1ca1b392d1590bb44fca1e208df3c65c8cf78"
+        }
+      ]
+    }
+  ],
+  "target": {
+    "semantics": "CompCert Csem/Cexec",
+    "version": "3.17",
+    "arch": "x86",
+    "model": "64",
+    "abi": "standard",
+    "bitsize": 64,
+    "system": "linux",
+    "endianness": "little",
+    "float32": "IEEE754 binary32",
+    "rounding": "round-to-nearest-ties-to-even"
+  },
+  "c_dialect": "C99 declarations and bool, actual tool defaults retained",
+  "preprocessor_arguments": [],
+  "frontend_options": [],
+  "external_call_bindings": [
+    {
+      "original": "fabsf",
+      "actual": "__builtin_fabsf",
+      "kind": "recognized standard compiler intrinsic",
+      "semantics": "Float32.abs with original single signature"
+    }
+  ],
+  "redirections": [
+    {
+      "call": "fabsf",
+      "actual": "__builtin_fabsf",
+      "implementation_source": "CompCert Builtins0.v BI_fabsf",
+      "reason": "Plain libm declarations remain EF_external in actual Csyntax; standard intrinsic supplies genuine supported operation. No uninterpreted oracle."
+    }
+  ],
+  "external_environment": [],
+  "call_closure": {
+    "entry": "float_mat_inv_2d",
+    "function_definitions": [
+      "float_mat_inv_2d"
+    ],
+    "direct_callees": [
+      "fabsf"
+    ],
+    "indirect_calls": [],
+    "global_variables": [],
+    "required_headers_or_macros": [
+      "stdbool.h",
+      "math.h"
+    ]
+  },
+  "correspondence_obligations": [
+    "Source extraction and frontend trust boundary",
+    "Preserve fabs casts, literal types, all operation order, NaN and signedzero semantics",
+    "Rocq rechecks actual CBMC results independently",
+    "This explicitly bound source has original entry body; transfer to a different original libm requires an implementation correspondence, especially NaN behavior."
+  ],
+  "dependency_provenance": {
+    "compcert_preprocessing": {
+      "artifact": "paparazzi/models/float_mat_inv_2d/align/model/preprocessed.i",
+      "sha256": "02851134430cf986a9ca7d3fd0f42e646a0077ee7fc3770b5ffa0f5edaff17f3",
+      "headers": [
+        {
+          "path": "/home/yangfp/.opam/five/lib/compcert/include/stdbool.h",
+          "sha256": "538dd2199192325ca856e5186576e0d4e6330b260aee28d939290cc9c21b2f9d"
+        },
+        {
+          "path": "/usr/include/features-time64.h",
+          "sha256": "f204758482abaeaf9a9c49f0054c1ac19c5804c82b6d4d249ae0329ec293c973"
+        },
+        {
+          "path": "/usr/include/features.h",
+          "sha256": "dcd1855804e2c64d528adb4c9c36f1567c67472a47654d4302d61b32eacd294b"
+        },
+        {
+          "path": "/usr/include/math.h",
+          "sha256": "0ef4474f13d4ffa8be9ef726a1a1ca1b392d1590bb44fca1e208df3c65c8cf78"
+        },
+        {
+          "path": "/usr/include/stdc-predef.h",
+          "sha256": "cb08cd5d4cc059a90833ac48a284d25016e8d56ded8ad4cd98d8ac59cc5053f3"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+          "sha256": "b1771979c423d48dcee05c003f4129eac327519147bc1bda4cd5b9f5510d9d13"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+          "sha256": "c13c6ab4b497636b1c810b93ffd176f2ef1b24bade870aff154350da251c0b47"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/flt-eval-method.h",
+          "sha256": "ccd26727791c4045e8e3a077895c12090c03f146b01c4a864b223a08ef73bc9c"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/fp-fast.h",
+          "sha256": "439d76cfe0bf5b3cdab0fc4aca87759b09a49b8043586a460b7d0e4a5c8d61f5"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/fp-logb.h",
+          "sha256": "d10ee79c6bde59505f0b588741e9a64d4a57b5568d11d75f79f104220a6bca86"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+          "sha256": "2f1c081f8d5940640addc9daaf9552f65e38f86eac744e6d7c76bddb0f7969f2"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h",
+          "sha256": "85555dfe29a5841ad1f5412350fed4c14373b7452995e500db57ba7d21127409"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/long-double.h",
+          "sha256": "de8ef43fbb73a2525346914ce91fd9e72bb5c1040ae2ac739569001220e2da8d"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/math-vector.h",
+          "sha256": "e9da2f63100be2e2d665f0165be33c29e925c6b76ff243b87b99bf4ddbcea92d"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h",
+          "sha256": "c5f7141d7c6c3ac2a132528c56d2a712bd0304dfc205a0f0f0fd8fa59021f757"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/mathcalls.h",
+          "sha256": "bb2f279f45b98be7fadcb1b6df9c6eeb121d77fd1a256b0a4fa91180d16d0ac3"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/time64.h",
+          "sha256": "5f423dcbb2c2969085506456ff16788d8d7d0a430d994fc18fec4780e68dba39"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+          "sha256": "b675674807d56aa8b0c97ce136e70bfc27bf49c72ec49f4de9f273202604c0ef"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/types.h",
+          "sha256": "cd152b6a5b70db5ff301e428b13e7a02d64dde93c4ae0a7879378dc04fd4fbcd"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/typesizes.h",
+          "sha256": "5663fc72923363ef9bffe3fbbafa3ca9b94da2d5aadae781dd6f6da5e435a9c6"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/wordsize.h",
+          "sha256": "716d8459074e2a082d65a28192b32eddbfd7587348372395b1c283a723ae4c18"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h",
+          "sha256": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+          "sha256": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+          "sha256": "8a068582a598badb96c25adb724c7d33769fa7e456ad7e3b996699716544538b"
+        }
+      ],
+      "tool": {
+        "path": "/home/yangfp/.opam/five/bin/clightgen",
+        "sha256": "8064763950950ec9e48f44698ba056bb0cb53690e2a35c0c70bb148bdabdb7f2"
+      },
+      "version": "3.17"
+    },
+    "cbmc_preprocessing": {
+      "artifact": "_build/matrix-inverse-numerics/20261121T054358-0438b3e113/five-rocq/logs/048-actual-cbmc-inv2-header-preprocessing.stdout.log",
+      "sha256": "d41b7138001d80cf1b155a9bd98821bd3b0bea93661c72f3a6cf52161be3b7bb",
+      "headers": [
+        {
+          "path": "/usr/include/features-time64.h",
+          "sha256": "f204758482abaeaf9a9c49f0054c1ac19c5804c82b6d4d249ae0329ec293c973"
+        },
+        {
+          "path": "/usr/include/features.h",
+          "sha256": "dcd1855804e2c64d528adb4c9c36f1567c67472a47654d4302d61b32eacd294b"
+        },
+        {
+          "path": "/usr/include/math.h",
+          "sha256": "0ef4474f13d4ffa8be9ef726a1a1ca1b392d1590bb44fca1e208df3c65c8cf78"
+        },
+        {
+          "path": "/usr/include/stdc-predef.h",
+          "sha256": "cb08cd5d4cc059a90833ac48a284d25016e8d56ded8ad4cd98d8ac59cc5053f3"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+          "sha256": "b1771979c423d48dcee05c003f4129eac327519147bc1bda4cd5b9f5510d9d13"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+          "sha256": "c13c6ab4b497636b1c810b93ffd176f2ef1b24bade870aff154350da251c0b47"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/flt-eval-method.h",
+          "sha256": "ccd26727791c4045e8e3a077895c12090c03f146b01c4a864b223a08ef73bc9c"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/fp-fast.h",
+          "sha256": "439d76cfe0bf5b3cdab0fc4aca87759b09a49b8043586a460b7d0e4a5c8d61f5"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/fp-logb.h",
+          "sha256": "d10ee79c6bde59505f0b588741e9a64d4a57b5568d11d75f79f104220a6bca86"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+          "sha256": "2f1c081f8d5940640addc9daaf9552f65e38f86eac744e6d7c76bddb0f7969f2"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h",
+          "sha256": "85555dfe29a5841ad1f5412350fed4c14373b7452995e500db57ba7d21127409"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/long-double.h",
+          "sha256": "de8ef43fbb73a2525346914ce91fd9e72bb5c1040ae2ac739569001220e2da8d"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/math-vector.h",
+          "sha256": "e9da2f63100be2e2d665f0165be33c29e925c6b76ff243b87b99bf4ddbcea92d"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h",
+          "sha256": "c5f7141d7c6c3ac2a132528c56d2a712bd0304dfc205a0f0f0fd8fa59021f757"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/mathcalls.h",
+          "sha256": "bb2f279f45b98be7fadcb1b6df9c6eeb121d77fd1a256b0a4fa91180d16d0ac3"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/time64.h",
+          "sha256": "5f423dcbb2c2969085506456ff16788d8d7d0a430d994fc18fec4780e68dba39"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+          "sha256": "b675674807d56aa8b0c97ce136e70bfc27bf49c72ec49f4de9f273202604c0ef"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/types.h",
+          "sha256": "cd152b6a5b70db5ff301e428b13e7a02d64dde93c4ae0a7879378dc04fd4fbcd"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/typesizes.h",
+          "sha256": "5663fc72923363ef9bffe3fbbafa3ca9b94da2d5aadae781dd6f6da5e435a9c6"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/bits/wordsize.h",
+          "sha256": "716d8459074e2a082d65a28192b32eddbfd7587348372395b1c283a723ae4c18"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h",
+          "sha256": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+          "sha256": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e"
+        },
+        {
+          "path": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+          "sha256": "8a068582a598badb96c25adb724c7d33769fa7e456ad7e3b996699716544538b"
+        },
+        {
+          "path": "/usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h",
+          "sha256": "41031ce86be4980880bc346e81b4beac61f78b46ad8010a81e1b4a107b81f7c4"
+        }
+      ],
+      "tool_argv": [
+        "/home/yangfp/five/.tools/cbmc/usr/bin/cbmc",
+        "/home/yangfp/five/paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c",
+        "--preprocess",
+        "--64",
+        "--little-endian"
+      ],
+      "command_id": "048-actual-cbmc-inv2-header-preprocessing",
+      "run": "_build/matrix-inverse-numerics/20261121T054358-0438b3e113/five-rocq"
+    },
+    "intrinsic_semantics": [
+      {
+        "path": "/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/common/Builtins0.v",
+        "sha256": "2aa57275f929fbd5c9e540b4cf72ee8c693abb959ba65a9142d7277d44df4e00"
+      },
+      {
+        "path": "/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/cfrontend/Cop.v",
+        "sha256": "adac91162faf39ef65202b6d45a6c95326a293fd4dad481dd2c232abf9369805"
+      },
+      {
+        "path": "/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/lib/Floats.v",
+        "sha256": "f8a891fe148786032b01725bf3760b4b1e4327d9321cdb20842c7d1093f84956"
+      },
+      {
+        "path": "/home/yangfp/.opam/five/lib/coq/user-contrib/compcert/x86_64/Archi.v",
+        "sha256": "d695b51ad6f25448c9ea4257cf6045f7d3356bcbdd1f213daea76258227c76e4"
+      }
+    ],
+    "note": "Actual full preprocessing text binds all macro-expanded declarations/constants. Every actual file marker header is hash-bound. Built-in virtual markers are bound by recorded compiler executable/target. Standard libc declarations are not an implementation equivalence proof."
+  }
+}

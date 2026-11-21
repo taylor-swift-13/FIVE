@@ -1,0 +1,24 @@
+Definition f_ff := {|
+  fn_return := tfloat;
+  fn_callconv := cc_default;
+  fn_params := ((_x, tfloat) :: nil);
+  fn_vars := nil;
+  fn_body :=
+(Sreturn (Some (Ecall
+                 (Evalof
+                   (Evar ___builtin_fabsf (Tfunction (tfloat :: nil) tfloat
+                                            cc_default))
+                   (Tfunction (tfloat :: nil) tfloat cc_default))
+                 (Econs (Evalof (Evar _x tfloat) tfloat) Enil) tfloat)))
+|}.
+
+Definition f_fd := {|
+  fn_return := tdouble;
+  fn_callconv := cc_default;
+  fn_params := ((_x, tdouble) :: nil);
+  fn_vars := nil;
+  fn_body :=
+(Sreturn (Some (Eunop Oabsfloat (Evalof (Evar _x tdouble) tdouble) tdouble)))
+|}.
+
+

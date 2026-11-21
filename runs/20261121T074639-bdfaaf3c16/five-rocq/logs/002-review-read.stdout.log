@@ -1,0 +1,97 @@
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/attempts/001/check.py SHA256 4f56f1561116b285b89fb4d989a40de9bcd569f41efd94350f294a692a7f3e68
+1: #!/usr/bin/env python3
+2: """Rebuild the frozen project closure and certify all exact requested goals."""
+3: from pathlib import Path
+4: import argparse,importlib.util,json
+5: root=Path(__file__).resolve().parents[7]
+6: attempt=Path(__file__).resolve().parent
+7: parser=argparse.ArgumentParser();parser.add_argument('--record-run');args=parser.parse_args()
+8: spec=importlib.util.spec_from_file_location('five_matrix_checker',root/'paparazzi/report/quat_rotation_paths/evidence_tools.py')
+9: checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
+10: config=json.loads((attempt/'checker-config.json').read_text());config['root']=str(root)
+11: if not args.record_run:config.pop('build',None)
+12: print(json.dumps(checker.check(config,record_run=args.record_run),indent=2))
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/support/Expression.v SHA256 bd7408beea56621324e0a2d8b1deb397454f74391b826a9c3fdfbb9ec7b76286
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Coqlib Errors Maps Integers Floats AST Values Memory Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec.
+3: From FiveGuidanceAllOrder Require Import PureDenotation AtomicDenotation CallfreeExecution.
+4: From FivePprzFloatMatInv3d Require Import Source Execution.
+5: From FiveMatInv3Case Require Import MatrixMemory MatrixAccess Scalar LocalMemory.
+6: Import ListNotations.
+7: Local Open Scope Z_scope.
+8: Lemma rval_add:forall e m a b x y,
+9:  typeof a=tfloat->typeof b=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m b=Some(Vsingle y)->
+10:  pure_rval Execution.ge e m(Ebinop Oadd a b tfloat)=Some(Vsingle(Float32.add x y)).
+11: Proof. intros;change(match pure_rval Execution.ge e m a,pure_rval Execution.ge e m b with Some v,Some w=>sem_binary_operation Execution.ge Oadd v(typeof a)w(typeof b)m|_,_=>None end=Some(Vsingle(Float32.add x y)));rewrite H,H0,H1,H2;reflexivity. Qed.
+12: Lemma rval_sub:forall e m a b x y,
+13:  typeof a=tfloat->typeof b=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m b=Some(Vsingle y)->
+14:  pure_rval Execution.ge e m(Ebinop Osub a b tfloat)=Some(Vsingle(Float32.sub x y)).
+15: Proof. intros;change(match pure_rval Execution.ge e m a,pure_rval Execution.ge e m b with Some v,Some w=>sem_binary_operation Execution.ge Osub v(typeof a)w(typeof b)m|_,_=>None end=Some(Vsingle(Float32.sub x y)));rewrite H,H0,H1,H2;reflexivity. Qed.
+16: Lemma rval_mul:forall e m a b x y,
+17:  typeof a=tfloat->typeof b=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m b=Some(Vsingle y)->
+18:  pure_rval Execution.ge e m(Ebinop Omul a b tfloat)=Some(Vsingle(Float32.mul x y)).
+19: Proof. intros;change(match pure_rval Execution.ge e m a,pure_rval Execution.ge e m b with Some v,Some w=>sem_binary_operation Execution.ge Omul v(typeof a)w(typeof b)m|_,_=>None end=Some(Vsingle(Float32.mul x y)));rewrite H,H0,H1,H2;reflexivity. Qed.
+20: Lemma rval_div:forall e m a b x y,
+21:  typeof a=tfloat->typeof b=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->pure_rval Execution.ge e m b=Some(Vsingle y)->
+22:  pure_rval Execution.ge e m(Ebinop Odiv a b tfloat)=Some(Vsingle(Float32.div x y)).
+23: Proof. intros;change(match pure_rval Execution.ge e m a,pure_rval Execution.ge e m b with Some v,Some w=>sem_binary_operation Execution.ge Odiv v(typeof a)w(typeof b)m|_,_=>None end=Some(Vsingle(Float32.div x y)));rewrite H,H0,H1,H2;reflexivity. Qed.
+24: Lemma rval_neg:forall e m a x,typeof a=tfloat->pure_rval Execution.ge e m a=Some(Vsingle x)->
+25:  pure_rval Execution.ge e m(Eunop Oneg a tfloat)=Some(Vsingle(Float32.neg x)).
+26: Proof. intros;change(match pure_rval Execution.ge e m a with Some v=>sem_unary_operation Oneg v(typeof a)m|_=>None end=Some(Vsingle(Float32.neg x)));rewrite H,H0;reflexivity. Qed.
+27: Ltac fp_value C:=lazymatch goal with
+28:  | |- pure_rval _ _ _ (Ebinop Oadd _ _ _)=_=>eapply rval_add;[reflexivity|reflexivity|fp_value C|fp_value C]
+29:  | |- pure_rval _ _ _ (Ebinop Osub _ _ _)=_=>eapply rval_sub;[reflexivity|reflexivity|fp_value C|fp_value C]
+30:  | |- pure_rval _ _ _ (Ebinop Omul _ _ _)=_=>eapply rval_mul;[reflexivity|reflexivity|fp_value C|fp_value C]
+31:  | |- pure_rval _ _ _ (Ebinop Odiv _ _ _)=_=>eapply rval_div;[reflexivity|reflexivity|fp_value C|fp_value C]
+32:  | |- pure_rval _ _ _ (Eunop Oneg _ _)=_=>eapply rval_neg;[reflexivity|fp_value C]
+33:  | |- pure_rval _ _ _ (MatrixVal _ _ _ _)=_=>eapply matrix_value;[eassumption|exact(core_inptr _ _ _ _ _ _ _ _ _ _ C)|exact(core_reads _ _ _ _ _ _ _ _ _ _ C)|right;reflexivity|vm_compute;intuition discriminate|vm_compute;intuition discriminate]
+34:  | |- pure_rval _ _ _ (Local _)=_=>eapply known_value;[exact(core_known _ _ _ _ _ _ _ _ _ _ C)|reflexivity]
+35:  end.
+36: Lemma prefix_valid:forall e bpo bpi bo bi po pi f,
+37:  e!Source._mat_in=Some(bpi,tptr(tarray tfloat 3))->
+38:  PrefixValid e bpo bpi bo bi po pi f(PTree.empty float32)Prefix(LocalResults f).
+39: Proof.
+40:  intros e bpo bpi bo bi po pi f EI;unfold Prefix,LocalResults;cbn[PrefixValid].
+41:  split;[reflexivity|];split;[reflexivity|];split.
+42:  { intros m C;unfold M00,MinExpr,FBin,Inp;fp_value C. }
+43:  split;[reflexivity|];split;[reflexivity|];split.
+44:  { intros m C;unfold M10,MinExpr,FBin,Inp;fp_value C. }
+45:  split;[reflexivity|];split;[reflexivity|];split.
+46:  { intros m C;unfold M20,MinExpr,FBin,Inp;fp_value C. }
+47:  split;[reflexivity|];split;[reflexivity|];split.
+48:  { intros m C;unfold M01,MinExpr,FBin,Inp;fp_value C. }
+49:  split;[reflexivity|];split;[reflexivity|];split.
+50:  { intros m C;unfold M11,MinExpr,FBin,Inp;fp_value C. }
+51:  split;[reflexivity|];split;[reflexivity|];split.
+52:  { intros m C;unfold M21,MinExpr,FBin,Inp;fp_value C. }
+53:  split;[reflexivity|];split;[reflexivity|];split.
+54:  { intros m C;unfold M02,MinExpr,FBin,Inp;fp_value C. }
+55:  split;[reflexivity|];split;[reflexivity|];split.
+56:  { intros m C;unfold M12,MinExpr,FBin,Inp;fp_value C. }
+57:  split;[reflexivity|];split;[reflexivity|];split.
+58:  { intros m C;unfold M22,MinExpr,FBin,Inp;fp_value C. }
+59:  split;[reflexivity|];split;[reflexivity|];split.
+60:  { intros m C;unfold Det,MinExpr,FBin,Inp;fp_value C. }
+61:  exact I.
+62: Qed.
+63: Lemma guard_value:forall e bpo bpi bo bi po pi f m,
+64:  Core e bpo bpi bo bi po pi f(Updated(PTree.empty float32)(LocalResults f))m->
+65:  pure_rval Execution.ge e m Guard=Some(Val.of_bool(Accept f)).
+66: Proof.
+67:  intros e bpo bpi bo bi po pi f m C.
+68:  assert(D:pure_rval Execution.ge e m(Local Source._det)=Some(Vsingle(Det f))).
+69:  { eapply known_value;[exact(core_known _ _ _ _ _ _ _ _ _ _ C)|reflexivity]. }
+70:  change(match(match pure_rval Execution.ge e m(Local Source._det)with Some v=>sem_unary_operation Oabsfloat v tfloat m|None=>None end)with Some v=>sem_binary_operation Execution.ge Ogt v tdouble(Vsingle(Float32.of_bits(Int.repr 872415232)))tfloat m|None=>None end=Some(Val.of_bool(Accept f))).
+71:  rewrite D;reflexivity.
+72: Qed.
+73: Print Assumptions prefix_valid.
+74: Print Assumptions guard_value.
+
+FILE scripts/env.sh SHA256 7f7da48d4bbc0e121e16374b050a67a3c79b9b87ae98c8a0c0737eb1d7db4d5a
+1: # Source this file from bash: source scripts/env.sh
+2: FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+3: export FIVE_ROOT
+4: eval "$(opam env --switch=five --set-switch)"
+5: export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"

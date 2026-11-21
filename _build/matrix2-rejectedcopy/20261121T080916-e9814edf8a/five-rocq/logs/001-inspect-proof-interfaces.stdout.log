@@ -1,0 +1,1380 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.
+Import ListNotations.
+Local Open Scope Z_scope.
+Record CopyPre(m:mem)(src dst:block):Prop := {
+ copy_separated:src<>dst;
+ copy_readable:Mem.range_perm m src 0 16 Cur Readable;
+ copy_writable:Mem.range_perm m dst 0 16 Cur Writable
+}.
+Record MemcpySafety(m:mem)(src dst:block):Prop := {
+ pointer_1:src<>dst;
+ pointer_arithmetic_1:Mem.valid_pointer m src 0=true;
+ pointer_arithmetic_2:Mem.weak_valid_pointer m dst 16=true;
+ pointer_2:dst<>src;
+ pointer_arithmetic_3:Mem.valid_pointer m dst 0=true;
+ pointer_arithmetic_4:Mem.weak_valid_pointer m src 16=true;
+ precondition_1:src<>dst \/ 0+16<=0 \/0+16<=0;
+ precondition_2:Mem.range_perm m src 0 16 Cur Readable;
+ precondition_3:Mem.range_perm m dst 0 16 Cur Writable
+}.
+Definition CopyFrame(m mf:mem)(dst:block):Prop :=forall b ofs n,
+ b<>dst \/ofs+n<=0 \/16<=ofs ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Lemma copy_pre_safety:forall m src dst,CopyPre m src dst->MemcpySafety m src dst.
+Proof.
+ intros m src dst[NE RD WR];constructor;auto.
+ - apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RD;lia|constructor].
+ - apply Mem.weak_valid_pointer_spec;right;apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply WR;change(0<=16-1<16);lia|constructor].
+ - apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply WR;lia|constructor].
+ - apply Mem.weak_valid_pointer_spec;right;apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RD;change(0<=16-1<16);lia|constructor].
+Qed.
+Theorem copy16_exact:forall se m src dst,CopyPre m src dst->
+ exists mf bytes,MemcpySafety m src dst /\Mem.loadbytes m src 0 16=Some bytes /\length bytes=16%nat /\
+ Mem.storebytes m dst 0 bytes=Some mf /\
+ extcall_memcpy_sem 16 1 se[Vptr dst Ptrofs.zero;Vptr src Ptrofs.zero]m E0 Vundef mf /\
+ Mem.loadbytes mf dst 0 16=Some bytes /\CopyFrame m mf dst.
+Proof.
+ intros se m src dst P;destruct(Mem.range_perm_loadbytes m src 0 16(copy_readable _ _ _ P))as[bytes READ].
+ pose proof(Mem.loadbytes_length _ _ _ _ _ READ)as LEN;change(length bytes=16%nat)in LEN.
+ assert(W:Mem.range_perm m dst 0(0+Z.of_nat(length bytes))Cur Writable)by(rewrite LEN;exact(copy_writable _ _ _ P)).
+ destruct(Mem.range_perm_storebytes _ _ _ _ W)as[mf STORE].
+ exists mf,bytes;split;[apply copy_pre_safety;exact P|];split;[exact READ|];split;[exact LEN|];split;[exact STORE|];split.
+ - econstructor;try rewrite Ptrofs.unsigned_zero;try exact READ;try exact STORE;try(left;reflexivity);try lia;try(exists 16;reflexivity);try(intros;exists 0;reflexivity);left;exact(copy_separated _ _ _ P).
+ - split.
+   + pose proof(Mem.loadbytes_storebytes_same _ _ _ _ _ STORE)as H;rewrite LEN in H;exact H.
+   + intros b ofs n OUT;destruct(zle n 0).
+     * repeat rewrite Mem.loadbytes_empty by assumption;reflexivity.
+     * eapply Mem.loadbytes_storebytes_other;[exact STORE|lia|];rewrite LEN;exact OUT.
+Qed.
+Lemma copy16_preserves_pre:forall m mf changed src dst bytes,
+ Mem.storebytes m changed 0 bytes=Some mf->src<>changed->dst<>changed->CopyPre m src dst->CopyPre mf src dst.
+Proof. intros m mf changed src dst bytes ST SC DC[NE RD WR];constructor;auto.
+ - intros z B;eapply Mem.perm_storebytes_1;[exact ST|apply RD;exact B].
+ - intros z B;eapply Mem.perm_storebytes_1;[exact ST|apply WR;exact B]. Qed.
+Theorem two_copy16_exact:forall se m sa da sb db,
+ CopyPre m sa da->CopyPre m sb db->sb<>da->db<>da->
+ exists ma mb ba bb,MemcpySafety m sa da /\MemcpySafety ma sb db /\
+ Mem.loadbytes m sa 0 16=Some ba /\Mem.loadbytes ma sb 0 16=Some bb /\
+ Mem.storebytes m da 0 ba=Some ma /\Mem.storebytes ma db 0 bb=Some mb /\
+ extcall_memcpy_sem 16 1 se[Vptr da Ptrofs.zero;Vptr sa Ptrofs.zero]m E0 Vundef ma /\
+ extcall_memcpy_sem 16 1 se[Vptr db Ptrofs.zero;Vptr sb Ptrofs.zero]ma E0 Vundef mb /\
+ Mem.loadbytes mb da 0 16=Some ba /\Mem.loadbytes mb db 0 16=Some bb /\
+ CopyFrame m ma da /\CopyFrame ma mb db.
+Proof.
+ intros se m sa da sb db PA PB SD DD.
+ destruct(copy16_exact se m sa da PA)as[ma[ba[SAFEA[RA[LA[SA[CA[BA FA]]]]]]]].
+ assert(PB':CopyPre ma sb db)by(eapply copy16_preserves_pre;eauto).
+ destruct(copy16_exact se ma sb db PB')as[mb[bb[SAFEB[RB[LB[SB[CB[BB FB]]]]]]]].
+ exists ma,mb,ba,bb;split;[exact SAFEA|];split;[exact SAFEB|];split;[exact RA|];split;[exact RB|];split;[exact SA|];split;[exact SB|];split;[exact CA|];split;[exact CB|];split.
+ - rewrite(FB da 0 16 ltac:(left;congruence));exact BA.
+ - split;[exact BB|];split;assumption.
+Qed.
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveMatInv3Case Require Import MatrixMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition Det(f:Z->float32):float32 := Float32.sub(Float32.mul(f 0)(f 3))(Float32.mul(f 1)(f 2)).
+Definition Reject(f:Z->float32):bool := Float.cmp Clt(Float.of_single(Float32.abs(Det f)))(Float.of_bits(Int64.repr 4547007122018943789)).
+Definition Result(f:Z->float32):val := Vint(if Reject f then Int.one else Int.zero).
+Definition Output(f:Z->float32)(i:Z):float32 :=
+ if Z.eq_dec i 0 then Float32.div(f 3)(Det f) else
+ if Z.eq_dec i 1 then Float32.div(Float32.neg(f 1))(Det f) else
+ if Z.eq_dec i 2 then Float32.div(Float32.neg(f 2))(Det f) else Float32.div(f 0)(Det f).
+Definition Outputs(f:Z->float32):list(Z*float32):=[(0,Output f 0);(1,Output f 1);(2,Output f 2);(3,Output f 3)].
+Definition Args(bo bi:block)(po pi:ptrofs):list val := [Vptr bo po;Vptr bi pi].
+Definition Inputs(m:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ bo<>bi /\ WriteRegion m bo po 4 /\ Reads m bi pi 4 f.
+Definition Precondition(args:list val)(m:mem):Prop := exists bo bi po pi f,args=Args bo bi po pi /\ Inputs m bo bi po pi f.
+Definition Frame(m mf:mem)(bo:block)(po:ptrofs):Prop := forall b z n,Mem.valid_block m b->
+ b<>bo \/ z+n<=Ptrofs.unsigned po \/ Ptrofs.unsigned po+16<=z ->Mem.loadbytes mf b z n=Mem.loadbytes m b z n.
+Definition Encoded(f:Z->float32):list memval :=
+ encode_val Mfloat32(Vsingle(Output f 0))++encode_val Mfloat32(Vsingle(Output f 1))++
+ encode_val Mfloat32(Vsingle(Output f 2))++encode_val Mfloat32(Vsingle(Output f 3)).
+Definition Post(m mf:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ WriteRegion mf bo po 4 /\ Reads mf bi pi 4 f /\ Frame m mf bo po /\
+ (forall b,Mem.valid_block m b->Mem.valid_block mf b) /\
+ (Mem.loadbytes mf bo(Ptrofs.unsigned po)16=
+ if Reject f then Mem.loadbytes m bo(Ptrofs.unsigned po)16 else Some(Encoded f)) /\
+ (forall ch b z perm,Mem.valid_block m b->Mem.valid_access m ch b z perm->Mem.valid_access mf ch b z perm).
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FiveInv2Case Require Import Memcpy16.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma append_cut:forall(A:Type)(a b c d:list A),length a=length c->a++b=c++d->a=c /\b=d.
+Proof. intros A a;induction a as[|x a IH];intros b c d LEN EQ;destruct c as[|y c];simpl in LEN;try discriminate.
+ - simpl in EQ;auto.
+ - simpl in EQ;injection EQ as XY EQ;subst y;destruct(IH b c d ltac:(lia)EQ)as[-> ->];auto. Qed.
+Lemma same_bytes_cell:forall m1 b1 m2 b2 bytes z,
+ Mem.loadbytes m1 b1 0 16=Some bytes->Mem.loadbytes m2 b2 0 16=Some bytes->0<=z->z+4<=16->
+ Mem.loadbytes m1 b1 z 4=Mem.loadbytes m2 b2 z 4.
+Proof.
+ intros m1 b1 m2 b2 bytes z A B Z LIMIT.
+ replace 16 with(z+(16-z))in A,B by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ A ltac:(lia)ltac:(lia))as[a[rest[RA[RR EA]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ B ltac:(lia)ltac:(lia))as[c[tail[RC[RT EC]]]].
+ assert(L:length a=length c)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RA),(Mem.loadbytes_length _ _ _ _ _ RC);reflexivity).
+ destruct(append_cut _ a rest c tail L ltac:(congruence))as[_ EQ];subst tail.
+ replace(0+z)with z in RR,RT by lia.
+ replace(16-z)with(4+(12-z))in RR,RT by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RR ltac:(lia)ltac:(lia))as[d[ds[RD[RDS ED]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RT ltac:(lia)ltac:(lia))as[f[fs[RF[RFS EF]]]].
+ assert(L':length d=length f)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RD),(Mem.loadbytes_length _ _ _ _ _ RF);reflexivity).
+ destruct(append_cut _ d ds f fs L' ltac:(congruence))as[EQ _];subst f;congruence.
+Qed.
+Lemma memcpy_word_observation:forall m src dst mf bytes f,
+ Mem.loadbytes m src 0 16=Some bytes->Mem.storebytes m dst 0 bytes=Some mf->
+ (forall i,0<=i<4->Mem.loadbytes m src(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))->
+ forall i,0<=i<4->Mem.load Mint32 mf dst(4*i)=Some(Vint(Float32.to_bits(f i))).
+Proof.
+ intros m src dst mf bytes f RD ST CELLS i I.
+ pose proof(Mem.loadbytes_length _ _ _ _ _ RD)as LEN;change(length bytes=16%nat)in LEN.
+ pose proof(Mem.loadbytes_storebytes_same _ _ _ _ _ ST)as ALL;rewrite LEN in ALL;change(Mem.loadbytes mf dst 0 16=Some bytes)in ALL.
+ pose proof(same_bytes_cell m src mf dst bytes(4*i)RD ALL ltac:(lia)ltac:(lia))as EQ.
+ assert(C:Mem.loadbytes mf dst(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))by(rewrite <-EQ;apply CELLS;exact I).
+ pose proof(Mem.loadbytes_load Mint32 mf dst(4*i)_ C ltac:(change(4|4*i);exists i;lia))as LOAD.
+ pose proof(decode_encode_val_general(Vsingle(f i))Mfloat32 Mint32)as DE.
+ change(decode_val Mint32(encode_val Mfloat32(Vsingle(f i)))=Vint(Float32.to_bits(f i)))in DE;rewrite DE in LOAD;exact LOAD.
+Qed.
+Print Assumptions memcpy_word_observation.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Ctypes Csem Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FiveMatInv3Case Require Import MatrixMemory.
+From FivePprzFloatMatInv2d Require Import Execution.
+From FiveInv2Case Require Import Contract Call MemoryEffects Body Memcpy16 Observer TraceInputs.
+Import ListNotations.
+Local Open Scope Z_scope.
+Record AddressFacts(m:mem)(b:block)(p:ptrofs)(i:Z)(perm:permission):Prop:={
+ address_nonnull:Vptr b(Ptrofs.add p(Ptrofs.repr(4*i)))<>Vnullptr;
+ address_live:Mem.valid_block m b;
+ address_typed:Mem.valid_access m Mfloat32 b(Ptrofs.unsigned p+4*i)perm;
+ address_nowrap:Ptrofs.unsigned(Ptrofs.add p(Ptrofs.repr(4*i)))=Ptrofs.unsigned p+4*i;
+ address_bounds:0<=i<4
+}.
+Definition SourceGuards(i:Z)(output:bool):Prop :=forall m bo bi po pi f,Inputs m bo bi po pi f->0<=i<4->
+ no_error Execution.ge(Execution.entry(Args bo bi po pi)m)/\
+ if output then AddressFacts m bo po i Writable else AddressFacts m bi pi i Readable.
+Theorem source_guards:forall i output,SourceGuards i output.
+Proof. intros i output m bo bi po pi f IN B;destruct(call_summary m bo bi po pi f IN)as[mf[PATH[POST[SAFE ALL]]]];split;[exact SAFE|].
+ destruct IN as[NE[W RD]];destruct output;constructor;try discriminate;try exact B.
+ - exact(writable_valid m bo po 4 ltac:(lia)W).
+ - eapply writable_access;eauto.
+ - eapply index_pointer;[exact(proj1(proj2 W))|exact B].
+ - exact(reads_valid m bi pi 4 f ltac:(lia)RD).
+ - eapply Mem.load_valid_access;exact(proj2(proj2 RD)i B).
+ - eapply index_pointer;[exact(proj1(proj2 RD))|exact B]. Qed.
+Lemma same_bytes_cell_at:forall m1 b1 base1 m2 b2 base2 bytes z,
+ Mem.loadbytes m1 b1 base1 16=Some bytes->Mem.loadbytes m2 b2 base2 16=Some bytes->0<=z->z+4<=16->
+ Mem.loadbytes m1 b1(base1+z)4=Mem.loadbytes m2 b2(base2+z)4.
+Proof. intros m1 b1 base1 m2 b2 base2 bytes z A B Z LIMIT.
+ replace 16 with(z+(16-z))in A,B by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ A ltac:(lia)ltac:(lia))as[a[rest[RA[RR EA]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ B ltac:(lia)ltac:(lia))as[c[tail[RC[RT EC]]]].
+ assert(L:length a=length c)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RA),(Mem.loadbytes_length _ _ _ _ _ RC);reflexivity).
+ destruct(append_cut _ a rest c tail L ltac:(congruence))as[_ EQ];subst tail.
+ replace(16-z)with(4+(12-z))in RR,RT by lia.
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RR ltac:(lia)ltac:(lia))as[d[ds[RD[RDS ED]]]].
+ destruct(Mem.loadbytes_split _ _ _ _ _ _ RT ltac:(lia)ltac:(lia))as[f[fs[RF[RFS EF]]]].
+ assert(L':length d=length f)by(erewrite(Mem.loadbytes_length _ _ _ _ _ RD),(Mem.loadbytes_length _ _ _ _ _ RF);reflexivity).
+ destruct(append_cut _ d ds f fs L' ltac:(congruence))as[EQ _];subst f;congruence. Qed.
+Lemma successful_post_cells:forall m mf bo bi po pi f,Post m mf bo bi po pi f->Reject f=false->forall i,0<=i<4->
+ Mem.loadbytes mf bo(Ptrofs.unsigned po+4*i)4=Some(encode_val Mfloat32(Vsingle(Output f i))).
+Proof. intros m mf bo bi po pi f POST REJ i B.
+ destruct POST as[W[RD[FR[VB[BY AC]]]]];rewrite REJ in BY.
+ destruct(Mem.alloc Mem.empty 0 16)as[ma br]eqn:AL.
+ assert(WR:WriteRegion ma br Ptrofs.zero 4).
+ { unfold WriteRegion;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[change(16<=18446744073709551616);lia|intros z R;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact AL|lia]|constructor]]. }
+ destruct(writes_exist(Outputs f)ma br Ptrofs.zero 4 WR(output_bounds f))as[mr WS].
+ assert(BR:Branch ma br Ptrofs.zero f mr)by(unfold Branch;rewrite REJ;exact WS).
+ pose proof(branch_bytes ma br Ptrofs.zero f mr BR)as REF;rewrite REJ,Ptrofs.unsigned_zero in REF.
+ pose proof(same_bytes_cell_at mf bo(Ptrofs.unsigned po)mr br 0(Encoded f)(4*i)BY REF ltac:(lia)ltac:(lia))as EQ.
+ rewrite EQ;replace(0+4*i)with(Ptrofs.unsigned Ptrofs.zero+4*i)by(rewrite Ptrofs.unsigned_zero;lia).
+ eapply writes_bytes;[exact WS|apply output_nodup|].
+ assert(C:i=0\/i=1\/i=2\/i=3)by lia;destruct C as [-> | [-> | [-> | ->]]];unfold Outputs;repeat first[left;reflexivity|right]. Qed.
+Theorem successful_copy_words:forall m mf bo bi pi f dst bytes obs,
+ Post m mf bo bi Ptrofs.zero pi f->Reject f=false->Mem.loadbytes mf bo 0 16=Some bytes->Mem.storebytes mf dst 0 bytes=Some obs->
+ forall i,0<=i<4->Mem.load Mint32 obs dst(4*i)=Some(Vint(Float32.to_bits(Output f i))).
+Proof. intros m mf bo bi pi f dst bytes obs POST REJ READ STORE i B;eapply memcpy_word_observation;[exact READ|exact STORE| |exact B].
+ intros j J;replace(4*j)with(Ptrofs.unsigned Ptrofs.zero+4*j)by(rewrite Ptrofs.unsigned_zero;lia);eapply successful_post_cells;eauto. Qed.
+Theorem post_preserves_other_inputs:forall m mf bo bi po pi f out input outp inp g,
+ Post m mf bo bi po pi f->Inputs m out input outp inp g->out<>bo->input<>bo->Inputs mf out input outp inp g.
+Proof. intros m mf bo bi po pi f out input outp inp g[W[RD[FR[VB[BY AC]]]]][NE[WO RI]]OO IO;split;[exact NE|];split.
+ - destruct WO as[AL[NW RP]];repeat split;auto;intros z B.
+   assert(V:Mem.valid_block m out)by(eapply(writable_valid m out outp 4 ltac:(lia));repeat split;eauto).
+   assert(VA:Mem.valid_access m Mint8unsigned out z Writable)by(split;[intros off R;apply RP;cbn[size_chunk]in R;lia|change(1|z);exists z;lia]).
+   pose proof(AC Mint8unsigned out z Writable V VA)as[PF ALIGN];apply PF;cbn[size_chunk];lia.
+ - destruct RI as[AL[NW L]];repeat split;auto;intros i B.
+   destruct(Mem.load_loadbytes Mfloat32 m input(Ptrofs.unsigned inp+4*i)(Vsingle(g i))(L i B))as[bytes[LB DE]].
+   assert(VI:Mem.valid_block m input)by(eapply(reads_valid m input inp 4 g ltac:(lia));repeat split;eauto).
+   assert(LBF:Mem.loadbytes mf input(Ptrofs.unsigned inp+4*i)4=Some bytes)by(rewrite FR by(auto);exact LB).
+   pose proof(Mem.loadbytes_load Mfloat32 mf input(Ptrofs.unsigned inp+4*i)bytes LBF ltac:(change(4|Ptrofs.unsigned inp+4*i);destruct AL as[k K];exists(k+i);lia))as LF;rewrite <-DE in LF;exact LF.
+Qed.
+Print Assumptions source_guards.
+Print Assumptions successful_copy_words.
+
+Theorem frame_load_kept:forall m mf bo po b ofs ch v,Frame m mf bo po->Mem.valid_block m b->
+ (b<>bo\/ofs+size_chunk ch<=Ptrofs.unsigned po\/Ptrofs.unsigned po+16<=ofs)->Mem.load ch m b ofs=Some v->Mem.load ch mf b ofs=Some v.
+Proof. intros m mf bo po b ofs ch v FR VB OUT LD.
+ destruct(Mem.load_loadbytes ch m b ofs v LD)as[bytes[LB DE]].
+ assert(LBF:Mem.loadbytes mf b ofs(size_chunk ch)=Some bytes)by(rewrite FR by assumption;exact LB).
+ pose proof(Mem.load_valid_access _ _ _ _ _ LD)as[RP AL].
+ pose proof(Mem.loadbytes_load ch mf b ofs bytes LBF AL)as LF;rewrite <-DE in LF;exact LF. Qed.
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+bool float_mat_inv_2d(float out[4], const float in[4]);
+extern float nondet_float(void);
+int main(void) {
+  float arbitrary[4];
+  arbitrary[0] = nondet_float();
+  arbitrary[1] = nondet_float();
+  arbitrary[2] = nondet_float();
+  arbitrary[3] = nondet_float();
+  struct { uint32_t before; float value[4]; uint32_t after; } guarded = {.before=0x12345678u, .after=0x9abcdef0u};
+  bool arbitrary_status = float_mat_inv_2d(guarded.value, arbitrary);
+  __CPROVER_assert(arbitrary_status == 0 || arbitrary_status == 1, "return status is boolean for arbitrary binary32 matrix");
+  __CPROVER_assert(guarded.before == 0x12345678u && guarded.after == 0x9abcdef0u, "arbitrary matrix call preserves surrounding frame words");
+  float base[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+  float small[4] = {0x1p-8f, 0.0f, 0.0f, 0x1p-8f};
+  float large[4] = {0x1p100f, 0.0f, 0.0f, 0x1p100f};
+  float base_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  float small_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  float large_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  uint32_t base_words[4], small_before[4], small_after[4], large_words[4];
+  memcpy(small_before, small_out, sizeof small_out);
+  bool base_status = float_mat_inv_2d(base_out, base);
+  bool small_status = float_mat_inv_2d(small_out, small);
+  bool large_status = float_mat_inv_2d(large_out, large);
+  memcpy(base_words, base_out, sizeof base_out);
+  memcpy(small_after, small_out, sizeof small_out);
+  memcpy(large_words, large_out, sizeof large_out);
+  __CPROVER_assert(base_status == 0, "identity call succeeds");
+  __CPROVER_assert(base_words[0] == 0x3f800000u && base_words[1] == 0x80000000u && base_words[2] == 0x80000000u && base_words[3] == 0x3f800000u, "identity exact signedzero output bits");
+  __CPROVER_assert(small_status == 1, "small conditionone diagonal call rejects");
+  __CPROVER_assert(small_before[0] == small_after[0] && small_before[1] == small_after[1] && small_before[2] == small_after[2] && small_before[3] == small_after[3], "rejected call preserves every output byte");
+  __CPROVER_assert(large_status == 0, "finite large diagonal call reports success");
+  __CPROVER_assert(large_words[0] == 0x00000000u && large_words[1] == 0x80000000u && large_words[2] == 0x80000000u && large_words[3] == 0x00000000u, "overflow determinant exact signedzero output bits");
+  __CPROVER_assert(base_status == small_status, "positive scaling preserves inverse status");
+  float residual = large[0] * large_out[0] - 1.0f;
+  __CPROVER_assert(large_status != 0 || (residual > -0.5f && residual < 0.5f), "successful wellconditioned inverse has residual component below half");
+  return 0;
+}
+import sys,pathlib,json,shlex
+root=pathlib.Path('/home/yangfp/five');sys.path.insert(0,str(root/'scripts'))
+from five_telemetry import Run
+r=Run(root/'_build/matrix-inv2-csem/20261121T053400-bcb2c9a12c/five-rocq')
+prepare=r"""
+import sys,pathlib,json,shutil,datetime,importlib.util
+root=pathlib.Path('/home/yangfp/five')
+s=importlib.util.spec_from_file_location('e',root/'paparazzi/report/quat_rotation_paths/evidence_tools.py');e=importlib.util.module_from_spec(s);s.loader.exec_module(e)
+maps={'FiveShared':'shared','FiveGuidanceSemantics':'paparazzi/relations/guidance_mode/support/semantics','FiveGuidanceAllOrder':'paparazzi/relations/guidance_mode/support/allorder','FiveGuidanceAllocation':'paparazzi/relations/guidance_mode/support/allocation','FiveGuidanceEntry':'paparazzi/relations/guidance_mode/support/entry','FiveLowpassSupport':'paparazzi/relations/lowpass_recovery/support','FiveMatInv3Case':'paparazzi/models/float_mat_inv_3d/rocq/support','FiveInv2Case':'paparazzi/models/float_mat_inv_2d/rocq/support','FivePprzFloatMatInv2d':'paparazzi/models/float_mat_inv_2d/align/model','FiveInv2Correspondence':'paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem','FiveInv2Termination':'paparazzi/models/float_mat_inv_2d/rocq/termination/problem','FiveInv2NoError':'paparazzi/models/float_mat_inv_2d/rocq/no_error/problem','FiveInv2Functional':'paparazzi/models/float_mat_inv_2d/rocq/functional/problem','FiveInv2Recheck':'paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem','FiveMatrixInverseSupport':'paparazzi/relations/matrix_inverse_scale/support','FivePprzFloatMatInv3d':'paparazzi/models/float_mat_inv_3d/align/model'}
+roots=sys.argv[1:];modules={}
+for kind,ns in [('termination','FiveInv2Termination'),('execution_correspondence','FiveInv2Correspondence'),('no_error','FiveInv2NoError'),('functional','FiveInv2Functional'),('cbmc_recheck','FiveInv2Recheck')]:modules[ns+'.Proof']='paparazzi/models/float_mat_inv_2d/rocq/'+kind+'/attempts/001/Proof.v'
+order=e.dependency_order(root,maps,modules,roots)
+build=root/'_build/matrix-inv2-csem/development/current';build.mkdir(parents=True,exist_ok=True)
+history=root/'_build/matrix-inv2-csem/development/history'/datetime.datetime.now().strftime('%Y%m%dT%H%M%S%f');history.mkdir(parents=True)
+flags=[]
+for name in maps:
+ d=build/name;d.mkdir(exist_ok=True);flags+=['-Q',str(d),name]
+rows=[];dirty={}
+for name,src in order:
+ prefix=max([n for n in maps if name.startswith(n+'.')],key=len);dst=build/prefix/pathlib.Path(*name[len(prefix)+1:].split('.')).with_suffix('.v');dst.parent.mkdir(parents=True,exist_ok=True)
+ dependency_newer=False
+ for child in e.imports(src):
+  prefixes=[n for n in maps if child.startswith(n+'.')]
+  if prefixes and dst.with_suffix('.vo').exists():
+   cp=max(prefixes,key=len);cv=(build/cp/pathlib.Path(*child[len(cp)+1:].split('.'))).with_suffix('.vo')
+   if cv.exists() and cv.stat().st_mtime_ns>dst.with_suffix('.vo').stat().st_mtime_ns:dependency_newer=True
+ changed=dependency_newer or not dst.exists() or dst.read_bytes()!=src.read_bytes() or not dst.with_suffix('.vo').exists() or any(dirty.get(child,False) for child in e.imports(src))
+ snapshot=history/dst.relative_to(build);snapshot.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(src,snapshot)
+ if changed:shutil.copyfile(src,dst);rows.append((name,str(dst)))
+ dirty[name]=changed
+print(json.dumps({'flags':flags,'rows':rows,'build':str(build)}))
+"""
+try:
+ c=r.command(['python3','-c',prepare,*sys.argv[1:]],'stage-development-closure',60,cwd=root)
+ plan=json.loads((r.folder/c['stdout']).read_text());print(plan['build'],flush=True)
+ for name,path in plan['rows']:
+  command='source scripts/env.sh && rocq compile '+shlex.join(plan['flags']+[path])
+  c=r.command(['bash','-lc',command],'development-'+name.replace('.','-'),150,cwd=root)
+  print(name+': passed',flush=True)
+
+except Exception as exc:
+ print(str(exc),flush=True);sys.exit(1)
+{
+  "attempt": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001",
+  "namespace": "FiveMatrixClose2Recheck",
+  "mappings": {
+    "FiveShared": "shared",
+    "FiveGuidanceSemantics": "paparazzi/relations/guidance_mode/support/semantics",
+    "FiveGuidanceAllOrder": "paparazzi/relations/guidance_mode/support/allorder",
+    "FiveGuidanceAllocation": "paparazzi/relations/guidance_mode/support/allocation",
+    "FiveGuidanceEntry": "paparazzi/relations/guidance_mode/support/entry",
+    "FiveLowpassSupport": "paparazzi/relations/lowpass_recovery/support",
+    "FiveMatInv3Case": "paparazzi/models/float_mat_inv_3d/rocq/support",
+    "FiveInv2Case": "paparazzi/models/float_mat_inv_2d/rocq/support",
+    "FivePprzFloatMatInv2d": "paparazzi/models/float_mat_inv_2d/align/model",
+    "FivePprzFloatMatInv3d": "paparazzi/models/float_mat_inv_3d/align/model",
+    "FiveMatrixInverseSupport": "paparazzi/relations/matrix_inverse_scale/support",
+    "FiveInv2NoError": "paparazzi/models/float_mat_inv_2d/rocq/no_error/problem",
+    "FiveMatrixClose2NoError": "paparazzi/models/float_mat_inv_2d/rocq/no_error/problem",
+    "FiveInv2Termination": "paparazzi/models/float_mat_inv_2d/rocq/termination/problem",
+    "FiveMatrixClose2Termination": "paparazzi/models/float_mat_inv_2d/rocq/termination/problem",
+    "FiveInv2Functional": "paparazzi/models/float_mat_inv_2d/rocq/functional/problem",
+    "FiveMatrixClose2Functional": "paparazzi/models/float_mat_inv_2d/rocq/functional/problem",
+    "FiveInv2Correspondence": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem",
+    "FiveMatrixClose2Correspondence": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/problem",
+    "FiveInv2Recheck": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem",
+    "FiveMatrixClose2Recheck": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem",
+    "FiveMatInv3NoError": "paparazzi/models/float_mat_inv_3d/rocq/no_error/problem",
+    "FiveMatrixClose3NoError": "paparazzi/models/float_mat_inv_3d/rocq/no_error/problem",
+    "FiveMatInv3Termination": "paparazzi/models/float_mat_inv_3d/rocq/termination/problem",
+    "FiveMatrixClose3Termination": "paparazzi/models/float_mat_inv_3d/rocq/termination/problem",
+    "FiveMatInv3Functional": "paparazzi/models/float_mat_inv_3d/rocq/functional/problem",
+    "FiveMatrixClose3Functional": "paparazzi/models/float_mat_inv_3d/rocq/functional/problem",
+    "FiveMatInv3Correspondence": "paparazzi/models/float_mat_inv_3d/rocq/execution_correspondence/problem",
+    "FiveMatrixClose3Correspondence": "paparazzi/models/float_mat_inv_3d/rocq/execution_correspondence/problem",
+    "FiveMatInv3Recheck": "paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/problem",
+    "FiveMatrixClose3Recheck": "paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/problem"
+  },
+  "modules": {
+    "FiveInv2NoError.Proof": "paparazzi/models/float_mat_inv_2d/rocq/no_error/attempts/001/Proof.v",
+    "FiveInv2Termination.Proof": "paparazzi/models/float_mat_inv_2d/rocq/termination/attempts/001/Proof.v",
+    "FiveInv2Functional.Proof": "paparazzi/models/float_mat_inv_2d/rocq/functional/attempts/001/Proof.v",
+    "FiveInv2Correspondence.Proof": "paparazzi/models/float_mat_inv_2d/rocq/execution_correspondence/attempts/001/Proof.v",
+    "FiveInv2Recheck.Proof": "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/Proof.v",
+    "FiveMatInv3NoError.Proof": "paparazzi/models/float_mat_inv_3d/rocq/no_error/attempts/001/Proof.v",
+    "FiveMatInv3Termination.Proof": "paparazzi/models/float_mat_inv_3d/rocq/termination/attempts/001/Proof.v",
+    "FiveMatInv3Functional.Proof": "paparazzi/models/float_mat_inv_3d/rocq/functional/attempts/001/Proof.v",
+    "FiveMatInv3Correspondence.Proof": "paparazzi/models/float_mat_inv_3d/rocq/execution_correspondence/attempts/001/Proof.v",
+    "FiveMatInv3Recheck.Proof": "paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/attempts/001/Proof.v"
+  },
+  "imports": [
+    "FiveInv2Recheck.Spec",
+    "FiveInv2Recheck.Proof"
+  ],
+  "goal_bindings": [
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.1",
+      "theorem": "FiveInv2Recheck.Proof.property_001",
+      "type": "FiveInv2Recheck.Spec.P001"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.2",
+      "theorem": "FiveInv2Recheck.Proof.property_002",
+      "type": "FiveInv2Recheck.Spec.P002"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.3",
+      "theorem": "FiveInv2Recheck.Proof.property_003",
+      "type": "FiveInv2Recheck.Spec.P003"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.4",
+      "theorem": "FiveInv2Recheck.Proof.property_004",
+      "type": "FiveInv2Recheck.Spec.P004"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.5",
+      "theorem": "FiveInv2Recheck.Proof.property_005",
+      "type": "FiveInv2Recheck.Spec.P005"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.6",
+      "theorem": "FiveInv2Recheck.Proof.property_006",
+      "type": "FiveInv2Recheck.Spec.P006"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.1",
+      "theorem": "FiveInv2Recheck.Proof.property_007",
+      "type": "FiveInv2Recheck.Spec.P007"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.2",
+      "theorem": "FiveInv2Recheck.Proof.property_008",
+      "type": "FiveInv2Recheck.Spec.P008"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.3",
+      "theorem": "FiveInv2Recheck.Proof.property_009",
+      "type": "FiveInv2Recheck.Spec.P009"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.4",
+      "theorem": "FiveInv2Recheck.Proof.property_010",
+      "type": "FiveInv2Recheck.Spec.P010"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.5",
+      "theorem": "FiveInv2Recheck.Proof.property_011",
+      "type": "FiveInv2Recheck.Spec.P011"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.6",
+      "theorem": "FiveInv2Recheck.Proof.property_012",
+      "type": "FiveInv2Recheck.Spec.P012"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.7",
+      "theorem": "FiveInv2Recheck.Proof.property_013",
+      "type": "FiveInv2Recheck.Spec.P013"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.8",
+      "theorem": "FiveInv2Recheck.Proof.property_014",
+      "type": "FiveInv2Recheck.Spec.P014"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.9",
+      "theorem": "FiveInv2Recheck.Proof.property_015",
+      "type": "FiveInv2Recheck.Spec.P015"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.10",
+      "theorem": "FiveInv2Recheck.Proof.property_016",
+      "type": "FiveInv2Recheck.Spec.P016"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.11",
+      "theorem": "FiveInv2Recheck.Proof.property_017",
+      "type": "FiveInv2Recheck.Spec.P017"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.12",
+      "theorem": "FiveInv2Recheck.Proof.property_018",
+      "type": "FiveInv2Recheck.Spec.P018"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.7",
+      "theorem": "FiveInv2Recheck.Proof.property_019",
+      "type": "FiveInv2Recheck.Spec.P019"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.8",
+      "theorem": "FiveInv2Recheck.Proof.property_020",
+      "type": "FiveInv2Recheck.Spec.P020"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.9",
+      "theorem": "FiveInv2Recheck.Proof.property_021",
+      "type": "FiveInv2Recheck.Spec.P021"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.10",
+      "theorem": "FiveInv2Recheck.Proof.property_022",
+      "type": "FiveInv2Recheck.Spec.P022"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.11",
+      "theorem": "FiveInv2Recheck.Proof.property_023",
+      "type": "FiveInv2Recheck.Spec.P023"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.12",
+      "theorem": "FiveInv2Recheck.Proof.property_024",
+      "type": "FiveInv2Recheck.Spec.P024"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.13",
+      "theorem": "FiveInv2Recheck.Proof.property_025",
+      "type": "FiveInv2Recheck.Spec.P025"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.14",
+      "theorem": "FiveInv2Recheck.Proof.property_026",
+      "type": "FiveInv2Recheck.Spec.P026"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.15",
+      "theorem": "FiveInv2Recheck.Proof.property_027",
+      "type": "FiveInv2Recheck.Spec.P027"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.16",
+      "theorem": "FiveInv2Recheck.Proof.property_028",
+      "type": "FiveInv2Recheck.Spec.P028"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.17",
+      "theorem": "FiveInv2Recheck.Proof.property_029",
+      "type": "FiveInv2Recheck.Spec.P029"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.18",
+      "theorem": "FiveInv2Recheck.Proof.property_030",
+      "type": "FiveInv2Recheck.Spec.P030"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.13",
+      "theorem": "FiveInv2Recheck.Proof.property_031",
+      "type": "FiveInv2Recheck.Spec.P031"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.14",
+      "theorem": "FiveInv2Recheck.Proof.property_032",
+      "type": "FiveInv2Recheck.Spec.P032"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.15",
+      "theorem": "FiveInv2Recheck.Proof.property_033",
+      "type": "FiveInv2Recheck.Spec.P033"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.16",
+      "theorem": "FiveInv2Recheck.Proof.property_034",
+      "type": "FiveInv2Recheck.Spec.P034"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.17",
+      "theorem": "FiveInv2Recheck.Proof.property_035",
+      "type": "FiveInv2Recheck.Spec.P035"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.18",
+      "theorem": "FiveInv2Recheck.Proof.property_036",
+      "type": "FiveInv2Recheck.Spec.P036"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.19",
+      "theorem": "FiveInv2Recheck.Proof.property_037",
+      "type": "FiveInv2Recheck.Spec.P037"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.20",
+      "theorem": "FiveInv2Recheck.Proof.property_038",
+      "type": "FiveInv2Recheck.Spec.P038"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.21",
+      "theorem": "FiveInv2Recheck.Proof.property_039",
+      "type": "FiveInv2Recheck.Spec.P039"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.22",
+      "theorem": "FiveInv2Recheck.Proof.property_040",
+      "type": "FiveInv2Recheck.Spec.P040"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.23",
+      "theorem": "FiveInv2Recheck.Proof.property_041",
+      "type": "FiveInv2Recheck.Spec.P041"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.24",
+      "theorem": "FiveInv2Recheck.Proof.property_042",
+      "type": "FiveInv2Recheck.Spec.P042"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.19",
+      "theorem": "FiveInv2Recheck.Proof.property_043",
+      "type": "FiveInv2Recheck.Spec.P043"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.20",
+      "theorem": "FiveInv2Recheck.Proof.property_044",
+      "type": "FiveInv2Recheck.Spec.P044"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.21",
+      "theorem": "FiveInv2Recheck.Proof.property_045",
+      "type": "FiveInv2Recheck.Spec.P045"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.22",
+      "theorem": "FiveInv2Recheck.Proof.property_046",
+      "type": "FiveInv2Recheck.Spec.P046"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.23",
+      "theorem": "FiveInv2Recheck.Proof.property_047",
+      "type": "FiveInv2Recheck.Spec.P047"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.24",
+      "theorem": "FiveInv2Recheck.Proof.property_048",
+      "type": "FiveInv2Recheck.Spec.P048"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.25",
+      "theorem": "FiveInv2Recheck.Proof.property_049",
+      "type": "FiveInv2Recheck.Spec.P049"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.26",
+      "theorem": "FiveInv2Recheck.Proof.property_050",
+      "type": "FiveInv2Recheck.Spec.P050"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.27",
+      "theorem": "FiveInv2Recheck.Proof.property_051",
+      "type": "FiveInv2Recheck.Spec.P051"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.28",
+      "theorem": "FiveInv2Recheck.Proof.property_052",
+      "type": "FiveInv2Recheck.Spec.P052"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.29",
+      "theorem": "FiveInv2Recheck.Proof.property_053",
+      "type": "FiveInv2Recheck.Spec.P053"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.30",
+      "theorem": "FiveInv2Recheck.Proof.property_054",
+      "type": "FiveInv2Recheck.Spec.P054"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.25",
+      "theorem": "FiveInv2Recheck.Proof.property_055",
+      "type": "FiveInv2Recheck.Spec.P055"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.26",
+      "theorem": "FiveInv2Recheck.Proof.property_056",
+      "type": "FiveInv2Recheck.Spec.P056"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.27",
+      "theorem": "FiveInv2Recheck.Proof.property_057",
+      "type": "FiveInv2Recheck.Spec.P057"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.28",
+      "theorem": "FiveInv2Recheck.Proof.property_058",
+      "type": "FiveInv2Recheck.Spec.P058"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.29",
+      "theorem": "FiveInv2Recheck.Proof.property_059",
+      "type": "FiveInv2Recheck.Spec.P059"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.30",
+      "theorem": "FiveInv2Recheck.Proof.property_060",
+      "type": "FiveInv2Recheck.Spec.P060"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.31",
+      "theorem": "FiveInv2Recheck.Proof.property_061",
+      "type": "FiveInv2Recheck.Spec.P061"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.32",
+      "theorem": "FiveInv2Recheck.Proof.property_062",
+      "type": "FiveInv2Recheck.Spec.P062"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.33",
+      "theorem": "FiveInv2Recheck.Proof.property_063",
+      "type": "FiveInv2Recheck.Spec.P063"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.34",
+      "theorem": "FiveInv2Recheck.Proof.property_064",
+      "type": "FiveInv2Recheck.Spec.P064"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.35",
+      "theorem": "FiveInv2Recheck.Proof.property_065",
+      "type": "FiveInv2Recheck.Spec.P065"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.36",
+      "theorem": "FiveInv2Recheck.Proof.property_066",
+      "type": "FiveInv2Recheck.Spec.P066"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.31",
+      "theorem": "FiveInv2Recheck.Proof.property_067",
+      "type": "FiveInv2Recheck.Spec.P067"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.32",
+      "theorem": "FiveInv2Recheck.Proof.property_068",
+      "type": "FiveInv2Recheck.Spec.P068"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.33",
+      "theorem": "FiveInv2Recheck.Proof.property_069",
+      "type": "FiveInv2Recheck.Spec.P069"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.34",
+      "theorem": "FiveInv2Recheck.Proof.property_070",
+      "type": "FiveInv2Recheck.Spec.P070"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.35",
+      "theorem": "FiveInv2Recheck.Proof.property_071",
+      "type": "FiveInv2Recheck.Spec.P071"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.36",
+      "theorem": "FiveInv2Recheck.Proof.property_072",
+      "type": "FiveInv2Recheck.Spec.P072"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.37",
+      "theorem": "FiveInv2Recheck.Proof.property_073",
+      "type": "FiveInv2Recheck.Spec.P073"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.38",
+      "theorem": "FiveInv2Recheck.Proof.property_074",
+      "type": "FiveInv2Recheck.Spec.P074"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.39",
+      "theorem": "FiveInv2Recheck.Proof.property_075",
+      "type": "FiveInv2Recheck.Spec.P075"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.40",
+      "theorem": "FiveInv2Recheck.Proof.property_076",
+      "type": "FiveInv2Recheck.Spec.P076"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.41",
+      "theorem": "FiveInv2Recheck.Proof.property_077",
+      "type": "FiveInv2Recheck.Spec.P077"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.42",
+      "theorem": "FiveInv2Recheck.Proof.property_078",
+      "type": "FiveInv2Recheck.Spec.P078"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.37",
+      "theorem": "FiveInv2Recheck.Proof.property_079",
+      "type": "FiveInv2Recheck.Spec.P079"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.38",
+      "theorem": "FiveInv2Recheck.Proof.property_080",
+      "type": "FiveInv2Recheck.Spec.P080"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.39",
+      "theorem": "FiveInv2Recheck.Proof.property_081",
+      "type": "FiveInv2Recheck.Spec.P081"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.40",
+      "theorem": "FiveInv2Recheck.Proof.property_082",
+      "type": "FiveInv2Recheck.Spec.P082"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.41",
+      "theorem": "FiveInv2Recheck.Proof.property_083",
+      "type": "FiveInv2Recheck.Spec.P083"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.42",
+      "theorem": "FiveInv2Recheck.Proof.property_084",
+      "type": "FiveInv2Recheck.Spec.P084"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.43",
+      "theorem": "FiveInv2Recheck.Proof.property_085",
+      "type": "FiveInv2Recheck.Spec.P085"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.44",
+      "theorem": "FiveInv2Recheck.Proof.property_086",
+      "type": "FiveInv2Recheck.Spec.P086"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.45",
+      "theorem": "FiveInv2Recheck.Proof.property_087",
+      "type": "FiveInv2Recheck.Spec.P087"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.46",
+      "theorem": "FiveInv2Recheck.Proof.property_088",
+      "type": "FiveInv2Recheck.Spec.P088"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.47",
+      "theorem": "FiveInv2Recheck.Proof.property_089",
+      "type": "FiveInv2Recheck.Spec.P089"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.48",
+      "theorem": "FiveInv2Recheck.Proof.property_090",
+      "type": "FiveInv2Recheck.Spec.P090"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.43",
+      "theorem": "FiveInv2Recheck.Proof.property_091",
+      "type": "FiveInv2Recheck.Spec.P091"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.44",
+      "theorem": "FiveInv2Recheck.Proof.property_092",
+      "type": "FiveInv2Recheck.Spec.P092"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.45",
+      "theorem": "FiveInv2Recheck.Proof.property_093",
+      "type": "FiveInv2Recheck.Spec.P093"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.46",
+      "theorem": "FiveInv2Recheck.Proof.property_094",
+      "type": "FiveInv2Recheck.Spec.P094"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.47",
+      "theorem": "FiveInv2Recheck.Proof.property_095",
+      "type": "FiveInv2Recheck.Spec.P095"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.48",
+      "theorem": "FiveInv2Recheck.Proof.property_096",
+      "type": "FiveInv2Recheck.Spec.P096"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.49",
+      "theorem": "FiveInv2Recheck.Proof.property_097",
+      "type": "FiveInv2Recheck.Spec.P097"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.50",
+      "theorem": "FiveInv2Recheck.Proof.property_098",
+      "type": "FiveInv2Recheck.Spec.P098"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.51",
+      "theorem": "FiveInv2Recheck.Proof.property_099",
+      "type": "FiveInv2Recheck.Spec.P099"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.52",
+      "theorem": "FiveInv2Recheck.Proof.property_100",
+      "type": "FiveInv2Recheck.Spec.P100"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.53",
+      "theorem": "FiveInv2Recheck.Proof.property_101",
+      "type": "FiveInv2Recheck.Spec.P101"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.54",
+      "theorem": "FiveInv2Recheck.Proof.property_102",
+      "type": "FiveInv2Recheck.Spec.P102"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.49",
+      "theorem": "FiveInv2Recheck.Proof.property_103",
+      "type": "FiveInv2Recheck.Spec.P103"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.50",
+      "theorem": "FiveInv2Recheck.Proof.property_104",
+      "type": "FiveInv2Recheck.Spec.P104"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.51",
+      "theorem": "FiveInv2Recheck.Proof.property_105",
+      "type": "FiveInv2Recheck.Spec.P105"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.52",
+      "theorem": "FiveInv2Recheck.Proof.property_106",
+      "type": "FiveInv2Recheck.Spec.P106"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.53",
+      "theorem": "FiveInv2Recheck.Proof.property_107",
+      "type": "FiveInv2Recheck.Spec.P107"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.54",
+      "theorem": "FiveInv2Recheck.Proof.property_108",
+      "type": "FiveInv2Recheck.Spec.P108"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.55",
+      "theorem": "FiveInv2Recheck.Proof.property_109",
+      "type": "FiveInv2Recheck.Spec.P109"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.56",
+      "theorem": "FiveInv2Recheck.Proof.property_110",
+      "type": "FiveInv2Recheck.Spec.P110"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.57",
+      "theorem": "FiveInv2Recheck.Proof.property_111",
+      "type": "FiveInv2Recheck.Spec.P111"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.58",
+      "theorem": "FiveInv2Recheck.Proof.property_112",
+      "type": "FiveInv2Recheck.Spec.P112"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.59",
+      "theorem": "FiveInv2Recheck.Proof.property_113",
+      "type": "FiveInv2Recheck.Spec.P113"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.60",
+      "theorem": "FiveInv2Recheck.Proof.property_114",
+      "type": "FiveInv2Recheck.Spec.P114"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.55",
+      "theorem": "FiveInv2Recheck.Proof.property_115",
+      "type": "FiveInv2Recheck.Spec.P115"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.56",
+      "theorem": "FiveInv2Recheck.Proof.property_116",
+      "type": "FiveInv2Recheck.Spec.P116"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.57",
+      "theorem": "FiveInv2Recheck.Proof.property_117",
+      "type": "FiveInv2Recheck.Spec.P117"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.58",
+      "theorem": "FiveInv2Recheck.Proof.property_118",
+      "type": "FiveInv2Recheck.Spec.P118"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.59",
+      "theorem": "FiveInv2Recheck.Proof.property_119",
+      "type": "FiveInv2Recheck.Spec.P119"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.60",
+      "theorem": "FiveInv2Recheck.Proof.property_120",
+      "type": "FiveInv2Recheck.Spec.P120"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.61",
+      "theorem": "FiveInv2Recheck.Proof.property_121",
+      "type": "FiveInv2Recheck.Spec.P121"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.62",
+      "theorem": "FiveInv2Recheck.Proof.property_122",
+      "type": "FiveInv2Recheck.Spec.P122"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.63",
+      "theorem": "FiveInv2Recheck.Proof.property_123",
+      "type": "FiveInv2Recheck.Spec.P123"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.64",
+      "theorem": "FiveInv2Recheck.Proof.property_124",
+      "type": "FiveInv2Recheck.Spec.P124"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.65",
+      "theorem": "FiveInv2Recheck.Proof.property_125",
+      "type": "FiveInv2Recheck.Spec.P125"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.66",
+      "theorem": "FiveInv2Recheck.Proof.property_126",
+      "type": "FiveInv2Recheck.Spec.P126"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.61",
+      "theorem": "FiveInv2Recheck.Proof.property_127",
+      "type": "FiveInv2Recheck.Spec.P127"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.62",
+      "theorem": "FiveInv2Recheck.Proof.property_128",
+      "type": "FiveInv2Recheck.Spec.P128"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.63",
+      "theorem": "FiveInv2Recheck.Proof.property_129",
+      "type": "FiveInv2Recheck.Spec.P129"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.64",
+      "theorem": "FiveInv2Recheck.Proof.property_130",
+      "type": "FiveInv2Recheck.Spec.P130"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.65",
+      "theorem": "FiveInv2Recheck.Proof.property_131",
+      "type": "FiveInv2Recheck.Spec.P131"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.66",
+      "theorem": "FiveInv2Recheck.Proof.property_132",
+      "type": "FiveInv2Recheck.Spec.P132"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.67",
+      "theorem": "FiveInv2Recheck.Proof.property_133",
+      "type": "FiveInv2Recheck.Spec.P133"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.68",
+      "theorem": "FiveInv2Recheck.Proof.property_134",
+      "type": "FiveInv2Recheck.Spec.P134"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.69",
+      "theorem": "FiveInv2Recheck.Proof.property_135",
+      "type": "FiveInv2Recheck.Spec.P135"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.70",
+      "theorem": "FiveInv2Recheck.Proof.property_136",
+      "type": "FiveInv2Recheck.Spec.P136"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.71",
+      "theorem": "FiveInv2Recheck.Proof.property_137",
+      "type": "FiveInv2Recheck.Spec.P137"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_arithmetic.72",
+      "theorem": "FiveInv2Recheck.Proof.property_138",
+      "type": "FiveInv2Recheck.Spec.P138"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.67",
+      "theorem": "FiveInv2Recheck.Proof.property_139",
+      "type": "FiveInv2Recheck.Spec.P139"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.68",
+      "theorem": "FiveInv2Recheck.Proof.property_140",
+      "type": "FiveInv2Recheck.Spec.P140"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.69",
+      "theorem": "FiveInv2Recheck.Proof.property_141",
+      "type": "FiveInv2Recheck.Spec.P141"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.70",
+      "theorem": "FiveInv2Recheck.Proof.property_142",
+      "type": "FiveInv2Recheck.Spec.P142"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.71",
+      "theorem": "FiveInv2Recheck.Proof.property_143",
+      "type": "FiveInv2Recheck.Spec.P143"
+    },
+    {
+      "requested_goal": "float_mat_inv_2d.pointer_dereference.72",
+      "theorem": "FiveInv2Recheck.Proof.property_144",
+      "type": "FiveInv2Recheck.Spec.P144"
+    },
+    {
+      "requested_goal": "main.assertion.1",
+      "theorem": "FiveInv2Recheck.Proof.property_145",
+      "type": "FiveInv2Recheck.Spec.P145"
+    },
+    {
+      "requested_goal": "main.assertion.2",
+      "theorem": "FiveInv2Recheck.Proof.property_146",
+      "type": "FiveInv2Recheck.Spec.P146"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.1",
+      "theorem": "FiveInv2Recheck.Proof.property_147",
+      "type": "FiveInv2Recheck.Spec.P147"
+    },
+    {
+      "requested_goal": "memcpy.pointer.1",
+      "theorem": "FiveInv2Recheck.Proof.property_148",
+      "type": "FiveInv2Recheck.Spec.P148"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.2",
+      "theorem": "FiveInv2Recheck.Proof.property_149",
+      "type": "FiveInv2Recheck.Spec.P149"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.3",
+      "theorem": "FiveInv2Recheck.Proof.property_150",
+      "type": "FiveInv2Recheck.Spec.P150"
+    },
+    {
+      "requested_goal": "memcpy.pointer.2",
+      "theorem": "FiveInv2Recheck.Proof.property_151",
+      "type": "FiveInv2Recheck.Spec.P151"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.4",
+      "theorem": "FiveInv2Recheck.Proof.property_152",
+      "type": "FiveInv2Recheck.Spec.P152"
+    },
+    {
+      "requested_goal": "main.precondition_instance.1",
+      "theorem": "FiveInv2Recheck.Proof.property_153",
+      "type": "FiveInv2Recheck.Spec.P153"
+    },
+    {
+      "requested_goal": "main.precondition_instance.2",
+      "theorem": "FiveInv2Recheck.Proof.property_154",
+      "type": "FiveInv2Recheck.Spec.P154"
+    },
+    {
+      "requested_goal": "main.precondition_instance.3",
+      "theorem": "FiveInv2Recheck.Proof.property_155",
+      "type": "FiveInv2Recheck.Spec.P155"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.5",
+      "theorem": "FiveInv2Recheck.Proof.property_156",
+      "type": "FiveInv2Recheck.Spec.P156"
+    },
+    {
+      "requested_goal": "memcpy.pointer.3",
+      "theorem": "FiveInv2Recheck.Proof.property_157",
+      "type": "FiveInv2Recheck.Spec.P157"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.6",
+      "theorem": "FiveInv2Recheck.Proof.property_158",
+      "type": "FiveInv2Recheck.Spec.P158"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.7",
+      "theorem": "FiveInv2Recheck.Proof.property_159",
+      "type": "FiveInv2Recheck.Spec.P159"
+    },
+    {
+      "requested_goal": "memcpy.pointer.4",
+      "theorem": "FiveInv2Recheck.Proof.property_160",
+      "type": "FiveInv2Recheck.Spec.P160"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.8",
+      "theorem": "FiveInv2Recheck.Proof.property_161",
+      "type": "FiveInv2Recheck.Spec.P161"
+    },
+    {
+      "requested_goal": "main.precondition_instance.4",
+      "theorem": "FiveInv2Recheck.Proof.property_162",
+      "type": "FiveInv2Recheck.Spec.P162"
+    },
+    {
+      "requested_goal": "main.precondition_instance.5",
+      "theorem": "FiveInv2Recheck.Proof.property_163",
+      "type": "FiveInv2Recheck.Spec.P163"
+    },
+    {
+      "requested_goal": "main.precondition_instance.6",
+      "theorem": "FiveInv2Recheck.Proof.property_164",
+      "type": "FiveInv2Recheck.Spec.P164"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.9",
+      "theorem": "FiveInv2Recheck.Proof.property_165",
+      "type": "FiveInv2Recheck.Spec.P165"
+    },
+    {
+      "requested_goal": "memcpy.pointer.5",
+      "theorem": "FiveInv2Recheck.Proof.property_166",
+      "type": "FiveInv2Recheck.Spec.P166"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.10",
+      "theorem": "FiveInv2Recheck.Proof.property_167",
+      "type": "FiveInv2Recheck.Spec.P167"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.11",
+      "theorem": "FiveInv2Recheck.Proof.property_168",
+      "type": "FiveInv2Recheck.Spec.P168"
+    },
+    {
+      "requested_goal": "memcpy.pointer.6",
+      "theorem": "FiveInv2Recheck.Proof.property_169",
+      "type": "FiveInv2Recheck.Spec.P169"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.12",
+      "theorem": "FiveInv2Recheck.Proof.property_170",
+      "type": "FiveInv2Recheck.Spec.P170"
+    },
+    {
+      "requested_goal": "main.precondition_instance.7",
+      "theorem": "FiveInv2Recheck.Proof.property_171",
+      "type": "FiveInv2Recheck.Spec.P171"
+    },
+    {
+      "requested_goal": "main.precondition_instance.8",
+      "theorem": "FiveInv2Recheck.Proof.property_172",
+      "type": "FiveInv2Recheck.Spec.P172"
+    },
+    {
+      "requested_goal": "main.precondition_instance.9",
+      "theorem": "FiveInv2Recheck.Proof.property_173",
+      "type": "FiveInv2Recheck.Spec.P173"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.13",
+      "theorem": "FiveInv2Recheck.Proof.property_174",
+      "type": "FiveInv2Recheck.Spec.P174"
+    },
+    {
+      "requested_goal": "memcpy.pointer.7",
+      "theorem": "FiveInv2Recheck.Proof.property_175",
+      "type": "FiveInv2Recheck.Spec.P175"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.14",
+      "theorem": "FiveInv2Recheck.Proof.property_176",
+      "type": "FiveInv2Recheck.Spec.P176"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.15",
+      "theorem": "FiveInv2Recheck.Proof.property_177",
+      "type": "FiveInv2Recheck.Spec.P177"
+    },
+    {
+      "requested_goal": "memcpy.pointer.8",
+      "theorem": "FiveInv2Recheck.Proof.property_178",
+      "type": "FiveInv2Recheck.Spec.P178"
+    },
+    {
+      "requested_goal": "memcpy.pointer_arithmetic.16",
+      "theorem": "FiveInv2Recheck.Proof.property_179",
+      "type": "FiveInv2Recheck.Spec.P179"
+    },
+    {
+      "requested_goal": "main.precondition_instance.10",
+      "theorem": "FiveInv2Recheck.Proof.property_180",
+      "type": "FiveInv2Recheck.Spec.P180"
+    },
+    {
+      "requested_goal": "main.precondition_instance.11",
+      "theorem": "FiveInv2Recheck.Proof.property_181",
+      "type": "FiveInv2Recheck.Spec.P181"
+    },
+    {
+      "requested_goal": "main.precondition_instance.12",
+      "theorem": "FiveInv2Recheck.Proof.property_182",
+      "type": "FiveInv2Recheck.Spec.P182"
+    },
+    {
+      "requested_goal": "main.assertion.3",
+      "theorem": "FiveInv2Recheck.Proof.property_183",
+      "type": "FiveInv2Recheck.Spec.P183"
+    },
+    {
+      "requested_goal": "main.assertion.4",
+      "theorem": "FiveInv2Recheck.Proof.property_184",
+      "type": "FiveInv2Recheck.Spec.P184"
+    },
+    {
+      "requested_goal": "main.assertion.5",
+      "theorem": "FiveInv2Recheck.Proof.property_185",
+      "type": "FiveInv2Recheck.Spec.P185"
+    },
+    {
+      "requested_goal": "main.assertion.6",
+      "theorem": "FiveInv2Recheck.Proof.property_186",
+      "type": "FiveInv2Recheck.Spec.P186"
+    },
+    {
+      "requested_goal": "main.assertion.7",
+      "theorem": "FiveInv2Recheck.Proof.property_187",
+      "type": "FiveInv2Recheck.Spec.P187"
+    },
+    {
+      "requested_goal": "main.assertion.8",
+      "theorem": "FiveInv2Recheck.Proof.property_188",
+      "type": "FiveInv2Recheck.Spec.P188"
+    },
+    {
+      "requested_goal": "main.assertion.9",
+      "theorem": "FiveInv2Recheck.Proof.property_189",
+      "type": "FiveInv2Recheck.Spec.P189"
+    },
+    {
+      "requested_goal": "main.assertion.10",
+      "theorem": "FiveInv2Recheck.Proof.property_190",
+      "type": "FiveInv2Recheck.Spec.P190"
+    }
+  ],
+  "build": "_build/matrix-finish-ultra/20261121T073618-308ea3486a/five-rocq/evidence/checked",
+  "timeout": 600,
+  "extra_inputs": [
+    "paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c",
+    "paparazzi/models/float_mat_inv_2d/prepare/source/bindings.json",
+    "paparazzi/models/float_mat_inv_2d/align/model/Source.v",
+    "paparazzi/models/float_mat_inv_2d/align/model/Execution.v",
+    "paparazzi/models/float_mat_inv_2d/align/model/compcert-manifest.json",
+    "paparazzi/models/float_mat_inv_2d/align/request.json",
+    "paparazzi/models/float_mat_inv_2d/align/spec-map.json",
+    "paparazzi/models/float_mat_inv_2d/cbmc/harness.c",
+    "paparazzi/models/float_mat_inv_2d/cbmc/properties.json",
+    "paparazzi/models/float_mat_inv_2d/cbmc/results.json",
+    "paparazzi/models/float_mat_inv_2d/cbmc/counterexamples.json",
+    "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/checker-config.json"
+  ],
+  "gate_inputs": [
+    "shared/verification/Obligations.v",
+    "paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v",
+    "paparazzi/models/float_mat_inv_2d/align/model/Source.v",
+    "paparazzi/models/float_mat_inv_2d/align/model/Execution.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Contract.v",
+    "paparazzi/relations/guidance_mode/support/semantics/SemanticsSupport.v",
+    "paparazzi/relations/guidance_mode/support/allorder/PureSyntax.v",
+    "paparazzi/relations/guidance_mode/support/allorder/PureDenotation.v",
+    "paparazzi/relations/guidance_mode/support/allorder/PureProgress.v",
+    "paparazzi/relations/guidance_mode/support/allorder/AtomicDenotation.v",
+    "paparazzi/relations/guidance_mode/support/allorder/AtomicProgress.v",
+    "paparazzi/relations/guidance_mode/support/allorder/CallfreeExecution.v",
+    "paparazzi/relations/guidance_mode/support/allorder/PhaseComposition.v",
+    "paparazzi/relations/guidance_mode/support/allocation/StackAllocation.v",
+    "paparazzi/relations/guidance_mode/support/entry/StackCleanup.v",
+    "paparazzi/relations/guidance_mode/support/entry/FunctionAllocation.v",
+    "paparazzi/relations/lowpass_recovery/support/Expressions.v",
+    "paparazzi/relations/guidance_mode/support/semantics/SourceClosure.v",
+    "paparazzi/relations/guidance_mode/support/allorder/ContinuationLift.v",
+    "paparazzi/relations/guidance_mode/support/allorder/BlockExecution.v",
+    "paparazzi/relations/guidance_mode/support/allorder/FactorShell.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/BuiltinFabs.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Expressions.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Certificates.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Body.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/MemoryEffects.v",
+    "paparazzi/relations/guidance_mode/support/semantics/WeightedTermination.v",
+    "paparazzi/relations/guidance_mode/support/semantics/SourceTermination.v",
+    "paparazzi/relations/guidance_mode/support/semantics/TableSupport.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Closure.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Call.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Memcpy16.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Observer.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/TraceInputs.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/RecheckSupport.v",
+    "paparazzi/relations/matrix_inverse_scale/support/Dyadic.v",
+    "paparazzi/models/float_mat_inv_3d/align/model/Source.v",
+    "paparazzi/models/float_mat_inv_3d/rocq/support/MatrixAccess.v",
+    "paparazzi/models/float_mat_inv_3d/rocq/support/Scalar.v",
+    "paparazzi/relations/matrix_inverse_scale/support/Kernels.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v",
+    "paparazzi/relations/matrix_inverse_scale/support/Witness.v",
+    "paparazzi/models/float_mat_inv_3d/rocq/support/GuardWitness.v",
+    "paparazzi/models/float_mat_inv_3d/rocq/support/PairExtend.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/support/ExactReplay.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v",
+    "paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/attempts/001/Proof.v",
+    "paparazzi/models/float_mat_inv_2d/prepare/source/float_mat_inv_2d.c",
+    "paparazzi/models/float_mat_inv_2d/prepare/source/bindings.json",
+    "paparazzi/models/float_mat_inv_2d/align/model/compcert-manifest.json",
+    "paparazzi/models/float_mat_inv_2d/align/request.json"
+  ]
+}

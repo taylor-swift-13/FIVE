@@ -1,0 +1,188 @@
+From Stdlib Require Import List ZArith.
+From compcert Require Import AST Values Memory Events Ctypes Csyntax Csem Cexec Smallstep.
+From FiveShared.verification Require Import Obligations.
+From FivePprzFloatMatInv3d Require Import Source Execution.
+From FiveGuidanceSemantics Require Import SourceClosure.
+From FiveMatInv3Correspondence Require Import Closure.
+Import ListNotations.
+Definition source_state := Closure.SS.
+Definition closed_step := Closure.closed_step.
+Definition domain_preservation_goal:Prop := forall args m,
+ Execution.entry args m=Callstate(Internal Source.f_float_mat_inv_3d)args Kstop m /\ source_state(Execution.entry args m).
+Definition reachable_step_goal:Prop := forall args m t reached tr next,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (closed_step tt reached tr next <-> Csem.step Execution.ge reached tr next).
+Definition floating_point_correspondence_goal := reachable_step_goal.
+Definition machine_integer_correspondence_goal := reachable_step_goal.
+Definition memory_access_correspondence_goal := reachable_step_goal.
+Definition control_and_exhaustion_correspondence_goal:Prop := forall args m t final,
+ star closed_step tt(Execution.entry args m)t final <->
+ star Csem.step Execution.ge(Execution.entry args m)t final.
+Definition normal_result_and_memory_correspondence_goal:Prop := forall args m t v mf b ofs n,
+ (star closed_step tt(Execution.entry args m)t(Returnstate v Kstop mf) <->
+ star Csem.step Execution.ge(Execution.entry args m)t(Returnstate v Kstop mf)) /\
+ Execution.observe_bytes mf b ofs n=Mem.loadbytes mf b ofs n.
+Definition invalid_operation_correspondence_goal:Prop := forall args m t reached,
+ star Csem.step Execution.ge(Execution.entry args m)t reached ->
+ (Execution.source_error reached <-> ~Execution.normal_return reached /\ nostep closed_step tt reached).
+Definition whole_execution_correspondence_goal := control_and_exhaustion_correspondence_goal.
+From FiveMatInv3Correspondence Require Import Spec.
+From FiveMatInv3Correspondence Require Import Closure.
+Theorem domain_preservation:Spec.domain_preservation_goal.
+Proof. intros;split;[reflexivity|apply Closure.entry_source]. Qed.
+Lemma reachable_step:Spec.reachable_step_goal.
+Proof.
+ intros args m t reached tr next PATH.
+ apply (Closure.one_step_correspondence Execution.no_external Execution.no_external Execution.quiet_world).
+ eapply Closure.source_reachable;eauto.
+Qed.
+Theorem floating_point_correspondence:Spec.floating_point_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem machine_integer_correspondence:Spec.machine_integer_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem memory_access_correspondence:Spec.memory_access_correspondence_goal.
+Proof. exact reachable_step. Qed.
+Theorem control_and_exhaustion_correspondence:Spec.control_and_exhaustion_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Theorem normal_result_and_memory_correspondence:Spec.normal_result_and_memory_correspondence_goal.
+Proof. intros;split;[apply Closure.whole_execution_correspondence|reflexivity]. Qed.
+Theorem invalid_operation_correspondence:Spec.invalid_operation_correspondence_goal.
+Proof. exact Closure.invalid_operation_correspondence. Qed.
+Theorem whole_execution_correspondence:Spec.whole_execution_correspondence_goal.
+Proof. exact Closure.whole_execution_correspondence. Qed.
+Print Assumptions domain_preservation.
+Print Assumptions floating_point_correspondence.
+Print Assumptions machine_integer_correspondence.
+Print Assumptions memory_access_correspondence.
+Print Assumptions control_and_exhaustion_correspondence.
+Print Assumptions normal_result_and_memory_correspondence.
+Print Assumptions invalid_operation_correspondence.
+Print Assumptions whole_execution_correspondence.
+From Stdlib Require Import ZArith Lia.
+From compcert Require Import Values Memory Csem Smallstep.
+From FiveLowpassSupport Require Import Straightline.
+From FiveGuidanceAllOrder Require Import CallfreeExecution.
+From FivePprzFloatMatInv3d Require Import Execution.
+From FiveMatInv3Case Require Import Contract Call.
+From FiveMatInv3Functional Require Import Spec.
+Local Open Scope Z_scope.
+Lemma evaluator_post:forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->
+ exists mf,state_eval Execution.ge(Execution.entry(Args bo bi po pi)m)=Some(Status f,mf)/\Spec.Post m mf bo bi po pi f.
+Proof. intros m bo bi po pi f NE W RD;destruct(call_summary m bo bi po pi f NE W RD)as[mf[EV[BYTES[FR[WF[BL AC]]]]]].
+ exists mf;split;[exact EV|];split;[exact BYTES|];split;[exact FR|];split;[exact WF|];split;[exact BL|];split;[exact AC|].
+ apply FR;[exact(reads_valid m bi pi 9 f ltac:(lia)RD)|left;congruence]. Qed.
+Theorem normal_call:Spec.NormalCall.
+Proof. intros m bo bi po pi f NE W RD;destruct(evaluator_post m bo bi po pi f NE W RD)as[mf[EV POST]].
+ exists mf;split;[|exact POST];eapply defined_evaluator_return_exists;[vm_compute;reflexivity|vm_compute;repeat constructor;simpl;intuition discriminate|exact EV]. Qed.
+Theorem all_normal_observations:Spec.AllNormalObservations.
+Proof. intros m bo bi po pi f NE W RD t v mf PATH;destruct(evaluator_post m bo bi po pi f NE W RD)as[expected[EV POST]].
+ destruct(defined_evaluator_exact_return Execution.ge(Execution.entry(Args bo bi po pi)m)(Status f)expected t v mf ltac:(vm_compute;reflexivity)EV PATH)as[-> ->];split;[reflexivity|exact POST]. Qed.
+Print Assumptions normal_call.
+Print Assumptions all_normal_observations.
+From Stdlib Require Import List String.
+From FiveMatInv3Case Require Import RecheckSupport Assertions.
+Import ListNotations.
+Local Open Scope string_scope.
+Inductive PropertyKind:=KSource|KCopy(kind:CopyKind)|KAssertion(n:nat).
+Definition Claim(k:PropertyKind):Prop:=match k with
+ |KSource=>SourceGuards|KCopy kind=>CopyClaim kind
+ |KAssertion n=>match n with 1=>Assert1|2=>Assert2|3=>Assert3|4=>Assert4|5=>Assert5|6=>Assert6|7=>Assert7|8=>Assert8|9=>Refutation9|10=>Refutation10|_=>False end end.
+Definition Ledger:list(string*PropertyKind):=[
+ ("float_mat_inv_3d.pointer_arithmetic.1",KSource);
+ ("float_mat_inv_3d.pointer_arithmetic.2",KSource);
+ ("float_mat_inv_3d.pointer_arithmetic.3",KSource);
+ ("float_mat_inv_3d.pointer_arithmetic.4",KSource);
+ ("float_mat_inv_3d.pointer_arithmetic.5",KSource);
+ ("float_mat_inv_3d.pointer_arithmetic.6",KSource);
+ ("float_mat_inv_3d.pointer_dereference.1",KSource);
+ ("float_mat_inv_3d.pointer_dereference.2",KSource);
+ ("float_mat_inv_3d.pointer_dereference.3",KSource);
+ ("float_mat_inv_3d.pointer_dereference.4",KSource);
+ ("float_mat_inv_3d.pointer_dereference.5",KSource);
+ ("float_mat_inv_3d.pointer_dereference.6",KSource);
+ ("float_mat_inv_3d.array_bounds.1",KSource);
+From FiveMatInv3Case Require Import RecheckSupport Assertions.
+From FiveMatInv3Recheck Require Import Spec.
+From Stdlib Require Import String.
+Local Open Scope string_scope.
+Theorem property_001:Spec.Property 0%nat "float_mat_inv_3d.pointer_arithmetic.1".
+Proof. change ("float_mat_inv_3d.pointer_arithmetic.1"="float_mat_inv_3d.pointer_arithmetic.1"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+Theorem property_002:Spec.Property 1%nat "float_mat_inv_3d.pointer_arithmetic.2".
+Proof. change ("float_mat_inv_3d.pointer_arithmetic.2"="float_mat_inv_3d.pointer_arithmetic.2"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+Theorem property_003:Spec.Property 2%nat "float_mat_inv_3d.pointer_arithmetic.3".
+Proof. change ("float_mat_inv_3d.pointer_arithmetic.3"="float_mat_inv_3d.pointer_arithmetic.3"/\(SourceGuards));split;[reflexivity|exact source_guards]. Qed.
+{
+  "schema": "five-property-bindings/1",
+  "properties": [
+    {
+      "id": "float_mat_inv_3d.pointer_arithmetic.1",
+      "kind": "KSource",
+      "target": "SourceGuards",
+      "proof": "source_guards",
+      "theorem": "property_001",
+      "status": "proved",
+      "description": "pointer arithmetic: pointer NULL in mat_in + (signed long int)1",
+      "index": 0
+    },
+    {
+      "id": "float_mat_inv_3d.pointer_arithmetic.2",
+      "kind": "KSource",
+      "target": "SourceGuards",
+      "proof": "source_guards",
+      "theorem": "property_002",
+      "status": "proved",
+      "description": "pointer arithmetic: pointer invalid in mat_in + (signed long int)1",
+      "index": 1
+    },
+    {
+    goals = status.get('requested_goals')
+    if not isinstance(bindings, list) or not bindings or not isinstance(goals, list) or len(set(goals)) != len(goals):
+        raise ValueError('missing/malformed goal bindings')
+    if [r.get('requested_goal') for r in bindings] != goals:
+        raise ValueError('requested goals differ from certified goals')
+    ident = r'[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*'
+    for row in bindings:
+        if not re.fullmatch(ident, str(row.get('theorem', ''))) or not isinstance(row.get('type'), str) or not row['type'].strip() or any(token in row['type'] for token in ('(*', '*)', '\n', '\r')) or re.search(r'\.(?:\s|$)', row['type']):
+            raise ValueError('malformed theorem/type binding')
+        if row['theorem'] not in receipt['theorems']:
+            raise ValueError('goal theorem is not claimed by kernel receipt')
+    cert = data['certificate']
+    certificate = checked(cert)
+    imports = cert.get('imports')
+    if not isinstance(imports, list) or not imports or not all(re.fullmatch(ident, str(n)) for n in imports):
+        raise ValueError('malformed certificate imports')
+    if certificate.read_text() != certificate_source(imports, bindings):
+        raise ValueError('certificate does not express exact theorem-to-goal bindings')
+    run = json.loads((root / cert['run'] / 'run.json').read_text())
+    if run.get('status') != 'passed':
+        raise ValueError('certificate run did not pass')
+    run_inputs = {Path(x['source']).resolve(): x['sha256'] for x in run.get('inputs', [])}
+    if run_inputs.get(certificate) != cert['sha256'] or any(run_inputs.get(p) != h for p, h in dependencies.items()):
+        raise ValueError('certificate run omitted actual certificate/dependency snapshot')
+    def command(command_id):
+        rows = [c for c in run.get('commands', []) if c.get('id') == command_id]
+        if len(rows) != 1 or rows[0].get('exit_code') != 0 or rows[0].get('status') != 'passed':
+            raise ValueError('missing/failed certificate command')
+        return rows[0]
+    compile_row = command(cert['compile_command_id'])
+    stdout = compile_row.get('stdout')
+    if not isinstance(stdout, str) or not (root / cert['run'] / stdout).is_file() or not (root / cert['run'] / stdout).stat().st_size:
+        raise ValueError('missing actual certificate Print Assumptions output')
+    argv = compile_row['argv']
+    if not full_compile(compile_row) or not any((Path(compile_row['cwd']) / arg).resolve() == certificate for arg in argv if arg.endswith('.v')):
+        raise ValueError('certificate was not actually compiled')
+    # Reuse canonical independent-kernel and compilation/snapshot checks for
+    # certificate module, avoiding a second permissive argv implementation.
+    certificate_receipt = cert['kernel_evidence']
+    kernel_record(root, certificate_receipt)
+    ce = json.loads((root / certificate_receipt).read_text())
+    if ce['run'] != cert['run'] or ce['command_id'] != cert['kernel_command_id'] or ce['theorems'] != [cert['module'] + '.goal_' + str(i) for i in range(len(bindings))] or ce['statement_artifacts'] != [cert['path']] or ce['dependency_sha256'] != {**receipt['dependency_sha256'], cert['path']: cert['sha256']}:
+        raise ValueError('certificate kernel receipt differs from exact certification')
+    # Imports must resolve to the very same compiled dependency source paths.
+    for row in (compile_row, command(cert['kernel_command_id'])):
+        for module in set(imports) | {b['theorem'].rsplit('.', 1)[0] for b in bindings} | {b['type'].rsplit('.', 1)[0] for b in bindings if re.fullmatch(ident, b['type']) and '.' in b['type']}:
+            candidates = module_candidates(row, module)
+            if not any(p in dependencies for p in candidates):
+                raise ValueError('certificate import not bound to actual compiled snapshot: ' + module)
+        if certificate not in module_candidates(row, cert['module']):
+            raise ValueError('certificate module does not resolve to actual compiled certificate')

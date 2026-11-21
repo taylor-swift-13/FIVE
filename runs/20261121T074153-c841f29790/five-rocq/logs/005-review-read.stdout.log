@@ -1,0 +1,238 @@
+
+FILE paparazzi/models/float_mat_inv_2d/cbmc/harness.c SHA256 cf242e5439b643b341544a3e70176932bfef62e898c660445cb0e130732784c3
+1: #include <stdbool.h>
+2: #include <stdint.h>
+3: #include <string.h>
+4: bool float_mat_inv_2d(float out[4], const float in[4]);
+5: extern float nondet_float(void);
+6: int main(void) {
+7:   float arbitrary[4];
+8:   arbitrary[0] = nondet_float();
+9:   arbitrary[1] = nondet_float();
+10:   arbitrary[2] = nondet_float();
+11:   arbitrary[3] = nondet_float();
+12:   struct { uint32_t before; float value[4]; uint32_t after; } guarded = {.before=0x12345678u, .after=0x9abcdef0u};
+13:   bool arbitrary_status = float_mat_inv_2d(guarded.value, arbitrary);
+14:   __CPROVER_assert(arbitrary_status == 0 || arbitrary_status == 1, "return status is boolean for arbitrary binary32 matrix");
+15:   __CPROVER_assert(guarded.before == 0x12345678u && guarded.after == 0x9abcdef0u, "arbitrary matrix call preserves surrounding frame words");
+16:   float base[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+17:   float small[4] = {0x1p-8f, 0.0f, 0.0f, 0x1p-8f};
+18:   float large[4] = {0x1p100f, 0.0f, 0.0f, 0x1p100f};
+19:   float base_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+20:   float small_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+21:   float large_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+22:   uint32_t base_words[4], small_before[4], small_after[4], large_words[4];
+23:   memcpy(small_before, small_out, sizeof small_out);
+24:   bool base_status = float_mat_inv_2d(base_out, base);
+25:   bool small_status = float_mat_inv_2d(small_out, small);
+26:   bool large_status = float_mat_inv_2d(large_out, large);
+27:   memcpy(base_words, base_out, sizeof base_out);
+28:   memcpy(small_after, small_out, sizeof small_out);
+29:   memcpy(large_words, large_out, sizeof large_out);
+30:   __CPROVER_assert(base_status == 0, "identity call succeeds");
+31:   __CPROVER_assert(base_words[0] == 0x3f800000u && base_words[1] == 0x80000000u && base_words[2] == 0x80000000u && base_words[3] == 0x3f800000u, "identity exact signedzero output bits");
+32:   __CPROVER_assert(small_status == 1, "small conditionone diagonal call rejects");
+33:   __CPROVER_assert(small_before[0] == small_after[0] && small_before[1] == small_after[1] && small_before[2] == small_after[2] && small_before[3] == small_after[3], "rejected call preserves every output byte");
+34:   __CPROVER_assert(large_status == 0, "finite large diagonal call reports success");
+35:   __CPROVER_assert(large_words[0] == 0x00000000u && large_words[1] == 0x80000000u && large_words[2] == 0x80000000u && large_words[3] == 0x00000000u, "overflow determinant exact signedzero output bits");
+36:   __CPROVER_assert(base_status == small_status, "positive scaling preserves inverse status");
+37:   float residual = large[0] * large_out[0] - 1.0f;
+38:   __CPROVER_assert(large_status != 0 || (residual > -0.5f && residual < 0.5f), "successful wellconditioned inverse has residual component below half");
+39:   return 0;
+40: }
+
+FILE paparazzi/models/float_mat_inv_3d/cbmc/harness.c SHA256 07d7bd838edd6624f6ca2aaad6fd90bdf0f45264f98f0502a6c40ea775b89b57
+1: #include <stdbool.h>
+2: #include <stdint.h>
+3: #include <string.h>
+4: bool float_mat_inv_3d(float out[3][3], const float in[3][3]);
+5: extern float nondet_float(void);
+6: int main(void) {
+7:   float arbitrary[3][3];
+8:   arbitrary[0][0] = nondet_float();
+9:   arbitrary[0][1] = nondet_float();
+10:   arbitrary[0][2] = nondet_float();
+11:   arbitrary[1][0] = nondet_float();
+12:   arbitrary[1][1] = nondet_float();
+13:   arbitrary[1][2] = nondet_float();
+14:   arbitrary[2][0] = nondet_float();
+15:   arbitrary[2][1] = nondet_float();
+16:   arbitrary[2][2] = nondet_float();
+17:   struct { uint32_t before; float value[3][3]; uint32_t after; } guarded = {.before=0x12345678u, .after=0x9abcdef0u};
+18:   bool arbitrary_status = float_mat_inv_3d(guarded.value, arbitrary);
+19:   __CPROVER_assert(arbitrary_status == 0 || arbitrary_status == 1, "return status is boolean for arbitrary binary32 matrix");
+20:   __CPROVER_assert(guarded.before == 0x12345678u && guarded.after == 0x9abcdef0u, "arbitrary matrix call preserves surrounding frame words");
+21:   float base[3][3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+22:   float small[3][3] = {{0x1p-8f, 0.0f, 0.0f}, {0.0f, 0x1p-8f, 0.0f}, {0.0f, 0.0f, 0x1p-8f}};
+23:   float large[3][3] = {{0x1p50f, 0.0f, 0.0f}, {0.0f, 0x1p50f, 0.0f}, {0.0f, 0.0f, 0x1p50f}};
+24:   float base_out[3][3] = {{17.0f, 0.0f, 0.0f}, {0.0f, 17.0f, 0.0f}, {0.0f, 0.0f, 17.0f}};
+25:   float small_out[3][3] = {{17.0f, 0.0f, 0.0f}, {0.0f, 17.0f, 0.0f}, {0.0f, 0.0f, 17.0f}};
+26:   float large_out[3][3] = {{17.0f, 0.0f, 0.0f}, {0.0f, 17.0f, 0.0f}, {0.0f, 0.0f, 17.0f}};
+27:   uint32_t base_words[9], small_before[9], small_after[9], large_words[9];
+28:   memcpy(small_before, small_out, sizeof small_out);
+29:   bool base_status = float_mat_inv_3d(base_out, base);
+30:   bool small_status = float_mat_inv_3d(small_out, small);
+31:   bool large_status = float_mat_inv_3d(large_out, large);
+32:   memcpy(base_words, base_out, sizeof base_out);
+33:   memcpy(small_after, small_out, sizeof small_out);
+34:   memcpy(large_words, large_out, sizeof large_out);
+35:   __CPROVER_assert(base_status == 0, "identity call succeeds");
+36:   __CPROVER_assert(base_words[0] == 0x3f800000u && base_words[1] == 0x80000000u && base_words[2] == 0x00000000u && base_words[3] == 0x80000000u && base_words[4] == 0x3f800000u && base_words[5] == 0x80000000u && base_words[6] == 0x00000000u && base_words[7] == 0x80000000u && base_words[8] == 0x3f800000u, "identity exact signedzero output bits");
+37:   __CPROVER_assert(small_status == 1, "small conditionone diagonal call rejects");
+38:   __CPROVER_assert(small_before[0] == small_after[0] && small_before[1] == small_after[1] && small_before[2] == small_after[2] && small_before[3] == small_after[3] && small_before[4] == small_after[4] && small_before[5] == small_after[5] && small_before[6] == small_after[6] && small_before[7] == small_after[7] && small_before[8] == small_after[8], "rejected call preserves every output byte");
+39:   __CPROVER_assert(large_status == 0, "finite large diagonal call reports success");
+40:   __CPROVER_assert(large_words[0] == 0x00000000u && large_words[1] == 0x80000000u && large_words[2] == 0x00000000u && large_words[3] == 0x80000000u && large_words[4] == 0x00000000u && large_words[5] == 0x80000000u && large_words[6] == 0x00000000u && large_words[7] == 0x80000000u && large_words[8] == 0x00000000u, "overflow determinant exact signedzero output bits");
+41:   __CPROVER_assert(base_status == small_status, "positive scaling preserves inverse status");
+42:   float residual = large[0][0] * large_out[0][0] - 1.0f;
+43:   __CPROVER_assert(large_status != 0 || (residual > -0.5f && residual < 0.5f), "successful wellconditioned inverse has residual component below half");
+44:   return 0;
+45: }
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v SHA256 f16f343645b6e98839caadb8d09565c19e840a5e95d471c89b6b320119e21922
+1: From Stdlib Require Import List ZArith.
+2: From compcert Require Import Integers Floats Values Memory Events Csem Smallstep.
+3: From FiveMatInv3Case Require Import MatrixMemory.
+4: From FivePprzFloatMatInv2d Require Import Execution.
+5: From FiveInv2Case Require Import Contract Call RecheckSupport TraceInputs.
+6: From FiveMatrixInverseSupport Require Import Kernels.
+7: Import ListNotations.
+8: Local Open Scope Z_scope.
+9: Definition NormalCall(m:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32)(mf:mem):Prop:=exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Result f)Kstop mf).
+10: Record Separate(og ig ob ib os is0 ol il:block):Prop:={
+11:  sep_bg:ob<>og;sep_big:ib<>og;sep_sg:os<>og;sep_sig:is0<>og;sep_lg:ol<>og;sep_lig:il<>og;
+12:  sep_sb:os<>ob;sep_sib:is0<>ob;sep_lb:ol<>ob;sep_lib:il<>ob;sep_ls:ol<>os;sep_lis:il<>os
+13: }.
+14: Definition OriginalReplay:Prop:=forall m og ig ob ib os is0 ol il,
+15:  Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input->
+16:  Inputs m ob ib Ptrofs.zero Ptrofs.zero base2->
+17:  Inputs m os is0 Ptrofs.zero Ptrofs.zero small2->
+18:  Inputs m ol il Ptrofs.zero Ptrofs.zero large2->Separate og ig ob ib os is0 ol il->
+19:  exists ma mb mc md,
+20:  NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+21:  NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+22:  NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+23:  NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+24: Theorem original_trace_four_calls:OriginalReplay.
+25: Proof. intros m og ig ob ib os is0 ol il IG IB IS IL SEP;destruct SEP.
+26:  destruct(call_summary m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input IG)as[ma[PG[QG OTHERG]]].
+27:  assert(IBA:Inputs ma ob ib Ptrofs.zero Ptrofs.zero base2)by(eapply post_preserves_other_inputs;eauto).
+28:  assert(ISA:Inputs ma os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+29:  assert(ILA:Inputs ma ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+30:  destruct(call_summary ma ob ib Ptrofs.zero Ptrofs.zero base2 IBA)as[mb[PB[QB OTHERB]]].
+31:  assert(ISB:Inputs mb os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+32:  assert(ILB:Inputs mb ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+33:  destruct(call_summary mb os is0 Ptrofs.zero Ptrofs.zero small2 ISB)as[mc[PS[QS OTHERS]]].
+34:  assert(ILC:Inputs mc ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+35:  destruct(call_summary mc ol il Ptrofs.zero Ptrofs.zero large2 ILC)as[md[PL[QL OTHERL]]].
+36:  exists ma,mb,mc,md;unfold NormalCall;split;[exact PG|];split;[exact QG|];split;[exact PB|];split;[exact QB|];split;[exact PS|];split;[exact QS|];split;[exact PL|exact QL].
+37: Qed.
+38: Theorem original_trace_statuses:Result trace_input=Vint Int.zero/\Result base2=Vint Int.zero/\Result small2=Vint Int.one/\Result large2=Vint Int.zero.
+39: Proof. split;[exact(proj1 original_arbitrary_trace_kernel)|];split;[exact(proj1 base2_kernel)|];split;[exact(proj1 small2_kernel)|exact(proj1 large2_kernel)]. Qed.
+40: Theorem original_trace_scale_failure:OriginalReplay /\ Result base2<>Result small2.
+41: Proof. split;[exact original_trace_four_calls|exact RefuteScaleStatus2]. Qed.
+42: Theorem original_trace_residual_failure:OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864.
+43: Proof. split;[exact original_trace_four_calls|];destruct RefuteLargeResidual2 as[RET BAD];split;[exact RET|];split;[exact BAD|exact large2_residual]. Qed.
+44: Print Assumptions original_trace_four_calls.
+45: Print Assumptions original_trace_scale_failure.
+46: Print Assumptions original_trace_residual_failure.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/support/SequentialReplay.v SHA256 a46cebafd2847da8ea25b612f37efee524bdb5f7438fc05c3355169bf670f474
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Csem Smallstep.
+3: From FivePprzFloatMatInv3d Require Import Execution.
+4: From FiveMatInv3Case Require Import MatrixMemory Scalar Contract PairExtend GuardWitness TraceInputs.
+5: From FiveMatrixInverseSupport Require Import Kernels.
+6: Require FiveMatInv3Functional.Spec FiveMatInv3Functional.Proof.
+7: Import ListNotations.
+8: Local Open Scope Z_scope.
+9: Definition Ready(m:mem)(bo bi:block)(po:ptrofs)(f old:Z->float32):Prop:=bo<>bi /\WriteRegion m bo po 9 /\Reads m bi Ptrofs.zero 9 f /\Reads m bo po 9 old.
+10: Definition OldFixed(i:Z):float32:=Diag3(Float32.of_bits(Int.repr 1099431936))i.
+11: Lemma region_preserved:forall m mf b p n,AccessPreserved m mf->Mem.valid_block m b->WriteRegion m b p n->WriteRegion mf b p n.
+12: Proof. intros m mf b p n AC VB[AL[NW RP]];split;[exact AL|];split;[exact NW|];intros z B.
+13:  assert(VA:Mem.valid_access m Mint8unsigned b z Writable)by(split;[intros x X;apply RP;cbn[size_chunk]in X;lia|change(1|z);exists z;lia]).
+14:  pose proof(AC Mint8unsigned b z Writable VA)as[PF ALIGN];apply PF;cbn[size_chunk];lia. Qed.
+15: Lemma reads_preserved:forall m mf b p n f,LoadPreserved m mf->0<n->Reads m b p n f->Reads mf b p n f.
+16: Proof. intros m mf b p n f LOAD N RD;pose proof(reads_valid m b p n f N RD)as VB;destruct RD as[AL[NW R]];split;[exact AL|];split;[exact NW|];intros i I;rewrite LOAD by exact VB;apply R;exact I. Qed.
+17: Lemma ready_preserved:forall m mf bo bi po f old,LoadPreserved m mf->AccessPreserved m mf->Ready m bo bi po f old->Ready mf bo bi po f old.
+18: Proof. intros m mf bo bi po f old LP AP[NE[W[RI RO]]];split;[exact NE|];split.
+19:  - eapply region_preserved;[exact AP|exact(writable_valid m bo po 9 ltac:(lia)W)|exact W].
+20:  - split;[eapply reads_preserved;[exact LP|lia|exact RI]|eapply reads_preserved;[exact LP|lia|exact RO]]. Qed.
+21: Lemma guarded_preserved:forall m mf bo bi f,LoadPreserved m mf->AccessPreserved m mf->Guarded 9 m bo bi f->Guarded 9 mf bo bi f.
+22: Proof. intros m mf bo bi f LP AP[NE[W[RI[RO[G0 GN]]]]];pose proof(writable_valid m bo(Ptrofs.repr 4)9 ltac:(lia)W)as VO.
+23:  split;[exact NE|];split;[eapply region_preserved;eauto|];split;[eapply reads_preserved;[exact LP|lia|exact RI]|];split;[eapply reads_preserved;[exact LP|lia|exact RO]|].
+24:  split;rewrite LP by exact VO;assumption. Qed.
+25: Record Separate(og ob ib os is0 ol il:block):Prop:={
+26:  sep_bg:ob<>og;sep_big:ib<>og;sep_sg:os<>og;sep_sig:is0<>og;sep_lg:ol<>og;sep_lig:il<>og;
+27:  sep_sb:os<>ob;sep_sib:is0<>ob;sep_lb:ol<>ob;sep_lib:il<>ob;sep_ls:ol<>os;sep_lis:il<>os
+28: }.
+29: Definition Layout(f:Z->float32)(m:mem)(og ig ob ib os is0 ol il:block):Prop:=
+30:  Guarded 9 m og ig f /\Ready m ob ib Ptrofs.zero base3 OldFixed /\Ready m os is0 Ptrofs.zero small3 OldFixed /\Ready m ol il Ptrofs.zero large3 OldFixed /\Separate og ob ib os is0 ol il.
+31: Theorem layout_inhabited:forall f:Z->float32,exists m og ig ob ib os is0 ol il,Layout f m og ig ob ib os is0 ol il.
+32: Proof.
+33:  intro f;destruct(matrix9_guarded f)as[mg[og[ig G]]].
+34:  destruct(pair9_extend mg base3 OldFixed)as[mb[ob[ib[NEB[WB[RIB[ROB[FOB[FIB[BB[LB[AB VB]]]]]]]]]]]].
+35:  assert(GB:Guarded 9 mb og ig f)by(eapply guarded_preserved;eauto).
+36:  assert(B:Ready mb ob ib Ptrofs.zero base3 OldFixed)by(split;[exact NEB|];split;[exact WB|];split;assumption).
+37:  destruct(pair9_extend mb small3 OldFixed)as[ms[os[is0[NES[WS[RIS[ROS[FOS[FIS[BS[LS[AS VS]]]]]]]]]]]].
+38:  assert(GS:Guarded 9 ms og ig f)by(eapply guarded_preserved;eauto).
+39:  assert(BS0:Ready ms ob ib Ptrofs.zero base3 OldFixed)by(eapply ready_preserved;eauto).
+40:  assert(S:Ready ms os is0 Ptrofs.zero small3 OldFixed)by(split;[exact NES|];split;[exact WS|];split;assumption).
+41:  destruct(pair9_extend ms large3 OldFixed)as[ml[ol[il[NEL[WL[RIL[ROL[FOL[FIL[BL[LL[AL VL]]]]]]]]]]]].
+42:  assert(GL:Guarded 9 ml og ig f)by(eapply guarded_preserved;eauto).
+43:  assert(BL0:Ready ml ob ib Ptrofs.zero base3 OldFixed)by(eapply ready_preserved;eauto).
+44:  assert(SL:Ready ml os is0 Ptrofs.zero small3 OldFixed)by(eapply ready_preserved;eauto).
+45:  assert(L:Ready ml ol il Ptrofs.zero large3 OldFixed)by(split;[exact NEL|];split;[exact WL|];split;assumption).
+46:  assert(VG:Mem.valid_block mg og)by(destruct G as[_[W _]];exact(writable_valid mg og(Ptrofs.repr 4)9 ltac:(lia)W)).
+47:  assert(VGB:Mem.valid_block mb og)by(apply VB;exact VG).
+48:  assert(VGS:Mem.valid_block ms og)by(apply VS;exact VGB).
+49:  assert(VOB:Mem.valid_block mb ob)by exact(writable_valid mb ob Ptrofs.zero 9 ltac:(lia)WB).
+50:  assert(VOBS:Mem.valid_block ms ob)by(apply VS;exact VOB).
+51:  assert(VOS:Mem.valid_block ms os)by exact(writable_valid ms os Ptrofs.zero 9 ltac:(lia)WS).
+52:  exists ml,og,ig,ob,ib,os,is0,ol,il;split;[exact GL|];split;[exact BL0|];split;[exact SL|];split;[exact L|];constructor;
+53:  intro EQ;subst;first[exact(FOB VG)|exact(FIB VG)|exact(FOS VGB)|exact(FIS VGB)|exact(FOL VGS)|exact(FIL VGS)|exact(FOS VOB)|exact(FIS VOB)|exact(FOL VOBS)|exact(FIL VOBS)|exact(FOL VOS)|exact(FIL VOS)].
+54: Qed.
+55: Lemma frame_load_kept:forall m mf bo po b ofs ch v,Frame m mf bo po->Mem.valid_block m b->
+56:  (b<>bo\/ofs+size_chunk ch<=Ptrofs.unsigned po\/Ptrofs.unsigned po+36<=ofs)->Mem.load ch m b ofs=Some v->Mem.load ch mf b ofs=Some v.
+57: Proof. intros m mf bo po b ofs ch v FR VB OUT LD;destruct(Mem.load_loadbytes ch m b ofs v LD)as[bytes[LB DE]].
+58:  assert(LBF:Mem.loadbytes mf b ofs(size_chunk ch)=Some bytes)by(rewrite FR by assumption;exact LB).
+59:  pose proof(Mem.load_valid_access _ _ _ _ _ LD)as[RP ALIGN];pose proof(Mem.loadbytes_load ch mf b ofs bytes LBF ALIGN)as LF;rewrite <-DE in LF;exact LF. Qed.
+60: Lemma post_preserves_ready:forall m mf bo bi po pi f out input outp g old,
+61:  FiveMatInv3Functional.Spec.Post m mf bo bi po pi f->Ready m out input outp g old->out<>bo->input<>bo->Ready mf out input outp g old.
+62: Proof.
+63:  intros m mf bo bi po pi f out input outp g old[BY[FR[WF[VB[AC INPUT]]]]][NE[WO[RI RO]]]OO IO.
+64:  pose proof(writable_valid m out outp 9 ltac:(lia)WO)as VO.
+65:  pose proof(reads_valid m input Ptrofs.zero 9 g ltac:(lia)RI)as VI.
+66:  split;[exact NE|];split.
+67:  - eapply region_preserved;[|exact VO|exact WO];intros ch b z p VA;apply AC;[eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|destruct p;constructor]|exact VA].
+68:  - split.
+69:    + destruct RI as[AL[NW RD]];split;[exact AL|];split;[exact NW|];intros i I;eapply frame_load_kept;[exact FR|exact VI|left;exact IO|apply RD;exact I].
+70:    + destruct RO as[AL[NW RD]];split;[exact AL|];split;[exact NW|];intros i I;eapply frame_load_kept;[exact FR|exact VO|left;exact OO|apply RD;exact I].
+71: Qed.
+72: Definition NormalCall(m:mem)(bo bi:block)(po:ptrofs)(f:Z->float32)(mf:mem):Prop:=exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po Ptrofs.zero)m)t(Returnstate(Status f)Kstop mf).
+73: Definition Chain(f:Z->float32)(m:mem)(og ig ob ib os is0 ol il:block):Prop:=exists ma mb ms ml,
+74:  NormalCall m og ig(Ptrofs.repr 4)f ma /\FiveMatInv3Functional.Spec.Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero f /\
+75:  NormalCall ma ob ib Ptrofs.zero base3 mb /\FiveMatInv3Functional.Spec.Post ma mb ob ib Ptrofs.zero Ptrofs.zero base3 /\
+76:  NormalCall mb os is0 Ptrofs.zero small3 ms /\FiveMatInv3Functional.Spec.Post mb ms os is0 Ptrofs.zero Ptrofs.zero small3 /\
+77:  NormalCall ms ol il Ptrofs.zero large3 ml /\FiveMatInv3Functional.Spec.Post ms ml ol il Ptrofs.zero Ptrofs.zero large3.
+78: Theorem original_sequential_calls:forall f m og ig ob ib os is0 ol il,Layout f m og ig ob ib os is0 ol il->Chain f m og ig ob ib os is0 ol il.
+79: Proof.
+80:  intros f m og ig ob ib os is0 ol il[G[B[S[L SEP]]]];destruct SEP;destruct G as[NEG[WG[RIG RESTG]]].
+81:  destruct(FiveMatInv3Functional.Proof.normal_call m og ig(Ptrofs.repr 4)Ptrofs.zero f NEG WG RIG)as[ma[PG QG]].
+82:  assert(BA:Ready ma ob ib Ptrofs.zero base3 OldFixed)by(eapply post_preserves_ready;eauto).
+83:  assert(SA:Ready ma os is0 Ptrofs.zero small3 OldFixed)by(eapply post_preserves_ready;eauto).
+84:  assert(LA:Ready ma ol il Ptrofs.zero large3 OldFixed)by(eapply post_preserves_ready;eauto).
+85:  destruct BA as[NEB[WB[RIB ROB]]];destruct(FiveMatInv3Functional.Proof.normal_call ma ob ib Ptrofs.zero Ptrofs.zero base3 NEB WB RIB)as[mb[PB QB]].
+86:  assert(SB:Ready mb os is0 Ptrofs.zero small3 OldFixed)by(eapply post_preserves_ready;eauto).
+87:  assert(LB:Ready mb ol il Ptrofs.zero large3 OldFixed)by(eapply post_preserves_ready;eauto).
+88:  destruct SB as[NES[WS[RIS ROS]]];destruct(FiveMatInv3Functional.Proof.normal_call mb os is0 Ptrofs.zero Ptrofs.zero small3 NES WS RIS)as[ms[PS QS]].
+89:  assert(LS:Ready ms ol il Ptrofs.zero large3 OldFixed)by(eapply post_preserves_ready;eauto).
+90:  destruct LS as[NEL[WL[RIL ROL]]];destruct(FiveMatInv3Functional.Proof.normal_call ms ol il Ptrofs.zero Ptrofs.zero large3 NEL WL RIL)as[ml[PL QL]].
+91:  exists ma,mb,ms,ml;split;[exact PG|];split;[exact QG|];split;[exact PB|];split;[exact QB|];split;[exact PS|];split;[exact QS|];split;[exact PL|exact QL].
+92: Qed.
+93: Definition NonvacuousReplay(f:Z->float32):Prop:=exists m og ig ob ib os is0 ol il,Layout f m og ig ob ib os is0 ol il /\Chain f m og ig ob ib os is0 ol il.
+94: Theorem nonvacuous_replay:forall f:Z->float32,NonvacuousReplay f.
+95: Proof. intro f;destruct(layout_inhabited f)as[m[og[ig[ob[ib[os[is0[ol[il L]]]]]]]]];exists m,og,ig,ob,ib,os,is0,ol,il;split;[exact L|apply original_sequential_calls;exact L]. Qed.
+96: Theorem both_original_traces_replayed:NonvacuousReplay arbitrary_0 /\NonvacuousReplay arbitrary_1.
+97: Proof. split;apply nonvacuous_replay. Qed.
+98: Print Assumptions original_sequential_calls.
+99: Print Assumptions both_original_traces_replayed.

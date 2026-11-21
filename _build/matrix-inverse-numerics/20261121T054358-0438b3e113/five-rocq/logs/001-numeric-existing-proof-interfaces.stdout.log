@@ -1,0 +1,111 @@
+README.md
+guidance_mode
+lowpass_readback
+lowpass_recovery
+lowpass_roundoff_bound
+lowpass_update_readback
+parameter_order
+parameter_order.md
+pid_alternating_bias
+pid_df_positional_roundoff
+pid_ground_integral_independence
+pid_input_order
+pid_measurement_robustness
+pid_position_translation
+pid_quantization_bound
+pid_saturation_placement
+pid_sign_symmetry
+quat_rotation_paths
+state_speed_ecef_cache_protocol
+state_speed_ecef_provenance
+trig_plain_compressed_12
+paparazzi/relations/pid_ground_integral_independence/problem/Spec.v
+paparazzi/relations/lowpass_update_readback/problem/Spec.v
+paparazzi/relations/trig_plain_compressed_12/problem/Spec.v
+paparazzi/relations/state_speed_ecef_cache_protocol/problem/Spec.v
+paparazzi/relations/lowpass_roundoff_bound/problem/Spec.v
+paparazzi/relations/pid_measurement_robustness/problem/Spec.v
+paparazzi/relations/pid_alternating_bias/problem/Spec.v
+paparazzi/relations/parameter_order/problem/Spec.v
+paparazzi/relations/pid_sign_symmetry/problem/Spec.v
+paparazzi/relations/pid_df_positional_roundoff/problem/Spec.v
+paparazzi/relations/quat_rotation_paths/problem/Spec.v
+paparazzi/relations/lowpass_recovery/problem/Spec.v
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixAccess.v:7:Definition MatrixPtr(id:ident)(n:Z):expr:=Evalof(Evar id(tptr(tarray tfloat n)))(tptr(tarray tfloat n)).
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixAccess.v:8:Definition MatrixLoc(id:ident)(n r c:Z):expr:=Ederef(Ebinop Oadd
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixAccess.v:11:Definition MatrixVal(id:ident)(n r c:Z):expr:=Evalof(MatrixLoc id n r c)tfloat.
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixAccess.v:12:Lemma matrix_location:forall ge e m id bx b p n r c,
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixAccess.v:26:Lemma matrix_value:forall ge e m id bx b p n r c f,
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:5:Definition WriteRegion (m:mem)(b:block)(p:ptrofs)(n:Z):Prop :=
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:8:Definition Reads(m:mem)(b:block)(p:ptrofs)(n:Z)(f:Z->float32):Prop :=
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:11:Lemma index_pointer:forall p n i,
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:17:Lemma writable_access:forall m b p n i,WriteRegion m b p n->0<=i<n->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:22:Lemma writable_store:forall m b p n i x,WriteRegion m b p n->0<=i<n->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:25:Lemma writable_store_preserved:forall m b p n ch q z v mf,
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:28:Lemma reads_store_preserved:forall m b p n f ch q z v mf,
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:31:Lemma reads_valid:forall m b p n f,0<n->Reads m b p n f->Mem.valid_block m b.
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:33:Lemma writable_valid:forall m b p n,0<n->WriteRegion m b p n->Mem.valid_block m b.
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:37:Lemma writes_exist:forall xs m b p n,WriteRegion m b p n->(forall i x,In(i,x)xs->0<=i<n)->exists mf,Writes m b(Ptrofs.unsigned p)xs mf.
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:44:Lemma writes_permissions:forall xs m b base mf,Writes m b base xs mf->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:48:Lemma writes_access:forall xs m b base mf,Writes m b base xs mf->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:51:Lemma writes_writable:forall xs m b base mf p n,Writes m b base xs mf->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:54:Lemma writes_unaffected:forall xs m b base mf,Writes m b base xs mf->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:61:Lemma writes_frame:forall xs m b p n mf,Writes m b(Ptrofs.unsigned p)xs mf->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:67:Lemma writes_bytes:forall xs m b base mf,Writes m b base xs mf->NoDup(map fst xs)->
+paparazzi/models/float_mat_inv_3d/rocq/support/MatrixMemory.v:78:Lemma writes_reads_other:forall xs m b base mf,Writes m b base xs mf->
+150:Local Hint Extern 1 (Prec_gt_0 _) => exact (eq_refl Datatypes.Lt) : core.
+151:Local Hint Extern 1 (_ < _) => exact (eq_refl Datatypes.Lt) : core.
+180:Definition of_single_nan (f : float32) : { x : float | is_nan _ _ x = true } :=
+185:    else if Archi.float_of_single_preserves_sNaN
+301:Definition of_single: float32 -> float := Bconv _ _ 53 1024 __ __ of_single_nan mode_NE.
+314:  BofZ 53 1024 __ __ (Int.signed n).
+316:  BofZ 53 1024 __ __ (Int.unsigned n).
+319:  BofZ 53 1024 __ __ (Int64.signed n).
+321:  BofZ 53 1024 __ __ (Int64.unsigned n).
+383:Definition exact_inverse : float -> option float := Bexact_inverse 53 1024 __ __.
+386:  forall x y z, exact_inverse y = Some z -> div x y = mul x z.
+489:  rewrite BofZ_plus by auto.
+506:  unfold sub, of_int. rewrite BofZ_minus by auto. unfold of_intu. f_equal.
+547:  exploit (BofZ_exact 53 1024 __ __ (Int.unsigned ox8000_0000)).
+550:  change (BofZ 53 1024 eq_refl eq_refl (Int.unsigned ox8000_0000)) with y.
+575:  exploit (BofZ_exact 53 1024 __ __ (Int.unsigned ox8000_0000)).
+578:  change (BofZ 53 1024 __ __ (Int.unsigned ox8000_0000)) with y.
+591:  { apply ZofB_range_minus. exact E.
+635:  forall x, from_words ox4330_0000 x = BofZ 53 1024 __ __ (2^52 + Int.unsigned x).
+640:  destruct (BofZ_exact 53 1024 __ __ (2^52 + Int.unsigned x)) as (D & E & F).
+652:  rewrite ! from_words_eq. unfold sub. rewrite BofZ_minus.
+653:  unfold of_intu. apply (f_equal (BofZ 53 1024 __ __)). rewrite Int.unsigned_zero. lia.
+679:  unfold sub. rewrite BofZ_minus.
+719:  forall x, from_words ox4530_0000 x = BofZ 53 1024 __ __ (2^84 + Int.unsigned x * 2^32).
+724:  destruct (BofZ_representable 53 1024 __ __ (2^84 + Int.unsigned x * 2^32)) as (D & E & F).
+750:  unfold sub. rewrite BofZ_minus.
+753:  unfold add. rewrite BofZ_plus.
+783:  unfold sub. rewrite BofZ_minus.
+787:  unfold add. rewrite BofZ_plus.
+807:  of_longu l = add (mul (of_intu (Int64.hiword l)) (BofZ 53 1024 __ __ (2^32)))
+820:  rewrite BofZ_mult. rewrite BofZ_plus. rewrite DECOMP; auto.
+830:  of_long l = add (mul (of_int (Int64.hiword l)) (BofZ 53 1024 __ __ (2^32)))
+843:  rewrite BofZ_mult. rewrite BofZ_plus. rewrite DECOMP; auto.
+872:  intros. change (of_int (Int.repr 2)) with (BofZ 53 1024 __ __ (2^1)).
+919:  rewrite BofZ_mult_2p.
+920:- change (2^1) with 2. rewrite EQ. apply BofZ_round_odd with (p := 1).
+1077:Definition to_double : float32 -> float := Float.of_single.
+1089:  BofZ 24 128 __ __ (Int.signed n).
+1091:  BofZ 24 128 __ __ (Int.unsigned n).
+1094:  BofZ 24 128 __ __ (Int64.signed n).
+1096:  BofZ 24 128 __ __ (Int64.unsigned n).
+1138:Definition exact_inverse : float32 -> option float32 := Bexact_inverse 24 128 __ __.
+1141:  forall x y z, exact_inverse y = Some z -> div x y = mul x z.
+1228:  intros. symmetry. apply Bconv_BofZ.
+1235:  intros. symmetry. apply Bconv_BofZ.
+1249:  unfold Float.to_int, to_double, Float.of_single.
+1259:  unfold Float.to_intu, to_double, Float.of_single.
+1269:  unfold Float.to_long, to_double, Float.of_single.
+1279:  unfold Float.to_longu, to_double, Float.of_single.
+1332:  BofZ 24 128 __ __ n = Bconv _ _ 24 128 __ __ conv_nan mode_NE (BofZ 53 1024 __ __ (Z.land (Z.lor n ((Z.land n 2047) + 2047)) (-2048))).
+1339:  rewrite Bconv_BofZ.
+1340:  apply BofZ_round_odd with (p := 11).
+1344:  exact (proj1 H).
+1355:  intros. symmetry; apply Bconv_BofZ. apply integer_representable_n; auto.
+1402:  intros. symmetry; apply Bconv_BofZ. apply integer_representable_n; auto. extlia.
+1453:  Float.zero Float.eq_dec Float.neg Float.abs Float.of_single Float.to_single

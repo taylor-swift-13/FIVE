@@ -1,0 +1,84 @@
+Theorem nextblock_store:
+  nextblock m2 = nextblock m1.
+Proof.
+  intros.
+  unfold store in STORE. destruct ( valid_access_dec m1 chunk b ofs Writable); inv STORE.
+  auto.
+Qed.
+
+Theorem store_valid_block_1:
+  forall b', valid_block m1 b' -> valid_block m2 b'.
+Proof.
+  unfold valid_block; intros. rewrite nextblock_store; auto.
+Qed.
+
+Theorem store_valid_block_2:
+  forall b', valid_block m2 b' -> valid_block m1 b'.
+Proof.
+  unfold valid_block; intros. rewrite nextblock_store in H; auto.
+Qed.
+
+Local Hint Resolve store_valid_block_1 store_valid_block_2: mem.
+
+Theorem store_valid_access_1:
+  forall chunk' b' ofs' p,
+1898-Qed.
+1899-
+1900:Theorem nextblock_free:
+1901-  nextblock m2 = nextblock m1.
+1902-Proof.
+1903-  rewrite free_result; reflexivity.
+1904-Qed.
+1905-
+1906:Theorem valid_block_free_1:
+1907-  forall b, valid_block m1 b -> valid_block m2 b.
+1908-Proof.
+1909-  intros. rewrite free_result. assumption.
+1910-Qed.
+1911-
+1912:Theorem valid_block_free_2:
+1913-  forall b, valid_block m2 b -> valid_block m1 b.
+1914-Proof.
+1915-  intros. rewrite free_result in H. assumption.
+1916-Qed.
+1917-
+1918:Local Hint Resolve valid_block_free_1 valid_block_free_2: mem.
+1919-
+1920-Theorem perm_free_1:
+1921-  forall b ofs k p,
+1922-  b <> bf \/ ofs < lo \/ hi <= ofs ->
+1923-  perm m1 b ofs k p ->
+1924-  perm m2 b ofs k p.
+1925-Proof.
+--
+2064-End FREE.
+2065-
+2066:Local Hint Resolve valid_block_free_1 valid_block_free_2
+2067-             perm_free_1 perm_free_2 perm_free_3
+2068-             valid_access_free_1 valid_access_free_inv_1: mem.
+2069-
+2070-(** ** Properties related to [drop_perm] *)
+2071-
+2072-Theorem range_perm_drop_1:
+2073-  forall m b lo hi p m', drop_perm m b lo hi p = Some m' -> range_perm m b lo hi Cur Freeable.
+--
+3027-Proof.
+3028-  intros. inv H. constructor.
+3029:  rewrite (nextblock_free _ _ _ _ _ H0). auto.
+3030-  eapply free_left_inj; eauto.
+3031-  intros. exploit mext_perm_inv0; eauto. intros [A|A].
+3032-  eapply perm_free_inv in A; eauto. destruct A as [[A B]|A]; auto.
+3033-  subst b0. right; eapply perm_free_2; eauto.
+3034-  intuition eauto using perm_free_3.
+3035-Qed.
+3036-
+--
+3043-Proof.
+3044-  intros. inv H. constructor.
+3045:  rewrite (nextblock_free _ _ _ _ _ H0). auto.
+3046-  eapply free_right_inj; eauto.
+3047-  unfold inject_id; intros. inv H. eapply H1; eauto. lia.
+3048-  intros. eauto using perm_free_3.
+3049-Qed.
+3050-
+3051-Theorem free_parallel_extends:

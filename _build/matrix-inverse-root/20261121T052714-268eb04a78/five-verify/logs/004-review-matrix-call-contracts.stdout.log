@@ -1,0 +1,68 @@
+CONTRACT float_mat_inv_2d
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory Memdata Csem Smallstep.
+From FiveMatInv3Case Require Import MatrixMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition Det(f:Z->float32):float32 := Float32.sub(Float32.mul(f 0)(f 3))(Float32.mul(f 1)(f 2)).
+Definition Reject(f:Z->float32):bool := Float.cmp Clt(Float.of_single(Float32.abs(Det f)))(Float.of_bits(Int64.repr 4547007122018943789)).
+Definition Result(f:Z->float32):val := Vint(if Reject f then Int.one else Int.zero).
+Definition Output(f:Z->float32)(i:Z):float32 :=
+ if Z.eq_dec i 0 then Float32.div(f 3)(Det f) else
+ if Z.eq_dec i 1 then Float32.div(Float32.neg(f 1))(Det f) else
+ if Z.eq_dec i 2 then Float32.div(Float32.neg(f 2))(Det f) else Float32.div(f 0)(Det f).
+Definition Outputs(f:Z->float32):list(Z*float32):=[(0,Output f 0);(1,Output f 1);(2,Output f 2);(3,Output f 3)].
+Definition Args(bo bi:block)(po pi:ptrofs):list val := [Vptr bo po;Vptr bi pi].
+Definition Inputs(m:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ bo<>bi /\ WriteRegion m bo po 4 /\ Reads m bi pi 4 f.
+Definition Precondition(args:list val)(m:mem):Prop := exists bo bi po pi f,args=Args bo bi po pi /\ Inputs m bo bi po pi f.
+Definition Frame(m mf:mem)(bo:block)(po:ptrofs):Prop := forall b z n,Mem.valid_block m b->
+ b<>bo \/ z+n<=Ptrofs.unsigned po \/ Ptrofs.unsigned po+16<=z ->Mem.loadbytes mf b z n=Mem.loadbytes m b z n.
+Definition Encoded(f:Z->float32):list memval :=
+ encode_val Mfloat32(Vsingle(Output f 0))++encode_val Mfloat32(Vsingle(Output f 1))++
+ encode_val Mfloat32(Vsingle(Output f 2))++encode_val Mfloat32(Vsingle(Output f 3)).
+Definition Post(m mf:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32):Prop :=
+ WriteRegion mf bo po 4 /\ Reads mf bi pi 4 f /\ Frame m mf bo po /\
+ (forall b,Mem.valid_block m b->Mem.valid_block mf b) /\
+ (Mem.loadbytes mf bo(Ptrofs.unsigned po)16=
+ if Reject f then Mem.loadbytes m bo(Ptrofs.unsigned po)16 else Some(Encoded f)) /\
+ (forall ch b z perm,Mem.valid_block m b->Mem.valid_access m ch b z perm->Mem.valid_access mf ch b z perm).
+
+CONTRACT float_mat_inv_3d
+From Stdlib Require Import List ZArith.
+From compcert Require Import Integers Floats AST Values Memory Memdata.
+From FiveMatInv3Case Require Export MatrixMemory Scalar.
+Import ListNotations.
+Definition Args(bo bi:block)(po pi:ptrofs):list val:=[Vptr bo po;Vptr bi pi].
+Definition FunctionalPre(args:list val)(m:mem):Prop:=exists bo bi po pi f,args=Args bo bi po pi /\ bo<>bi /\ WriteRegion m bo po 9 /\ Reads m bi pi 9 f.
+Definition Frame(m mf:mem)(bo:block)(po:ptrofs):Prop:=forall b z n,Mem.valid_block m b->b<>bo \/ z+n<=Ptrofs.unsigned po \/ Ptrofs.unsigned po+36<=z->Mem.loadbytes mf b z n=Mem.loadbytes m b z n.
+Definition OutputBytes(m mf:mem)(bo:block)(po:ptrofs)(f:Z->float32):Prop:=
+ if Accept f then forall i,0<=i<9->Mem.loadbytes mf bo(Ptrofs.unsigned po+4*i)4=Some(encode_val Mfloat32(Vsingle(Output f i)))
+ else Mem.loadbytes mf bo(Ptrofs.unsigned po)36=Mem.loadbytes m bo(Ptrofs.unsigned po)36.
+Definition OldBlocks(m mf:mem):Prop:=forall b,Mem.valid_block m b->Mem.valid_block mf b.
+Definition OldAccess(m mf:mem):Prop:=forall ch b z p,Mem.valid_block m b->Mem.valid_access m ch b z p->Mem.valid_access mf ch b z p.
+
+SCALAR Definition M00(f:Z->float32):float32:=Float32.sub(Float32.mul(f 4)(f 8))(Float32.mul(f 5)(f 7)).
+SCALAR Definition M10(f:Z->float32):float32:=Float32.sub(Float32.mul(f 1)(f 8))(Float32.mul(f 2)(f 7)).
+SCALAR Definition M20(f:Z->float32):float32:=Float32.sub(Float32.mul(f 1)(f 5))(Float32.mul(f 2)(f 4)).
+SCALAR Definition M01(f:Z->float32):float32:=Float32.sub(Float32.mul(f 3)(f 8))(Float32.mul(f 5)(f 6)).
+SCALAR Definition M11(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 8))(Float32.mul(f 2)(f 6)).
+SCALAR Definition M21(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 5))(Float32.mul(f 2)(f 3)).
+SCALAR Definition M02(f:Z->float32):float32:=Float32.sub(Float32.mul(f 3)(f 7))(Float32.mul(f 4)(f 6)).
+SCALAR Definition M12(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 7))(Float32.mul(f 1)(f 6)).
+SCALAR Definition M22(f:Z->float32):float32:=Float32.sub(Float32.mul(f 0)(f 4))(Float32.mul(f 1)(f 3)).
+SCALAR Definition Det(f:Z->float32):float32:=Float32.add(Float32.sub(Float32.mul(f 0)(M00 f))(Float32.mul(f 3)(M10 f)))(Float32.mul(f 6)(M20 f)).
+SCALAR Definition Accept(f:Z->float32):bool:=Float.cmp Cgt(Float.abs(Float.of_single(Det f)))(Float.of_single(Float32.of_bits(Int.repr 872415232))).
+SCALAR Definition Status(f:Z->float32):val:=Vint(if Accept f then Int.zero else Int.one).
+SCALAR Definition Output(f:Z->float32)(i:Z):float32:=
+SCALAR Definition Outputs(f:Z->float32):list(Z*float32):=[(0,Output f 0);(3,Output f 3);(6,Output f 6);(1,Output f 1);(4,Output f 4);(7,Output f 7);(2,Output f 2);(5,Output f 5);(8,Output f 8)].
+SCALAR Definition Local(id:ident):expr:=Evalof(Evar id tfloat)tfloat.
+SCALAR Definition FBin(op:binary_operation)(a b:expr):expr:=Ebinop op a b tfloat.
+SCALAR Definition FNeg(a:expr):expr:=Eunop Oneg a tfloat.
+SCALAR Definition Inp(r c:Z):expr:=MatrixVal Source._mat_in 3 r c.
+SCALAR Definition MinExpr(a b c d:Z):expr:=FBin Osub(FBin Omul(Inp(a/3)(a mod 3))(Inp(b/3)(b mod 3)))(FBin Omul(Inp(c/3)(c mod 3))(Inp(d/3)(d mod 3))).
+SCALAR Definition Prefix:list(ident*expr):=[
+SCALAR Definition LocalResults(f:Z->float32):list(ident*float32):=[(Source._m00,M00 f);(Source._m10,M10 f);(Source._m20,M20 f);(Source._m01,M01 f);(Source._m11,M11 f);(Source._m21,M21 f);(Source._m02,M02 f);(Source._m12,M12 f);(Source._m22,M22 f);(Source._det,Det f)].
+SCALAR Definition Guard:expr:=Ebinop Ogt(Eunop Oabsfloat(Local Source._det)tdouble)(Eval(Vsingle(Float32.of_bits(Int.repr 872415232)))tfloat)tint.
+SCALAR Definition OutExprs:list(Z*Z*expr):=[
+SCALAR Definition Suffix:=Ssequence(Sifthenelse Guard(OutputStmt OutExprs)Sskip)(Sreturn(Some(Eval(Vint Int.one)tint))).

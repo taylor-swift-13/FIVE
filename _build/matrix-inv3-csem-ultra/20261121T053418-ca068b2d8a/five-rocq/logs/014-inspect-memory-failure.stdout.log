@@ -1,0 +1,18 @@
+    28	Lemma reads_store_preserved:forall m b p n f ch q z v mf,
+    29	 Reads m b p n f->b<>q->Mem.store ch m q z v=Some mf->Reads mf b p n f.
+    30	Proof. intros m b p n f ch q z v mf[AL[NW RD]]NE ST;repeat split;auto;intros i B;erewrite Mem.load_store_other by(exact ST||(left;congruence));apply RD;exact B. Qed.
+    31	Lemma reads_valid:forall m b p n f,0<n->Reads m b p n f->Mem.valid_block m b.
+    32	Proof. intros m b p n f N[_[_ RD]];eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply Mem.load_valid_access;exact(RD 0 ltac:(lia))|constructor]. Qed.
+    33	Lemma writable_valid:forall m b p n,0<n->WriteRegion m b p n->Mem.valid_block m b.
+    34	Proof. intros m b p n N W;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[eapply writable_access;[exact W|lia]|constructor]. Qed.
+    35	Fixpoint Writes(m:mem)(b:block)(base:Z)(xs:list(Z*float32))(mf:mem):Prop :=
+    36	 match xs with []=>mf=m|(i,x)::tail=>exists m1,Mem.store Mfloat32 m b(base+4*i)(Vsingle x)=Some m1 /\ Writes m1 b base tail mf end.
+    37	Lemma writes_exist:forall xs m b p n,WriteRegion m b p n->(forall i x,In(i,x)xs->0<=i<n)->exists mf,Writes m b(Ptrofs.unsigned p)xs mf.
+    38	Proof. induction xs as[|[i x]xs IH];intros m b p n W B;[exists m;reflexivity|].
+    39	 destruct(writable_store m b p n i x W(B i x(or_introl eq_refl)))as[m1 ST].
+    40	 destruct(IH m1 b p n(writable_store_preserved _ _ _ _ _ _ _ _ _ W ST)ltac:(intros j y IN;apply B with y;right;exact IN))as[mf REST].
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"

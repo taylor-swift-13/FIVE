@@ -1,0 +1,25 @@
+ required_roles.items():
+            try:
+                roles[role] = {'status':'present',**self.capture(path,role)}
+            except FileNotFoundError:
+                roles[role] = {'status':'missing','reason':(missing or {}).get(role,'Not produced; inspect command failure logs')}
+        dump(self.folder/'result.json', {'verdict':verdict,'summary':summary,'outputs':roles,
+             'verification_scope':self.read('scope.json'),'remaining_obligations':self.read('scope.json').get('remaining_obligations',[])})
+        # Child runs are linked (normally nested under stages/), never copied twice.
+        metrics = self.refresh_metrics()
+        required_ok = all(r['status']=='present' for r in roles.values()) and all(r.get('status')!='missing' for r in self.read('inputs/manifest.json'))
+        dump(self.folder/'completeness.json', {'artifacts':'complete' if required_ok else 'incomplete',
+             'measurements':metrics['measurement_status'],'missing_roles':[r for r,v in roles.items() if v['status']!='present'],
+             'note':'A passed verifier result does not imply all requested measurements are available.'})
+        from cost_audit import audit_run
+        cost_audit = audit_run(self.folder)
+        metadata = self.read('run.json')
+        metadata['cost_audit'] = cost_audit
+        if cost_audit['status'] != 'complete':
+            metadata['completeness']['measurements'] = 'partial'
+            metrics['measurement_status'] = 'partial'
+            dump(self.folder/'metrics.json',metrics)
+        dump(self.folder/'run.json',metadata)
+        self.render()
+        print(f'ARTIFACTS: {self.folder}',flush=True)
+

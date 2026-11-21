@@ -1,0 +1,239 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cstrategy Smallstep.
+From FivePprzFloatMatInv3d Require Import Execution.
+From FiveMatInv3Case Require Import Contract Scalar Observer Memcpy36 RecheckSupport Assertions SequentialReplay PairExtend GuardWitness ObserverComposition.
+From FiveMatrixInverseSupport Require Import Kernels.
+Require FiveMatInv3Functional.Spec FiveMatInv3Functional.Proof.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition OriginalOld:=RecheckSupport.OldFixed.
+Definition PairWordEq(before after:block)(i:Z):expr:=Ebinop Oeq(Cell before i tuint)(Cell after i tuint)tint.
+Definition PairAssertion(before after:block):expr:=
+ fold_left(fun a i=>Eseqand a(PairWordEq before after i)tint)[1;2;3;4;5;6;7;8](PairWordEq before after 0).
+Lemma pair_word_true:forall m before after i w,0<=i<9->
+ Mem.load Mint32 m before(4*i)=Some(Vint w)->Mem.load Mint32 m after(4*i)=Some(Vint w)->
+ Reduces m(PairWordEq before after i)(Eval(Vint Int.one)tint).
+Proof.
+ intros m before after i w I B A;apply reduces_simple;unfold PairWordEq;
+ eapply esr_binop with(v1:=Vint w)(v2:=Vint w);[apply cell_word_value;[exact I|exact B]|apply cell_word_value;[exact I|exact A]|].
+ change(Some(Val.of_bool(Int.eq w w))=Some(Vint Int.one));rewrite Int.eq_true;reflexivity.
+Qed.
+Lemma pair_assertion_true:forall m before after,
+ (forall i,0<=i<9->exists w,Mem.load Mint32 m before(4*i)=Some(Vint w)/\Mem.load Mint32 m after(4*i)=Some(Vint w))->
+ Reduces m(PairAssertion before after)(Eval(Vint Int.one)tint).
+Proof.
+ intros m before after LOAD;unfold PairAssertion;cbn[fold_left].
+ repeat first[eapply reduces_and_true;[reflexivity|reflexivity| |]|
+ match goal with|-Reduces _(PairWordEq _ _ ?i)_=>destruct(LOAD i ltac:(lia))as[w[B A]];eapply pair_word_true;[lia|exact B|exact A]end].
+Qed.
+Record PairPre(m:mem)(bo bi before after:block):Prop:={
+ pair_initialized:Initialized m bo bi small3 OriginalOld;
+ pair_before_copy:CopyPre m bo before;
+ pair_after_copy:CopyPre m bo after;
+ pair_before_input:bi<>before;
+ pair_after_input:bi<>after;
+ pair_destinations:before<>after
+}.
+Definition PairObservation(m:mem)(bo bi before after:block):Prop:=exists mb mf obs bytes t,
+ Mem.loadbytes m bo 0 36=Some bytes /\Mem.storebytes m before 0 bytes=Some mb /\
+ extcall_memcpy_sem 36 1(Genv.to_senv(Csem.genv_genv Execution.ge))[Vptr before Ptrofs.zero;Vptr bo Ptrofs.zero]m E0 Vundef mb /\
+ CopyFrame m mb before /\
+ star Csem.step Execution.ge(Execution.entry(Args bo bi Ptrofs.zero Ptrofs.zero)mb)t(Returnstate(Vint Int.one)Kstop mf) /\
+ FiveMatInv3Functional.Spec.Post mb mf bo bi Ptrofs.zero Ptrofs.zero small3 /\
+ Mem.loadbytes mf bo 0 36=Some bytes /\Mem.storebytes mf after 0 bytes=Some obs /\
+ extcall_memcpy_sem 36 1(Genv.to_senv(Csem.genv_genv Execution.ge))[Vptr after Ptrofs.zero;Vptr bo Ptrofs.zero]mf E0 Vundef obs /\
+ CopyFrame mf obs after /\
+ (forall i,0<=i<9->Mem.load Mint32 obs before(4*i)=Some(Vint(Float32.to_bits(OriginalOld i)))/\Mem.load Mint32 obs after(4*i)=Some(Vint(Float32.to_bits(OriginalOld i)))) /\
+ Reduces obs(PairAssertion before after)(Eval(Vint Int.one)tint).
+Lemma copy_pre_after_post:forall m mf bo bi po pi f src dst,
+ FiveMatInv3Functional.Spec.Post m mf bo bi po pi f->CopyPre m src dst->CopyPre mf src dst.
+Proof.
+ intros m mf bo bi po pi f src dst POST[NE RD WR];constructor;[exact NE| |].
+ - intros z Z;assert(VA:Mem.valid_access m Mint8unsigned src z Readable).
+   { split;[intros x X;apply RD;cbn[size_chunk]in X;lia|change(1|z);exists z;lia]. }
+   destruct(post_access_preserved m mf bo bi po pi f Mint8unsigned src z Readable POST VA)as[RP AL];apply RP;cbn[size_chunk];lia.
+ - intros z Z;assert(VA:Mem.valid_access m Mint8unsigned dst z Writable).
+   { split;[intros x X;apply WR;cbn[size_chunk]in X;lia|change(1|z);exists z;lia]. }
+   destruct(post_access_preserved m mf bo bi po pi f Mint8unsigned dst z Writable POST VA)as[RP AL];apply RP;cbn[size_chunk];lia.
+Qed.
+Lemma initialized_after_copy:forall m mb bo bi dst f old bytes,
+ Initialized m bo bi f old->Mem.storebytes m dst 0 bytes=Some mb->bo<>dst->bi<>dst->Initialized mb bo bi f old.
+Proof.
+ intros m mb bo bi dst f old bytes[NE[W[RD CELLS]]]STORE OD ID;split;[exact NE|];split.
+ - destruct W as[AL[NW RP]];repeat split;try assumption;intros z Z;eapply Mem.perm_storebytes_1;[exact STORE|apply RP;exact Z].
+ - split.
+   + destruct RD as[AL[NW R]];repeat split;try assumption;intros i I;rewrite(Mem.load_storebytes_other _ _ _ _ _ STORE Mfloat32 bi(Ptrofs.unsigned Ptrofs.zero+4*i)ltac:(left;exact ID));apply R;exact I.
+   + intros i I;rewrite(Mem.loadbytes_storebytes_other _ _ _ _ _ STORE bo(4*i)4 ltac:(lia)ltac:(left;exact OD));apply CELLS;exact I.
+Qed.
+Theorem pair_observer:forall m bo bi before after,PairPre m bo bi before after->PairObservation m bo bi before after.
+Proof.
+ intros m bo bi before after[INIT CPB CPA IB IA BA].
+ pose proof INIT as[NE[W[RD CELLS]]].
+ pose proof(copy_separated _ _ _ CPB)as OB;pose proof(copy_separated _ _ _ CPA)as OA.
+ destruct(copy36_exact(Genv.to_senv(Csem.genv_genv Execution.ge))m bo before CPB)as[mb[bytes[SAFE[READ[LEN[STOREB[CALLB[BYTESB FRAMEB]]]]]]]].
+ assert(INITB:Initialized mb bo bi small3 OriginalOld)by(eapply initialized_after_copy;eauto).
+ pose proof INITB as[NEB[WB[RDB CELLSB]]].
+ assert(CPAB:CopyPre mb bo after)by(eapply copy36_preserves_pre;[exact STOREB|exact OB|congruence|exact CPA]).
+ destruct(FiveMatInv3Functional.Proof.normal_call mb bo bi Ptrofs.zero Ptrofs.zero small3 NEB WB RDB)as[mf[[t PATH]POST]].
+ assert(CPAF:CopyPre mf bo after)by(eapply copy_pre_after_post;eauto).
+ destruct(copy36_exact(Genv.to_senv(Csem.genv_genv Execution.ge))mf bo after CPAF)as[obs[afterbytes[SAFEA[READA[LENA[STOREA[CALLA[BYTESA FRAMEA]]]]]]]].
+ assert(SAME:afterbytes=bytes).
+ { pose proof(proj1 POST)as BY;unfold OutputBytes in BY;rewrite small_rejects in BY;rewrite Ptrofs.unsigned_zero in BY;
+   rewrite BY in READA;rewrite FRAMEB in READA by(left;exact OB);rewrite READ in READA;congruence. }
+ subst afterbytes.
+ assert(BEFORE:forall i,0<=i<9->Mem.load Mint32 mb before(4*i)=Some(Vint(Float32.to_bits(OriginalOld i)))).
+ { intros i I;exact(FiveMatInv3Case.Observer.memcpy_word_observation m bo before mb bytes OriginalOld READ STOREB CELLS i I). }
+ assert(BEFOREF:forall i,0<=i<9->Mem.load Mint32 mf before(4*i)=Some(Vint(Float32.to_bits(OriginalOld i)))).
+ { intros i I;destruct POST as[BY[FR[WF[VB[AC INPUT]]]]];eapply frame_load_kept;[exact FR| |left;congruence|apply BEFORE;exact I].
+   pose proof(Mem.load_valid_access _ _ _ _ _(BEFORE i I))as VA;eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|constructor]. }
+ assert(CELLSF:forall i,0<=i<9->Mem.loadbytes mf bo(4*i)4=Some(encode_val Mfloat32(Vsingle(OriginalOld i)))).
+ { intros i I;pose proof(same_bytes_cell m bo mf bo bytes(4*i)READ READA ltac:(lia)ltac:(lia))as EQ;rewrite <-EQ;apply CELLS;exact I. }
+ assert(AFTER:forall i,0<=i<9->Mem.load Mint32 obs after(4*i)=Some(Vint(Float32.to_bits(OriginalOld i)))).
+ { intros i I;exact(FiveMatInv3Case.Observer.memcpy_word_observation mf bo after obs bytes OriginalOld READA STOREA CELLSF i I). }
+ assert(BEFOREOBS:forall i,0<=i<9->Mem.load Mint32 obs before(4*i)=Some(Vint(Float32.to_bits(OriginalOld i)))).
+ { intros i I;rewrite(Mem.load_storebytes_other _ _ _ _ _ STOREA Mint32 before(4*i)ltac:(left;exact BA));apply BEFOREF;exact I. }
+ exists mb,mf,obs,bytes,t;split;[exact READ|];split;[exact STOREB|];split;[exact CALLB|];split;[exact FRAMEB|];split.
+ - rewrite <-(proj1 small3_kernel);exact PATH.
+ - split;[exact POST|];split;[exact READA|];split;[exact STOREA|];split;[exact CALLA|];split;[exact FRAMEA|];split.
+   + intros i I;split;[apply BEFOREOBS|apply AFTER];exact I.
+   + apply pair_assertion_true;intros i I;exists(Float32.to_bits(OriginalOld i));split;[apply BEFOREOBS|apply AFTER];exact I.
+Qed.
+Lemma initialized_alloc36:forall m ma bo bi f old b,
+ Initialized m bo bi f old->Mem.alloc m 0 36=(ma,b)->Initialized ma bo bi f old.
+Proof.
+ intros m ma bo bi f old b[NE[W[RD CELLS]]]A.
+ assert(LP:LoadPreserved m ma)by(intros ch bx z VB;eapply Mem.load_alloc_unchanged;eauto).
+ assert(AP:AccessPreserved m ma)by(intros ch bx z p VA;eapply Mem.valid_access_alloc_other;eauto).
+ split;[exact NE|];split.
+ - eapply region_preserved;[exact AP|exact(writable_valid m bo Ptrofs.zero 9 ltac:(lia)W)|exact W].
+ - split;[eapply reads_preserved;[exact LP|lia|exact RD]|].
+   intros i I;rewrite(Mem.loadbytes_alloc_unchanged m 0 36 ma b A bo(4*i)4(writable_valid m bo Ptrofs.zero 9 ltac:(lia)W));apply CELLS;exact I.
+Qed.
+Lemma pair_pre_inhabited:exists m bo bi before after,PairPre m bo bi before after.
+Proof.
+ destruct(initialized_exists small3 OriginalOld)as[m0[bo[bi INIT0]]].
+ pose proof INIT0 as[NE[W[RD CELLS]]].
+ pose proof(writable_valid m0 bo Ptrofs.zero 9 ltac:(lia)W)as VO.
+ pose proof(reads_valid m0 bi Ptrofs.zero 9 small3 ltac:(lia)RD)as VI.
+ destruct(Mem.alloc m0 0 36)as[mb before]eqn:B.
+ assert(INITB:Initialized mb bo bi small3 OriginalOld)by(eapply initialized_alloc36;eauto).
+ destruct(Mem.alloc mb 0 36)as[m after]eqn:A.
+ assert(INIT:Initialized m bo bi small3 OriginalOld)by(eapply initialized_alloc36;eauto).
+ assert(OB:bo<>before)by(intro EQ;rewrite EQ in VO;exact(Mem.fresh_block_alloc _ _ _ _ _ B VO)).
+ assert(IB:bi<>before)by(intro EQ;rewrite EQ in VI;exact(Mem.fresh_block_alloc _ _ _ _ _ B VI)).
+ assert(OVA:Mem.valid_block mb bo)by(eapply Mem.valid_block_alloc;eauto).
+ assert(IVA:Mem.valid_block mb bi)by(eapply Mem.valid_block_alloc;eauto).
+ assert(OA:bo<>after)by(intro EQ;rewrite EQ in OVA;exact(Mem.fresh_block_alloc _ _ _ _ _ A OVA)).
+ assert(IA:bi<>after)by(intro EQ;rewrite EQ in IVA;exact(Mem.fresh_block_alloc _ _ _ _ _ A IVA)).
+ assert(BA:before<>after)by(intro EQ;pose proof(Mem.valid_new_block _ _ _ _ _ B)as VB;rewrite EQ in VB;exact(Mem.fresh_block_alloc _ _ _ _ _ A VB)).
+ assert(R:Mem.range_perm m bo 0 36 Cur Readable).
+ { destruct INIT as[_[WO _]];destruct WO as[_[_ RP]];rewrite Ptrofs.unsigned_zero in RP;intros z Z;eapply Mem.perm_implies;[apply RP;exact Z|constructor]. }
+ assert(WB:Mem.range_perm m before 0 36 Cur Writable).
+ { intros z Z;eapply Mem.perm_alloc_1;[exact A|];eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact B|exact Z]|constructor]. }
+ assert(WA:Mem.range_perm m after 0 36 Cur Writable).
+ { intros z Z;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact A|exact Z]|constructor]. }
+ exists m,bo,bi,before,after;constructor;try assumption;constructor;assumption.
+Qed.
+Definition ComposedAssert6:Prop:=(forall m bo bi before after,PairPre m bo bi before after->PairObservation m bo bi before after)/\
+ (exists m bo bi before after,PairPre m bo bi before after/\PairObservation m bo bi before after).
+Theorem composed_assertion6:ComposedAssert6.
+Proof. split;[exact pair_observer|];destruct pair_pre_inhabited as[m[bo[bi[before[after P]]]]];exists m,bo,bi,before,after;split;[exact P|apply pair_observer;exact P]. Qed.
+Lemma original_fixture_bits:map(fun i=>Float32.to_bits(OriginalOld i))[0;1;2;3;4;5;6;7;8]=map Int.repr[1099431936;0;0;0;1099431936;0;0;0;1099431936].
+Proof. vm_compute;reflexivity. Qed.
+Print Assumptions composed_assertion6.
+
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata.
+From FiveMatInv3Case Require Import MatrixMemory.
+Import ListNotations.
+Local Open Scope Z_scope.
+Definition BytePreserved(m0 m:mem):Prop:=forall b z n,Mem.valid_block m0 b->Mem.loadbytes m b z n=Mem.loadbytes m0 b z n.
+Definition LoadPreserved(m0 m:mem):Prop:=forall ch b z,Mem.valid_block m0 b->Mem.load ch m b z=Mem.load ch m0 b z.
+Definition AccessPreserved(m0 m:mem):Prop:=forall ch b z p,Mem.valid_access m0 ch b z p->Mem.valid_access m ch b z p.
+Definition BlocksPreserved(m0 m:mem):Prop:=forall b,Mem.valid_block m0 b->Mem.valid_block m b.
+Lemma writes_load_other_block:forall xs m b base mf,Writes m b base xs mf->forall ch q z,q<>b->Mem.load ch mf q z=Mem.load ch m q z.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR ch q z NE;cbn[Writes]in WR;[subst mf;reflexivity|].
+ destruct WR as[m1[ST REST]];rewrite(IH m1 b base mf REST ch q z NE);erewrite Mem.load_store_other;[reflexivity|exact ST|left;exact NE]. Qed.
+Lemma writes_blocks:forall xs m b base mf,Writes m b base xs mf->BlocksPreserved m mf.
+Proof. induction xs as[|[i x]xs IH];intros m b base mf WR q VB;cbn[Writes]in WR;[subst mf;exact VB|].
+ destruct WR as[m1[ST REST]];eapply IH;[exact REST|];eapply Mem.store_valid_block_1;eauto. Qed.
+Definition ArrayExtended(n:Z)(m0 m:mem)(b:block)(f:Z->float32):Prop:=
+ ~Mem.valid_block m0 b /\WriteRegion m b Ptrofs.zero n /\Reads m b Ptrofs.zero n f /\
+ BytePreserved m0 m /\LoadPreserved m0 m /\AccessPreserved m0 m /\BlocksPreserved m0 m.
+Lemma array_extend:forall n xs m0 f,
+ 0<n->4*n<=Ptrofs.modulus->(forall i x,In(i,x)xs->0<=i<n)->NoDup(map fst xs)->(forall i,0<=i<n->In(i,f i)xs)->
+ exists m b,ArrayExtended n m0 m b f.
+Proof.
+ intros n xs m0 f N LIMIT RANGE ND COVER.
+ destruct(Mem.alloc m0 0(4*n))as[ma b]eqn:A.
+ pose proof(Mem.fresh_block_alloc _ _ _ _ _ A)as FRESH.
+ assert(WA:WriteRegion ma b Ptrofs.zero n).
+ { unfold WriteRegion;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[exact LIMIT|].
+   intros z Z;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact A|exact Z]|constructor]. }
+ destruct(writes_exist xs ma b Ptrofs.zero n WA RANGE)as[m WR].
+ exists m,b;split;[exact FRESH|];split;[eapply writes_writable;[exact WR|exact WA]|];split.
+ - unfold Reads;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[exact LIMIT|];intros i I.
+   pose proof(writes_bytes xs ma b(Ptrofs.unsigned Ptrofs.zero)m WR ND i(f i)(COVER i I))as B;rewrite Ptrofs.unsigned_zero in B;cbn[Z.add]in B.
+   pose proof(Mem.loadbytes_load Mfloat32 m b(4*i)_ B ltac:(change(4|4*i);exists i;lia))as L.
+   pose proof(decode_encode_val_similar(Vsingle(f i))Mfloat32 Mfloat32 _ eq_refl eq_refl(decode_encode_val_general(Vsingle(f i))Mfloat32 Mfloat32))as DE.
+   change(decode_val Mfloat32(encode_val Mfloat32(Vsingle(f i)))=Vsingle(f i))in DE;rewrite DE in L;exact L.
+ - split.
+   + intros q z count V;rewrite(writes_unaffected xs ma b(Ptrofs.unsigned Ptrofs.zero)m WR q z count)by(intros;left;intro EQ;subst q;exact(FRESH V));eapply Mem.loadbytes_alloc_unchanged;eauto.
+   + split.
+     * intros ch q z V;rewrite(writes_load_other_block xs ma b(Ptrofs.unsigned Ptrofs.zero)m WR ch q z)by(intro EQ;subst q;exact(FRESH V));eapply Mem.load_alloc_unchanged;eauto.
+     * split.
+       -- intros ch q z perm VA;eapply writes_access;[exact WR|]. destruct VA as[RP AL];split;[intros off B;eapply Mem.perm_alloc_1;[exact A|apply RP;exact B]|exact AL].
+       -- intros q V;eapply writes_blocks;[exact WR|];eapply Mem.valid_block_alloc;eauto.
+Qed.
+Theorem array4_extend:forall m0 f,exists m b,ArrayExtended 4 m0 m b f.
+Proof.
+ intros m0 f;set(xs:=[(0,f 0);(1,f 1);(2,f 2);(3,f 3)]);apply(array_extend 4 xs m0 f);try(change(16<=18446744073709551616);lia);try lia.
+ - intros i x IN;unfold xs in IN;cbn in IN;repeat destruct IN as[IN|IN];try contradiction;inversion IN;lia.
+ - unfold xs;repeat constructor;simpl;intuition discriminate.
+ - intros i I;assert(i=0\/i=1\/i=2\/i=3)by lia;repeat destruct H as[H|H];subst i;unfold xs;repeat(first[left;reflexivity|right]).
+Qed.
+Theorem array9_extend:forall m0 f,exists m b,ArrayExtended 9 m0 m b f.
+Proof.
+ intros m0 f;set(xs:=[(0,f 0);(1,f 1);(2,f 2);(3,f 3);(4,f 4);(5,f 5);(6,f 6);(7,f 7);(8,f 8)]);apply(array_extend 9 xs m0 f);try(change(36<=18446744073709551616);lia);try lia.
+ - intros i x IN;unfold xs in IN;cbn in IN;repeat destruct IN as[IN|IN];try contradiction;inversion IN;lia.
+ - unfold xs;repeat constructor;simpl;intuition discriminate.
+ - intros i I;assert(i=0\/i=1\/i=2\/i=3\/i=4\/i=5\/i=6\/i=7\/i=8)by lia;repeat destruct H as[H|H];subst i;unfold xs;repeat(first[left;reflexivity|right]).
+Qed.
+Definition PairExtended(n:Z)(m0 m:mem)(bo bi:block)(f old:Z->float32):Prop:=
+ bo<>bi /\WriteRegion m bo Ptrofs.zero n /\Reads m bi Ptrofs.zero n f /\Reads m bo Ptrofs.zero n old /\
+ ~Mem.valid_block m0 bo /\~Mem.valid_block m0 bi /\
+ BytePreserved m0 m /\LoadPreserved m0 m /\AccessPreserved m0 m /\BlocksPreserved m0 m.
+Theorem pair4_extend:forall m0 f old,exists m bo bi,PairExtended 4 m0 m bo bi f old.
+Proof.
+ intros m0 f old;destruct(array4_extend m0 f)as[mi[bi[FI[WI[RI[B1[L1[A1 V1]]]]]]]].
+ destruct(array4_extend mi old)as[m[bo[FO[WO[RO[B2[L2[A2 V2]]]]]]]].
+ pose proof(reads_valid mi bi Ptrofs.zero 4 f ltac:(lia)RI)as VI.
+ assert(NE:bo<>bi)by(intro EQ;subst bo;exact(FO VI)).
+ assert(RF:Reads m bi Ptrofs.zero 4 f).
+ { destruct RI as[AL[NW RD]];split;[exact AL|];split;[exact NW|];intros i I;rewrite L2 by exact VI;apply RD;exact I. }
+ exists m,bo,bi;split;[exact NE|];split;[exact WO|];split;[exact RF|];split;[exact RO|];split.
+ - intro V;apply FO;apply V1;exact V.
+ - split;[exact FI|];split.
+   + intros q z count V;rewrite B2 by(apply V1;exact V);apply B1;exact V.
+   + split.
+     * intros ch q z V;rewrite L2 by(apply V1;exact V);apply L1;exact V.
+     * split;[intros ch q z perm VA;apply A2;apply A1;exact VA|intros q V;apply V2;apply V1;exact V].
+Qed.
+Print Assumptions pair4_extend.
+Theorem pair9_extend:forall m0 f old,exists m bo bi,PairExtended 9 m0 m bo bi f old.
+Proof.
+ intros m0 f old;destruct(array9_extend m0 f)as[mi[bi[FI[WI[RI[B1[L1[A1 V1]]]]]]]].
+ destruct(array9_extend mi old)as[m[bo[FO[WO[RO[B2[L2[A2 V2]]]]]]]].
+ pose proof(reads_valid mi bi Ptrofs.zero 9 f ltac:(lia)RI)as VI.
+ assert(NE:bo<>bi)by(intro EQ;subst bo;exact(FO VI)).
+ assert(RF:Reads m bi Ptrofs.zero 9 f).
+ { destruct RI as[AL[NW RD]];split;[exact AL|];split;[exact NW|];intros i I;rewrite L2 by exact VI;apply RD;exact I. }
+ exists m,bo,bi;split;[exact NE|];split;[exact WO|];split;[exact RF|];split;[exact RO|];split.
+ - intro V;apply FO;apply V1;exact V.
+ - split;[exact FI|];split.
+   + intros q z count V;rewrite B2 by(apply V1;exact V);apply B1;exact V.
+   + split.
+     * intros ch q z V;rewrite L2 by(apply V1;exact V);apply L1;exact V.
+     * split;[intros ch q z perm VA;apply A2;apply A1;exact VA|intros q V;apply V2;apply V1;exact V].
+Qed.
+Print Assumptions pair9_extend.

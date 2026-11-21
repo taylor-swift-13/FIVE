@@ -1,0 +1,62 @@
+308-      rred (Ecomma (Eval v ty1) r2 ty) m
+309-        E0 r2 m
+310:  | red_paren: forall v1 ty1 ty2 ty m v,
+311-      sem_cast v1 ty1 ty2 m = Some v ->
+312-      rred (Eparen (Eval v1 ty1) ty2 ty) m
+313-        E0 (Eval v ty) m
+314-  | red_builtin: forall ef tyargs el ty m vargs t vres m',
+315-      cast_arguments m el tyargs vargs ->
+346-
+347:  | step_paren: forall f C r tycast ty k e m v1 v,
+348-      leftcontext RV RV C ->
+349-      eval_simple_rvalue e m r v1 ->
+350-      sem_cast v1 (typeof r) tycast m = Some v ->
+351-      estep (ExprState f (C (Eparen r tycast ty)) k e m)
+352-         E0 (ExprState f (C (Eval v ty)) k e m)
+353-
+354-  | step_call: forall f C rf rargs ty k e m targs tres cconv vf vargs fd,
+355-      leftcontext RV RV C ->
+--
+1382-  exploit safe_inv. eexact S1. eauto. simpl. intros [v CAST].
+1383:  econstructor; econstructor; eapply step_paren; eauto.
+1384-Qed.
+1385-
+1386-(** Simulation for all states *)
+1387-
+1388-Theorem step_simulation:
+1389-  forall S1 t S2,
+1390-  step S1 t S2 -> plus Csem.step ge S1 t S2.
+1391-Proof.
+--
+2258-  eapply star_right. eexact G.
+2259:  left; eapply step_paren; eauto. rewrite F; eauto.
+2260-  eauto. eauto. traceEq.
+2261-(* seqand false *)
+2262-  exploit (H0 (fun x => C(Eseqand x a2 ty))).
+2263-    eapply leftcontext_compose; eauto. repeat constructor. intros [A [B D]].
+2264-  simpl; intuition. eapply star_right. eexact D.
+2265-  left; eapply step_seqand_false; eauto. rewrite B; auto.
+2266-  traceEq.
+2267-(* seqor false *)
+--
+2274-  eapply star_right. eexact G.
+2275:  left; eapply step_paren; eauto. rewrite F; eauto.
+2276-  eauto. eauto. traceEq.
+2277-(* seqor true *)
+2278-  exploit (H0 (fun x => C(Eseqor x a2 ty))).
+2279-    eapply leftcontext_compose; eauto. repeat constructor. intros [A [B D]].
+2280-  simpl; intuition. eapply star_right. eexact D.
+2281-  left; eapply step_seqor_true; eauto. rewrite B; auto.
+2282-  traceEq.
+2283-(* condition *)
+--
+2290-  eapply star_left. left; eapply step_condition; eauto. rewrite B; eauto.
+2291:  eapply star_right. eexact G. left; eapply step_paren; eauto. congruence.
+2292-  reflexivity. reflexivity. traceEq.
+2293-(* sizeof *)
+2294-  simpl; intuition. apply star_refl.
+2295-(* alignof *)
+2296-  simpl; intuition. apply star_refl.
+2297-(* assign *)
+2298-  exploit (H0 (fun x => C(Eassign x r ty))).
+2299-    eapply leftcontext_compose; eauto. repeat constructor. intros [A [B D]].

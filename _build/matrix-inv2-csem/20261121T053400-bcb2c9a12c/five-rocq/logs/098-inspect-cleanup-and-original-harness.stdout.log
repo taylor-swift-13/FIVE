@@ -1,0 +1,99 @@
+48:Lemma free_environment:forall(ge:Csem.genv)e m,
+49- env_separated e ->
+50- (forall id b ty,e!id=Some(b,ty)->Mem.range_perm m b 0(sizeof ge ty)Cur Freeable) ->
+51- exists mf,Mem.free_list m(blocks_of_env ge e)=Some mf /\
+52- (forall ch b ofs,(forall id ty,e!id=Some(b,ty)->False)->Mem.load ch mf b ofs=Mem.load ch m b ofs) /\
+53- (forall ch b ofs p,(forall id ty,e!id=Some(b,ty)->False)->Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p).
+54-Proof.
+55- intros ge e m SEP FREE.
+56- destruct(free_regions(blocks_of_env ge e)m(env_blocks_norepet ge e SEP))as[mf[FF[LOAD ACCESS]]].
+57- - intros b lo hi IN;unfold blocks_of_env in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+58-   cbn in EQ;injection EQ as EB EL EH;subst bx lo hi.
+59-   eapply FREE;eapply PTree.elements_complete;exact IN.
+60- - exists mf;split;[exact FF|]. split.
+61-   + intros ch b ofs OUT;apply LOAD;intro IN.
+62-     unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+63-     cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+64-   + intros ch b ofs p OUT VA;apply ACCESS;[|exact VA];intro IN.
+65-     unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+66-     cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+67-Qed.
+68-Print Assumptions free_environment.
+69-Lemma range_perm_access_preserved:forall m mf,
+70- (forall ch b ofs p,Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p)->
+71- forall b lo hi p,Mem.range_perm m b lo hi Cur p->Mem.range_perm mf b lo hi Cur p.
+72-Proof.
+73- intros m mf KEEP b lo hi p RANGE ofs BOUNDS.
+74- assert(VA:Mem.valid_access m Mint8unsigned b ofs p).
+75- { unfold Mem.valid_access;split.
+76-   - intros x X;apply RANGE;cbn in X;lia.
+77-   - change(1|ofs);exists ofs;lia. }
+78- pose proof(KEEP _ _ _ _ VA)as VF;apply(proj1 VF);cbn;lia.
+79-Qed.
+80-Lemma free_list_bytes_frame:forall regions m mf,
+81- Mem.free_list m regions=Some mf ->
+82- forall b ofs n,~In b(map region_block regions)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+83-Proof.
+84- intros regions;induction regions as[|[[head lo]hi]regions IH];intros m mf FREE b ofs n OUT.
+85- - cbn[Mem.free_list]in FREE;injection FREE as<-;reflexivity.
+86- - cbn[Mem.free_list]in FREE;destruct(Mem.free m head lo hi)as[ma|]eqn:F;try discriminate.
+87-   rewrite(IH ma mf FREE b ofs n)by(cbn in OUT;tauto).
+88-   eapply Mem.loadbytes_free;[exact F|left;cbn in OUT;intuition congruence].
+89-Qed.
+90:Lemma free_environment_bytes_frame:forall ge e m mf,
+91- Mem.free_list m(blocks_of_env ge e)=Some mf ->
+92- forall b ofs n,(forall id ty,e!id=Some(b,ty)->False)->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+93-Proof.
+94- intros ge e m mf FREE b ofs n OUT;apply(free_list_bytes_frame _ _ _ FREE);intro IN.
+95- unfold blocks_of_env in IN;rewrite map_map in IN;apply in_map_iff in IN as[[id[bx ty]][EQ IN]].
+96- cbn in EQ;subst bx;apply(OUT id ty);eapply PTree.elements_complete;exact IN.
+97-Qed.
+98-Lemma range_perm_access_preserved_block:forall m mf b,
+99- (forall ch ofs p,Mem.valid_access m ch b ofs p->Mem.valid_access mf ch b ofs p)->
+100- forall lo hi p,Mem.range_perm m b lo hi Cur p->Mem.range_perm mf b lo hi Cur p.
+101-Proof.
+102- intros m mf b KEEP lo hi p RANGE ofs BOUNDS.
+103- assert(VA:Mem.valid_access m Mint8unsigned b ofs p).
+104- { unfold Mem.valid_access;split;[intros x X;apply RANGE;cbn in X;lia|change(1|ofs);exists ofs;lia]. }
+105- pose proof(KEEP _ _ _ VA)as VF;apply(proj1 VF);cbn;lia.
+106-Qed.
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+bool float_mat_inv_2d(float out[4], const float in[4]);
+extern float nondet_float(void);
+int main(void) {
+  float arbitrary[4];
+  arbitrary[0] = nondet_float();
+  arbitrary[1] = nondet_float();
+  arbitrary[2] = nondet_float();
+  arbitrary[3] = nondet_float();
+  struct { uint32_t before; float value[4]; uint32_t after; } guarded = {.before=0x12345678u, .after=0x9abcdef0u};
+  bool arbitrary_status = float_mat_inv_2d(guarded.value, arbitrary);
+  __CPROVER_assert(arbitrary_status == 0 || arbitrary_status == 1, "return status is boolean for arbitrary binary32 matrix");
+  __CPROVER_assert(guarded.before == 0x12345678u && guarded.after == 0x9abcdef0u, "arbitrary matrix call preserves surrounding frame words");
+  float base[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+  float small[4] = {0x1p-8f, 0.0f, 0.0f, 0x1p-8f};
+  float large[4] = {0x1p100f, 0.0f, 0.0f, 0x1p100f};
+  float base_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  float small_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  float large_out[4] = {17.0f, 0.0f, 0.0f, 17.0f};
+  uint32_t base_words[4], small_before[4], small_after[4], large_words[4];
+  memcpy(small_before, small_out, sizeof small_out);
+  bool base_status = float_mat_inv_2d(base_out, base);
+  bool small_status = float_mat_inv_2d(small_out, small);
+  bool large_status = float_mat_inv_2d(large_out, large);
+  memcpy(base_words, base_out, sizeof base_out);
+  memcpy(small_after, small_out, sizeof small_out);
+  memcpy(large_words, large_out, sizeof large_out);
+  __CPROVER_assert(base_status == 0, "identity call succeeds");
+  __CPROVER_assert(base_words[0] == 0x3f800000u && base_words[1] == 0x80000000u && base_words[2] == 0x80000000u && base_words[3] == 0x3f800000u, "identity exact signedzero output bits");
+  __CPROVER_assert(small_status == 1, "small conditionone diagonal call rejects");
+  __CPROVER_assert(small_before[0] == small_after[0] && small_before[1] == small_after[1] && small_before[2] == small_after[2] && small_before[3] == small_after[3], "rejected call preserves every output byte");
+  __CPROVER_assert(large_status == 0, "finite large diagonal call reports success");
+  __CPROVER_assert(large_words[0] == 0x00000000u && large_words[1] == 0x80000000u && large_words[2] == 0x80000000u && large_words[3] == 0x00000000u, "overflow determinant exact signedzero output bits");
+  __CPROVER_assert(base_status == small_status, "positive scaling preserves inverse status");
+  float residual = large[0] * large_out[0] - 1.0f;
+  __CPROVER_assert(large_status != 0 || (residual > -0.5f && residual < 0.5f), "successful wellconditioned inverse has residual component below half");
+  return 0;
+}

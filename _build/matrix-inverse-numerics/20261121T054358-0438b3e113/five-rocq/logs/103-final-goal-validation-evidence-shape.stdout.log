@@ -1,0 +1,23 @@
+    else:
+        from example_proof_gate import input_index
+        _, historical = input_index(root, attempt)
+        if {str(path.relative_to(root)): value for path, value in historical.items()} != indexed:
+            raise ValueError('Existing attempt provenance differs; create a new attempt')
+    bound = {row['path']: row for row in bindings}
+    for path, value in indexed.items():
+        bound.setdefault(path, {'path': path, 'sha256': value})
+    validation = {'schema': 'five-proof-validation/1', 'index': {'path': str(provenance.relative_to(root)), 'sha256': digest(provenance)}, 'inputs': list(bound.values()), 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'goal_bindings': config['goal_bindings'], 'certificate': {'path': certpath, 'sha256': digest(certificate), 'module': certificate_module, 'imports': config['imports'], 'run': runpath, 'compile_command_id': compile_record['id'], 'kernel_command_id': kernel_record['id'], 'kernel_evidence': str((evidence / 'certificate-kernel-evidence.json').relative_to(root))}}
+    dump(evidence / 'goal-validation.json', validation)
+    return {'status': 'passed', 'compiled_modules': len(sources), 'run': runpath, 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'gate_kernel_evidence': str((evidence / 'gate-kernel-evidence.json').relative_to(root)), 'goal_validation': str((evidence / 'goal-validation.json').relative_to(root)), 'print_assumptions_stdout': str((run.folder / compile_record['stdout']).relative_to(root))}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--config', required=True)
+    parser.add_argument('--record-run')
+    arguments = parser.parse_args()
+    print(json.dumps(check(json.loads(Path(arguments.config).read_text()), arguments.record_run), indent=2))
+
+
+if __name__ == '__main__':
+    main()

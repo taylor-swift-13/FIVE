@@ -1,0 +1,9 @@
+29:  e!id=Some(bp,tptr tfloat)->Mem.load Mptr m bp 0=Some(Vptr b p)->0<=i<4->
+30:  pure_lval Execution.ge e m(Loc id i)=Some(b,Ptrofs.add p(Ptrofs.repr(4*i)),Full).
+31: Proof. intros e m id bp b p i E L B.
+32:  assert(P:pure_rval Execution.ge e m(Ptr id)=Some(Vptr b p))by(unfold Ptr;eapply pointer_variable;eauto).
+33:  change(match(match pure_rval Execution.ge e m(Ptr id)with Some v=>sem_binary_operation Execution.ge Oadd v(tptr tfloat)(Vint(Int.repr i))tint m|None=>None end)with Some(Vptr bb pp)=>Some(bb,pp,Full)|_=>None end=Some(b,Ptrofs.add p(Ptrofs.repr(4*i)),Full)).
+34:  rewrite P;assert(C:i=0\/i=1\/i=2\/i=3)by lia;destruct C as[->|[->|[->|->]]];reflexivity. Qed.
+35: Lemma matrix_value:forall e m bp b p f i,
+36:  e!Source._mat_in=Some(bp,tptr tfloat)->Mem.load Mptr m bp 0=Some(Vptr b p)->Reads m b p 4 f->0<=i<4->
+37:  pure_rval Execution.ge e m(Mat i)=Some(Vsingle(f i)).

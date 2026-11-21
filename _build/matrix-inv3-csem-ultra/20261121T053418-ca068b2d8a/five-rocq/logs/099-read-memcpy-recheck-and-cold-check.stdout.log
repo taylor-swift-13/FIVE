@@ -1,0 +1,309 @@
+From Stdlib Require Import List String ZArith.
+From compcert Require Import Integers Values Memory Events.
+From FiveRmatVmultCase Require Import Memcpy.
+Import ListNotations.
+Local Open Scope Z_scope.
+Local Open Scope string_scope.
+Inductive Guard18 := SameForward|SourceLive|DestinationEndLive|SameReverse|DestinationLive|SourceEndLive|NoOverlap|ReadableSource|WritableDestination.
+Definition GuardPredicate(m:mem)(src dst:block)(k:Guard18):Prop :=forall(order1 order2:Prop),match k with
+ |SameForward=>(True /\~(dst<>src))->False
+ |SourceLive=>(True /\~(dst<>src))->Mem.valid_pointer m src 0=true
+ |DestinationEndLive=>(True /\~(dst<>src))->Mem.weak_valid_pointer m dst 12=true
+ |SameReverse=>~(dst<>src \/order1)->False
+ |DestinationLive=>~(dst<>src \/order1)->Mem.valid_pointer m dst 0=true
+ |SourceEndLive=>~(dst<>src \/order1)->Mem.weak_valid_pointer m src 12=true
+ |NoOverlap=>(dst<>src \/order1)\/order2
+ |ReadableSource=>Mem.range_perm m src 0 12 Cur Readable
+ |WritableDestination=>Mem.range_perm m dst 0 12 Cur Writable
+ end.
+Definition Original18:list(string*(bool*Guard18)):=
+[("memcpy.pointer.1",(false,SameForward));
+("memcpy.pointer_arithmetic.1",(false,SourceLive));
+("memcpy.pointer_arithmetic.2",(false,DestinationEndLive));
+("memcpy.pointer.2",(false,SameReverse));
+("memcpy.pointer_arithmetic.3",(false,DestinationLive));
+("memcpy.pointer_arithmetic.4",(false,SourceEndLive));
+("main.precondition_instance.1",(false,NoOverlap));
+("main.precondition_instance.2",(false,ReadableSource));
+("main.precondition_instance.3",(false,WritableDestination));
+("memcpy.pointer.3",(true,SameForward));
+("memcpy.pointer_arithmetic.5",(true,SourceLive));
+("memcpy.pointer_arithmetic.6",(true,DestinationEndLive));
+("memcpy.pointer.4",(true,SameReverse));
+("memcpy.pointer_arithmetic.7",(true,DestinationLive));
+("memcpy.pointer_arithmetic.8",(true,SourceEndLive));
+("main.precondition_instance.4",(true,NoOverlap));
+("main.precondition_instance.5",(true,ReadableSource));
+("main.precondition_instance.6",(true,WritableDestination))].
+Lemma safety_guard:forall m src dst k,MemcpySafety m src dst->GuardPredicate m src dst k.
+Proof. intros m src dst k S order1 order2;destruct S as[D A B E C F G R W];destruct k;simpl;tauto. Qed.
+Definition AllOriginal18:Prop :=forall se m sa da sb db,
+ CopyPre m sa da->CopyPre m sb db->sb<>da->db<>da->
+ exists ma mb ba bb,
+ Mem.loadbytes m sa 0 12=Some ba /\Mem.loadbytes ma sb 0 12=Some bb /\
+ Mem.storebytes m da 0 ba=Some ma /\Mem.storebytes ma db 0 bb=Some mb /\
+ extcall_memcpy_sem 12 1 se[Vptr da Ptrofs.zero;Vptr sa Ptrofs.zero]m E0 Vundef ma /\
+ extcall_memcpy_sem 12 1 se[Vptr db Ptrofs.zero;Vptr sb Ptrofs.zero]ma E0 Vundef mb /\
+ Mem.loadbytes mb da 0 12=Some ba /\Mem.loadbytes mb db 0 12=Some bb /\
+ CopyFrame m ma da /\CopyFrame ma mb db /\
+ (forall id second kind,In(id,(second,kind))Original18->
+ GuardPredicate(if second then ma else m)(if second then sb else sa)(if second then db else da)kind).
+Theorem all_original_18_proved:AllOriginal18.
+Proof.
+ intros se m sa da sb db PA PB SD DD.
+ destruct(two_copy12_exact se m sa da sb db PA PB SD DD)as[ma[mb[ba[bb[SA[SB[RA[RB[STA[STB[CA[CB[BA[BB[FA FB]]]]]]]]]]]]]]].
+ exists ma,mb,ba,bb;split;[exact RA|];split;[exact RB|];split;[exact STA|];split;[exact STB|];split;[exact CA|];split;[exact CB|];split;[exact BA|];split;[exact BB|];split;[exact FA|];split;[exact FB|].
+ intros id second kind IN;destruct second;apply safety_guard;assumption.
+Qed.
+Print Assumptions all_original_18_proved.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Integers Floats AST Values Memory Memdata Events Globalenvs.
+Import ListNotations.
+Local Open Scope Z_scope.
+Record CopyPre(m:mem)(src dst:block):Prop := {
+ copy_separated:src<>dst;
+ copy_readable:Mem.range_perm m src 0 12 Cur Readable;
+ copy_writable:Mem.range_perm m dst 0 12 Cur Writable
+}.
+Record MemcpySafety(m:mem)(src dst:block):Prop := {
+ pointer_1:src<>dst;
+ pointer_arithmetic_1:Mem.valid_pointer m src 0=true;
+ pointer_arithmetic_2:Mem.weak_valid_pointer m dst 12=true;
+ pointer_2:dst<>src;
+ pointer_arithmetic_3:Mem.valid_pointer m dst 0=true;
+ pointer_arithmetic_4:Mem.weak_valid_pointer m src 12=true;
+ precondition_1:src<>dst \/ 0+12<=0 \/0+12<=0;
+ precondition_2:Mem.range_perm m src 0 12 Cur Readable;
+ precondition_3:Mem.range_perm m dst 0 12 Cur Writable
+}.
+Definition CopyFrame(m mf:mem)(dst:block):Prop :=forall b ofs n,
+ b<>dst \/ofs+n<=0 \/12<=ofs ->Mem.loadbytes mf b ofs n=Mem.loadbytes m b ofs n.
+Lemma copy_pre_safety:forall m src dst,CopyPre m src dst->MemcpySafety m src dst.
+Proof.
+ intros m src dst[NE RD WR];constructor;auto.
+ - apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RD;lia|constructor].
+ - apply Mem.weak_valid_pointer_spec;right;apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply WR;change(0<=12-1<12);lia|constructor].
+ - apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply WR;lia|constructor].
+ - apply Mem.weak_valid_pointer_spec;right;apply Mem.valid_pointer_nonempty_perm;eapply Mem.perm_implies;[apply RD;change(0<=12-1<12);lia|constructor].
+Qed.
+Theorem copy12_exact:forall se m src dst,CopyPre m src dst->
+ exists mf bytes,MemcpySafety m src dst /\Mem.loadbytes m src 0 12=Some bytes /\length bytes=12%nat /\
+ Mem.storebytes m dst 0 bytes=Some mf /\
+ extcall_memcpy_sem 12 1 se[Vptr dst Ptrofs.zero;Vptr src Ptrofs.zero]m E0 Vundef mf /\
+ Mem.loadbytes mf dst 0 12=Some bytes /\CopyFrame m mf dst.
+Proof.
+ intros se m src dst P;destruct(Mem.range_perm_loadbytes m src 0 12(copy_readable _ _ _ P))as[bytes READ].
+ pose proof(Mem.loadbytes_length _ _ _ _ _ READ)as LEN;change(length bytes=12%nat)in LEN.
+ assert(W:Mem.range_perm m dst 0(0+Z.of_nat(length bytes))Cur Writable)by(rewrite LEN;exact(copy_writable _ _ _ P)).
+ destruct(Mem.range_perm_storebytes _ _ _ _ W)as[mf STORE].
+ exists mf,bytes;split;[apply copy_pre_safety;exact P|];split;[exact READ|];split;[exact LEN|];split;[exact STORE|];split.
+ - econstructor;try rewrite Ptrofs.unsigned_zero;try exact READ;try exact STORE;try(left;reflexivity);try lia;try(exists 12;reflexivity);try(intros;exists 0;reflexivity);left;exact(copy_separated _ _ _ P).
+ - split.
+   + pose proof(Mem.loadbytes_storebytes_same _ _ _ _ _ STORE)as H;rewrite LEN in H;exact H.
+   + intros b ofs n OUT;destruct(zle n 0).
+     * repeat rewrite Mem.loadbytes_empty by assumption;reflexivity.
+     * eapply Mem.loadbytes_storebytes_other;[exact STORE|lia|];rewrite LEN;exact OUT.
+Qed.
+Lemma copy12_preserves_pre:forall m mf changed src dst bytes,
+ Mem.storebytes m changed 0 bytes=Some mf->src<>changed->dst<>changed->CopyPre m src dst->CopyPre mf src dst.
+Proof. intros m mf changed src dst bytes ST SC DC[NE RD WR];constructor;auto.
+ - intros z B;eapply Mem.perm_storebytes_1;[exact ST|apply RD;exact B].
+ - intros z B;eapply Mem.perm_storebytes_1;[exact ST|apply WR;exact B]. Qed.
+Theorem two_copy12_exact:forall se m sa da sb db,
+ CopyPre m sa da->CopyPre m sb db->sb<>da->db<>da->
+ exists ma mb ba bb,MemcpySafety m sa da /\MemcpySafety ma sb db /\
+ Mem.loadbytes m sa 0 12=Some ba /\Mem.loadbytes ma sb 0 12=Some bb /\
+ Mem.storebytes m da 0 ba=Some ma /\Mem.storebytes ma db 0 bb=Some mb /\
+ extcall_memcpy_sem 12 1 se[Vptr da Ptrofs.zero;Vptr sa Ptrofs.zero]m E0 Vundef ma /\
+ extcall_memcpy_sem 12 1 se[Vptr db Ptrofs.zero;Vptr sb Ptrofs.zero]ma E0 Vundef mb /\
+ Mem.loadbytes mb da 0 12=Some ba /\Mem.loadbytes mb db 0 12=Some bb /\
+ CopyFrame m ma da /\CopyFrame ma mb db.
+Proof.
+ intros se m sa da sb db PA PB SD DD.
+ destruct(copy12_exact se m sa da PA)as[ma[ba[SAFEA[RA[LA[SA[CA[BA FA]]]]]]]].
+ assert(PB':CopyPre ma sb db)by(eapply copy12_preserves_pre;eauto).
+ destruct(copy12_exact se ma sb db PB')as[mb[bb[SAFEB[RB[LB[SB[CB[BB FB]]]]]]]].
+ exists ma,mb,ba,bb;split;[exact SAFEA|];split;[exact SAFEB|];split;[exact RA|];split;[exact RB|];split;[exact SA|];split;[exact SB|];split;[exact CA|];split;[exact CB|];split.
+ - rewrite(FB da 0 12 ltac:(left;congruence));exact BA.
+ - split;[exact BB|];split;assumption.
+Qed.
+Lemma append_cut:forall(A:Type)(a b c d:list A),length a=length c->a++b=c++d->a=c /\b=d.
+Proof.
+ intros A a;induction a as[|x a IH];intros b c d LEN EQ;destruct c as[|y c];simpl in LEN;try discriminate.
+ - simpl in EQ;auto.
+ - simpl in EQ;injection EQ as XY EQ;subst y;destruct(IH b c d ltac:(lia)EQ)as[-> ->];auto.
+Qed.
+Theorem vector_bytes_loads:forall m b x y z,
+ Mem.loadbytes m b 0 12=Some(encode_val Mfloat32(Vsingle x)++encode_val Mfloat32(Vsingle y)++encode_val Mfloat32(Vsingle z))->
+ Mem.load Mint32 m b 0=Some(Vint(Float32.to_bits x)) /\
+ Mem.load Mint32 m b 4=Some(Vint(Float32.to_bits y)) /\
+ Mem.load Mint32 m b 8=Some(Vint(Float32.to_bits z)).
+Proof.
+ intros m b x y z BYTES.
+ destruct(Mem.loadbytes_split m b 0 4 8 _ BYTES ltac:(lia)ltac:(lia))as[a[rest[A[REST EQ]]]].
+ pose proof(Mem.loadbytes_length _ _ _ _ _ A)as LA.
+ assert(LX:length(encode_val Mfloat32(Vsingle x))=4%nat)by(rewrite encode_val_length;reflexivity).
+ destruct(append_cut _ a rest(encode_val Mfloat32(Vsingle x))(encode_val Mfloat32(Vsingle y)++encode_val Mfloat32(Vsingle z))ltac:(change(length a=4%nat)in LA;lia)(eq_sym EQ))as[-> EREST].
+ change(Mem.loadbytes m b 4(4+4)=Some rest)in REST.
+ destruct(Mem.loadbytes_split m b 4 4 4 _ REST ltac:(lia)ltac:(lia))as[c[d[C[D EQ2]]]].
+ assert(ED:encode_val Mfloat32(Vsingle y)++encode_val Mfloat32(Vsingle z)=c++d)by(congruence).
+ pose proof(Mem.loadbytes_length _ _ _ _ _ C)as LC.
+ assert(LY:length(encode_val Mfloat32(Vsingle y))=4%nat)by(rewrite encode_val_length;reflexivity).
+ destruct(append_cut _ c d(encode_val Mfloat32(Vsingle y))(encode_val Mfloat32(Vsingle z))ltac:(change(length c=4%nat)in LC;lia)(eq_sym ED))as[-> ->].
+ pose proof(Mem.loadbytes_load Mint32 m b 0 _ A(ex_intro _ 0 eq_refl))as AX.
+ pose proof(Mem.loadbytes_load Mint32 m b 4 _ C(ex_intro _ 1 eq_refl))as AY.
+ pose proof(Mem.loadbytes_load Mint32 m b 8 _ D(ex_intro _ 2 eq_refl))as AZ.
+ pose proof(decode_encode_val_general(Vsingle x)Mfloat32 Mint32)as EX.
+ pose proof(decode_encode_val_general(Vsingle y)Mfloat32 Mint32)as EY.
+ pose proof(decode_encode_val_general(Vsingle z)Mfloat32 Mint32)as EZ.
+ change(decode_val Mint32(encode_val Mfloat32(Vsingle x))=Vint(Float32.to_bits x))in EX.
+ change(decode_val Mint32(encode_val Mfloat32(Vsingle y))=Vint(Float32.to_bits y))in EY.
+ change(decode_val Mint32(encode_val Mfloat32(Vsingle z))=Vint(Float32.to_bits z))in EZ.
+ rewrite EX in AX;rewrite EY in AY;rewrite EZ in AZ;auto.
+Qed.
+Print Assumptions copy12_exact.
+Print Assumptions two_copy12_exact.
+Print Assumptions vector_bytes_loads.
+            raise ValueError('Invalid exact expected Rocq type')
+    attempt = _resolve_path(root, config['attempt'])
+    for relative in ('Proof.v', 'check.py'):
+        if not (attempt / relative).is_file():
+            raise FileNotFoundError(str(attempt / relative))
+    return attempt
+
+
+def check(config, record_run=None):
+    """Compile exact closure and certify every requested theorem's expected type.
+
+    Configuration keys: root, attempt, namespace, mappings, modules, imports,
+    goal_bindings; optional extra_inputs, gate_inputs, build, rocq, timeout.
+    Paths are repository-relative except the explicit root and Rocq executable.
+    mappings maps logical namespace to source directory. modules overrides exact
+    logical module names (e.g. Spec/Proof in different problem/attempt folders).
+    For recorded builds, receipts are written only after successful checking.
+    """
+    root = Path(config.get('root', Path.cwd())).resolve()
+    attempt = _check_configuration(config, root)
+    sys.path.insert(0, str(root / 'scripts'))
+    from example_proof_gate import certificate_source, input_index
+    from five_telemetry import Run
+    run = Run(record_run) if record_run else None
+    if run and run.read('run.json').get('status') not in ('running', 'pending'):
+        raise ValueError('Recorded checker requires an open phase run')
+    if (attempt / 'provenance.json').exists() or (attempt / 'inputs.json').exists():
+        _, historical = input_index(root, attempt)
+        for source, old_hash in historical.items():
+            if source.suffix in ('.v', '.c') and digest(source) != old_hash:
+                raise ValueError('Retained attempt input changed; create a new attempt: ' + str(source))
+    roots = list(config['imports'])
+    roots += [row['theorem'].rsplit('.', 1)[0] for row in config['goal_bindings']]
+    order = dependency_order(root, config['mappings'], config['modules'], roots)
+    for row in config['goal_bindings']:
+        if row['theorem'].rsplit('.', 1)[0] not in {name for name, _ in order}:
+            raise ValueError('Goal theorem module is outside compiled closure')
+    if run:
+        fingerprint = hashlib.sha256(json.dumps([(name, digest(path)) for name, path in order], sort_keys=True).encode()).hexdigest()[:16]
+        build = _resolve_path(root, config['build']) if config.get('build') else run.folder / 'evidence' / (config['namespace'] + '-' + fingerprint)
+        result = _compile(config, root, attempt, run, build, order, certificate_source)
+        return result
+    with tempfile.TemporaryDirectory(prefix='five-quat-receipts-') as temporary:
+        return _compile(config, root, attempt, None, Path(temporary), order, certificate_source)
+
+
+def _compile(config, root, attempt, run, build, order, certificate_source):
+    namespace = config['namespace']
+    namespaces = list(config['mappings'])
+    for name, _ in order:
+        if not any(name.startswith(prefix + '.') for prefix in namespaces):
+            namespaces.append(name.rsplit('.', 1)[0])
+    if namespace not in namespaces:
+        namespaces.append(namespace)
+    nsmap = {prefix: build / prefix for prefix in namespaces}
+    flags = []
+    for prefix, directory in nsmap.items():
+        directory.mkdir(parents=True, exist_ok=True)
+        flags += ['-Q', str(directory), prefix]
+    sources, bindings = [], []
+    for name, original in order:
+        prefix = max((prefix for prefix in nsmap if name.startswith(prefix + '.')), key=len)
+        snapshot = nsmap[prefix].joinpath(*name[len(prefix) + 1:].split('.')).with_suffix('.v')
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        if snapshot.exists() and digest(snapshot) != digest(original):
+            raise ValueError('Immutable compiled-source snapshot differs: ' + str(snapshot))
+        if not snapshot.exists():
+            shutil.copyfile(original, snapshot)
+        sources.append(snapshot)
+        if run:
+            bindings.append({'path': str(original.relative_to(root)), 'sha256': digest(original), 'snapshot': str(snapshot.relative_to(root))})
+            _safe_capture(run, snapshot, 'compiled-' + namespace + '-' + name)
+    extra = [attempt / 'check.py', Path(__file__).resolve()]
+    extra += [_resolve_path(root, path) for path in config.get('extra_inputs', [])]
+    gate_inputs = [_resolve_path(root, path) for path in config.get('gate_inputs', [])]
+    for path in [*extra, *gate_inputs]:
+        if not path.is_file():
+            raise FileNotFoundError(str(path))
+        if run:
+            _safe_capture(run, path, 'context-' + namespace + '-' + hashlib.sha256(str(path).encode()).hexdigest()[:14])
+    executable = config.get('rocq', '/home/yangfp/.opam/five/bin/rocq')
+    def command(argv, label):
+        if run:
+            return run.command(argv, label, timeout=config.get('timeout', 600), cwd=str(root))
+        subprocess.run(argv, cwd=root, check=True)
+        return None
+    for i, source in enumerate(sources):
+        argv = [executable, 'compile', *flags, str(source)]
+        earlier = run.read('commands.json') if run else []
+        if not (source.with_suffix('.vo').exists() and any(row.get('argv') == argv and row.get('status') == 'passed' and row.get('exit_code') == 0 for row in earlier)):
+            command(argv, namespace + '-dependency-' + str(i))
+    certificate = nsmap[namespace] / 'GoalBinding.v'
+    expected = certificate_source(config['imports'], config['goal_bindings'])
+    if certificate.exists() and certificate.read_text() != expected:
+        raise ValueError('Immutable certificate snapshot differs')
+    certificate.write_text(expected)
+    if run:
+        _safe_capture(run, certificate, 'certificate-' + namespace)
+    compile_record = command([executable, 'compile', *flags, str(certificate)], namespace + '-goal-certificate')
+    theorem_modules = list(dict.fromkeys(row['theorem'].rsplit('.', 1)[0] for row in config['goal_bindings']))
+    certificate_module = namespace + '.GoalBinding'
+    kernel_record = command([executable, 'check', '-silent', *flags, *theorem_modules, certificate_module], namespace + '-independent-kernel')
+    if not run:
+        return {'status': 'passed', 'compiled_modules': len(sources), 'theorems': [row['theorem'] for row in config['goal_bindings']]}
+    evidence = attempt / 'evidence'
+    runpath = str(run.folder.relative_to(root))
+    dependencies = {str(path.relative_to(root)): digest(path) for path in sources}
+    statements = [str(snapshot.relative_to(root)) for (name, _), snapshot in zip(order, sources) if name in config['imports'] or name in theorem_modules]
+    receipt = {'kind': 'rocq-kernel-check', 'run': runpath, 'command_id': kernel_record['id'], 'theorems': [row['theorem'] for row in config['goal_bindings']], 'statement_artifacts': statements, 'dependency_sha256': dependencies}
+    dump(evidence / 'kernel-evidence.json', receipt)
+    gate_receipt = {**receipt, 'dependency_sha256': {**dependencies, **{str(path.relative_to(root)): digest(path) for path in gate_inputs}}}
+    dump(evidence / 'gate-kernel-evidence.json', gate_receipt)
+    certpath = str(certificate.relative_to(root))
+    cert_receipt = {**receipt, 'theorems': [certificate_module + '.goal_' + str(i) for i in range(len(config['goal_bindings']))], 'statement_artifacts': [certpath], 'dependency_sha256': {**dependencies, certpath: digest(certificate)}}
+    dump(evidence / 'certificate-kernel-evidence.json', cert_receipt)
+    indexed = {row['path']: row['sha256'] for row in bindings}
+    indexed.update({str(path.relative_to(root)): digest(path) for path in [*extra, *gate_inputs]})
+    provenance = attempt / 'provenance.json'
+    if not provenance.exists():
+        dump(provenance, {'schema': 'five-proof-attempt-provenance/1', 'files': [{'path': path, 'sha256': value} for path, value in sorted(indexed.items())]})
+    else:
+        from example_proof_gate import input_index
+        _, historical = input_index(root, attempt)
+        if {str(path.relative_to(root)): value for path, value in historical.items()} != indexed:
+            raise ValueError('Existing attempt provenance differs; create a new attempt')
+    bound = {row['path']: row for row in bindings}
+    for path, value in indexed.items():
+        bound.setdefault(path, {'path': path, 'sha256': value})
+    validation = {'schema': 'five-proof-validation/1', 'index': {'path': str(provenance.relative_to(root)), 'sha256': digest(provenance)}, 'inputs': list(bound.values()), 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'goal_bindings': config['goal_bindings'], 'certificate': {'path': certpath, 'sha256': digest(certificate), 'module': certificate_module, 'imports': config['imports'], 'run': runpath, 'compile_command_id': compile_record['id'], 'kernel_command_id': kernel_record['id'], 'kernel_evidence': str((evidence / 'certificate-kernel-evidence.json').relative_to(root))}}
+    dump(evidence / 'goal-validation.json', validation)
+    return {'status': 'passed', 'compiled_modules': len(sources), 'run': runpath, 'kernel_evidence': str((evidence / 'kernel-evidence.json').relative_to(root)), 'gate_kernel_evidence': str((evidence / 'gate-kernel-evidence.json').relative_to(root)), 'goal_validation': str((evidence / 'goal-validation.json').relative_to(root)), 'print_assumptions_stdout': str((run.folder / compile_record['stdout']).relative_to(root))}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--config', required=True)
+    parser.add_argument('--record-run')
+    arguments = parser.parse_args()
+    print(json.dumps(check(json.loads(Path(arguments.config).read_text()), arguments.record_run), indent=2))
+
+
+if __name__ == '__main__':
+    main()

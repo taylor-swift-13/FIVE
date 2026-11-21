@@ -1,0 +1,24 @@
+ASSUMPTIONS ['ClassicalDedekindReals.sig_forall_dec', 'ClassicalDedekindReals.sig_not_dec', 'Classical_Prop.classic', 'Events.external_functions_sem', 'Events.inline_assembly_sem', 'FunctionalExtensionality.functional_extensionality_dep']
+RELATION_INDEX
+)` against `SetLla(L); GetEcef(); GetNed()`. Only final NED component bits must agree; ECEF validity differs intentionally, so whole-state equality is excluded.
+
+This client insertion follows actual matching helper paths: [state.c:599–600](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/state.c#L599) invokes `ned_of_lla_point_f`, whose [implementation:119–123](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/math/pprz_geodetic_float.c#L119) uses a temporary ECEF conversion then the NED helper. Explicit bridging uses the same ECEF calculation at state.c:566–567 then NED at 592–593. Useful representation-materialization noninterference. Exact restricted-schedule equality is promising with accepted LLA setter, only LLA_F initially valid, ned_initialized_f, finite supported geodetic domain and identical trig/sqrt bindings. UTM-only origins and intervening integer/batch getters can select other priority branches; no inverse-coordinate accuracy theorem follows.
+
+
+### S4 — Explicit quaternion warmup preserves ZXY attitude consumption
+
+Top entries (3): [`stateSetNedToBodyRMat_f`](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/state.h#L1268), [`stateGetNedToBodyQuat_f`](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/state.h#L1302), [`stateGetNedToBodyEulersZxy_f`](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/state.h#L1320).
+
+Compare `SetRMat(R); GetEulersZxy()` against `SetRMat(R); GetQuat(); GetEulersZxy()`. Expected equal ZXY component bits and final orientation validity. The matrix setter retains only RMAT_F validity; [orientationCalcEulersZxy_f:198–210](https://github.com/paparazzi/paparazzi/blob/abfee3dd56eeab12c528635504a429db3daf409a/sw/airborne/math/pprz_orientation_conversion.c#L198) necessarily materializes QUAT_F if absent and then uses the same quaternion-to-ZXY helper. The explicit getter moves that mandatory computation earlier.
+
+This is a client insertion relation grounded in actual getter/helper composition, useful for consumer/cache coherence. Exact equality is promising with accepted setter, finite proper rotation matrix, supported conversion domain, no intervening mutation and fixed sqrt/trig/algebra bindings. Observe copied output fields rather than mutable pointer identities. It is neither ZXY=ZYX angle equality nor unrestricted orientation-getter order invariance.
+
+
+## Future implementation boundary
+
+If requested later, create **one entry model with its actual callee closure per function** under `paparazzi/models/`, freezing original sources, target and external-call bindings. Shared state needs explicit corresponding representations across those models. Then place each cross-model question under `paparazzi/relations/<name>/problem/` with its real `Spec.v`, readable report and status, following the repository's examples. Only an actual subsequent proof attempt creates an attempts directory and checkable evidence. At discovery time the CompCert models were absent following their earlier deletion. The later G2 implementation now supplies two entry models under paparazzi/models; archived `_build` models are not authoritative gold-standard inputs. This catalog is human-readable question discovery, **not already formalized pending proof obligations**.
+
+## Discovery evidence and costs
+
+[Costs](../report/relation-discovery/costs.json) retains one shared event scope for each domain and a separate integration interval, with actual runtime GPT-6.1 Sol medium receipts. Shared discovery is not allocated into fictional per-family proof costs. Raw metering files/statuses remain unchanged in [evidence](../report/relation-discovery/evidence/); standalone domain surveys there are provenance snapshots, while this README is the canonical candidate catalog. Token sums use actual event IDs once; cache/reasoning counts are subsets. Domain intervals overlap, so their wall times cannot be added into an end-to-end elapsed time. Tool memory excludes model-serving/desktop memory and sampled RSS can miss peaks/count shared pages twice. The filter run has a real memory-sampling audit gap for a short hash command: its complete-run memory is unknown (`null`) while available sampled values are retained. No verification result follows from a metering tool's discovery-delivery `passed` field.
+

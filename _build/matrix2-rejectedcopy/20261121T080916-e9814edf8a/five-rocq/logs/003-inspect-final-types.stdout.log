@@ -1,0 +1,226 @@
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-6-From FiveMatrixInverseSupport Require Import Kernels.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-7-Import ListNotations.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-8-Local Open Scope Z_scope.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v:9:Definition NormalCall(m:mem)(bo bi:block)(po pi:ptrofs)(f:Z->float32)(mf:mem):Prop:=exists t,star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate(Result f)Kstop mf).
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-10-Record Separate(og ig ob ib os is0 ol il:block):Prop:={
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-11- sep_bg:ob<>og;sep_big:ib<>og;sep_sg:os<>og;sep_sig:is0<>og;sep_lg:ol<>og;sep_lig:il<>og;
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-12- sep_sb:os<>ob;sep_sib:is0<>ob;sep_lb:ol<>ob;sep_lib:il<>ob;sep_ls:ol<>os;sep_lis:il<>os
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-13-}.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-14-Definition OriginalReplay:Prop:=forall m og ig ob ib os is0 ol il,
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-15- Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input->
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-16- Inputs m ob ib Ptrofs.zero Ptrofs.zero base2->
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-17- Inputs m os is0 Ptrofs.zero Ptrofs.zero small2->
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-18- Inputs m ol il Ptrofs.zero Ptrofs.zero large2->Separate og ig ob ib os is0 ol il->
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-19- exists ma mb mc md,
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v:20: NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v:21: NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v:22: NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v:23: NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-24-Theorem original_trace_four_calls:OriginalReplay.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-25-Proof. intros m og ig ob ib os is0 ol il IG IB IS IL SEP;destruct SEP.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-26- destruct(call_summary m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input IG)as[ma[PG[QG OTHERG]]].
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-27- assert(IBA:Inputs ma ob ib Ptrofs.zero Ptrofs.zero base2)by(eapply post_preserves_other_inputs;eauto).
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-28- assert(ISA:Inputs ma os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-29- assert(ILA:Inputs ma ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-30- destruct(call_summary ma ob ib Ptrofs.zero Ptrofs.zero base2 IBA)as[mb[PB[QB OTHERB]]].
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-31- assert(ISB:Inputs mb os is0 Ptrofs.zero Ptrofs.zero small2)by(eapply post_preserves_other_inputs;eauto).
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-32- assert(ILB:Inputs mb ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-33- destruct(call_summary mb os is0 Ptrofs.zero Ptrofs.zero small2 ISB)as[mc[PS[QS OTHERS]]].
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-34- assert(ILC:Inputs mc ol il Ptrofs.zero Ptrofs.zero large2)by(eapply post_preserves_other_inputs;eauto).
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-35- destruct(call_summary mc ol il Ptrofs.zero Ptrofs.zero large2 ILC)as[md[PL[QL OTHERL]]].
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v:36: exists ma,mb,mc,md;unfold NormalCall;split;[exact PG|];split;[exact QG|];split;[exact PB|];split;[exact QB|];split;[exact PS|];split;[exact QS|];split;[exact PL|exact QL].
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-37-Qed.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-38-Theorem original_trace_statuses:Result trace_input=Vint Int.zero/\Result base2=Vint Int.zero/\Result small2=Vint Int.one/\Result large2=Vint Int.zero.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-39-Proof. split;[exact(proj1 original_arbitrary_trace_kernel)|];split;[exact(proj1 base2_kernel)|];split;[exact(proj1 small2_kernel)|exact(proj1 large2_kernel)]. Qed.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-40-Theorem original_trace_scale_failure:OriginalReplay /\ Result base2<>Result small2.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-41-Proof. split;[exact original_trace_four_calls|exact RefuteScaleStatus2]. Qed.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-42-Theorem original_trace_residual_failure:OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-43-Proof. split;[exact original_trace_four_calls|];destruct RefuteLargeResidual2 as[RET BAD];split;[exact RET|];split;[exact BAD|exact large2_residual]. Qed.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-44-Print Assumptions original_trace_four_calls.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-45-Print Assumptions original_trace_scale_failure.
+paparazzi/models/float_mat_inv_2d/rocq/support/Replay.v-46-Print Assumptions original_trace_residual_failure.
+--
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-24- star Csem.step Execution.ge(Execution.entry(Args bo bi Ptrofs.zero pi)m)t(Returnstate result Kstop mf)->forall dst bytes obs,
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-25- Mem.loadbytes mf bo 0 16=Some bytes->Mem.storebytes mf dst 0 bytes=Some obs->
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-26- map(fun i=>Mem.load Mint32 obs dst(4*i))[0;1;2;3]=map(fun w=>Some(Vint(Int.repr w)))words.
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v:27:Definition CasePreserves(f:Z->float32):Prop:=forall m bo bi po pi,Inputs m bo bi po pi f->forall t result mf,
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-28- star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-29- Mem.loadbytes mf bo(Ptrofs.unsigned po)16=Mem.loadbytes m bo(Ptrofs.unsigned po)16.
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-30-Definition Assertion1:Prop:=forall m bo bi po pi f,Inputs m bo bi po pi f->forall t result mf,
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-31- star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate result Kstop mf)->result=Vint Int.zero\/result=Vint Int.one.
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-32-Definition Assertion2:Prop:=forall m bo bi pi f before after,Inputs m bo bi(Ptrofs.repr 4)pi f->
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-33- Mem.load Mint32 m bo 0=Some(Vint before)->Mem.load Mint32 m bo 20=Some(Vint after)->forall t result mf,
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-34- star Csem.step Execution.ge(Execution.entry(Args bo bi(Ptrofs.repr 4)pi)m)t(Returnstate result Kstop mf)->
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-35- Frame m mf bo(Ptrofs.repr 4)/\Mem.load Mint32 mf bo 0=Some(Vint before)/\Mem.load Mint32 mf bo 20=Some(Vint after).
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-36-(* Actual property: float_mat_inv_2d.pointer_arithmetic.1; SUCCESS. pointer arithmetic: pointer NULL in mat_in + (signed long int)0 *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-37-Definition P001:Prop:=SourceGuards 0 false.
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-38-(* Actual property: float_mat_inv_2d.pointer_arithmetic.2; SUCCESS. pointer arithmetic: pointer invalid in mat_in + (signed long int)0 *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-39-Definition P002:Prop:=SourceGuards 0 false.
+--
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-404-(* Actual property: main.assertion.5; SUCCESS. small conditionone diagonal call rejects *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-405-Definition P185:Prop:=CaseStatus small2(Vint Int.one).
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-406-(* Actual property: main.assertion.6; SUCCESS. rejected call preserves every output byte *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v:407:Definition P186:Prop:=CasePreserves small2.
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-408-(* Actual property: main.assertion.7; SUCCESS. finite large diagonal call reports success *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-409-Definition P187:Prop:=CaseStatus large2(Vint Int.zero).
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-410-(* Actual property: main.assertion.8; SUCCESS. overflow determinant exact signedzero output bits *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-411-Definition P188:Prop:=CaseWords large2[0;2147483648;2147483648;0].
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-412-(* Actual property: main.assertion.9; FAILURE. positive scaling preserves inverse status *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-413-Definition P189:Prop:=OriginalReplay /\ Result base2<>Result small2 /\ TraceNonempty.
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-414-(* Actual property: main.assertion.10; FAILURE. successful wellconditioned inverse has residual component below half *)
+paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v-415-Definition P190:Prop:=OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864 /\ TraceNonempty.
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Cexec Cstrategy Smallstep.
+From FiveGuidanceAllOrder Require Import PureSyntax PureDenotation PureProgress.
+From FiveMatInv3Case Require Import MatrixMemory GuardWitness PairExtend.
+From FivePprzFloatMatInv2d Require Import Execution.
+From FiveInv2Case Require Import Contract Expressions RecheckSupport Replay ExactReplay TraceInputs.
+From FiveMatrixInverseSupport Require Import Kernels.
+Import ListNotations.
+Local Open Scope Z_scope.
+(** These are the original harness expressions after Csem has bound the call
+    results and reduced the three local array names to their actual blocks.
+    No numerical matrix is substituted for a memory load. *)
+Definition Load0(b:block):expr:=Evalof(Eloc b Ptrofs.zero Full tfloat)tfloat.
+Definition ResidualExpr(input output:block):expr:=
+ Ebinop Osub(Ebinop Omul(Load0 input)(Load0 output)tfloat)(Eval(Vsingle one)tfloat)tfloat.
+Definition ScaleAssertion:expr:=Ebinop Oeq(Ecast(Eval(Result base2)type_bool)tint)(Ecast(Eval(Result small2)type_bool)tint)tint.
+Definition SuccessTest:expr:=Ebinop One(Ecast(Eval(Result large2)type_bool)tint)(Eval(Vint Int.zero)tint)tint.
+Definition Lower(res:block):expr:=Ebinop Ogt(Load0 res)(Eunop Oneg(Eval(Vsingle(Float32.of_bits(Int.repr 1056964608)))tfloat)tfloat)tint.
+Definition Upper(res:block):expr:=Ebinop Olt(Load0 res)(Eval(Vsingle(Float32.of_bits(Int.repr 1056964608)))tfloat)tint.
+Definition ResidualAssertion(res:block):expr:=Eseqor SuccessTest(Eseqand(Lower res)(Upper res)tint)tint.
+Definition MinusOne:float32:=Float32.of_bits(Int.repr 3212836864).
+Definition ExprReturns(m mf:mem)(a:expr)(v:val):Prop:=forall fn k e,
+ star Csem.step Execution.ge(ExprState fn a k e m)E0(ExprState fn(Eval v(typeof a))k e mf).
+Lemma pure_returns:forall m a v,simple a=true->(forall e,pure_rval Execution.ge e m a=Some v)->ExprReturns m m a v.
+Proof. intros m a v SI EV fn k e;refine(Cstrategy.eval_simple_rvalue_steps Execution.ge fn k e m a v _ (fun x=>x) _).
+ - exact(proj1(pure_eval_big a Execution.ge e m SI)v(EV e)).
+ - constructor.
+Qed.
+Lemma load0_value:forall e m b x,Mem.load Mfloat32 m b 0=Some(Vsingle x)->pure_rval Execution.ge e m(Load0 b)=Some(Vsingle x).
+Proof. intros e m b x LD;cbv[Load0 pure_rval pure_lval Cexec.do_deref_loc tfloat noattr access_mode type_is_volatile attr_of_type attr_volatile Mem.loadv].
+ rewrite ?dec_eq_true,Ptrofs.unsigned_zero;rewrite zle_true by(change(4<=18446744073709551616);lia);rewrite LD;reflexivity. Qed.
+Lemma residual_value:forall e m input output,
+ Mem.load Mfloat32 m input 0=Some(Vsingle(large2 0))->
+ Mem.load Mfloat32 m output 0=Some(Vsingle(Output large2 0))->
+ pure_rval Execution.ge e m(ResidualExpr input output)=Some(Vsingle MinusOne).
+Proof. intros e m input output LI LO.
+ assert(N:residual2 large2=MinusOne)by(rewrite <-(Float32.of_to_bits(residual2 large2)),large2_residual;reflexivity);rewrite <-N;unfold ResidualExpr,residual2.
+ eapply rval_sub;try reflexivity.
+ eapply rval_mul;try reflexivity;eapply load0_value;eauto. Qed.
+Lemma large_post_loads:forall m mf output input,
+ Post m mf output input Ptrofs.zero Ptrofs.zero large2->
+ Mem.load Mfloat32 mf input 0=Some(Vsingle(large2 0))/\
+ Mem.load Mfloat32 mf output 0=Some(Vsingle(Output large2 0)).
+Proof. intros m mf output input POST;split.
+ - pose proof(proj2(proj2(proj1(proj2 POST)))0 ltac:(lia))as LD;rewrite Ptrofs.unsigned_zero in LD;exact LD.
+ - assert(R:Reject large2=false)by(vm_compute;reflexivity).
+   pose proof(successful_post_cells m mf output input Ptrofs.zero Ptrofs.zero large2 POST R 0 ltac:(lia))as BY;rewrite Ptrofs.unsigned_zero in BY.
+   pose proof(Mem.loadbytes_load Mfloat32 mf output 0 _ BY ltac:(change(4|0);exists 0;lia))as LD.
+   pose proof(decode_encode_val_general(Vsingle(Output large2 0))Mfloat32 Mfloat32)as DE.
+   change(decode_val Mfloat32(encode_val Mfloat32(Vsingle(Output large2 0)))=Vsingle(Output large2 0))in DE;rewrite DE in LD;exact LD.
+Qed.
+Theorem scale_assertion_false:forall m,ExprReturns m m ScaleAssertion(Vint Int.zero).
+Proof. intros m;apply pure_returns;[reflexivity|intros;vm_compute;reflexivity]. Qed.
+Print Assumptions large_post_loads.
+Print Assumptions scale_assertion_false.
+Lemma lower_value:forall e m res,Mem.load Mfloat32 m res 0=Some(Vsingle MinusOne)->pure_rval Execution.ge e m(Lower res)=Some(Vint Int.zero).
+Proof. intros e m res LD;change(match pure_rval Execution.ge e m(Load0 res)with
+ |Some v=>sem_binary_operation Execution.ge Ogt v tfloat(Vsingle(Float32.neg(Float32.of_bits(Int.repr 1056964608))))tfloat m|None=>None end=Some(Vint Int.zero)).
+ rewrite(load0_value e m res MinusOne LD);vm_compute;reflexivity. Qed.
+Lemma success_test_value:forall e m,pure_rval Execution.ge e m SuccessTest=Some(Vint Int.zero).
+Proof. intros;vm_compute;reflexivity. Qed.
+Theorem residual_assignment:forall m after input output res,
+ Mem.load Mfloat32 m input 0=Some(Vsingle(large2 0))->
+ Mem.load Mfloat32 m output 0=Some(Vsingle(Output large2 0))->
+ Mem.store Mfloat32 m res 0(Vsingle MinusOne)=Some after->
+ ExprReturns m after(Eassign(Eloc res Ptrofs.zero Full tfloat)(ResidualExpr input output)tfloat)(Vsingle MinusOne).
+Proof. intros m after input output res LI LO ST fn k e.
+ eapply plus_star;eapply Cstrategy.estep_simulation.
+ change(Cstrategy.estep Execution.ge(ExprState fn((fun x=>x)(Eassign(Eloc res Ptrofs.zero Full tfloat)(ResidualExpr input output)tfloat))k e m)E0(ExprState fn((fun x=>x)(Eval(Vsingle MinusOne)tfloat))k e after)).
+ eapply Cstrategy.step_assign with(v:=Vsingle MinusOne)(v1:=Vsingle MinusOne).
+ - constructor.
+ - constructor.
+ - exact(proj1(pure_eval_big(ResidualExpr input output)Execution.ge e m eq_refl)(Vsingle MinusOne)(residual_value e m input output LI LO)).
+ - reflexivity.
+ - eapply assign_loc_value with(chunk:=Mfloat32);try reflexivity;change(Mem.store Mfloat32 m res(Ptrofs.unsigned Ptrofs.zero)(Vsingle MinusOne)=Some after);rewrite Ptrofs.unsigned_zero;exact ST.
+ - reflexivity.
+Qed.
+Theorem residual_assertion_false:forall m res,Mem.load Mfloat32 m res 0=Some(Vsingle MinusOne)->ExprReturns m m(ResidualAssertion res)(Vint Int.zero).
+Proof. intros m res LD fn k e;unfold ResidualAssertion.
+ eapply star_trans with(s2:=ExprState fn(Eparen(Eseqand(Lower res)(Upper res)tint)type_bool tint)k e m)(t1:=E0)(t2:=E0).
+ - eapply plus_star;eapply Cstrategy.estep_simulation.
+   change(Cstrategy.estep Execution.ge(ExprState fn((fun x=>x)(Eseqor SuccessTest(Eseqand(Lower res)(Upper res)tint)tint))k e m)E0(ExprState fn((fun x=>x)(Eparen(Eseqand(Lower res)(Upper res)tint)type_bool tint))k e m)).
+   eapply Cstrategy.step_seqor_false with(v:=Vint Int.zero).
+   + constructor.
+   + exact(proj1(pure_eval_big SuccessTest Execution.ge e m eq_refl)(Vint Int.zero)(success_test_value e m)).
+   + reflexivity.
+ - eapply star_trans with(s2:=ExprState fn(Eparen(Eval(Vint Int.zero)tint)type_bool tint)k e m)(t1:=E0)(t2:=E0).
+   + eapply plus_star;eapply Cstrategy.estep_simulation.
+     change(Cstrategy.estep Execution.ge(ExprState fn((fun x=>Eparen x type_bool tint)(Eseqand(Lower res)(Upper res)tint))k e m)E0(ExprState fn((fun x=>Eparen x type_bool tint)(Eval(Vint Int.zero)tint))k e m)).
+     eapply Cstrategy.step_seqand_false with(v:=Vint Int.zero).
+     * constructor;constructor.
+     * exact(proj1(pure_eval_big(Lower res)Execution.ge e m eq_refl)(Vint Int.zero)(lower_value e m res LD)).
+     * reflexivity.
+   + eapply plus_star;eapply Cstrategy.estep_simulation.
+     change(Cstrategy.estep Execution.ge(ExprState fn((fun x=>x)(Eparen(Eval(Vint Int.zero)tint)type_bool tint))k e m)E0(ExprState fn((fun x=>x)(Eval(Vint Int.zero)tint))k e m)).
+     eapply Cstrategy.step_paren with(v1:=Vint Int.zero);constructor||reflexivity.
+   + reflexivity.
+ - reflexivity.
+Qed.
+Definition ResidualObservation(m mf:mem)(output input:block):Prop:=exists allocated res after,
+ Mem.alloc mf 0 4=(allocated,res)/\Mem.store Mfloat32 allocated res 0(Vsingle MinusOne)=Some after/\
+ ExprReturns allocated after(Eassign(Eloc res Ptrofs.zero Full tfloat)(ResidualExpr input output)tfloat)(Vsingle MinusOne)/\
+ Mem.load Mfloat32 after res 0=Some(Vsingle MinusOne)/\ExprReturns after after(ResidualAssertion res)(Vint Int.zero).
+Theorem large_post_observation:forall m mf output input,Post m mf output input Ptrofs.zero Ptrofs.zero large2->ResidualObservation m mf output input.
+Proof. intros m mf output input POST;destruct(large_post_loads m mf output input POST)as[LI LO].
+ destruct(Mem.alloc mf 0 4)as[allocated res]eqn:AL.
+ assert(LIA:Mem.load Mfloat32 allocated input 0=Some(Vsingle(large2 0)))by(eapply Mem.load_alloc_other;eauto).
+ assert(LOA:Mem.load Mfloat32 allocated output 0=Some(Vsingle(Output large2 0)))by(eapply Mem.load_alloc_other;eauto).
+ assert(VA:Mem.valid_access allocated Mfloat32 res 0 Writable).
+ { eapply Mem.valid_access_implies;[eapply Mem.valid_access_alloc_same;[exact AL|lia|reflexivity|change(4|0);exists 0;lia]|constructor]. }
+ destruct(Mem.valid_access_store allocated Mfloat32 res 0(Vsingle MinusOne)VA)as[after ST].
+ assert(LD:Mem.load Mfloat32 after res 0=Some(Vsingle MinusOne)).
+ { erewrite Mem.load_store_same by exact ST;reflexivity. }
+ exists allocated,res,after;split;[exact AL|];split;[exact ST|];split;[eapply residual_assignment;eauto|];split;[exact LD|apply residual_assertion_false;exact LD].
+Qed.
+Print Assumptions residual_assignment.
+Print Assumptions residual_assertion_false.
+Print Assumptions large_post_observation.
+Definition CompletedPrefix(m:mem)(og ig ob ib os is0 ol il:block)(md:mem):Prop:=exists ma mb mc,
+ NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+ NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+ NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+ NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+Lemma prefix_exists:forall m og ig ob ib os is0 ol il,InitializedLayout m og ig ob ib os is0 ol il->exists md,CompletedPrefix m og ig ob ib os is0 ol il md.
+Proof. intros m og ig ob ib os is0 ol il[G[B[S[L[OB[OS[OL SEP]]]]]]].
+ destruct G as[NE[W[RD OTHER]]];assert(IG:Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input)by(split;[exact NE|];split;[exact W|exact RD]).
+ destruct(original_trace_four_calls m og ig ob ib os is0 ol il IG B S L SEP)as[ma[mb[mc[md CALLS]]]].
+ exists md,ma,mb,mc;exact CALLS.
+Qed.
+Lemma prefix_large_loads:forall m og ig ob ib os is0 ol il md,CompletedPrefix m og ig ob ib os is0 ol il md->
+ Mem.load Mfloat32 md il 0=Some(Vsingle(large2 0))/\Mem.load Mfloat32 md ol 0=Some(Vsingle(Output large2 0)).
+Proof. intros m og ig ob ib os is0 ol il md[ma[mb[mc[PG[QG[PB[QB[PS[QS[PL QL]]]]]]]]]];eapply large_post_loads;exact QL. Qed.
+Lemma post_access_preserved:forall m mf bo bi po pi f ch b z p,Post m mf bo bi po pi f->Mem.valid_access m ch b z p->Mem.valid_access mf ch b z p.
+Proof. intros m mf bo bi po pi f ch b z p[W[RD[FR[VB[BY AC]]]]]VA;apply AC;[eapply Mem.valid_access_valid_block;eapply Mem.valid_access_implies;[exact VA|destruct p;constructor]|exact VA]. Qed.
+Lemma prefix_access_preserved:forall m og ig ob ib os is0 ol il md ch b z p,
+ CompletedPrefix m og ig ob ib os is0 ol il md->Mem.valid_access m ch b z p->Mem.valid_access md ch b z p.
+Proof. intros m og ig ob ib os is0 ol il md ch b z p[ma[mb[mc[PG[QG[PB[QB[PS[QS[PL QL]]]]]]]]]]VA.
+ eapply post_access_preserved;[exact QL|];eapply post_access_preserved;[exact QS|];eapply post_access_preserved;[exact QB|];eapply post_access_preserved;[exact QG|exact VA]. Qed.
+Lemma layout_alloc:forall m og ig ob ib os is0 ol il allocated res,
+ InitializedLayout m og ig ob ib os is0 ol il->Mem.alloc m 0 4=(allocated,res)->InitializedLayout allocated og ig ob ib os is0 ol il.
+Proof. intros m og ig ob ib os is0 ol il allocated res[G[B[S[L[OB[OS[OL SEP]]]]]]]AL.
+ assert(LP:LoadPreserved m allocated)by(intros ch b z VB;apply Mem.load_alloc_unchanged with(lo:=0)(hi:=4)(b:=res);assumption).
+ assert(AP:AccessPreserved m allocated)by(intros ch b z p VA;eapply Mem.valid_access_alloc_other;eauto).
+ unfold InitializedLayout;split;[eapply extension_guarded;eauto|];split;[eapply extension_inputs;eauto|];split;[eapply extension_inputs;eauto|];split;[eapply extension_inputs;eauto|];split;[eapply extension_reads;eauto;lia|];split;[eapply extension_reads;eauto;lia|];split;[eapply extension_reads;eauto;lia|exact SEP].
+Qed.
+Definition ComposedRefutation9:Prop:=exists m og ig ob ib os is0 ol il md,
+ InitializedLayout m og ig ob ib os is0 ol il/\CompletedPrefix m og ig ob ib os is0 ol il md/\ExprReturns md md ScaleAssertion(Vint Int.zero).
+Theorem composed_refutation9:ComposedRefutation9.
+Proof. destruct initialized_layout_inhabited as[m[og[ig[ob[ib[os[is0[ol[il L]]]]]]]]].
+ destruct(prefix_exists m og ig ob ib os is0 ol il L)as[md P].
+# Source this file from bash: source scripts/env.sh
+FIVE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export FIVE_ROOT
+eval "$(opam env --switch=five --set-switch)"
+export PATH="$FIVE_ROOT/.tools/bin:$FIVE_ROOT/.tools/cbmc/usr/bin:$PATH"

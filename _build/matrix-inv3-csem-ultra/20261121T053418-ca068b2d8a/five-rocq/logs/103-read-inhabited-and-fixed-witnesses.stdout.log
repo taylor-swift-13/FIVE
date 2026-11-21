@@ -1,0 +1,191 @@
+From Stdlib Require Import List ZArith Lia.
+From compcert Require Import Integers Floats AST Values Memory Memdata.
+From FiveMatInv3Case Require Import MatrixMemory.
+Require FiveInv2Case.Contract.
+Import ListNotations.
+Local Open Scope Z_scope.
+Lemma matrix_memory_exists:forall n xs (f:Z->float32),
+ 0<n ->4*n<=Ptrofs.modulus ->
+ (forall i x,In(i,x)xs->0<=i<n) ->NoDup(map fst xs) ->
+ (forall i,0<=i<n->In(i,f i)xs) ->
+ exists m bo bi,bo<>bi /\WriteRegion m bo Ptrofs.zero n /\ Reads m bi Ptrofs.zero n f.
+Proof.
+ intros n xs f N LIMIT B ND COVER.
+ destruct(Mem.alloc Mem.empty 0(4*n))as[ma bo]eqn:AO.
+ destruct(Mem.alloc ma 0(4*n))as[mi bi]eqn:AI.
+ assert(NE:bo<>bi).
+ { rewrite(Mem.alloc_result _ _ _ _ _ AO),(Mem.alloc_result _ _ _ _ _ AI),(Mem.nextblock_alloc _ _ _ _ _ AO).
+   intro E;apply(f_equal Pos.to_nat)in E;rewrite Pos2Nat.inj_succ in E;lia. }
+ assert(WI:WriteRegion mi bi Ptrofs.zero n).
+ { unfold WriteRegion;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[exact LIMIT|].
+   intros z Z;eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact AI|exact Z]|constructor]. }
+ assert(WO:WriteRegion mi bo Ptrofs.zero n).
+ { unfold WriteRegion;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[exact LIMIT|].
+   intros z Z;eapply Mem.perm_alloc_1;[exact AI|].
+   eapply Mem.perm_implies;[eapply Mem.perm_alloc_2;[exact AO|exact Z]|constructor]. }
+ destruct(writes_exist xs mi bi Ptrofs.zero n WI B)as[m WR].
+ exists m,bo,bi;split;[exact NE|];split.
+ - destruct WO as[AL[NW RP]];split;[exact AL|];split;[exact NW|].
+   intros z Z;eapply writes_permissions;[exact WR|apply RP;exact Z].
+ - unfold Reads;rewrite Ptrofs.unsigned_zero;split;[exists 0;lia|];split;[exact LIMIT|].
+   intros i I.
+   pose proof(writes_bytes xs mi bi(Ptrofs.unsigned Ptrofs.zero)m WR ND i(f i)(COVER i I))as BYTES.
+   rewrite Ptrofs.unsigned_zero in BYTES;cbn[Z.add]in BYTES.
+   pose proof(Mem.loadbytes_load Mfloat32 m bi(4*i)(encode_val Mfloat32(Vsingle(f i)))BYTES ltac:(change(4|4*i);exists i;lia))as LOAD.
+   assert(DE:decode_val Mfloat32(encode_val Mfloat32(Vsingle(f i)))=Vsingle(f i)).
+   { exact(decode_encode_val_similar (Vsingle(f i)) Mfloat32 Mfloat32 _ eq_refl eq_refl (decode_encode_val_general (Vsingle(f i)) Mfloat32 Mfloat32)). }
+   rewrite DE in LOAD;exact LOAD.
+Qed.
+Theorem matrix4_inhabited:forall f:Z->float32,exists m bo bi,
+ FiveInv2Case.Contract.Inputs m bo bi Ptrofs.zero Ptrofs.zero f.
+Proof.
+ intro f;set(xs:=[(0,f 0);(1,f 1);(2,f 2);(3,f 3)]).
+ apply(matrix_memory_exists 4 xs f);try(change(16<=18446744073709551616);lia);try lia.
+ - intros i x IN;unfold xs in IN;cbn in IN.
+   repeat match goal with H:_ \/ _ |- _=>destruct H end;try contradiction;
+   match goal with H:(_,_) = (_,_) |- _=>inversion H;lia end.
+ - unfold xs;repeat constructor;cbn;intuition congruence.
+ - intros i I;assert(i=0\/i=1\/i=2\/i=3)by lia;destruct H as [ -> | [ -> | [ -> | -> ] ] ];unfold xs;cbn;auto 12.
+Qed.
+Theorem matrix9_inhabited:forall f:Z->float32,exists m bo bi,
+ bo<>bi /\WriteRegion m bo Ptrofs.zero 9 /\ Reads m bi Ptrofs.zero 9 f.
+Proof.
+ intro f;set(xs:=[(0,f 0);(1,f 1);(2,f 2);(3,f 3);(4,f 4);(5,f 5);(6,f 6);(7,f 7);(8,f 8)]).
+ apply(matrix_memory_exists 9 xs f);try(change(36<=18446744073709551616);lia);try lia.
+ - intros i x IN;unfold xs in IN;cbn in IN.
+   repeat match goal with H:_ \/ _ |- _=>destruct H end;try contradiction;
+   match goal with H:(_,_) = (_,_) |- _=>inversion H;lia end.
+ - unfold xs;repeat constructor;cbn;intuition congruence.
+ - intros i I;assert(i=0\/i=1\/i=2\/i=3\/i=4\/i=5\/i=6\/i=7\/i=8)by lia;
+   destruct H as [ -> | [ -> | [ -> | [ -> | [ -> | [ -> | [ -> | [ -> | -> ] ] ] ] ] ] ] ];unfold xs;cbn;auto 12.
+Qed.
+Print Assumptions matrix4_inhabited.
+Print Assumptions matrix9_inhabited.
+From Stdlib Require Import List ZArith Lia Reals Lra Psatz.
+From compcert Require Import Integers Floats Values IEEE754_extra.
+From Flocq Require Import Core.Core IEEE754.Binary.
+From FiveMatrixInverseSupport Require Import Dyadic.
+Require FiveInv2Case.Contract FiveMatInv3Case.Scalar.
+Import ListNotations.
+Local Open Scope Z_scope.
+Module D2:=FiveInv2Case.Contract.
+Module D3:=FiveMatInv3Case.Scalar.
+Definition Diag2(x:float32)(i:Z):float32:=if (Z.eqb i 0||Z.eqb i 3)%bool then x else Float32.zero.
+Definition Diag3(x:float32)(i:Z):float32:=if (Z.eqb i 0||Z.eqb i 4||Z.eqb i 8)%bool then x else Float32.zero.
+Lemma det2_safe:forall k,-20<=k<=20 ->D2.Det(Diag2(power32 k))=power32(2*k).
+Proof.
+ intros k K;unfold D2.Det,Diag2;cbn.
+ change (Float32.sub(Float32.mul(power32 k)(power32 k))Float32.zero=power32(2*k)).
+ rewrite power_mul by lia;replace (k+k) with(2*k)by lia.
+ destruct(power_zeros(2*k)ltac:(lia))as[_[_[S _]]];exact S.
+Qed.
+Lemma minors_safe:forall k,-20<=k<=20 ->
+ D3.M00(Diag3(power32 k))=power32(2*k) /\
+ D3.M10(Diag3(power32 k))=Float32.zero /\
+ D3.M20(Diag3(power32 k))=Float32.zero /\
+ D3.M01(Diag3(power32 k))=Float32.zero /\
+ D3.M11(Diag3(power32 k))=power32(2*k) /\
+ D3.M21(Diag3(power32 k))=Float32.zero /\
+ D3.M02(Diag3(power32 k))=Float32.zero /\
+ D3.M12(Diag3(power32 k))=Float32.zero /\
+ D3.M22(Diag3(power32 k))=power32(2*k).
+Proof.
+ intros k K;destruct(power_zeros k ltac:(lia))as[MR[ML REST]].
+ destruct(power_zeros(2*k)ltac:(lia))as[_[_[SZ _]]].
+ repeat split;unfold D3.M00,D3.M10,D3.M20,D3.M01,D3.M11,D3.M21,D3.M02,D3.M12,D3.M22,Diag3;cbn;
+ rewrite ?MR,?ML;try reflexivity;
+ rewrite power_mul by lia;replace(k+k)with(2*k)by lia;exact SZ.
+Qed.
+Lemma det3_safe:forall k,-20<=k<=20 ->D3.Det(Diag3(power32 k))=power32(3*k).
+Proof.
+ intros k K;destruct(minors_safe k K)as[M00[M10[M20 REST]]].
+ unfold D3.Det;rewrite M00,M10,M20;unfold Diag3;cbn.
+ change(Float32.add(Float32.sub(Float32.mul(power32 k)(power32(2*k)))Float32.zero)Float32.zero=power32(3*k)).
+ rewrite power_mul by lia;replace(k+2*k)with(3*k)by lia.
+ destruct(power_zeros(3*k)ltac:(lia))as[_[_[SZ[AZ _]]]].
+ rewrite SZ;exact AZ.
+Qed.
+Lemma output2_safe:forall k,-20<=k<=20 ->
+ map(D2.Output(Diag2(power32 k)))[0;1;2;3]=
+ [power32(-k);Float32.neg Float32.zero;Float32.neg Float32.zero;power32(-k)].
+Proof.
+ intros k K.
+ change([Float32.div(power32 k)(D2.Det(Diag2(power32 k)));
+ Float32.div(Float32.neg Float32.zero)(D2.Det(Diag2(power32 k)));
+ Float32.div(Float32.neg Float32.zero)(D2.Det(Diag2(power32 k)));
+ Float32.div(power32 k)(D2.Det(Diag2(power32 k)))]=
+ [power32(-k);Float32.neg Float32.zero;Float32.neg Float32.zero;power32(-k)]).
+ rewrite det2_safe by exact K.
+ destruct(power_zeros(2*k)ltac:(lia))as[_[_[_[_[DZ[DN _]]]]]].
+ rewrite DN;rewrite power_div by lia;replace(k-2*k)with(-k)by lia;reflexivity.
+Qed.
+Lemma output3_safe:forall k,-20<=k<=20 ->
+ map(D3.Output(Diag3(power32 k)))[0;1;2;3;4;5;6;7;8]=
+ [power32(-k);Float32.neg Float32.zero;Float32.zero;
+ Float32.neg Float32.zero;power32(-k);Float32.neg Float32.zero;
+ Float32.zero;Float32.neg Float32.zero;power32(-k)].
+Proof.
+ intros k K;destruct(minors_safe k K)as[M00[M10[M20[M01[M11[M21[M02[M12 M22]]]]]]]].
+From Stdlib Require Import ZArith.
+From compcert Require Import Integers Floats Values Csem Smallstep.
+From FiveSum3Proof Require Import SourceInvariant.
+
+Definition ResultBitsGoal : Prop := forall m t v mf,
+ star Csem.step sum3_ge
+   (sum3_start (Vsingle (Float32.of_bits (Int.repr 1266679808)))
+               (Vsingle (Float32.of_bits (Int.repr 1065353216)))
+               (Vsingle (Float32.of_bits (Int.repr 3414163456))) m)
+   t (Returnstate v Kstop mf) ->
+ exists f, v = Vsingle f /\ Float32.to_bits f = Int.zero.
+
+From Stdlib Require Import List ZArith.
+From compcert Require Import Coqlib Maps Integers Floats AST Values Memory Memdata Events Globalenvs Ctypes Cop Csyntax Csyntaxdefs Csem Smallstep.
+From FiveSum3Proof Require Import SourceInvariant.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+Definition bits_id : ident := 9001%positive.
+Definition bits_env (bb:block) : env := PTree.set bits_id (bb,tuint) empty_env.
+Definition bits_assertion : expr :=
+ Ebinop Oeq (Evalof (Evar bits_id tuint) tuint) (Eval (Vint Int.zero) tuint) tint.
+
+(** The two objects are the final two locals in main. All preceding locals and
+    arbitrary caller memory are included in m. Allocations precede both calls. *)
+Inductive HarnessPrefix (m:mem) (a b c:float32) : block -> block -> mem -> val -> Prop :=
+| harness_prefix : forall mr br mh bb t1 v1 m1 t2 v2 m2,
+ Mem.alloc m 0 4 = (mr,br) -> Mem.alloc mr 0 4 = (mh,bb) ->
+ star Csem.step sum3_ge (sum3_start (Vsingle a)(Vsingle b)(Vsingle c) mh) t1 (Returnstate v1 Kstop m1) ->
+ star Csem.step sum3_ge
+  (sum3_start (Vsingle(Float32.of_bits(Int.repr 1266679808)))
+   (Vsingle(Float32.of_bits(Int.repr 1065353216)))
+   (Vsingle(Float32.of_bits(Int.repr 3414163456))) m1) t2 (Returnstate v2 Kstop m2) ->
+ HarnessPrefix m a b c br bb m2 v2.
+
+(** CBMC's library uses internal pointer guards. Their portable memory-safety
+    content is object separation, live base/one-past pointers, and region
+    permissions; no C order is imposed between unrelated CompCert blocks. *)
+Record MemcpySafety (m:mem) (br bb:block) : Prop := {
+ memcpy_pointer_1 : br <> bb;
+ memcpy_pointer_arithmetic_1 : Mem.valid_pointer m br 0 = true;
+ memcpy_pointer_arithmetic_2 : Mem.weak_valid_pointer m bb 4 = true;
+ memcpy_pointer_2 : bb <> br;
+ memcpy_pointer_arithmetic_3 : Mem.valid_pointer m bb 0 = true;
+ memcpy_pointer_arithmetic_4 : Mem.weak_valid_pointer m br 4 = true;
+ main_precondition_instance_1 : br <> bb \/ 0+4 <= 0 \/ 0+4 <= 0;
+ main_precondition_instance_2 : Mem.range_perm m br 0 4 Cur Readable;
+ main_precondition_instance_3 : Mem.range_perm m bb 0 4 Cur Writable
+}.
+Definition ByteObservation (br bb:block) (m:mem) (v:val) : Prop :=
+ exists stored copied bytes,
+ Mem.store Mfloat32 m br 0 v = Some stored /\
+ MemcpySafety stored br bb /\
+ Mem.loadbytes stored br 0 4 = Some bytes /\
+ bytes = encode_val Mfloat32 v /\
+ extcall_memcpy_sem 4 1 (Genv.to_senv (Csem.genv_genv sum3_ge)) [Vptr bb Ptrofs.zero;Vptr br Ptrofs.zero] stored E0 Vundef copied /\
+ Mem.loadbytes copied bb 0 4 = Some bytes /\
+ Mem.load Mint32 copied bb 0 = Some(Vint Int.zero) /\
+ star Csem.step sum3_ge
+  (ExprState sum3_function bits_assertion Kstop (bits_env bb) copied) E0
+  (ExprState sum3_function (Eval (Vint Int.one) tint) Kstop (bits_env bb) copied).
+Definition FullHarnessGoal : Prop := forall m (a b c:float32) br bb mf v,
+ HarnessPrefix m a b c br bb mf v -> ByteObservation br bb mf v.

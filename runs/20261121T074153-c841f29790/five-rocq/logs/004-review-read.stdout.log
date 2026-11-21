@@ -1,0 +1,298 @@
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/cbmc_recheck/problem/Spec.v SHA256 9954c892d8d87c2e1b6232088d0cbdf86eb85d520abafce5474f4cb0f66bb7bc
+1: From Stdlib Require Import List String.
+2: From FiveMatInv3Case Require Import RecheckSupport Assertions.
+3: Import ListNotations.
+4: Local Open Scope string_scope.
+5: Inductive PropertyKind:=KSource|KCopy(kind:CopyKind)|KAssertion(n:nat).
+6: Definition Claim(k:PropertyKind):Prop:=match k with
+7:  |KSource=>SourceGuards|KCopy kind=>CopyClaim kind
+8:  |KAssertion n=>match n with 1=>Assert1|2=>Assert2|3=>Assert3|4=>Assert4|5=>Assert5|6=>Assert6|7=>Assert7|8=>Assert8|9=>Refutation9|10=>Refutation10|_=>False end end.
+9: Definition Ledger:list(string*PropertyKind):=[
+10:  ("float_mat_inv_3d.pointer_arithmetic.1",KSource);
+11:  ("float_mat_inv_3d.pointer_arithmetic.2",KSource);
+12:  ("float_mat_inv_3d.pointer_arithmetic.3",KSource);
+13:  ("float_mat_inv_3d.pointer_arithmetic.4",KSource);
+14:  ("float_mat_inv_3d.pointer_arithmetic.5",KSource);
+15:  ("float_mat_inv_3d.pointer_arithmetic.6",KSource);
+16:  ("float_mat_inv_3d.pointer_dereference.1",KSource);
+17:  ("float_mat_inv_3d.pointer_dereference.2",KSource);
+18:  ("float_mat_inv_3d.pointer_dereference.3",KSource);
+19:  ("float_mat_inv_3d.pointer_dereference.4",KSource);
+20:  ("float_mat_inv_3d.pointer_dereference.5",KSource);
+21:  ("float_mat_inv_3d.pointer_dereference.6",KSource);
+22:  ("float_mat_inv_3d.array_bounds.1",KSource);
+23:  ("float_mat_inv_3d.pointer_arithmetic.7",KSource);
+24:  ("float_mat_inv_3d.pointer_arithmetic.8",KSource);
+25:  ("float_mat_inv_3d.pointer_arithmetic.9",KSource);
+26:  ("float_mat_inv_3d.pointer_arithmetic.10",KSource);
+27:  ("float_mat_inv_3d.pointer_arithmetic.11",KSource);
+28:  ("float_mat_inv_3d.pointer_arithmetic.12",KSource);
+29:  ("float_mat_inv_3d.pointer_dereference.7",KSource);
+30:  ("float_mat_inv_3d.pointer_dereference.8",KSource);
+31:  ("float_mat_inv_3d.pointer_dereference.9",KSource);
+32:  ("float_mat_inv_3d.pointer_dereference.10",KSource);
+33:  ("float_mat_inv_3d.pointer_dereference.11",KSource);
+34:  ("float_mat_inv_3d.pointer_dereference.12",KSource);
+35:  ("float_mat_inv_3d.array_bounds.2",KSource);
+36:  ("float_mat_inv_3d.array_bounds.3",KSource);
+37:  ("float_mat_inv_3d.array_bounds.4",KSource);
+38:  ("float_mat_inv_3d.pointer_arithmetic.13",KSource);
+39:  ("float_mat_inv_3d.pointer_arithmetic.14",KSource);
+40:  ("float_mat_inv_3d.pointer_arithmetic.15",KSource);
+41:  ("float_mat_inv_3d.pointer_arithmetic.16",KSource);
+42:  ("float_mat_inv_3d.pointer_arithmetic.17",KSource);
+43:  ("float_mat_inv_3d.pointer_arithmetic.18",KSource);
+44:  ("float_mat_inv_3d.pointer_dereference.13",KSource);
+45:  ("float_mat_inv_3d.pointer_dereference.14",KSource);
+46:  ("float_mat_inv_3d.pointer_dereference.15",KSource);
+47:  ("float_mat_inv_3d.pointer_dereference.16",KSource);
+48:  ("float_mat_inv_3d.pointer_dereference.17",KSource);
+49:  ("float_mat_inv_3d.pointer_dereference.18",KSource);
+50:  ("float_mat_inv_3d.array_bounds.5",KSource);
+51:  ("float_mat_inv_3d.array_bounds.6",KSource);
+52:  ("float_mat_inv_3d.array_bounds.7",KSource);
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/cbmc_recheck/problem/Spec.v SHA256 ad7bd7b7fd160935385a9af54746cbc71dae58244efd70158a27ba91c23e3f3c
+320: (* Actual property: float_mat_inv_2d.pointer_dereference.71; SUCCESS. dereference failure: pointer outside object bounds in mat_in[(signed long int)0] *)
+321: Definition P143:Prop:=SourceGuards 0 false.
+322: (* Actual property: float_mat_inv_2d.pointer_dereference.72; SUCCESS. dereference failure: invalid integer address in mat_in[(signed long int)0] *)
+323: Definition P144:Prop:=SourceGuards 0 false.
+324: (* Actual property: main.assertion.1; SUCCESS. return status is boolean for arbitrary binary32 matrix *)
+325: Definition P145:Prop:=Assertion1.
+326: (* Actual property: main.assertion.2; SUCCESS. arbitrary matrix call preserves surrounding frame words *)
+327: Definition P146:Prop:=Assertion2.
+328: (* Actual property: memcpy.pointer_arithmetic.1; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )small_before + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+329: Definition P147:Prop:=CopyGuard 2%nat.
+330: (* Actual property: memcpy.pointer.1; SUCCESS. same object violation in (const unsigned char * )(const void * )small_out >= (const unsigned char * )(void * )small_before + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+331: Definition P148:Prop:=CopyGuard 0%nat.
+332: (* Actual property: memcpy.pointer_arithmetic.2; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )small_out *)
+333: Definition P149:Prop:=CopyGuard 1%nat.
+334: (* Actual property: memcpy.pointer_arithmetic.3; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+335: Definition P150:Prop:=CopyGuard 5%nat.
+336: (* Actual property: memcpy.pointer.2; SUCCESS. same object violation in (const unsigned char * )(void * )small_before >= (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+337: Definition P151:Prop:=CopyGuard 3%nat.
+338: (* Actual property: memcpy.pointer_arithmetic.4; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )small_before *)
+339: Definition P152:Prop:=CopyGuard 4%nat.
+340: (* Actual property: main.precondition_instance.1; SUCCESS. memcpy src/dst overlap *)
+341: Definition P153:Prop:=CopyGuard 6%nat.
+342: (* Actual property: main.precondition_instance.2; SUCCESS. memcpy source region readable *)
+343: Definition P154:Prop:=CopyGuard 7%nat.
+344: (* Actual property: main.precondition_instance.3; SUCCESS. memcpy destination region writeable *)
+345: Definition P155:Prop:=CopyGuard 8%nat.
+346: (* Actual property: memcpy.pointer_arithmetic.5; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )base_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+347: Definition P156:Prop:=CopyGuard 2%nat.
+348: (* Actual property: memcpy.pointer.3; SUCCESS. same object violation in (const unsigned char * )(const void * )base_out >= (const unsigned char * )(void * )base_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+349: Definition P157:Prop:=CopyGuard 0%nat.
+350: (* Actual property: memcpy.pointer_arithmetic.6; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )base_out *)
+351: Definition P158:Prop:=CopyGuard 1%nat.
+352: (* Actual property: memcpy.pointer_arithmetic.7; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )base_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+353: Definition P159:Prop:=CopyGuard 5%nat.
+354: (* Actual property: memcpy.pointer.4; SUCCESS. same object violation in (const unsigned char * )(void * )base_words >= (const unsigned char * )(const void * )base_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+355: Definition P160:Prop:=CopyGuard 3%nat.
+356: (* Actual property: memcpy.pointer_arithmetic.8; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )base_words *)
+357: Definition P161:Prop:=CopyGuard 4%nat.
+358: (* Actual property: main.precondition_instance.4; SUCCESS. memcpy src/dst overlap *)
+359: Definition P162:Prop:=CopyGuard 6%nat.
+360: (* Actual property: main.precondition_instance.5; SUCCESS. memcpy source region readable *)
+361: Definition P163:Prop:=CopyGuard 7%nat.
+362: (* Actual property: main.precondition_instance.6; SUCCESS. memcpy destination region writeable *)
+363: Definition P164:Prop:=CopyGuard 8%nat.
+364: (* Actual property: memcpy.pointer_arithmetic.9; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )small_after + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+365: Definition P165:Prop:=CopyGuard 2%nat.
+366: (* Actual property: memcpy.pointer.5; SUCCESS. same object violation in (const unsigned char * )(const void * )small_out >= (const unsigned char * )(void * )small_after + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+367: Definition P166:Prop:=CopyGuard 0%nat.
+368: (* Actual property: memcpy.pointer_arithmetic.10; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )small_out *)
+369: Definition P167:Prop:=CopyGuard 1%nat.
+370: (* Actual property: memcpy.pointer_arithmetic.11; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+371: Definition P168:Prop:=CopyGuard 5%nat.
+372: (* Actual property: memcpy.pointer.6; SUCCESS. same object violation in (const unsigned char * )(void * )small_after >= (const unsigned char * )(const void * )small_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+373: Definition P169:Prop:=CopyGuard 3%nat.
+374: (* Actual property: memcpy.pointer_arithmetic.12; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )small_after *)
+375: Definition P170:Prop:=CopyGuard 4%nat.
+376: (* Actual property: main.precondition_instance.7; SUCCESS. memcpy src/dst overlap *)
+377: Definition P171:Prop:=CopyGuard 6%nat.
+378: (* Actual property: main.precondition_instance.8; SUCCESS. memcpy source region readable *)
+379: Definition P172:Prop:=CopyGuard 7%nat.
+380: (* Actual property: main.precondition_instance.9; SUCCESS. memcpy destination region writeable *)
+381: Definition P173:Prop:=CopyGuard 8%nat.
+382: (* Actual property: memcpy.pointer_arithmetic.13; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(void * )large_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+383: Definition P174:Prop:=CopyGuard 2%nat.
+384: (* Actual property: memcpy.pointer.7; SUCCESS. same object violation in (const unsigned char * )(const void * )large_out >= (const unsigned char * )(void * )large_words + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+385: Definition P175:Prop:=CopyGuard 0%nat.
+386: (* Actual property: memcpy.pointer_arithmetic.14; SUCCESS. pointer relation: dead object in (const unsigned char * )(const void * )large_out *)
+387: Definition P176:Prop:=CopyGuard 1%nat.
+388: (* Actual property: memcpy.pointer_arithmetic.15; SUCCESS. pointer arithmetic: dead object in (const unsigned char * )(const void * )large_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+389: Definition P177:Prop:=CopyGuard 5%nat.
+390: (* Actual property: memcpy.pointer.8; SUCCESS. same object violation in (const unsigned char * )(void * )large_words >= (const unsigned char * )(const void * )large_out + (signed long int)sizeof(float [4l]) /*16ul*/  *)
+391: Definition P178:Prop:=CopyGuard 3%nat.
+392: (* Actual property: memcpy.pointer_arithmetic.16; SUCCESS. pointer relation: dead object in (const unsigned char * )(void * )large_words *)
+393: Definition P179:Prop:=CopyGuard 4%nat.
+394: (* Actual property: main.precondition_instance.10; SUCCESS. memcpy src/dst overlap *)
+395: Definition P180:Prop:=CopyGuard 6%nat.
+396: (* Actual property: main.precondition_instance.11; SUCCESS. memcpy source region readable *)
+397: Definition P181:Prop:=CopyGuard 7%nat.
+398: (* Actual property: main.precondition_instance.12; SUCCESS. memcpy destination region writeable *)
+399: Definition P182:Prop:=CopyGuard 8%nat.
+400: (* Actual property: main.assertion.3; SUCCESS. identity call succeeds *)
+401: Definition P183:Prop:=CaseStatus base2(Vint Int.zero).
+402: (* Actual property: main.assertion.4; SUCCESS. identity exact signedzero output bits *)
+403: Definition P184:Prop:=CaseWords base2[1065353216;2147483648;2147483648;1065353216].
+404: (* Actual property: main.assertion.5; SUCCESS. small conditionone diagonal call rejects *)
+405: Definition P185:Prop:=CaseStatus small2(Vint Int.one).
+406: (* Actual property: main.assertion.6; SUCCESS. rejected call preserves every output byte *)
+407: Definition P186:Prop:=CasePreserves small2.
+408: (* Actual property: main.assertion.7; SUCCESS. finite large diagonal call reports success *)
+409: Definition P187:Prop:=CaseStatus large2(Vint Int.zero).
+410: (* Actual property: main.assertion.8; SUCCESS. overflow determinant exact signedzero output bits *)
+411: Definition P188:Prop:=CaseWords large2[0;2147483648;2147483648;0].
+412: (* Actual property: main.assertion.9; FAILURE. positive scaling preserves inverse status *)
+413: Definition P189:Prop:=OriginalReplay /\ Result base2<>Result small2 /\ TraceNonempty.
+414: (* Actual property: main.assertion.10; FAILURE. successful wellconditioned inverse has residual component below half *)
+415: Definition P190:Prop:=OriginalReplay /\ Result large2=Vint Int.zero /\ SmallResidual(residual2 large2)=false /\ Float32.to_bits(residual2 large2)=Int.repr 3212836864 /\ TraceNonempty.
+
+FILE paparazzi/models/float_mat_inv_2d/rocq/support/ExactReplay.v SHA256 59fc26062ca97af130a499d30174eed240e188b2137fe93914d09bb7a05f42d3
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Integers Floats AST Values Memory Events Csem Smallstep.
+3: From FiveGuidanceEntry Require Import StackCleanup.
+4: From FiveMatInv3Case Require Import MatrixMemory GuardWitness PairExtend.
+5: From FiveInv2Case Require Import Contract Replay TraceInputs.
+6: From FiveMatrixInverseSupport Require Import Kernels.
+7: Import ListNotations.
+8: Local Open Scope Z_scope.
+9: Lemma extension_reads:forall m0 m,LoadPreserved m0 m->forall b p n f,0<n->Reads m0 b p n f->Reads m b p n f.
+10: Proof. intros m0 m KEEP b p n f N RD;pose proof(reads_valid m0 b p n f N RD)as V;destruct RD as[AL[NW L]];repeat split;auto;intros i B;rewrite KEEP by exact V;apply L;exact B. Qed.
+11: Lemma extension_writable:forall m0 m,AccessPreserved m0 m->forall b p n,WriteRegion m0 b p n->WriteRegion m b p n.
+12: Proof. intros m0 m KEEP b p n[AL[NW RP]];split;[exact AL|];split;[exact NW|];eapply range_perm_access_preserved_block;[intros ch ofs perm VA;exact(KEEP ch b ofs perm VA)|exact RP]. Qed.
+13: Lemma extension_inputs:forall m0 m,LoadPreserved m0 m->AccessPreserved m0 m->forall bo bi po pi f,Inputs m0 bo bi po pi f->Inputs m bo bi po pi f.
+14: Proof. intros m0 m L A bo bi po pi f[NE[W RD]];split;[exact NE|];split;[eapply extension_writable;eauto|eapply extension_reads;eauto;lia]. Qed.
+15: Lemma extension_guarded:forall m0 m,LoadPreserved m0 m->AccessPreserved m0 m->forall bo bi f,Guarded 4 m0 bo bi f->Guarded 4 m bo bi f.
+16: Proof. intros m0 m L A bo bi f[NE[W[RD[OLD[BE AF]]]]].
+17:  pose proof(writable_valid m0 bo(Ptrofs.repr 4)4 ltac:(lia)W)as V.
+18:  split;[exact NE|];split;[eapply extension_writable;eauto|];split;[eapply extension_reads;eauto;lia|];split;[eapply extension_reads;eauto;lia|].
+19:  split;[rewrite L by exact V;exact BE|rewrite L by exact V;exact AF]. Qed.
+20: Definition InitializedLayout(m:mem)(og ig ob ib os is0 ol il:block):Prop:=
+21:  Guarded 4 m og ig trace_input /\Inputs m ob ib Ptrofs.zero Ptrofs.zero base2 /\Inputs m os is0 Ptrofs.zero Ptrofs.zero small2 /\Inputs m ol il Ptrofs.zero Ptrofs.zero large2 /\
+22:  Reads m ob Ptrofs.zero 4 initial_fixture /\Reads m os Ptrofs.zero 4 initial_fixture /\Reads m ol Ptrofs.zero 4 initial_fixture /\Separate og ig ob ib os is0 ol il.
+23: Theorem initialized_layout_inhabited:exists m og ig ob ib os is0 ol il,InitializedLayout m og ig ob ib os is0 ol il.
+24: Proof.
+25:  destruct(matrix4_guarded trace_input)as[m0[og[ig GG]]].
+26:  pose proof GG as[NG[WG[RG RESTG]]].
+27:  pose proof(writable_valid m0 og(Ptrofs.repr 4)4 ltac:(lia)WG)as VG0.
+28:  destruct(pair4_extend m0 base2 initial_fixture)as[m1[ob[ib[NB[WB[RB[OB[FOB[FIB[B1[L1[A1 V1]]]]]]]]]]]].
+29:  assert(IB1:Inputs m1 ob ib Ptrofs.zero Ptrofs.zero base2)by(split;[exact NB|];split;[exact WB|exact RB]).
+30:  pose proof(writable_valid m1 ob Ptrofs.zero 4 ltac:(lia)WB)as VB1.
+31:  pose proof(V1 og VG0)as VG1.
+32:  destruct(pair4_extend m1 small2 initial_fixture)as[m2[os[is0[NS[WS[RS[OS[FOS[FIS[B2[L2[A2 V2]]]]]]]]]]]].
+33:  assert(IS2:Inputs m2 os is0 Ptrofs.zero Ptrofs.zero small2)by(split;[exact NS|];split;[exact WS|exact RS]).
+34:  pose proof(writable_valid m2 os Ptrofs.zero 4 ltac:(lia)WS)as VS2.
+35:  pose proof(V2 og VG1)as VG2;pose proof(V2 ob VB1)as VB2.
+36:  destruct(pair4_extend m2 large2 initial_fixture)as[m3[ol[il[NL[WL[RL[OL[FOL[FIL[B3[L3[A3 V3]]]]]]]]]]]].
+37:  assert(IL3:Inputs m3 ol il Ptrofs.zero Ptrofs.zero large2)by(split;[exact NL|];split;[exact WL|exact RL]).
+38:  exists m3,og,ig,ob,ib,os,is0,ol,il;unfold InitializedLayout;split.
+39:  - eapply extension_guarded;[exact L3|exact A3|];eapply extension_guarded;[exact L2|exact A2|];eapply extension_guarded;eauto.
+40:  - split.
+41:  + eapply extension_inputs;[exact L3|exact A3|];eapply extension_inputs;eauto.
+42:  + split.
+43:  * eapply extension_inputs;eauto.
+44:  * split;[exact IL3|];split.
+45:  -- eapply extension_reads;[exact L3|lia|];eapply extension_reads;eauto;lia.
+46:  -- split;[eapply extension_reads;eauto;lia|];split;[exact OL|].
+47:  constructor;intro EQ;subst;first[exact(FOB VG0)|exact(FIB VG0)|exact(FOS VG1)|exact(FIS VG1)|exact(FOL VG2)|exact(FIL VG2)|exact(FOS VB1)|exact(FIS VB1)|exact(FOL VB2)|exact(FIL VB2)|exact(FOL VS2)|exact(FIL VS2)].
+48: Qed.
+49: Definition TraceNonempty:Prop:=exists m og ig ob ib os is0 ol il ma mb mc md,
+50:  InitializedLayout m og ig ob ib os is0 ol il /\
+51:  NormalCall m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input ma/\Post m ma og ig(Ptrofs.repr 4)Ptrofs.zero trace_input/\
+52:  NormalCall ma ob ib Ptrofs.zero Ptrofs.zero base2 mb/\Post ma mb ob ib Ptrofs.zero Ptrofs.zero base2/\
+53:  NormalCall mb os is0 Ptrofs.zero Ptrofs.zero small2 mc/\Post mb mc os is0 Ptrofs.zero Ptrofs.zero small2/\
+54:  NormalCall mc ol il Ptrofs.zero Ptrofs.zero large2 md/\Post mc md ol il Ptrofs.zero Ptrofs.zero large2.
+55: Theorem original_trace_nonempty:TraceNonempty.
+56: Proof. destruct initialized_layout_inhabited as[m[og[ig[ob[ib[os[is0[ol[il LAYOUT]]]]]]]]].
+57:  pose proof LAYOUT as[GG[IB[IS[IL[OB[OS[OL SEP]]]]]]].
+58:  pose proof GG as[NE[W[RD OTHER]]];assert(IG:Inputs m og ig(Ptrofs.repr 4)Ptrofs.zero trace_input)by(split;[exact NE|];split;[exact W|exact RD]).
+59:  destruct(original_trace_four_calls m og ig ob ib os is0 ol il IG IB IS IL SEP)as[ma[mb[mc[md CALLS]]]].
+60:  exists m,og,ig,ob,ib,os,is0,ol,il,ma,mb,mc,md;split;assumption. Qed.
+61: Print Assumptions initialized_layout_inhabited.
+62: Print Assumptions original_trace_nonempty.
+
+FILE paparazzi/models/float_mat_inv_3d/rocq/support/Assertions.v SHA256 a2587412ab50847ec43f5f228a11d677f31f83885a14fde444a01ad07312536a
+1: From Stdlib Require Import List ZArith Lia.
+2: From compcert Require Import Integers Floats AST Values Memory Memdata Events Csem Smallstep.
+3: From FivePprzFloatMatInv3d Require Import Execution.
+4: From FiveMatInv3Case Require Import Contract Scalar Observer RecheckSupport TraceInputs SequentialReplay.
+5: From FiveMatrixInverseSupport Require Import Kernels.
+6: Require FiveMatInv3Functional.Spec FiveMatInv3Functional.Proof.
+7: Import ListNotations.
+8: Local Open Scope Z_scope.
+9: Definition BaseWords:list Z:=[1065353216;2147483648;0;2147483648;1065353216;2147483648;0;2147483648;1065353216].
+10: Definition LargeWords:list Z:=[0;2147483648;0;2147483648;0;2147483648;0;2147483648;0].
+11: Definition WordBridge:Prop:=forall m src dst mf bytes f,
+12:  Mem.loadbytes m src 0 36=Some bytes->Mem.storebytes m dst 0 bytes=Some mf->
+13:  (forall i,0<=i<9->Mem.loadbytes m src(4*i)4=Some(encode_val Mfloat32(Vsingle(f i))))->
+14:  forall i,0<=i<9->Mem.load Mint32 mf dst(4*i)=Some(Vint(Float32.to_bits(f i))).
+15: Lemma word_bridge:WordBridge.
+16: Proof. exact memcpy_word_observation. Qed.
+17: Definition Assert1:Prop:=forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->forall t v mf,
+18:  star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate v Kstop mf)->v=Vint Int.zero \/v=Vint Int.one.
+19: Lemma assertion1:Assert1.
+20: Proof. intros m bo bi po pi f NE W RD t v mf PATH;destruct(FiveMatInv3Functional.Proof.all_normal_observations m bo bi po pi f NE W RD t v mf PATH)as[-> POST];unfold Status;destruct(Accept f);auto. Qed.
+21: Definition Assert2:Prop:=forall m bo bi po pi f,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 f->forall t v mf,
+22:  star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate v Kstop mf)->
+23:  Mem.loadbytes mf bo(Ptrofs.unsigned po-4)4=Mem.loadbytes m bo(Ptrofs.unsigned po-4)4 /\
+24:  Mem.loadbytes mf bo(Ptrofs.unsigned po+36)4=Mem.loadbytes m bo(Ptrofs.unsigned po+36)4.
+25: Lemma assertion2:Assert2.
+26: Proof. intros m bo bi po pi f NE W RD t v mf PATH;destruct(FiveMatInv3Functional.Proof.all_normal_observations m bo bi po pi f NE W RD t v mf PATH)as[V[BYTES[FR REST]]].
+27:  split;apply FR;try exact(writable_valid m bo po 9 ltac:(lia)W);[right;left|right;right];lia. Qed.
+28: Definition Assert3:=FixedOutcome base3(Vint Int.zero).
+29: Lemma assertion3:Assert3.
+30: Proof. apply fixed_outcome;exact(proj1 base3_kernel). Qed.
+31: Definition Assert4:Prop:=Assert3 /\words3 base3=map Int.repr BaseWords /\WordBridge.
+32: Lemma assertion4:Assert4.
+33: Proof. split;[exact assertion3|];split;[exact(proj2(proj2 base3_kernel))|exact word_bridge]. Qed.
+34: Definition Assert5:=FixedOutcome small3(Vint Int.one).
+35: Lemma assertion5:Assert5.
+36: Proof. apply fixed_outcome;exact(proj1 small3_kernel). Qed.
+37: Lemma small_rejects:Accept small3=false.
+38: Proof. pose proof(proj1 small3_kernel)as H;unfold Status in H;destruct(Accept small3);[discriminate|reflexivity]. Qed.
+39: Definition Assert6:Prop:=(forall m bo bi po pi,bo<>bi->WriteRegion m bo po 9->Reads m bi pi 9 small3->forall t v mf,
+40:  star Csem.step Execution.ge(Execution.entry(Args bo bi po pi)m)t(Returnstate v Kstop mf)->
+41:  Mem.loadbytes mf bo(Ptrofs.unsigned po)36=Mem.loadbytes m bo(Ptrofs.unsigned po)36) /\
+42:  (forall m1 b1 m2 b2 bytes z,Mem.loadbytes m1 b1 0 36=Some bytes->Mem.loadbytes m2 b2 0 36=Some bytes->0<=z->z+4<=36->Mem.loadbytes m1 b1 z 4=Mem.loadbytes m2 b2 z 4).
+43: Lemma assertion6:Assert6.
+44: Proof. split;[|exact same_bytes_cell].
+45:  intros m bo bi po pi NE W RD t v mf PATH;destruct(FiveMatInv3Functional.Proof.all_normal_observations m bo bi po pi small3 NE W RD t v mf PATH)as[V[BYTES REST]].
+46:  unfold OutputBytes in BYTES;rewrite small_rejects in BYTES;exact BYTES. Qed.
+47: Definition Assert7:=FixedOutcome large3(Vint Int.zero).
+48: Lemma assertion7:Assert7.
+49: Proof. apply fixed_outcome;exact(proj1 large3_kernel). Qed.
+50: Definition Assert8:Prop:=Assert7 /\words3 large3=map Int.repr LargeWords /\WordBridge.
+51: Lemma assertion8:Assert8.
+52: Proof. split;[exact assertion7|];split;[exact(proj2(proj2 large3_kernel))|exact word_bridge]. Qed.
+53: Definition OriginalReplay:Prop:=CallReplay arbitrary_0 OldArbitrary(Vint Int.one) /\CallReplay arbitrary_1 OldArbitrary(Vint Int.one) /\
+54:  CallReplay base3 OldFixed(Vint Int.zero) /\CallReplay small3 OldFixed(Vint Int.one) /\CallReplay large3 OldFixed(Vint Int.zero).
+55: Definition Refutation9:Prop:=(NonvacuousReplay arbitrary_0 /\NonvacuousReplay arbitrary_1) /\OriginalReplay /\Status base3<>Status small3 /\Assert3 /\Assert5.
+56: Lemma refutation9:Refutation9.
+57: Proof. split;[exact both_original_traces_replayed|];split;[exact original_calls_replay|];split;[exact RefuteScaleStatus3|];split;[exact assertion3|exact assertion5]. Qed.
+58: Definition Refutation10:Prop:=(NonvacuousReplay arbitrary_0 /\NonvacuousReplay arbitrary_1) /\OriginalReplay /\Status large3=Vint Int.zero /\Float32.to_bits(residual3 large3)=Int.repr 3212836864 /\SmallResidual(residual3 large3)=false /\Assert8.
+59: Lemma refutation10:Refutation10.
+60: Proof. split;[exact both_original_traces_replayed|];split;[exact original_calls_replay|];split;[exact(proj1 RefuteLargeResidual3)|];split;[exact large3_residual|];split;[exact(proj2 RefuteLargeResidual3)|exact assertion8]. Qed.
+61: Lemma original_base_input_bits:map(fun i=>Float32.to_bits(base3 i))[0;1;2;3;4;5;6;7;8]=map Int.repr[1065353216;0;0;0;1065353216;0;0;0;1065353216].
+62: Proof. vm_compute;reflexivity. Qed.
+63: Lemma original_small_input_bits:map(fun i=>Float32.to_bits(small3 i))[0;1;2;3;4;5;6;7;8]=map Int.repr[998244352;0;0;0;998244352;0;0;0;998244352].
+64: Proof. vm_compute;reflexivity. Qed.
+65: Lemma original_large_input_bits:map(fun i=>Float32.to_bits(large3 i))[0;1;2;3;4;5;6;7;8]=map Int.repr[1484783616;0;0;0;1484783616;0;0;0;1484783616].
+66: Proof. vm_compute;reflexivity. Qed.
+67: Lemma original_fixed_old_bits:map(fun i=>Float32.to_bits(OldFixed i))[0;1;2;3;4;5;6;7;8]=map Int.repr[1099431936;0;0;0;1099431936;0;0;0;1099431936].
+68: Proof. vm_compute;reflexivity. Qed.
+69: Print Assumptions refutation9.
+70: Print Assumptions refutation10.
+71: Lemma original_trace_0_base3_write_prefix:map(fun ix=>(fst ix,Float32.to_bits(snd ix)))(Outputs base3)=[(0,Int.repr 1065353216);(3,Int.repr 2147483648);(6,Int.repr 0);(1,Int.repr 2147483648);(4,Int.repr 1065353216);(7,Int.repr 2147483648);(2,Int.repr 0);(5,Int.repr 2147483648);(8,Int.repr 1065353216)].
+72: Proof. vm_compute;reflexivity. Qed.
+73: Lemma original_trace_0_large3_write_prefix:map(fun ix=>(fst ix,Float32.to_bits(snd ix)))(Outputs large3)=[(0,Int.repr 0);(3,Int.repr 2147483648);(6,Int.repr 0);(1,Int.repr 2147483648);(4,Int.repr 0);(7,Int.repr 2147483648);(2,Int.repr 0);(5,Int.repr 2147483648);(8,Int.repr 0)].
+74: Proof. vm_compute;reflexivity. Qed.
+75: Lemma original_trace_1_base3_write_prefix:map(fun ix=>(fst ix,Float32.to_bits(snd ix)))(Outputs base3)=[(0,Int.repr 1065353216);(3,Int.repr 2147483648);(6,Int.repr 0);(1,Int.repr 2147483648);(4,Int.repr 1065353216);(7,Int.repr 2147483648);(2,Int.repr 0);(5,Int.repr 2147483648);(8,Int.repr 1065353216)].
+76: Proof. vm_compute;reflexivity. Qed.
+77: Lemma original_trace_1_large3_write_prefix:map(fun ix=>(fst ix,Float32.to_bits(snd ix)))(Outputs large3)=[(0,Int.repr 0);(3,Int.repr 2147483648);(6,Int.repr 0);(1,Int.repr 2147483648);(4,Int.repr 0);(7,Int.repr 2147483648);(2,Int.repr 0);(5,Int.repr 2147483648);(8,Int.repr 0)].
+78: Proof. vm_compute;reflexivity. Qed.
+79: Print Assumptions refutation9.
+80: Print Assumptions refutation10.

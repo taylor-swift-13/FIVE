@@ -1,0 +1,35 @@
+1678:Theorem valid_block_alloc:
+1685:Theorem fresh_block_alloc:
+1697:Local Hint Resolve valid_block_alloc fresh_block_alloc valid_new_block: mem.
+1699:Theorem valid_block_alloc_inv:
+1749:Theorem valid_access_alloc_other:
+1758:Theorem valid_access_alloc_same:
+1767:Local Hint Resolve valid_access_alloc_other valid_access_alloc_same: mem.
+1769:Theorem valid_access_alloc_inv:
+1788:Theorem load_alloc_unchanged:
+1795:  exploit valid_access_alloc_inv; eauto. destruct (eq_block b' b); intros.
+1804:Theorem load_alloc_other:
+1809:  intros. rewrite <- H. apply load_alloc_unchanged. eauto with mem.
+1812:Theorem load_alloc_same:
+1823:Theorem load_alloc_same':
+1832:  eapply load_alloc_same; eauto.
+1835:Theorem loadbytes_alloc_unchanged:
+1850:Theorem loadbytes_alloc_same:
+1865:Local Hint Resolve valid_block_alloc fresh_block_alloc valid_new_block: mem.
+1866:Local Hint Resolve valid_access_alloc_other valid_access_alloc_same: mem.
+3764:  subst b0. eelim fresh_block_alloc; eauto.
+3857:      elim (fresh_block_alloc _ _ _ _ _ ALLOC). eauto with mem.
+3861:      elim (fresh_block_alloc _ _ _ _ _ ALLOC).
+3866:      elim (fresh_block_alloc _ _ _ _ _ ALLOC). eauto with mem.
+4603:Global Opaque Mem.alloc Mem.free Mem.store Mem.load Mem.storebytes Mem.loadbytes.
+4641:  Mem.valid_block_alloc
+4642:  Mem.fresh_block_alloc
+4649:  Mem.valid_access_alloc_other
+4650:  Mem.valid_access_alloc_same
+4651:  Mem.valid_access_alloc_inv
+6:Lemma atomic_assign_flat: forall ge e m l r ty,
+13:Lemma assignop_data: forall ge e m op l r tr ty v mf,
+31:Lemma assignop_immediate: forall ge e m op l r tr ty v mf,
+58:Lemma atomic_not_stuck: forall ge e m a v mf,
+93:Lemma atomic_defined_estep: forall ge f a k e m t next v mf,
+106:Theorem all_order_atomic_expression: forall ge f a k e m t next v mf,

@@ -1,0 +1,167 @@
+  | Eaddrof l _ => simple l
+  | Eunop _ r1 _ => simple r1
+  | Ebinop _ r1 r2 _ => simple r1 && simple r2
+  | Ecast r1 _ => simple r1
+  | Eseqand _ _ _ => false
+  | Eseqor _ _ _ => false
+  | Econdition _ _ _ _ => false
+  | Esizeof _ _ => true
+  | Ealignof _ _ => true
+  | Eassign _ _ _ => false
+  | Eassignop _ _ _ _ _ => false
+  | Epostincr _ _ _ => false
+  | Ecomma _ _ _ => false
+  | Ecall _ _ _ => false
+  | Ebuiltin _ _ _ _ => false
+  | Eparen _ _ _ => false
+  end.
+
+Fixpoint simplelist (rl: exprlist) : bool :=
+  match rl with Enil => true | Econs r rl' => simple r && simplelist rl' end.
+
+(** Simple expressions have interesting properties: their evaluations always
+  terminate, are deterministic, and preserve the memory state.
+  We seize this opportunity to define a big-step semantics for simple
+  expressions. *)
+
+Section SIMPLE_EXPRS.
+
+Variable e: env.
+Variable m: mem.
+
+Inductive eval_simple_lvalue: expr -> block -> ptrofs -> bitfield -> Prop :=
+  | esl_loc: forall b ofs ty bf,
+      eval_simple_lvalue (Eloc b ofs bf ty) b ofs bf
+  | esl_var_local: forall x ty b,
+      e!x = Some(b, ty) ->
+      eval_simple_lvalue (Evar x ty) b Ptrofs.zero Full
+  | esl_var_global: forall x ty b,
+      e!x = None ->
+      Genv.find_symbol ge x = Some b ->
+      eval_simple_lvalue (Evar x ty) b Ptrofs.zero Full
+  | esl_deref: forall r ty b ofs,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      eval_simple_lvalue (Ederef r ty) b ofs Full
+  | esl_field_struct: forall r f ty b ofs id co a delta bf,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      typeof r = Tstruct id a ->
+      ge.(genv_cenv)!id = Some co ->
+      field_offset ge f (co_members co) = OK (delta, bf) ->
+      eval_simple_lvalue (Efield r f ty) b (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+  | esl_field_union: forall r f ty b ofs id co a delta bf,
+      eval_simple_rvalue r (Vptr b ofs) ->
+      typeof r = Tunion id a ->
+      union_field_offset ge f (co_members co) = OK (delta, bf) ->
+      ge.(genv_cenv)!id = Some co ->
+      eval_simple_lvalue (Efield r f ty) b (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+
+with eval_simple_rvalue: expr -> val -> Prop :=
+  | esr_val: forall v ty,
+      eval_simple_rvalue (Eval v ty) v
+  | esr_rvalof: forall b ofs bf l ty v,
+      eval_simple_lvalue l b ofs bf ->
+      ty = typeof l -> type_is_volatile ty = false ->
+      deref_loc ge ty m b ofs bf E0 v ->
+      eval_simple_rvalue (Evalof l ty) v
+  | esr_addrof: forall b ofs l ty,
+      eval_simple_lvalue l b ofs Full ->
+      eval_simple_rvalue (Eaddrof l ty) (Vptr b ofs)
+  | esr_unop: forall op r1 ty v1 v,
+      eval_simple_rvalue r1 v1 ->
+      sem_unary_operation op v1 (typeof r1) m = Some v ->
+      eval_simple_rvalue (Eunop op r1 ty) v
+  | esr_binop: forall op r1 r2 ty v1 v2 v,
+      eval_simple_rvalue r1 v1 -> eval_simple_rvalue r2 v2 ->
+      sem_binary_operation ge op v1 (typeof r1) v2 (typeof r2) m = Some v ->
+      eval_simple_rvalue (Ebinop op r1 r2 ty) v
+  | esr_cast: forall ty r1 v1 v,
+      eval_simple_rvalue r1 v1 ->
+      sem_cast v1 (typeof r1) ty m = Some v ->
+      eval_simple_rvalue (Ecast r1 ty) v
+  | esr_sizeof: forall ty1 ty,
+      eval_simple_rvalue (Esizeof ty1 ty) (Vptrofs (Ptrofs.repr (sizeof ge ty1)))
+  | esr_alignof: forall ty1 ty,
+      eval_simple_rvalue (Ealignof ty1 ty) (Vptrofs (Ptrofs.repr (alignof ge ty1))).
+
+Inductive eval_simple_list: exprlist -> list type -> list val -> Prop :=
+  | esrl_nil:
+      eval_simple_list Enil nil nil
+  | esrl_cons: forall r rl ty tyl v vl v',
+      eval_simple_rvalue r v' -> sem_cast v' (typeof r) ty m = Some v ->
+      eval_simple_list rl tyl vl ->
+      eval_simple_list (Econs r rl) (ty :: tyl) (v :: vl).
+
+Scheme eval_simple_rvalue_ind2 := Minimality for eval_simple_rvalue Sort Prop
+  with eval_simple_lvalue_ind2 := Minimality for eval_simple_lvalue Sort Prop.
+Combined Scheme eval_simple_rvalue_lvalue_ind from eval_simple_rvalue_ind2, eval_simple_lvalue_ind2.
+
+End SIMPLE_EXPRS.
+
+(** Left reduction contexts. These contexts allow reducing to the right
+  of a binary operator only if the left subexpression is simple. *)
+
+Inductive leftcontext: kind -> kind -> (expr -> expr) -> Prop :=
+  | lctx_top: forall k,
+      leftcontext k k (fun x => x)
+  | lctx_deref: forall k C ty,
+      leftcontext k RV C -> leftcontext k LV (fun x => Ederef (C x) ty)
+  | lctx_field: forall k C f ty,
+      leftcontext k RV C -> leftcontext k LV (fun x => Efield (C x) f ty)
+  | lctx_rvalof: forall k C ty,
+      leftcontext k LV C -> leftcontext k RV (fun x => Evalof (C x) ty)
+  of type [ty] residing in memory [m] at block [b], offset [ofs],
+  and bitfield designation [bf].
+  If the type [ty] indicates an access by value, the corresponding
+  memory load is performed.  If the type [ty] indicates an access by
+  reference, the pointer [Vptr b ofs] is returned.  [v] is the value
+  returned, and [t] the trace of observables (nonempty if this is
+  a volatile access). *)
+
+Inductive deref_loc (ty: type) (m: mem) (b: block) (ofs: ptrofs) :
+                                       bitfield -> trace -> val -> Prop :=
+  | deref_loc_value: forall chunk v,
+      access_mode ty = By_value chunk ->
+      type_is_volatile ty = false ->
+      Mem.loadv chunk m (Vptr b ofs) = Some v ->
+      deref_loc ty m b ofs Full E0 v
+  | deref_loc_volatile: forall chunk t v,
+      access_mode ty = By_value chunk -> type_is_volatile ty = true ->
+      volatile_load ge chunk m b ofs t v ->
+      deref_loc ty m b ofs Full t v
+  | deref_loc_reference:
+      access_mode ty = By_reference ->
+      deref_loc ty m b ofs Full E0 (Vptr b ofs)
+  | deref_loc_copy:
+      access_mode ty = By_copy ->
+      deref_loc ty m b ofs Full E0 (Vptr b ofs)
+  | deref_loc_bitfield: forall sz sg pos width v,
+      load_bitfield ty sz sg pos width m (Vptr b ofs) v ->
+      deref_loc ty m b ofs (Bits sz sg pos width) E0 v.
+
+(** Symmetrically, [assign_loc ty m b ofs bf v t m' v'] returns the
+  memory state after storing the value [v] in the datum
+  of type [ty] residing in memory [m] at block [b], offset [ofs],
+  and bitfield designation [bf].
+  This is allowed only if [ty] indicates an access by value or by copy.
+  [m'] is the updated memory state and [t] the trace of observables
+  (nonempty if this is a volatile store).
+  [v'] is the result value of the assignment.  It is equal to [v]
+  if [bf] is [Full], and to [v] normalized to the width and signedness
+  of the bitfield [bf] otherwise.
+*)
+
+Inductive assign_loc (ty: type) (m: mem) (b: block) (ofs: ptrofs):
+                              bitfield -> val -> trace -> mem -> val -> Prop :=
+  | assign_loc_value: forall v chunk m',
+      access_mode ty = By_value chunk ->
+      type_is_volatile ty = false ->
+      Mem.storev chunk m (Vptr b ofs) v = Some m' ->
+      assign_loc ty m b ofs Full v E0 m' v
+  | assign_loc_volatile: forall v chunk t m',
+      access_mode ty = By_value chunk -> type_is_volatile ty = true ->
+      volatile_store ge chunk m b ofs v t m' ->
+      assign_loc ty m b ofs Full v t m' v
+  | assign_loc_copy: forall b' ofs' bytes m',
+      access_mode ty = By_copy ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs') ->
+      (alignof_blockcopy ge ty | Ptrofs.unsigned ofs) ->

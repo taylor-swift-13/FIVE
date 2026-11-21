@@ -1,0 +1,29 @@
+376:Lemma context_compose:
+377-  forall k2 k3 C2, context k2 k3 C2 ->
+378-  forall k1 C1, context k1 k2 C1 ->
+379-  context k1 k3 (fun x => C2(C1 x))
+380-with contextlist_compose:
+381-  forall k2 C2, contextlist k2 C2 ->
+382-  forall k1 C1, context k1 k2 C1 ->
+383-  contextlist k1 (fun x => C2(C1 x)).
+384-Proof.
+629:Definition sizeof_struct (env: composite_env) (m: members) : Z :=
+630-  bytes_of_bits (bitsizeof_struct env 0 m).
+631-
+632-(** The size of an union is the max of the sizes of its members. *)
+633-
+634-Fixpoint sizeof_union (env: composite_env) (ms: members) : Z :=
+635-  match ms with
+636-  | nil => 0
+637-  | m :: ms => Z.max (sizeof env (type_member m)) (sizeof_union env ms)
+638-  end.
+639-
+640-(** Some properties *)
+641-
+642-Lemma alignof_composite_two_p:
+643-  forall env m, exists n, alignof_composite env m = two_power_nat n.
+644-Proof.
+--
+1119:Definition sizeof_composite (env: composite_env) (su: struct_or_union) (m: members) : Z :=
+1120-  match su with
+1121-  | Struct => sizeof_struct env m
